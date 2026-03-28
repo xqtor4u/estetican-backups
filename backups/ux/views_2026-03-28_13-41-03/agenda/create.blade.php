@@ -1,0 +1,167 @@
+@extends('layouts.app')
+
+@php($breadcrumbs = $page['breadcrumbs'])
+@php($defaultScheduledAt = old('scheduled_at', now()->addHour()->format('Y-m-d\TH:i')))
+
+@section('content')
+<x-page-header
+    :eyebrow="$page['header']['eyebrow']"
+    :title="$page['header']['title']"
+    :subtitle="$page['header']['subtitle']"
+>
+    <x-slot:actions>
+        <a href="{{ route('agenda.index') }}" class="btn btn-outline-dark">Abrir agenda</a>
+        <a href="{{ $isRootView ? route('pets.show', ['pet' => $pet, 'view' => $returnViewMode]) : route('clients.pets.show', [$client, $pet]) }}" class="btn btn-outline-secondary">Volver a mascota</a>
+    </x-slot:actions>
+</x-page-header>
+
+<div class="catalog-content-wide">
+    <section class="catalog-overview mb-4">
+        <div class="catalog-overview__grid">
+            <article class="catalog-overview-card catalog-overview-card--primary">
+                <span class="catalog-overview-card__eyebrow">Mascota objetivo</span>
+                <div class="catalog-overview-card__value-sm">{{ $pet->name }}</div>
+                <p class="catalog-overview-card__text">{{ $pet->species_label ?: 'Perfil sin especie' }} @if($pet->breed) · {{ $pet->breed }} @endif</p>
+            </article>
+            <article class="catalog-overview-card">
+                <span class="catalog-overview-card__eyebrow">Cliente</span>
+                <div class="catalog-overview-card__value-sm">{{ trim($client->first_name . ' ' . $client->last_name) }}</div>
+                <div class="catalog-overview-card__label">contexto raíz de la programación</div>
+            </article>
+            <article class="catalog-overview-card">
+                <span class="catalog-overview-card__eyebrow">Próximas sesiones</span>
+                <div class="catalog-overview-card__value-sm">{{ $upcomingBookings->count() }}</div>
+                <div class="catalog-overview-card__label">programadas para esta mascota</div>
+            </article>
+        </div>
+    </section>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-4">
+                <div>
+                    <div class="text-uppercase small text-body-secondary fw-semibold mb-1">Programación</div>
+                    <h2 class="h4 mb-2">Nueva sesión</h2>
+                    <p class="text-body-secondary mb-0">La programación congela precio sugerido y mantiene contexto de mascota, cliente y catálogo base sin saltar a una pantalla aislada.</p>
+                </div>
+                <span class="badge rounded-pill text-bg-light border">Módulo inicial</span>
+            </div>
+
+            <form action="{{ $isRootView ? route('pets.bookings.store', $pet) : route('clients.pets.bookings.store', [$client, $pet]) }}" method="POST">
+                @csrf
+                @if($isRootView)
+                    <input type="hidden" name="return_view_mode" value="{{ $returnViewMode }}">
+                @endif
+
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-4 col-md-6">
+                        <label for="scheduled_at" class="form-label">Fecha y hora</label>
+                        <input id="scheduled_at" type="datetime-local" name="scheduled_at" value="{{ $defaultScheduledAt }}" class="form-control" required>
+                        <div class="form-text">Se programa sobre el horario operativo deseado para la sesión.</div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <label for="resource_id" class="form-label">Jaula / recurso físico</label>
+                        <select id="resource_id" name="resource_id" class="form-select">
+                            <option value="">Sin asignar por ahora</option>
+                            @foreach($resources as $resource)
+                                <option value="{{ $resource->id }}" @selected((string) old('resource_id') === (string) $resource->id)>
+                                    {{ $resource->code }} · {{ $resource->name }} · {{ $resource->branch?->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Si seleccionas jaula, la agenda bloqueará también {{ $resourceCleaningBufferMinutes }} min de limpieza al finalizar.</div>
+                    </div>
+                    <div class="col-lg-4 col-md-12">
+                        <label for="notes" class="form-label">Notas operativas</label>
+                        <textarea id="notes" name="notes" rows="3" class="form-control" placeholder="Indicaciones relevantes para recepción, grooming o preparación.">{{ old('notes') }}</textarea>
+                        <div class="form-text">Se guardan junto al booking para que no dependan de notas dispersas del cliente o de la mascota.</div>
+                    </div>
+                </div>
+
+                <div class="catalog-filter-note mb-4">
+                    <span class="catalog-filter-note__kicker">Selección de servicios</span>
+                    <p class="catalog-filter-note__text mb-0">Elige uno o más servicios activos. El sistema tomará su precio sugerido actual y lo congelará en la programación.</p>
+                </div>
+
+                <div class="agenda-service-grid mb-4">
+                    @foreach($services as $service)
+                        @php($checked = in_array($service->id, old('service_ids', []), false))
+                        <label class="agenda-service-option">
+                            <input class="form-check-input agenda-service-option__input" type="checkbox" name="service_ids[]" value="{{ $service->id }}" @checked($checked)>
+                            <div class="agenda-service-option__body">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div>
+                                        <div class="catalog-code-pill">{{ $service->code }}</div>
+                                        <div class="catalog-title-stack__title mt-2">{{ $service->name }}</div>
+                                    </div>
+                                    <span class="catalog-type-pill">{{ strtoupper($service->type) }}</span>
+                                </div>
+                                <div class="agenda-service-option__meta">
+                                    <span class="catalog-inline-tag">{{ $service->suggested_duration_minutes }} min</span>
+                                    <span class="catalog-inline-tag">{{ $service->operatorRole?->name ?? 'Sin operador base' }}</span>
+                                </div>
+                                <div class="agenda-service-option__price mt-3">${{ number_format((float) ($service->suggested_price ?? $service->price ?? 0), 2) }}</div>
+                                <div class="catalog-stat__hint">precio congelado al programar</div>
+                            </div>
+                        </label>
+                    @endforeach
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap justify-content-end">
+                    <a href="{{ $isRootView ? route('pets.show', ['pet' => $pet, 'view' => $returnViewMode]) : route('clients.pets.show', [$client, $pet]) }}" class="btn btn-outline-secondary">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">Guardar programación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <section class="mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div>
+                <h2 class="h4 mb-1">Próximas sesiones de esta mascota</h2>
+                <p class="text-muted mb-0">Referencia rápida para no sobreprogramar ni perder continuidad operativa.</p>
+            </div>
+        </div>
+
+        <x-list-table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Servicios</th>
+                    <th>Estado</th>
+                    <th>Total estimado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($upcomingBookings as $booking)
+                    <tr>
+                        <td>
+                            <div class="catalog-stat">{{ $booking->scheduled_at?->format('d/m/Y H:i') }}</div>
+                            <div class="catalog-stat__hint">{{ $booking->scheduled_at?->diffForHumans() }}</div>
+                        </td>
+                        <td>
+                            <div class="catalog-inline-tags">
+                                @foreach($booking->services as $bookingService)
+                                    <span class="catalog-inline-tag">{{ $bookingService->service?->name ?? 'Servicio' }}</span>
+                                @endforeach
+                            </div>
+                        </td>
+                        <td>
+                            <span class="catalog-status-badge {{ $booking->status === 'scheduled' ? 'catalog-status-badge--active' : 'catalog-status-badge--inactive' }}">
+                                {{ $booking->status === 'scheduled' ? 'Programado' : ucfirst(str_replace('_', ' ', $booking->status)) }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="catalog-stat">${{ number_format((float) $booking->total_estimated_price, 2) }}</div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-body-secondary">Todavía no hay sesiones futuras para esta mascota.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </x-list-table>
+    </section>
+</div>
+@endsection
