@@ -1,0 +1,7 @@
+import './bootstrap';
+import './modules/address-editor';
+import './modules/client-form';
+import './modules/confirm-actions';
+import './modules/pet-photo-exif';
+import './modules/resizable-columns';
+import './modules/system-settings-preview';
