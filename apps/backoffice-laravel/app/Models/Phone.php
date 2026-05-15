@@ -10,14 +10,13 @@ class Phone extends Model
     use HasFactory;
 
     protected $fillable = [
-        'phoneable_id',
-        'phoneable_type',
+        'client_id',
         'number',
         'type',
     ];
 
-    public function phoneable()
+    public function client()
     {
-        return $this->morphTo();
+        return $this->belongsTo(Client::class);
     }
 }

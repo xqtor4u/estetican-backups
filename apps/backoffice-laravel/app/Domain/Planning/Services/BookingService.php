@@ -15,7 +15,7 @@ class BookingService implements BookingServiceInterface
         private SpaBookingRepositoryInterface $spaBookingRepository
     ) {}
 
-    public function scheduleSpaSession(int $petId, string $scheduledAt, array $services): SpaBooking
+    public function scheduleSpaSession(int $petId, string $scheduledAt, array $services, ?string $notes = null): SpaBooking
     {
         DB::beginTransaction();
         try {
@@ -29,7 +29,8 @@ class BookingService implements BookingServiceInterface
                 'pet_id' => $petId,
                 'scheduled_at' => $scheduledAt,
                 'total_estimated_price' => $totalPrice,
-                'status' => 'scheduled'
+                'status' => 'scheduled',
+                'notes' => $notes,
             ]);
 
             $this->spaBookingRepository->attachServices($booking->id, $services);
@@ -42,6 +43,20 @@ class BookingService implements BookingServiceInterface
         }
     }
 
+    public function rescheduleBooking(int $bookingId, string $scheduledAt, ?string $notes = null): bool
+    {
+        $booking = $this->spaBookingRepository->findById($bookingId);
+
+        if (!$booking || $booking->status !== 'scheduled') {
+            return false;
+        }
+
+        return $this->spaBookingRepository->update($bookingId, [
+            'scheduled_at' => $scheduledAt,
+            'notes' => $notes,
+        ]);
+    }
+
     public function cancelBooking(int $bookingId, string $reason): bool
     {
         $booking = $this->spaBookingRepository->findById($bookingId);
@@ -52,6 +67,20 @@ class BookingService implements BookingServiceInterface
         return $this->spaBookingRepository->update($bookingId, [
             'status' => 'cancelled',
             'cancellation_reason' => $reason
+        ]);
+    }
+
+    public function markNoShow(int $bookingId, ?string $reason = null): bool
+    {
+        $booking = $this->spaBookingRepository->findById($bookingId);
+
+        if (!$booking || $booking->status !== 'scheduled') {
+            return false;
+        }
+
+        return $this->spaBookingRepository->update($bookingId, [
+            'status' => 'no_show',
+            'cancellation_reason' => $reason,
         ]);
     }
 

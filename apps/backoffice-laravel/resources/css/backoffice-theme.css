@@ -1,0 +1,298 @@
+:root {
+    --app-bg: #f5e8d8;
+    --app-surface: rgba(255, 255, 255, 0.8);
+    --app-surface-alt: rgba(231, 214, 194, 0.78);
+    --app-table-row-odd: rgba(255, 252, 248, 0.98);
+    --app-table-row-even: rgba(234, 217, 198, 0.92);
+    --app-table-row-hover: rgba(201, 112, 60, 0.12);
+    --app-ink: #2b2621;
+    --app-muted: #73655c;
+    --app-primary: #7b5a45;
+    --app-primary-rgb: 123 90 69;
+    --app-accent: #c9703c;
+    --app-accent-rgb: 201 112 60;
+    --app-line: rgba(43, 38, 33, 0.08);
+    --app-line-rgb: 43 38 33;
+    --app-shadow: 0 20px 40px rgba(35, 43, 53, 0.08);
+    --app-font-sans: 'Manrope', sans-serif;
+    --app-font-display: 'Sora', sans-serif;
+    --app-nav-bg: rgba(248, 237, 224, 0.88);
+    --app-hero-start: #382b24;
+    --app-hero-mid: #6a4f3d;
+    --app-hero-end: #7b5a45;
+}
+
+body[data-theme-palette='coast-professional'] {
+    --app-bg: #f7e8ee;
+    --app-surface: rgba(255, 255, 255, 0.82);
+    --app-surface-alt: rgba(238, 210, 221, 0.82);
+    --app-table-row-odd: rgba(253, 247, 249, 0.98);
+    --app-table-row-even: rgba(242, 217, 226, 0.94);
+    --app-table-row-hover: rgba(180, 95, 125, 0.16);
+    --app-ink: #3f2b33;
+    --app-muted: #7e6670;
+    --app-primary: #b45f7d;
+    --app-primary-rgb: 180 95 125;
+    --app-accent: #d9899f;
+    --app-accent-rgb: 217 137 159;
+    --app-line: rgba(63, 43, 51, 0.08);
+    --app-line-rgb: 63 43 51;
+    --app-nav-bg: rgba(249, 236, 241, 0.9);
+    --app-hero-start: #52313f;
+    --app-hero-mid: #8a4f67;
+    --app-hero-end: #b45f7d;
+}
+
+body[data-theme-palette='slate-premium'] {
+    --app-bg: #ebe9e4;
+    --app-surface: rgba(255, 255, 255, 0.8);
+    --app-surface-alt: rgba(214, 212, 207, 0.78);
+    --app-table-row-odd: rgba(250, 249, 247, 0.98);
+    --app-table-row-even: rgba(220, 218, 214, 0.92);
+    --app-table-row-hover: rgba(75, 93, 122, 0.14);
+    --app-ink: #232831;
+    --app-muted: #666d76;
+    --app-primary: #4b5d7a;
+    --app-primary-rgb: 75 93 122;
+    --app-accent: #b9905a;
+    --app-accent-rgb: 185 144 90;
+    --app-line: rgba(35, 40, 49, 0.08);
+    --app-line-rgb: 35 40 49;
+    --app-nav-bg: rgba(238, 236, 232, 0.9);
+    --app-hero-start: #232831;
+    --app-hero-mid: #38465c;
+    --app-hero-end: #4b5d7a;
+}
+
+body[data-theme-palette='sage-ledger'] {
+    --app-bg: #edf3ea;
+    --app-surface: rgba(255, 255, 255, 0.82);
+    --app-surface-alt: rgba(214, 228, 209, 0.78);
+    --app-table-row-odd: rgba(249, 252, 247, 0.98);
+    --app-table-row-even: rgba(219, 233, 214, 0.92);
+    --app-table-row-hover: rgba(88, 122, 83, 0.14);
+    --app-ink: #223028;
+    --app-muted: #607064;
+    --app-primary: #587a53;
+    --app-primary-rgb: 88 122 83;
+    --app-accent: #9d6b3f;
+    --app-accent-rgb: 157 107 63;
+    --app-line: rgba(34, 48, 40, 0.08);
+    --app-line-rgb: 34 48 40;
+    --app-nav-bg: rgba(239, 246, 236, 0.9);
+    --app-hero-start: #24352d;
+    --app-hero-mid: #446149;
+    --app-hero-end: #587a53;
+}
+
+body {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top left, rgb(var(--app-accent-rgb) / 0.16), transparent 28%),
+        radial-gradient(circle at top right, rgb(var(--app-primary-rgb) / 0.14), transparent 24%),
+        linear-gradient(180deg, #f8f4ec 0%, var(--app-bg) 100%);
+    color: var(--app-ink);
+    font-family: var(--app-font-sans);
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+body.app-density-compact {
+    font-size: 0.91rem;
+    line-height: 1.34;
+}
+
+body.app-density-compact .btn {
+    --bs-btn-padding-y: 0.33rem;
+    --bs-btn-padding-x: 0.68rem;
+    --bs-btn-font-size: 0.88rem;
+}
+
+body.app-density-compact .form-label {
+    margin-bottom: 0.18rem;
+    font-size: 0.83rem;
+}
+
+body.app-density-compact .form-control,
+body.app-density-compact .form-select,
+body.app-density-compact .input-group-text {
+    font-size: 0.88rem;
+}
+
+body.app-density-compact .table {
+    font-size: 0.85rem;
+}
+
+body.app-density-compact .table > :not(caption) > * > * {
+    padding: 0.42rem 0.46rem;
+}
+
+body.app-density-compact .card-body {
+    padding: 0.82rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+.navbar-brand,
+.brand-title {
+    font-family: var(--app-font-display);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+    line-height: 1.12;
+}
+
+h4,
+.h4 {
+    font-size: 1.15rem;
+}
+
+h5,
+.h5,
+.card-title {
+    font-size: 1rem;
+}
+
+.btn {
+    --bs-btn-padding-y: 0.4rem;
+    --bs-btn-padding-x: 0.8rem;
+    --bs-btn-font-size: 0.92rem;
+}
+
+.btn-outline-warning {
+    --bs-btn-color: #7a4a12;
+    --bs-btn-border-color: #9a5e17;
+    --bs-btn-hover-color: #fff7f0;
+    --bs-btn-hover-bg: #8a5314;
+    --bs-btn-hover-border-color: #8a5314;
+    --bs-btn-focus-shadow-rgb: 138, 83, 20;
+    --bs-btn-active-color: #fff7f0;
+    --bs-btn-active-bg: #744611;
+    --bs-btn-active-border-color: #744611;
+    --bs-btn-disabled-color: #7a4a12;
+    --bs-btn-disabled-border-color: #9a5e17;
+    font-weight: 700;
+}
+
+.form-label {
+    margin-bottom: 0.25rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.form-control,
+.form-select,
+.input-group-text {
+    font-size: 0.92rem;
+}
+
+.form-text,
+.small,
+small {
+    font-size: 0.8rem !important;
+}
+
+.table {
+    font-size: 0.9rem;
+}
+
+.table > :not(caption) > * > * {
+    padding: 0.55rem 0.6rem;
+}
+
+.card-body {
+    padding: 1rem;
+}
+
+.modal-title {
+    font-size: 1rem;
+}
+
+.app-media-thumb {
+    width: 160px;
+    height: 120px;
+}
+
+.app-media-cover {
+    object-fit: cover;
+}
+
+.pet-photo-preview {
+    max-height: 220px;
+}
+
+.app-avatar-xs {
+    width: 52px;
+    height: 52px;
+}
+
+.app-avatar-sm {
+    width: 72px;
+    height: 72px;
+}
+
+.app-avatar-lg {
+    width: 140px;
+    height: 140px;
+}
+
+.app-avatar-placeholder {
+    font-weight: 700;
+}
+
+.app-avatar-placeholder-lg {
+    font-size: 2.2rem;
+    font-weight: 800;
+}
+
+.card,
+.alert,
+.pagination,
+.table {
+    border-color: var(--app-line);
+}
+
+@media (min-width: 1200px) {
+    .btn {
+        --bs-btn-padding-y: 0.36rem;
+        --bs-btn-padding-x: 0.72rem;
+        --bs-btn-font-size: 0.9rem;
+    }
+
+    .table {
+        font-size: 0.88rem;
+    }
+
+    .table > :not(caption) > * > * {
+        padding: 0.48rem 0.52rem;
+    }
+
+    .card-body {
+        padding: 0.88rem;
+    }
+
+    .alert {
+        padding: 0.78rem 0.92rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    body {
+        font-size: 0.92rem;
+    }
+
+    .card-body {
+        padding: 0.85rem;
+    }
+
+    .table {
+        font-size: 0.86rem;
+    }
+}

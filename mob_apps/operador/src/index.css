@@ -1,0 +1,210 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--color-background);
+  --color-on-background: var(--color-on-background);
+  
+  --color-surface: var(--color-surface);
+  --color-on-surface: var(--color-on-surface);
+  --color-surface-variant: var(--color-surface-variant);
+  --color-on-surface-variant: var(--color-on-surface-variant);
+  --color-surface-container-lowest: var(--color-surface-container-lowest);
+  --color-surface-container-low: var(--color-surface-container-low);
+  --color-surface-container: var(--color-surface-container);
+  --color-surface-container-high: var(--color-surface-container-high);
+  --color-surface-container-highest: var(--color-surface-container-highest);
+  --color-surface-bright: var(--color-surface-bright);
+  --color-surface-dim: var(--color-surface-dim);
+  --color-surface-tint: var(--color-surface-tint);
+  
+  --color-primary: var(--color-primary);
+  --color-on-primary: var(--color-on-primary);
+  --color-primary-container: var(--color-primary-container);
+  --color-on-primary-container: var(--color-on-primary-container);
+  --color-primary-fixed: var(--color-primary-fixed);
+  --color-primary-fixed-dim: var(--color-primary-fixed-dim);
+  --color-on-primary-fixed: var(--color-on-primary-fixed);
+  --color-on-primary-fixed-variant: var(--color-on-primary-fixed-variant);
+  --color-inverse-primary: var(--color-inverse-primary);
+  
+  --color-secondary: var(--color-secondary);
+  --color-on-secondary: var(--color-on-secondary);
+  --color-secondary-container: var(--color-secondary-container);
+  --color-on-secondary-container: var(--color-on-secondary-container);
+  --color-secondary-fixed: var(--color-secondary-fixed);
+  --color-secondary-fixed-dim: var(--color-secondary-fixed-dim);
+  --color-on-secondary-fixed: var(--color-on-secondary-fixed);
+  --color-on-secondary-fixed-variant: var(--color-on-secondary-fixed-variant);
+  
+  --color-tertiary: var(--color-tertiary);
+  --color-on-tertiary: var(--color-on-tertiary);
+  --color-tertiary-container: var(--color-tertiary-container);
+  --color-on-tertiary-container: var(--color-on-tertiary-container);
+  --color-tertiary-fixed: var(--color-tertiary-fixed);
+  --color-tertiary-fixed-dim: var(--color-tertiary-fixed-dim);
+  --color-on-tertiary-fixed: var(--color-on-tertiary-fixed);
+  --color-on-tertiary-fixed-variant: var(--color-on-tertiary-fixed-variant);
+  
+  --color-error: var(--color-error);
+  --color-on-error: var(--color-on-error);
+  --color-error-container: var(--color-error-container);
+  --color-on-error-container: var(--color-on-error-container);
+  
+  --color-outline: var(--color-outline);
+  --color-outline-variant: var(--color-outline-variant);
+
+  --font-headline: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Plus Jakarta Sans", sans-serif;
+  --font-label: "Plus Jakarta Sans", sans-serif;
+  --font-mono-data: "JetBrains Mono", monospace;
+
+  /* Additional config font sizes and spacing */
+  --text-label-sm: 11px;
+  --text-label-sm--line-height: 14px;
+  --text-label-md: 14px;
+  --text-label-md--line-height: 20px;
+  --text-body-sm: 13px;
+  --text-body-sm--line-height: 18px;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-headline-sm: 20px;
+  --text-headline-sm--line-height: 28px;
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-display-sm: 24px;
+  --text-display-sm--line-height: 32px;
+  --text-mono-data: 12px;
+  --text-mono-data--line-height: 16px;
+  
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+  --spacing-gutter: 16px;
+  --spacing-margin-mobile: 20px;
+  --spacing-container-margin: 24px;
+  --spacing-operational-gap: 8px;
+  --spacing-section-padding: 20px;
+}
+
+@layer base {
+  .theme-client {
+    --color-background: #f7f9fb;
+    --color-on-background: #191c1e;
+    
+    --color-surface: #f7f9fb;
+    --color-on-surface: #191c1e;
+    --color-surface-variant: #e0e3e5;
+    --color-on-surface-variant: #414751;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #f2f4f6;
+    --color-surface-container: #eceef0;
+    --color-surface-container-high: #e6e8ea;
+    --color-surface-container-highest: #e0e3e5;
+    --color-surface-bright: #f7f9fb;
+    --color-surface-dim: #d8dadc;
+    --color-surface-tint: #0060ac;
+    
+    --color-primary: #005da7;
+    --color-on-primary: #ffffff;
+    --color-primary-container: #2976c7;
+    --color-on-primary-container: #fdfcff;
+    --color-primary-fixed: #d4e3ff;
+    --color-primary-fixed-dim: #a4c9ff;
+    --color-on-primary-fixed: #001c39;
+    --color-on-primary-fixed-variant: #004883;
+    --color-inverse-primary: #a4c9ff;
+    
+    --color-secondary: #2c6956;
+    --color-on-secondary: #ffffff;
+    --color-secondary-container: #aeedd5;
+    --color-on-secondary-container: #316d5b;
+    --color-secondary-fixed: #b1efd8;
+    --color-secondary-fixed-dim: #96d3bd;
+    --color-on-secondary-fixed: #002118;
+    --color-on-secondary-fixed-variant: #0d503f;
+    
+    --color-tertiary: #974400;
+    --color-on-tertiary: #ffffff;
+    --color-tertiary-container: #bb580d;
+    --color-on-tertiary-container: #fffbff;
+    --color-tertiary-fixed: #ffdbc9;
+    --color-tertiary-fixed-dim: #ffb68d;
+    --color-on-tertiary-fixed: #331200;
+    --color-on-tertiary-fixed-variant: #763300;
+    
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    
+    --color-outline: #717783;
+    --color-outline-variant: #c1c7d3;
+  }
+
+  .theme-admin {
+    --color-background: #f8f9ff;
+    --color-on-background: #0b1c30;
+    
+    --color-surface: #f8f9ff;
+    --color-on-surface: #0b1c30;
+    --color-surface-variant: #d3e4fe;
+    --color-on-surface-variant: #45464d;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #eff4ff;
+    --color-surface-container: #e5eeff;
+    --color-surface-container-high: #dce9ff;
+    --color-surface-container-highest: #d3e4fe;
+    --color-surface-bright: #f8f9ff;
+    --color-surface-dim: #cbdbf5;
+    --color-surface-tint: #565e74;
+    
+    --color-primary: #000000;
+    --color-on-primary: #ffffff;
+    --color-primary-container: #131b2e;
+    --color-on-primary-container: #7c839b;
+    --color-primary-fixed: #dae2fd;
+    --color-primary-fixed-dim: #bec6e0;
+    --color-on-primary-fixed: #131b2e;
+    --color-on-primary-fixed-variant: #3f465c;
+    --color-inverse-primary: #bec6e0;
+    
+    --color-secondary: #006c49;
+    --color-on-secondary: #ffffff;
+    --color-secondary-container: #6cf8bb;
+    --color-on-secondary-container: #00714d;
+    --color-secondary-fixed: #6ffbbe;
+    --color-secondary-fixed-dim: #4edea3;
+    --color-on-secondary-fixed: #002113;
+    --color-on-secondary-fixed-variant: #005236;
+    
+    --color-tertiary: #000000;
+    --color-on-tertiary: #ffffff;
+    --color-tertiary-container: #2a1700;
+    --color-on-tertiary-container: #b87500;
+    --color-tertiary-fixed: #ffddb8;
+    --color-tertiary-fixed-dim: #ffb95f;
+    --color-on-tertiary-fixed: #2a1700;
+    --color-on-tertiary-fixed-variant: #653e00;
+    
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+    
+    --color-outline: #76777d;
+    --color-outline-variant: #c6c6cd;
+  }
+}
+
+body {
+  font-family: var(--font-body);
+}
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

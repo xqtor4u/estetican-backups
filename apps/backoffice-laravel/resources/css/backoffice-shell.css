@@ -1,0 +1,472 @@
+.app-shell {
+    width: min(100%, 1600px);
+    max-width: 1600px;
+    margin-inline: auto;
+    padding-inline: clamp(0.75rem, 1.7vw, 1.5rem);
+}
+
+.app-nav {
+    backdrop-filter: blur(18px);
+    background: var(--app-nav-bg);
+    border-color: var(--app-line) !important;
+    z-index: 1030;
+}
+
+.app-nav-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+    padding-block: 0.65rem;
+}
+
+.app-desktop-nav {
+    margin-left: auto;
+    align-items: center;
+}
+
+.app-nav-list {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.brand-kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--app-accent);
+    font-weight: 800;
+}
+
+.brand-title {
+    color: var(--app-ink);
+    font-size: 0.94rem;
+    font-weight: 700;
+}
+
+.brand-title-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+}
+
+.brand-screen-id {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.5rem;
+    padding: 0.18rem 0.5rem;
+    border: 1px solid rgb(var(--app-primary-rgb) / 0.16);
+    border-radius: 999px;
+    background: rgb(var(--app-primary-rgb) / 0.08);
+    color: color-mix(in srgb, var(--app-primary) 68%, var(--app-ink) 32%);
+    font-size: 0.67rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.app-nav-link {
+    border-radius: 999px;
+    color: var(--app-ink);
+    font-weight: 600;
+    font-size: 0.92rem;
+    padding: 0.48rem 0.82rem !important;
+    transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.app-nav-link:hover,
+.app-nav-link:focus {
+    background: rgb(var(--app-primary-rgb) / 0.08);
+    color: var(--app-primary);
+}
+
+.app-nav-link.active {
+    background: var(--app-primary);
+    color: #fff !important;
+    box-shadow: 0 12px 24px rgb(var(--app-primary-rgb) / 0.18);
+}
+
+.app-nav-link.active:hover,
+.app-nav-link.active:focus {
+    background: color-mix(in srgb, var(--app-primary) 88%, black 12%);
+    color: #fff !important;
+}
+
+.app-nav-dropdown .dropdown-toggle::after {
+    margin-left: 0.55rem;
+    vertical-align: middle;
+}
+
+.app-dropdown-menu {
+    min-width: 340px;
+    padding: 0.85rem;
+    border: 1px solid var(--app-line);
+    border-radius: 1.1rem;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 24px 48px rgba(35, 43, 53, 0.12);
+    backdrop-filter: blur(18px);
+}
+
+.app-dropdown-label {
+    padding: 0.15rem 0.45rem 0.6rem;
+    color: var(--app-accent);
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.app-dropdown-item {
+    display: block;
+    padding: 0.68rem 0.82rem;
+    border-radius: 0.9rem;
+    color: var(--app-ink);
+    white-space: normal;
+    font-size: 0.92rem;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.app-dropdown-item + .app-dropdown-item {
+    margin-top: 0.2rem;
+}
+
+.app-dropdown-item:hover,
+.app-dropdown-item:focus {
+    background: rgb(var(--app-primary-rgb) / 0.08);
+    color: var(--app-ink);
+    transform: translateY(-1px);
+}
+
+.app-dropdown-item.active {
+    background: rgb(var(--app-primary-rgb) / 0.12);
+    color: var(--app-ink);
+}
+
+.app-dropdown-item.active:hover,
+.app-dropdown-item.active:focus {
+    background: rgb(var(--app-primary-rgb) / 0.18);
+    color: var(--app-ink);
+}
+
+.app-dropdown-item.disabled,
+.app-dropdown-item.disabled:hover {
+    background: rgba(31, 39, 49, 0.03);
+    color: var(--app-muted);
+    opacity: 1;
+    transform: none;
+    cursor: default;
+}
+
+.app-dropdown-title {
+    display: block;
+    font-weight: 800;
+    color: inherit;
+}
+
+.app-dropdown-description {
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--app-muted);
+    line-height: 1.35;
+}
+
+.app-dropdown-item.active .app-dropdown-title,
+.app-dropdown-item:hover .app-dropdown-title,
+.app-dropdown-item:focus .app-dropdown-title {
+    color: var(--app-ink);
+}
+
+.app-dropdown-item.active .app-dropdown-description,
+.app-dropdown-item:hover .app-dropdown-description,
+.app-dropdown-item:focus .app-dropdown-description {
+    color: color-mix(in srgb, var(--app-ink) 62%, white 38%);
+}
+
+.app-nav-link.disabled.active {
+    background: rgb(var(--app-accent-rgb) / 0.18);
+    color: #7f3f24 !important;
+    opacity: 1;
+}
+
+.app-mobile-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.app-mobile-menu {
+    width: 100%;
+}
+
+.app-mobile-menu summary {
+    list-style: none;
+}
+
+.app-mobile-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.app-mobile-menu-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 2.7rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--app-line);
+    border-radius: 0.95rem;
+    background: rgba(255, 255, 255, 0.78);
+    color: var(--app-ink);
+    font-size: 0.9rem;
+    font-weight: 800;
+    cursor: pointer;
+    user-select: none;
+}
+
+.app-mobile-menu-icon {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    width: 1rem;
+}
+
+.app-mobile-menu-icon span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+}
+
+.app-mobile-nav-section {
+    padding: 0.75rem;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid var(--app-line);
+}
+
+.app-mobile-nav-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--app-accent);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.app-mobile-nav-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.app-mobile-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.8rem;
+    background: rgb(var(--app-primary-rgb) / 0.07);
+    color: var(--app-ink);
+    text-align: center;
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.app-mobile-link.active {
+    background: var(--app-primary);
+    color: #fff;
+}
+
+.app-breadcrumb-wrap {
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--app-line);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.68);
+    box-shadow: 0 10px 24px rgba(35, 43, 53, 0.05);
+    backdrop-filter: blur(12px);
+}
+
+.app-breadcrumb {
+    margin: 0;
+    font-size: 0.86rem;
+}
+
+.app-breadcrumb .breadcrumb-item,
+.app-breadcrumb .breadcrumb-item a {
+    color: var(--app-muted);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.app-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+    color: rgba(31, 39, 49, 0.34);
+}
+
+.app-breadcrumb .breadcrumb-item a:hover,
+.app-breadcrumb .breadcrumb-item a:focus {
+    color: var(--app-primary);
+}
+
+.app-breadcrumb .breadcrumb-item.active span {
+    color: var(--app-ink);
+    font-weight: 800;
+}
+
+.page-header {
+    padding: 1.05rem 1.15rem;
+    border-radius: 1.15rem;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 244, 236, 0.92) 100%);
+    border: 1px solid var(--app-line);
+    box-shadow: 0 16px 32px rgba(35, 43, 53, 0.06);
+}
+
+.page-header-body {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.page-header-eyebrow {
+    display: inline-block;
+    margin-bottom: 0.3rem;
+    color: var(--app-accent);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.page-header-title {
+    margin: 0;
+    font-size: clamp(1.3rem, 1.55vw + 0.95rem, 1.95rem);
+    line-height: 1.05;
+}
+
+.page-header-subtitle {
+    max-width: 720px;
+    color: var(--app-muted);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.page-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+main.app-main {
+    padding-top: 1.4rem;
+    padding-bottom: 2.2rem;
+}
+
+@media (min-width: 1200px) {
+    .app-breadcrumb-wrap {
+        padding: clamp(0.66rem, 0.7vw, 0.82rem) clamp(0.8rem, 0.95vw, 1rem);
+        border-radius: 0.95rem;
+    }
+
+    .page-header {
+        padding: clamp(0.82rem, 0.88vw, 0.96rem) clamp(0.92rem, 1vw, 1.08rem);
+        border-radius: 1rem;
+    }
+
+    .page-header-body {
+        gap: 0.85rem;
+    }
+
+    .page-header-title {
+        font-size: clamp(1.28rem, 1.15vw + 0.95rem, 1.82rem);
+    }
+
+    .page-header-subtitle {
+        max-width: 860px;
+        font-size: 0.87rem;
+    }
+
+    main.app-main {
+        padding-top: 1.1rem;
+        padding-bottom: 1.8rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .app-mobile-menu-trigger {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .page-header {
+        padding: 0.9rem 0.95rem;
+    }
+
+    .page-header-title {
+        font-size: clamp(1.18rem, 4vw, 1.55rem);
+    }
+
+    .page-header-subtitle {
+        font-size: 0.86rem;
+    }
+
+    .app-dropdown-menu {
+        min-width: 100%;
+        margin-top: 0.5rem;
+        box-shadow: none;
+    }
+
+    main.app-main {
+        padding-top: 1rem;
+        padding-bottom: 1.6rem;
+    }
+
+    .brand-title-row {
+        gap: 0.38rem;
+    }
+
+    .brand-screen-id {
+        font-size: 0.63rem;
+        letter-spacing: 0.1em;
+    }
+}
+
+@media (min-width: 992px) {
+    .app-nav-layout {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-height: 4.35rem;
+    }
+
+    .app-nav-dropdown:hover > .dropdown-menu,
+    .app-nav-dropdown:focus-within > .dropdown-menu {
+        display: block;
+        margin-top: 0;
+    }
+
+    .app-nav-dropdown:hover > .app-nav-link,
+    .app-nav-dropdown:focus-within > .app-nav-link {
+        background: rgb(var(--app-primary-rgb) / 0.08);
+        color: var(--app-primary);
+    }
+
+    .app-nav-dropdown:hover > .app-nav-link.active,
+    .app-nav-dropdown:focus-within > .app-nav-link.active {
+        background: color-mix(in srgb, var(--app-primary) 88%, black 12%);
+        color: #fff !important;
+    }
+}

@@ -2,9 +2,35 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
+#[Fillable(['pet_id', 'start_at', 'end_at', 'status'])]
 class HotelReservation extends Model
 {
-    //
+    protected function casts(): array
+    {
+        return [
+            'start_at' => 'datetime',
+            'end_at' => 'datetime',
+        ];
+    }
+
+    public function pet(): BelongsTo
+    {
+        return $this->belongsTo(Pet::class);
+    }
+
+    public function stays(): HasMany
+    {
+        return $this->hasMany(Stay::class);
+    }
+
+    public function resourceAllocations(): MorphMany
+    {
+        return $this->morphMany(ResourceAllocation::class, 'source');
+    }
 }

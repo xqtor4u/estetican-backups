@@ -5,6 +5,7 @@ namespace App\Domain\Execution\Repositories;
 use App\Domain\Execution\Contracts\ExecutedServiceRepositoryInterface;
 use App\Models\ExecutedService;
 use App\Models\ExecutedServiceItem;
+use App\Models\Service;
 use App\Models\ServiceStatusLog;
 use App\Models\ServicePhoto;
 use Illuminate\Database\Eloquent\Collection;
@@ -29,10 +30,16 @@ class ExecutedServiceRepository implements ExecutedServiceRepositoryInterface
     public function attachItems(int $executedServiceId, array $itemsWithPrices): void
     {
         foreach ($itemsWithPrices as $serviceId => $price) {
+            $service = Service::find($serviceId);
+
             ExecutedServiceItem::create([
                 'executed_service_id' => $executedServiceId,
                 'service_id' => $serviceId,
-                'charged_price' => $price
+                'service_name_snapshot' => $service?->name ?? "Servicio #{$serviceId}",
+                'service_description_snapshot' => $service?->description,
+                'service_type_snapshot' => $service?->type,
+                'charged_price' => $price,
+                'duration_minutes_snapshot' => $service?->suggested_duration_minutes ?? $service?->duration_minutes,
             ]);
         }
     }

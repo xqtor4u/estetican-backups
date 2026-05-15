@@ -1,0 +1,11 @@
+{
+    auto_https off
+}
+
+:443 {
+    tls /certs/backoffice-local.pem /certs/backoffice-local-key.pem
+    encode zstd gzip
+    header -Alt-Svc
+
+    reverse_proxy laravel.test:80
+}

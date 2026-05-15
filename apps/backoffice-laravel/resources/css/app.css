@@ -1,4 +1,10 @@
 @import 'tailwindcss';
+@import 'bootstrap/dist/css/bootstrap.min.css';
+@import './backoffice-theme.css';
+@import './backoffice-app.css';
+@import './backoffice-shell.css';
+@import './backoffice-landing.css';
+@import './backoffice-blueprints.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';

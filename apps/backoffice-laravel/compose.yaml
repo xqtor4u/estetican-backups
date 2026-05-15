@@ -24,6 +24,19 @@ services:
         depends_on:
             - mysql
             - redis
+    https.local:
+        image: 'caddy:2-alpine'
+        profiles:
+            - https
+        depends_on:
+            - laravel.test
+        ports:
+            - '${HTTPS_PORT:-8443}:443'
+        volumes:
+            - './docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro'
+            - './.certs:/certs:ro'
+        networks:
+            - sail
     mysql:
         image: 'mysql:8.4'
         ports:

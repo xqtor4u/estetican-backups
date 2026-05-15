@@ -1,0 +1,162 @@
+@props(['screenDebugId' => null])
+
+@php
+    use App\Support\Navigation\MainNavigation;
+
+    $backofficeConfig = config('backoffice');
+    $navigationGroups = MainNavigation::groups();
+    $mobileLinks = MainNavigation::mobileLinks();
+    $showScreenDebugIds = (bool) data_get($backofficeConfig, 'ui.show_screen_debug_ids', false);
+@endphp
+
+<nav class="app-nav sticky-top border-bottom">
+    <div class="container-fluid app-shell">
+        <div class="app-nav-layout">
+            <div class="d-flex align-items-center me-lg-3">
+                <a class="navbar-brand d-flex align-items-center gap-2" href="{{ route('home') }}">
+                    @if(data_get($backofficeConfig, 'brand.logo'))
+                        <img src="{{ Storage::disk('public')->url(data_get($backofficeConfig, 'brand.logo')) }}" alt="Logo" style="height: 32px; width: auto; object-fit: contain;">
+                    @endif
+                    <div class="d-flex flex-column gap-0">
+                        <span class="brand-kicker">
+                            {{ data_get($backofficeConfig, 'brand.kicker', 'EstetiCAN') }}
+                            <span class="ms-1 opacity-50 small fw-normal" style="font-size: 0.75rem;">v.{{ data_get($backofficeConfig, 'brand.version', '000000-0000') }}</span>
+                        </span>
+                        <span class="brand-title-row">
+                            <span class="brand-title">{{ data_get($backofficeConfig, 'brand.shell_title', 'Backoffice operativo') }}</span>
+                        </span>
+                    </div>
+                </a>
+                @if($showScreenDebugIds && $screenDebugId)
+                    <span class="brand-screen-id ms-2" title="ID técnico de módulo y pantalla (Haz click para seleccionar y copiar)" style="user-select: all; cursor: text; pointer-events: auto; display: inline-block; vertical-align: middle;">
+                        {{ $screenDebugId }}
+                    </span>
+                @endif
+            </div>
+
+
+            <details class="app-mobile-menu d-lg-none w-100">
+                <summary class="app-mobile-menu-trigger d-flex align-items-center gap-2">
+                    <span class="app-mobile-menu-icon" aria-hidden="true">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </span>
+                    <span>{{ data_get($backofficeConfig, 'shell.mobile_menu_label', 'Menú') }}</span>
+                    @auth
+                        <span class="app-mobile-avatar ms-auto" style="width: 2.2em; height: 2.2em; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #e0e0e0; font-weight: bold; font-size: 1.2em; color: #555; overflow: hidden;">
+                            @if(auth()->user()->profile_photo_path)
+                                <img src="{{ asset('storage/' . auth()->user()->profile_photo_path) }}" alt="avatar" style="width:100%;height:100%;object-fit:cover;">
+                            @else
+                                {{ strtoupper(mb_substr(auth()->user()->name,0,1)) }}
+                            @endif
+                        </span>
+                    @endauth
+                </summary>
+
+                @auth
+                <div class="app-mobile-nav-section mt-2">
+                    <span class="app-mobile-nav-label">Cuenta</span>
+                    <div class="app-mobile-nav-grid mb-2">
+                        <a href="{{ route('user.settings') }}" class="app-mobile-link">Configuración</a>
+                        @if(auth()->user()->is_super_admin)
+                            <a href="{{ route('users.index') }}" class="app-mobile-link">Administrar usuarios</a>
+                        @endif
+                        <form method="POST" action="{{ route('logout') }}" class="d-inline">
+                            @csrf
+                            <button type="submit" class="app-mobile-link" style="background:none;border:none;padding:0;margin:0;">Cerrar sesión</button>
+                        </form>
+                    </div>
+                </div>
+                @endauth
+
+                <div class="app-mobile-nav-section mt-2">
+                    <span class="app-mobile-nav-label">Accesos</span>
+                    <div class="app-mobile-nav-grid">
+                        <a href="{{ route('home') }}" class="app-mobile-link {{ request()->routeIs('home') ? 'active' : '' }}">{{ data_get($backofficeConfig, 'shell.home_label', 'Inicio') }}</a>
+                        @foreach($mobileLinks as $mobileLink)
+                            <a href="{{ $mobileLink['route'] }}" class="app-mobile-link {{ $mobileLink['active'] ? 'active' : '' }}">{{ $mobileLink['label'] }}</a>
+                        @endforeach
+                    </div>
+                </div>
+            </details>
+
+            <div class="app-desktop-nav d-none d-lg-flex">
+            <ul class="app-nav-list mb-0">
+                <li class="nav-item">
+                    <a href="{{ route('home') }}" class="nav-link app-nav-link {{ request()->routeIs('home') ? 'active' : '' }}">
+                        {{ data_get($backofficeConfig, 'shell.home_label', 'Inicio') }}
+                    </a>
+                </li>
+
+                @foreach($navigationGroups as $group)
+                    <li class="nav-item dropdown app-nav-dropdown {{ $group['active'] ? 'show' : '' }}">
+                        <a
+                            href="#"
+                            class="nav-link app-nav-link dropdown-toggle {{ $group['active'] ? 'active' : '' }}"
+                            data-bs-toggle="dropdown"
+                            data-bs-auto-close="outside"
+                            aria-expanded="false"
+                        >
+                            {{ $group['label'] }}
+                        </a>
+
+                        <div class="dropdown-menu app-dropdown-menu dropdown-menu-end">
+                            <div class="app-dropdown-label">{{ $group['label'] }}</div>
+
+                            @foreach($group['items'] as $item)
+                                @if(empty($item['comingSoon']))
+                                    <a href="{{ $item['route'] }}" class="dropdown-item app-dropdown-item {{ $item['active'] ? 'active' : '' }}" 
+                                       data-bs-toggle="tooltip" data-bs-placement="left" 
+                                       data-bs-title="{{ ($item['debug_id'] ?? '') . ' - ' . ($item['description'] ?? '') }}">
+                                        <span class="app-dropdown-title">{{ $item['label'] }}</span>
+                                        <small class="app-dropdown-description">{{ $item['description'] }}</small>
+                                    </a>
+                                @else
+                                    <div class="dropdown-item app-dropdown-item disabled {{ $item['active'] ? 'active' : '' }}" 
+                                         data-bs-toggle="tooltip" data-bs-placement="left" 
+                                         data-bs-title="{{ ($item['debug_id'] ?? '') . ' - ' . ($item['description'] ?? '') }}">
+                                        <div class="d-flex justify-content-between align-items-start gap-2">
+                                            <div>
+                                                <span class="app-dropdown-title">{{ $item['label'] }}</span>
+                                                <small class="app-dropdown-description">{{ $item['description'] }}</small>
+                                            </div>
+                                            @if(!empty($item['comingSoon']))
+                                                <span class="badge rounded-pill text-bg-light">Próx.</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
+                            @endforeach
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+            <ul class="app-nav-list mb-0 ms-3">
+                @auth
+                    <li class="nav-item dropdown">
+                        <a href="#" class="nav-link app-nav-link dropdown-toggle d-flex align-items-center gap-2" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="app-desktop-avatar" style="width:2.2em;height:2.2em;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#e0e0e0;font-weight:bold;font-size:1.2em;color:#555;overflow:hidden;">
+                                @if(auth()->user()->profile_photo_path)
+                                    <img src="{{ asset('storage/' . auth()->user()->profile_photo_path) }}" alt="avatar" style="width:100%;height:100%;object-fit:cover;">
+                                @else
+                                    {{ strtoupper(mb_substr(auth()->user()->name,0,1)) }}
+                                @endif
+                            </span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="{{ route('user.settings') }}" class="dropdown-item">Configuración</a>
+                            @if(auth()->user()->is_super_admin)
+                                <a href="{{ route('users.index') }}" class="dropdown-item">Administrar usuarios</a>
+                            @endif
+                            <form method="POST" action="{{ route('logout') }}" class="d-inline">
+                                @csrf
+                                <button type="submit" class="dropdown-item">Cerrar sesión</button>
+                            </form>
+                        </div>
+                    </li>
+                @endauth
+            </ul>
+        </div>
+    </div>
+</nav>

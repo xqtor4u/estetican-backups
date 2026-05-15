@@ -9,13 +9,37 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password'])]
+
+#[Fillable([
+    'name',
+    'first_name',
+    'last_name',
+    'email',
+    'password',
+    'ine_number',
+    'imss_number',
+    'address',
+    'phone',
+    'profile_photo_path',
+    'emergency_contact_name',
+    'emergency_contact_phone',
+    'hire_date',
+    'role',
+    'is_active',
+    'can_login',
+    'is_operator',
+    'operator_code',
+    'operator_role_id',
+    'notes',
+])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
+
 
     /**
      * Get the attributes that should be cast.
@@ -27,6 +51,27 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'can_login' => 'boolean',
+            'is_active' => 'boolean',
+            'is_operator' => 'boolean',
+            'hire_date' => 'date',
         ];
     }
+
+    /**
+     * Relación con el rol operativo (April 14 Fusion)
+     */
+    public function operatorRole()
+    {
+        return $this->belongsTo(OperatorRole::class, 'operator_role_id');
+    }
+
+    // Determina si el usuario es super admin (Híbrido Spatie + Campo legacy)
+    public function getIsSuperAdminAttribute()
+    {
+        return $this->role === 'admin' || 
+               $this->hasRole('admin') || 
+               $this->hasRole('super-admin');
+    }
+
 }
