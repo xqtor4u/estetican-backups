@@ -22,7 +22,7 @@ class ReportController extends Controller
      */
     public function quote(Quote $quote)
     {
-        $quote->load(['booking.pet.client', 'items.service']);
+        $quote->load(['booking.pet.client.phones', 'items.service']);
         $booking = $quote->booking;
         $settings = $this->getReportSettings();
 
@@ -34,9 +34,16 @@ class ReportController extends Controller
      */
     public function workOrder(SpaBooking $booking)
     {
-        $booking->load(['pet.client', 'quotes.items.service', 'executedServices.service']);
+        $booking->load([
+            'pet.client',
+            'pet.medicalAlerts',
+            'quotes.items.service',
+            'quotes.items.operator',
+            'resourceAllocations.resource',
+            'executedServices.service',
+        ]);
         $settings = $this->getReportSettings();
-        
+
         $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');
 
         return view('reports.work-order', compact('booking', 'acceptedQuote', 'settings'));
@@ -47,7 +54,12 @@ class ReportController extends Controller
      */
     public function invoice(SpaBooking $booking)
     {
-        $booking->load(['pet.client', 'quotes.items.service', 'quotes.cashLedgers', 'quotes.bankLedgers']);
+        $booking->load([
+            'pet.client.phones',
+            'quotes.items.service',
+            'quotes.cashLedgers',
+            'quotes.bankLedgers',
+        ]);
         $settings = $this->getReportSettings();
         
         $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');

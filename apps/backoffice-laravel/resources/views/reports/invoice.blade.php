@@ -27,14 +27,14 @@
         <div class="info-title">Cliente</div>
         <div class="info-content">
             <strong>{{ $booking->pet->client->full_name }}</strong><br>
-            {{ $booking->pet->client->phone }}
+            {{ $booking->pet->client->phones->first()?->number ?? '' }}
         </div>
     </div>
     <div class="info-box">
         <div class="info-title">Mascota</div>
         <div class="info-content">
             <strong>{{ $booking->pet->name }}</strong><br>
-            {{ $booking->pet->breed }} | {{ $booking->pet->weight }} kg
+            {{ $booking->pet->breed ?? 'N/D' }} | Talla: {{ $booking->pet->size ? ucfirst($booking->pet->size) : 'N/D' }}
         </div>
     </div>
 </div>
@@ -65,13 +65,26 @@
             <span>${{ number_format($acceptedQuote?->total_amount ?? 0, 2) }}</span>
         </div>
         
+        @php
+            $allPayments = collect();
+            if ($acceptedQuote) {
+                foreach ($acceptedQuote->cashLedgers as $e) {
+                    $allPayments->push(['date' => $e->created_at, 'method' => $e->payment_method, 'dest' => 'Caja', 'amount' => $e->amount]);
+                }
+                foreach ($acceptedQuote->bankLedgers as $e) {
+                    $allPayments->push(['date' => $e->created_at, 'method' => $e->payment_method, 'dest' => 'Banco', 'amount' => $e->amount]);
+                }
+                $allPayments = $allPayments->sortBy('date');
+            }
+        @endphp
+
         <div style="margin-top: 10px; border-top: 1px dashed var(--secondary-color); padding-top: 5px;">
             <div style="font-size: 9px; font-weight: bold; color: var(--secondary-color);">HISTORIAL DE PAGOS</div>
-            @if($acceptedQuote && $acceptedQuote->payments->isNotEmpty())
-                @foreach($acceptedQuote->payments as $payment)
+            @if($allPayments->isNotEmpty())
+                @foreach($allPayments as $entry)
                     <div class="total-row" style="font-size: 11px; border: none; color: #7f8c8d;">
-                        <span>{{ $payment->created_at->format('d/m') }} - {{ $payment->payment_method }}</span>
-                        <span>- ${{ number_format($payment->amount, 2) }}</span>
+                        <span>{{ $entry['date']->format('d/m') }} · {{ $entry['method'] }} ({{ $entry['dest'] }})</span>
+                        <span>- ${{ number_format($entry['amount'], 2) }}</span>
                     </div>
                 @endforeach
             @else
@@ -82,7 +95,7 @@
             @endif
         </div>
 
-        @php($totalPaid = $acceptedQuote ? $acceptedQuote->payments->sum('amount') : 0)
+        @php($totalPaid = $allPayments->sum('amount'))
         @php($balance = ($acceptedQuote?->total_amount ?? 0) - $totalPaid)
 
         <div class="total-row grand-total">

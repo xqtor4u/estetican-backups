@@ -25,8 +25,8 @@
         <div class="info-title">Paciente / Mascota</div>
         <div class="info-content">
             <div style="font-size: 16px; font-weight: bold;">{{ $booking->pet->name }}</div>
-            <div>{{ $booking->pet->species }} | {{ $booking->pet->breed }}</div>
-            <div>Peso: <strong>{{ $booking->pet->weight }} kg</strong></div>
+            <div>{{ ucfirst($booking->pet->species ?? '') }} | {{ $booking->pet->breed ?? 'N/D' }}</div>
+            <div>Talla: <strong>{{ $booking->pet->size ? ucfirst($booking->pet->size) : 'N/D' }}</strong>{{ $booking->pet->age_description ? ' · ' . $booking->pet->age_description : '' }}</div>
             <div style="margin-top: 5px;">
                 <span class="badge" style="background: #e74c3c; color: white;">ID: {{ $booking->pet->id }}</span>
             </div>

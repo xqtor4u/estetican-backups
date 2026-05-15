@@ -28,7 +28,7 @@
         <div class="info-content">
             <strong>{{ $booking->pet->client->full_name }}</strong><br>
             {{ $booking->pet->client->email }}<br>
-            {{ $booking->pet->client->phone }}
+            {{ $booking->pet->client->phones->first()?->number ?? '' }}
         </div>
     </div>
     <div class="info-box">
@@ -43,9 +43,15 @@
                 <span>{{ $booking->pet->species }} ({{ $booking->pet->breed }})</span>
             </div>
             <div class="info-row">
-                <span class="info-label">Peso:</span>
-                <span>{{ $booking->pet->weight }} kg</span>
+                <span class="info-label">Talla:</span>
+                <span>{{ $booking->pet->size ? ucfirst($booking->pet->size) : 'N/D' }}</span>
             </div>
+            @if($booking->pet->age_description)
+            <div class="info-row">
+                <span class="info-label">Edad:</span>
+                <span>{{ $booking->pet->age_description }}</span>
+            </div>
+            @endif
         </div>
     </div>
 </div>
