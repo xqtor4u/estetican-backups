@@ -1,3 +1,5 @@
+let initialized = false;
+
 const PALETTE_FORM_SELECTOR = 'form[data-preview-palette-form="true"]';
 const PALETTE_INPUT_SELECTOR = 'input[name="ui_color_palette"]';
 const DENSITY_SELECT_SELECTOR = 'select[name="ui_density"]';
@@ -49,7 +51,7 @@ const applyVisualizationPreview = (state, form, originalState) => {
 const initPalettePreview = () => {
     const form = document.querySelector(PALETTE_FORM_SELECTOR);
 
-    if (!form || document.body.dataset.systemSettingsPreviewInitialized === 'true') {
+    if (!form || initialized) {
         return;
     }
 
@@ -60,7 +62,7 @@ const initPalettePreview = () => {
         return;
     }
 
-    document.body.dataset.systemSettingsPreviewInitialized = 'true';
+    initialized = true;
 
     const originalPalette = document.body.dataset.themePalette || '';
     const originalDensity = document.body.classList.contains('app-density-compact') ? 'compact' : 'comfortable';

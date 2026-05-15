@@ -28,6 +28,7 @@
         <link rel="stylesheet" href="{{ asset('vendor/bootstrap/bootstrap.min.css') }}">
         <link rel="stylesheet" href="{{ asset('css/backoffice-app.css') }}">
         <link rel="stylesheet" href="{{ asset('css/backoffice-blueprints.css') }}">
+        <link rel="stylesheet" href="{{ asset('css/backoffice-theme.css') }}">
     @endif
     @foreach(data_get($backofficeConfig, 'fonts.preconnect', []) as $fontPreconnect)
         <link rel="preconnect" href="{{ $fontPreconnect }}" @if(str_contains($fontPreconnect, 'gstatic')) crossorigin @endif>

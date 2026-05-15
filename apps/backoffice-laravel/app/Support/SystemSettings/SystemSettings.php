@@ -310,6 +310,13 @@ class SystemSettings
                 'label' => 'Operación Clínica',
                 'description' => 'Configuración de Bitácoras y Jaulas.',
                 'fields' => [
+                    'operational_auto_email_report' => [
+                        'label' => 'Enviar resumen por correo al finalizar atención',
+                        'type' => 'boolean',
+                        'default' => false,
+                        'rules' => ['nullable', 'boolean'],
+                        'help' => 'Envía automáticamente la bitácora de servicio al correo del cliente al marcar como "Completado".',
+                    ],
                     'system_resource_cleaning_buffer_minutes' => [
                         'label' => 'Minutos de limpieza entre usos',
                         'type' => 'number',
@@ -339,6 +346,25 @@ class SystemSettings
                         'type' => 'text',
                         'default' => '',
                         'rules' => ['nullable', 'string', 'max:50'],
+                    ],
+                    'fiscal_address' => [
+                        'label' => 'Dirección Fiscal',
+                        'type' => 'text',
+                        'default' => '',
+                        'rules' => ['nullable', 'string', 'max:300'],
+                        'help' => 'Aparece en presupuestos, órdenes de trabajo y recibos.',
+                    ],
+                    'fiscal_report_footer' => [
+                        'label' => 'Pie de página en reportes',
+                        'type' => 'text',
+                        'default' => 'Gracias por su confianza.',
+                        'rules' => ['nullable', 'string', 'max:200'],
+                    ],
+                    'mail_signature_url' => [
+                        'label' => 'URL del negocio (para reportes y correos)',
+                        'type' => 'text',
+                        'default' => '',
+                        'rules' => ['nullable', 'string', 'max:200'],
                     ],
                 ],
             ],

@@ -62,7 +62,7 @@ class SystemSettingController extends Controller
 
     public function testSmtp(Request $request, SystemSettings $systemSettings): RedirectResponse
     {
-        $settings = $systemSettings->get('email_service');
+        $settings = $systemSettings->all();
 
         try {
             // Dynamic override
