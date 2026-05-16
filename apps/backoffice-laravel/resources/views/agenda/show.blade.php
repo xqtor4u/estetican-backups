@@ -86,6 +86,9 @@
                             <i class="bi bi-pencil-square me-1"></i> Editar cita
                         </a>
                         @if($booking->status === 'scheduled')
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNoShow">
+                                <i class="bi bi-person-x me-1"></i> No se presentó
+                            </button>
                             <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalCancel">
                                 <i class="bi bi-x-circle me-1"></i> Cancelar
                             </button>
@@ -337,6 +340,26 @@
 @endif
 
 @if($booking->status === 'scheduled')
+    <!-- Modal: No Show -->
+    <div class="modal fade" id="modalNoShow" tabindex="-1">
+        <div class="modal-dialog">
+            <form action="{{ route('agenda.no-show', $booking) }}" method="POST" class="modal-content">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title text-secondary">Marcar como No se presentó</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>El cliente no se presentó a la cita. Se liberará la jaula {{ $resourceAllocation?->resource?->code }} y el horario. Esta acción no genera cargo.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-secondary">Confirmar No-show</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal: Cancel -->
     <div class="modal fade" id="modalCancel" tabindex="-1">
         <div class="modal-dialog">

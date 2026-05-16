@@ -22,8 +22,8 @@ class ReportController extends Controller
      */
     public function quote(Quote $quote)
     {
-        $quote->load(['booking.pet.client.phones', 'items.service']);
-        $booking = $quote->booking;
+        $quote->load(['spaBooking.pet.client.phones', 'items.service']);
+        $booking = $quote->spaBooking;
         $settings = $this->getReportSettings();
 
         return view('reports.quote', compact('quote', 'booking', 'settings'));
