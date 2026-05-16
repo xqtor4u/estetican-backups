@@ -34,7 +34,7 @@
                 </div>
                 <div>
                     <h4 class="h5 mb-1 fw-bold">Atención: Cita Vencida</h4>
-                    <p class="mb-0 opacity-75">Esta sesión estaba programada para el {{ $booking->scheduled_at?->format('d/m/Y H:i') }} y aún no se ha cerrado.</p>
+                    <p class="mb-0 opacity-75">Esta sesión estaba programada para el {{ $booking->scheduled_at?->format($datetimeFormat) }} y aún no se ha cerrado.</p>
                 </div>
             </div>
             <div class="d-flex gap-2">
@@ -103,7 +103,7 @@
             </article>
             <article class="catalog-overview-card">
                 <span class="catalog-overview-card__eyebrow">Horario</span>
-                <div class="catalog-overview-card__value-sm">{{ $booking->scheduled_at?->format(config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A') }} <small>hs</small></div>
+                <div class="catalog-overview-card__value-sm">{{ $booking->scheduled_at?->format($timeFormat) }} <small>hs</small></div>
                 <div class="catalog-overview-card__label">{{ $booking->scheduled_at?->translatedFormat('d M Y') }}</div>
             </article>
             <article class="catalog-overview-card">

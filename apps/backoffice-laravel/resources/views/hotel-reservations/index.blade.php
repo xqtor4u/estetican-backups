@@ -27,7 +27,7 @@
                             <div>
                                 <div class="fw-semibold">{{ $reservation->pet?->name ?: 'Mascota sin nombre' }}</div>
                                 <div class="small text-body-secondary">{{ $reservation->pet?->client ? trim($reservation->pet->client->first_name . ' ' . $reservation->pet->client->last_name) : 'Sin cliente' }}</div>
-                                <div class="small text-body-secondary mt-1">{{ $reservation->start_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }} - {{ $reservation->end_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}</div>
+                                <div class="small text-body-secondary mt-1">{{ $reservation->start_at?->format($datetimeFormat) }} - {{ $reservation->end_at?->format($datetimeFormat) }}</div>
                             </div>
                             <div class="text-end small text-body-secondary">
                                 <div>{{ strtoupper($reservation->status) }}</div>

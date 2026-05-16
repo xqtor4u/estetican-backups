@@ -105,7 +105,7 @@
                     @foreach($upcomingBookings as $booking)
                     <div class="upcoming-booking-row">
                         <div class="upcoming-time">
-                            {{ $booking->scheduled_at->format(config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A') }}
+                            {{ $booking->scheduled_at->format($timeFormat) }}
                             <span class="text-muted small d-block">{{ $booking->scheduled_at->format('d/m') }}</span>
                         </div>
                         <div class="upcoming-info">

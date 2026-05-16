@@ -31,6 +31,16 @@ class ApplySystemSettings
         app()->setLocale($locale);
         date_default_timezone_set($timezone);
 
+        $is24h = config('backoffice.system.time_format') === '24h';
+        $dateFormat = (string) config('backoffice.system.date_format', 'd/m/Y');
+        $timeFormat = $is24h ? 'H:i' : 'h:i A';
+
+        view()->share([
+            'dateFormat'     => $dateFormat,
+            'timeFormat'     => $timeFormat,
+            'datetimeFormat' => $dateFormat . ' ' . $timeFormat,
+        ]);
+
         return $next($request);
     }
 }

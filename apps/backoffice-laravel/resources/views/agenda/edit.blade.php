@@ -64,7 +64,7 @@
                     <h2 class="h5 mb-3">Contexto actual</h2>
                     <p class="mb-2"><strong>Mascota:</strong> {{ $pet?->name ?: 'Sin mascota' }}</p>
                     <p class="mb-2"><strong>Cliente:</strong> {{ trim(($client?->first_name ?? '') . ' ' . ($client?->last_name ?? '')) ?: 'Sin nombre visible' }}</p>
-                    <p class="mb-2"><strong>Horario actual:</strong> {{ $booking->scheduled_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) ?: 'Sin fecha' }}</p>
+                    <p class="mb-2"><strong>Horario actual:</strong> {{ $booking->scheduled_at?->format($datetimeFormat) ?: 'Sin fecha' }}</p>
                     <p class="mb-0"><strong>Servicios:</strong> {{ $booking->services->count() }}</p>
                 </div>
             </div>

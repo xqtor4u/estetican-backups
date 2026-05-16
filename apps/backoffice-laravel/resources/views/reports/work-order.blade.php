@@ -16,7 +16,7 @@
     <div class="document-info">
         <h2 class="document-type" style="color: #f39c12;">Orden de Trabajo</h2>
         <div class="document-number">Sesión #{{ $booking->id }}</div>
-        <div class="document-date">{{ now()->format($settings['system']['date_format'] . ' H:i') }}</div>
+        <div class="document-date">{{ now()->format($datetimeFormat) }}</div>
     </div>
 </div>
 
@@ -41,7 +41,7 @@
             </div>
             <div class="info-row">
                 <span class="info-label">Ingreso:</span>
-                <span>{{ $booking->scheduled_at?->format(config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A') }} hs</span>
+                <span>{{ $booking->scheduled_at?->format($datetimeFormat) }} hs</span>
             </div>
         </div>
     </div>

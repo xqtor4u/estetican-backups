@@ -33,7 +33,7 @@
                 <span class="catalog-overview-card__eyebrow">Ventana operativa</span>
                 <div class="catalog-overview-card__value-sm">
                     @if($firstScheduledAt && $lastScheduledEndAt)
-                        {{ $firstScheduledAt->format(config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A') }} - {{ $lastScheduledEndAt->format(config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A') }}
+                        {{ $firstScheduledAt->format($timeFormat) }} - {{ $lastScheduledEndAt->format($timeFormat) }}
                     @else
                         Sin carga visible
                     @endif
@@ -108,7 +108,7 @@
                         style="cursor: pointer;"
                         onclick="if(!event.target.closest('a,button')) window.location='{{ $detailUrl }}'">
                         <div class="agenda-timeline-item__time">
-                            <div class="agenda-timeline-item__time-main">{{ $booking->time_window_label ?? $booking->scheduled_at?->format(config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A') }}</div>
+                            <div class="agenda-timeline-item__time-main">{{ $booking->time_window_label ?? $booking->scheduled_at?->format($timeFormat) }}</div>
                             <div class="agenda-timeline-item__time-sub">
                                 @if(!$isHotel)
                                     {{ $booking->estimated_duration_minutes }} min estimados
@@ -204,7 +204,7 @@
             @forelse($bookings as $booking)
                 <tr>
                     <td>
-                        <div class="catalog-stat">{{ $booking->scheduled_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}</div>
+                        <div class="catalog-stat">{{ $booking->scheduled_at?->format($datetimeFormat) }}</div>
                         <div class="catalog-stat__hint">{{ $booking->scheduled_at?->diffForHumans() }}</div>
                     </td>
                     <td>

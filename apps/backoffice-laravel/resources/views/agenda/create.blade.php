@@ -146,7 +146,7 @@
                 @forelse($upcomingBookings as $booking)
                     <tr style="cursor: pointer;" onclick="window.location='{{ route('agenda.show', $booking) }}'" class="hover-row">
                         <td>
-                            <div class="catalog-stat">{{ $booking->scheduled_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}</div>
+                            <div class="catalog-stat">{{ $booking->scheduled_at?->format($datetimeFormat) }}</div>
                             <div class="catalog-stat__hint">{{ $booking->scheduled_at?->diffForHumans() }}</div>
                         </td>
                         <td>

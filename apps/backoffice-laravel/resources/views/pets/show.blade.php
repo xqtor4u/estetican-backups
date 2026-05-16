@@ -266,7 +266,7 @@
             @forelse($pet->spaBookings as $booking)
                 <tr>
                     <td>
-                        <div class="fw-semibold">{{ $booking->scheduled_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}</div>
+                        <div class="fw-semibold">{{ $booking->scheduled_at?->format($datetimeFormat) }}</div>
                         <div class="text-body-secondary small">{{ $booking->scheduled_at?->diffForHumans() }}</div>
                     </td>
                     <td>

@@ -122,7 +122,7 @@
                             <div class="list-group-item px-0">
                                 <div class="fw-semibold">{{ $executedService->service_summary ?: 'Servicio ejecutado sin resumen capturado' }}</div>
                                 <div class="small text-body-secondary">
-                                    {{ optional($executedService->executed_at)->format('Y-m-d ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) ?: 'Sin fecha' }}
+                                    {{ optional($executedService->executed_at)->format('Y-m-d ' . $timeFormat) ?: 'Sin fecha' }}
                                     · ${{ number_format((float) $executedService->final_price, 2) }}
                                 </div>
                             </div>

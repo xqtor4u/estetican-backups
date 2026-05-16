@@ -26,10 +26,10 @@
                     <dd class="col-sm-8">{{ strtoupper($event->severity) }}</dd>
 
                     <dt class="col-sm-4">Detectado</dt>
-                    <dd class="col-sm-8">{{ optional($event->detected_at)->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) ?: 'Sin fecha' }}</dd>
+                    <dd class="col-sm-8">{{ optional($event->detected_at)->format($datetimeFormat) ?: 'Sin fecha' }}</dd>
 
                     <dt class="col-sm-4">Ocurrido</dt>
-                    <dd class="col-sm-8">{{ optional($event->occurred_at)->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) ?: 'Sin fecha' }}</dd>
+                    <dd class="col-sm-8">{{ optional($event->occurred_at)->format($datetimeFormat) ?: 'Sin fecha' }}</dd>
 
                     <dt class="col-sm-4">Detector</dt>
                     <dd class="col-sm-8">{{ $event->detectedBy?->name ?: 'Sin asignar' }}</dd>
@@ -96,7 +96,7 @@
                                     <div>
                                         <div class="fw-semibold">{{ $update->update_type }}</div>
                                         <div class="small text-body-secondary">
-                                            {{ $update->created_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}
+                                            {{ $update->created_at?->format($datetimeFormat) }}
                                             @if($update->createdBy?->name)
                                                 · {{ $update->createdBy->name }}
                                             @endif
@@ -149,7 +149,7 @@
                     <select name="resource_event_update_id" class="form-select">
                         <option value="">Sin etapa especifica</option>
                         @foreach($updateOptions as $updateOption)
-                            <option value="{{ $updateOption->id }}">{{ $updateOption->update_type }} · {{ $updateOption->created_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}</option>
+                            <option value="{{ $updateOption->id }}">{{ $updateOption->update_type }} · {{ $updateOption->created_at?->format($datetimeFormat) }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -215,7 +215,7 @@
                                 <select form="event-photo-form-{{ $photo->id }}" name="resource_event_update_id" class="form-select">
                                     <option value="">Sin etapa especifica</option>
                                     @foreach($updateOptions as $updateOption)
-                                        <option value="{{ $updateOption->id }}" @selected($photo->resource_event_update_id === $updateOption->id)>{{ $updateOption->update_type }} · {{ $updateOption->created_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}</option>
+                                        <option value="{{ $updateOption->id }}" @selected($photo->resource_event_update_id === $updateOption->id)>{{ $updateOption->update_type }} · {{ $updateOption->created_at?->format($datetimeFormat) }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -224,7 +224,7 @@
                                 <textarea form="event-photo-form-{{ $photo->id }}" name="description" class="form-control" rows="2">{{ $photo->description }}</textarea>
                             </div>
                             @if($photo->eventUpdate)
-                                <div class="col-12 small text-body-secondary">Ligada a etapa {{ $photo->eventUpdate->update_type }} del {{ $photo->eventUpdate->created_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}</div>
+                                <div class="col-12 small text-body-secondary">Ligada a etapa {{ $photo->eventUpdate->update_type }} del {{ $photo->eventUpdate->created_at?->format($datetimeFormat) }}</div>
                             @endif
                             <div class="col-12 d-flex gap-2">
                                 <button form="event-photo-form-{{ $photo->id }}" type="submit" class="btn btn-outline-primary">Guardar</button>

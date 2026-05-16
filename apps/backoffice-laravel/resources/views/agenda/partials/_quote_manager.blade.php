@@ -31,7 +31,7 @@
                             <tr class="{{ $quote->status === 'accepted' ? 'table-success-subtle' : '' }}">
                                 <td>
                                     <div class="fw-semibold">{{ $quote->version_label }}</div>
-                                    <small class="text-body-secondary">{{ $quote->created_at->format('d/m ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}</small>
+                                    <small class="text-body-secondary">{{ $quote->created_at->format('d/m ' . $timeFormat) }}</small>
                                 </td>
                                 <td>
                                     <div class="small">

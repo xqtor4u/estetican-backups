@@ -108,7 +108,7 @@
                             <div class="list-group-item px-0">
                                 <div class="fw-semibold">{{ ucfirst($allocation->allocation_type) }}</div>
                                 <div class="small text-body-secondary">
-                                    {{ $allocation->starts_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }} - {{ $allocation->ends_at?->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) }}
+                                    {{ $allocation->starts_at?->format($datetimeFormat) }} - {{ $allocation->ends_at?->format($datetimeFormat) }}
                                     @if($allocation->pet?->name)
                                         · {{ $allocation->pet->name }}
                                     @endif
@@ -369,7 +369,7 @@
                                         {{ strtoupper($event->event_type) }} · {{ strtoupper($event->event_status) }} · {{ strtoupper($event->severity) }}
                                     </div>
                                     <div class="small text-body-secondary mt-1">
-                                        Detectado {{ optional($event->detected_at)->format('d/m/Y ' . (config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A')) ?: 'sin fecha' }}
+                                        Detectado {{ optional($event->detected_at)->format($datetimeFormat) ?: 'sin fecha' }}
                                         @if($event->pet?->name)
                                             · {{ $event->pet->name }}
                                         @endif

@@ -62,6 +62,7 @@ return [
         'locale' => env('BACKOFFICE_LOCALE', env('APP_LOCALE', 'es')),
         'currency_code' => env('BACKOFFICE_CURRENCY_CODE', 'MXN'),
         'date_format' => env('BACKOFFICE_DATE_FORMAT', 'd/m/Y'),
+        'time_format' => env('BACKOFFICE_TIME_FORMAT', '12h'),
         'resource_cleaning_buffer_minutes' => env('BACKOFFICE_RESOURCE_CLEANING_BUFFER_MINUTES', 15),
         'default_address_country' => env('BACKOFFICE_DEFAULT_ADDRESS_COUNTRY', 'México'),
         'default_address_state' => env('BACKOFFICE_DEFAULT_ADDRESS_STATE', ''),
