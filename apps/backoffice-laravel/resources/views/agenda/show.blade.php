@@ -3,9 +3,12 @@
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')
-@php($pet = $booking->pet)
-@php($client = $pet?->client)
-@php($acceptedQuote = $booking->quotes->firstWhere('status', 'accepted') ?? $booking->quotes->sortByDesc('created_at')->first())
+@php
+    $pet = $booking->pet;
+    $client = $pet?->client;
+    $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted')
+        ?? $booking->quotes->sortByDesc('created_at')->first();
+@endphp
 
 @section('content')
 <x-page-header
@@ -135,8 +138,10 @@
             <article class="catalog-overview-card {{ $booking->status === 'completed' ? 'border-success border-2' : '' }}">
                 <span class="catalog-overview-card__eyebrow">Balance</span>
                 @php
-                    $totalPaid = $acceptedQuote ? ($acceptedQuote->cashLedgers->sum('amount') + $acceptedQuote->bankLedgers->sum('amount')) : 0;
-                    $quoteTotal = $acceptedQuote?->total_amount ?? $booking->total_estimated_price;
+                    $totalPaid = $acceptedQuote
+                        ? (float) $acceptedQuote->cashLedgers->sum('amount') + (float) $acceptedQuote->bankLedgers->sum('amount')
+                        : 0.0;
+                    $quoteTotal = (float) ($acceptedQuote?->total_amount ?? $booking->total_estimated_price ?? 0);
                     $balance = $quoteTotal - $totalPaid;
                 @endphp
                 <div class="catalog-overview-card__value-sm text-{{ $balance > 0 ? 'danger' : 'success' }}">${{ number_format($balance, 2) }}</div>
