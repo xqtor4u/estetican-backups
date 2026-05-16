@@ -6,3 +6,4 @@ import './modules/pet-photo-exif';
 import './modules/password-toggle';
 import './modules/resizable-columns';
 import './modules/system-settings-preview';
+import './modules/datetime-picker';

@@ -43,6 +43,7 @@
     data-address-default-country="{{ e((string) data_get($backofficeConfig, 'system.default_address_country', 'México')) }}"
     data-address-default-state="{{ e((string) data_get($backofficeConfig, 'system.default_address_state', '')) }}"
     data-address-default-city="{{ e((string) data_get($backofficeConfig, 'system.default_address_city', '')) }}"
+    data-time24h="{{ $timeFormat === 'H:i' ? '1' : '0' }}"
 >
     <x-main-navigation :screen-debug-id="$currentScreenDebugId" />
 
