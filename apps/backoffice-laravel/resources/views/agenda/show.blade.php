@@ -64,17 +64,35 @@
                     'work_order' => ['label' => 'En Proceso', 'icon' => 'tools', 'color' => 'warning'],
                     'completed' => ['label' => 'Finalizado', 'icon' => 'check-circle-fill', 'color' => 'success'],
                 ])
-                
+
                 @foreach($steps as $key => $step)
                     @php($isActive = ($booking->status === $key) || ($key === 'quote_draft' && $booking->quotes_count > 0 && $booking->status === 'scheduled'))
                     @php($isDone = ($booking->status === 'completed' && $key !== 'completed') || ($booking->status === 'work_order' && ($key === 'scheduled' || $key === 'quote_draft')))
-                    
+
                     <div class="flex-grow-1 p-3 border-end d-flex align-items-center justify-content-center gap-2 {{ $isActive ? 'bg-light fw-bold' : ($isDone ? 'text-success opacity-75' : 'text-body-secondary opacity-50') }}">
                         <i class="bi bi-{{ $isDone ? 'check-circle-fill' : ($step['icon'] ?? 'circle') }} h5 mb-0"></i>
                         <span>{{ $step['label'] }}</span>
                     </div>
                 @endforeach
             </div>
+            @if(in_array($booking->status, ['scheduled', 'work_order']))
+                <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-light gap-2 flex-wrap">
+                    <span class="small text-body-secondary">
+                        <i class="bi bi-pencil me-1"></i>
+                        ¿Necesitas ajustar datos de esta cita?
+                    </span>
+                    <div class="d-flex gap-2">
+                        <a href="{{ route('agenda.edit', $booking) }}" class="btn btn-warning btn-sm fw-bold text-dark">
+                            <i class="bi bi-pencil-square me-1"></i> Editar cita
+                        </a>
+                        @if($booking->status === 'scheduled')
+                            <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalCancel">
+                                <i class="bi bi-x-circle me-1"></i> Cancelar
+                            </button>
+                        @endif
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
 
