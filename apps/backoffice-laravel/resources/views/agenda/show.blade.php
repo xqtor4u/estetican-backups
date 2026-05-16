@@ -289,6 +289,44 @@
     </div>
 </div>
 
+@php($resourceAllocation = $booking->resourceAllocations->firstWhere('allocation_type', 'reserved'))
+
+<!-- Modal: Change Resource -->
+@if(in_array($booking->status, ['scheduled', 'work_order']))
+<div class="modal fade" id="modalChangeResource" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form action="{{ route('agenda.update', $booking) }}" method="POST" class="modal-content">
+            @csrf
+            @method('PUT')
+            <input type="hidden" name="scheduled_at" value="{{ $booking->scheduled_at?->format('Y-m-d H:i:s') }}">
+            <input type="hidden" name="notes" value="{{ $booking->notes }}">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i>Cambiar Jaula / Espacio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-body-secondary mb-3">
+                    Actualmente: <strong>{{ $resourceAllocation?->resource?->code }} — {{ $resourceAllocation?->resource?->name ?? 'Sin asignar' }}</strong>
+                </p>
+                <label class="form-label fw-semibold">Nuevo espacio operativo</label>
+                <select name="resource_id" class="form-select" required>
+                    <option value="">Sin asignar</option>
+                    @foreach($assignableResources as $resource)
+                        <option value="{{ $resource->id }}" @selected($resource->id === $resourceAllocation?->resource_id)>
+                            {{ $resource->code }} · {{ $resource->name }}{{ $resource->administrative_status !== 'active' ? ' (inactivo)' : '' }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Confirmar cambio</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
 @if($booking->status === 'scheduled')
     <!-- Modal: Cancel -->
     <div class="modal fade" id="modalCancel" tabindex="-1">
