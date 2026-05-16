@@ -143,3 +143,51 @@
     </div>
 </div>
 @endforeach
+
+<!-- Modal: Registrar Suceso / Foto -->
+@php($pet = $booking->pet)
+@php($client = $pet?->client)
+<div class="modal fade" id="modalAddEvent" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form action="{{ route('clients.pets.photos.store', [$client, $pet]) }}" method="POST"
+              enctype="multipart/form-data" class="modal-content">
+            @csrf
+            <input type="hidden" name="is_primary" value="0">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-camera me-2"></i>Registrar Suceso / Foto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Tipo de registro <span class="text-danger">*</span></label>
+                    <select name="photo_type" class="form-select" required>
+                        <option value="incidencia">Incidencia durante el servicio</option>
+                        <option value="resultado">Resultado / Foto final</option>
+                        <option value="ingreso">Ingreso / Estado inicial</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Fecha y hora del suceso <span class="text-danger">*</span></label>
+                    <input type="datetime-local" name="taken_at" class="form-control"
+                           value="{{ now()->format('Y-m-d\TH:i') }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Foto <span class="text-danger">*</span></label>
+                    <input type="file" name="photo" class="form-control" accept="image/*" required>
+                    <div class="form-text">Máx. 15 MB. JPG, PNG o WEBP.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Descripción / Nota</label>
+                    <textarea name="description" class="form-control" rows="2"
+                        placeholder="Describe el suceso, observación clínica, etc."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-dark">
+                    <i class="bi bi-camera me-1"></i> Guardar en bitácora
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
