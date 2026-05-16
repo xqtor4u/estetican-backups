@@ -27,7 +27,9 @@
 </x-page-header>
 
 <div class="catalog-content-wide">
-    @php($isOverdue = $booking->scheduled_at?->isPast() && in_array($booking->status, ['scheduled', 'work_order']))
+    @php
+        $isOverdue = $booking->scheduled_at?->isPast() && in_array($booking->status, ['scheduled', 'work_order']);
+    @endphp
     
     @if($isOverdue)
         <div class="alert alert-danger border-0 shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3 p-4">
@@ -61,16 +63,20 @@
     <div class="card shadow-sm border-0 mb-4 overflow-hidden">
         <div class="card-body p-0">
             <div class="d-flex flex-column flex-lg-row align-items-stretch text-center border-bottom">
-                @php($steps = [
-                    'scheduled' => ['label' => 'Programado', 'icon' => 'calendar-event', 'color' => 'secondary'],
-                    'quote_draft' => ['label' => 'Presupuesto', 'icon' => 'calculator', 'color' => 'primary', 'active_if' => $booking->quotes_count > 0 && $booking->status === 'scheduled'],
-                    'work_order' => ['label' => 'En Proceso', 'icon' => 'tools', 'color' => 'warning'],
-                    'completed' => ['label' => 'Finalizado', 'icon' => 'check-circle-fill', 'color' => 'success'],
-                ])
+                @php
+                    $steps = [
+                        'scheduled'   => ['label' => 'Programado',  'icon' => 'calendar-event',    'color' => 'secondary'],
+                        'quote_draft' => ['label' => 'Presupuesto', 'icon' => 'calculator',         'color' => 'primary', 'active_if' => $booking->quotes_count > 0 && $booking->status === 'scheduled'],
+                        'work_order'  => ['label' => 'En Proceso',  'icon' => 'tools',              'color' => 'warning'],
+                        'completed'   => ['label' => 'Finalizado',  'icon' => 'check-circle-fill',  'color' => 'success'],
+                    ];
+                @endphp
 
                 @foreach($steps as $key => $step)
-                    @php($isActive = ($booking->status === $key) || ($key === 'quote_draft' && $booking->quotes_count > 0 && $booking->status === 'scheduled'))
-                    @php($isDone = ($booking->status === 'completed' && $key !== 'completed') || ($booking->status === 'work_order' && ($key === 'scheduled' || $key === 'quote_draft')))
+                    @php
+                        $isActive = ($booking->status === $key) || ($key === 'quote_draft' && $booking->quotes_count > 0 && $booking->status === 'scheduled');
+                        $isDone   = ($booking->status === 'completed' && $key !== 'completed') || ($booking->status === 'work_order' && ($key === 'scheduled' || $key === 'quote_draft'));
+                    @endphp
 
                     <div class="flex-grow-1 p-3 border-end d-flex align-items-center justify-content-center gap-2 {{ $isActive ? 'bg-light fw-bold' : ($isDone ? 'text-success opacity-75' : 'text-body-secondary opacity-50') }}">
                         <i class="bi bi-{{ $isDone ? 'check-circle-fill' : ($step['icon'] ?? 'circle') }} h5 mb-0"></i>
@@ -107,7 +113,9 @@
         <div class="catalog-overview__grid">
             <article class="catalog-overview-card catalog-overview-card--primary d-flex align-items-center gap-3">
                 <div class="rounded-circle overflow-hidden shadow-sm border border-2 border-white" style="width: 56px; height: 56px; flex-shrink: 0; background: rgba(0,0,0,0.05);">
-                    @php($photoUrl = $pet?->catalog_photo_url ? parse_url($pet->catalog_photo_url, PHP_URL_PATH) : null)
+                    @php
+                        $photoUrl = $pet?->catalog_photo_url ? parse_url($pet->catalog_photo_url, PHP_URL_PATH) : null;
+                    @endphp
                     @if($photoUrl)
                         <img src="{{ $photoUrl }}" alt="{{ $pet->name ?? 'Mascota' }}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                         <div class="align-items-center justify-content-center h-100" style="display: none;">
@@ -245,7 +253,9 @@
                             <i class="bi bi-box-seam h4 mb-0"></i>
                         </div>
                         <div>
-                            @php($resourceAllocation = $booking->resourceAllocations->firstWhere('allocation_type', 'reserved'))
+                            @php
+                                $resourceAllocation = $booking->resourceAllocations->firstWhere('allocation_type', 'reserved');
+                            @endphp
                             <div class="fw-bold">{{ $resourceAllocation?->resource?->name ?? 'Sin asignar' }}</div>
                             <div class="small text-body-secondary">Jaula / Espacio Operativo</div>
                         </div>
@@ -306,7 +316,9 @@
     </div>
 </div>
 
-@php($resourceAllocation = $booking->resourceAllocations->firstWhere('allocation_type', 'reserved'))
+@php
+    $resourceAllocation = $booking->resourceAllocations->firstWhere('allocation_type', 'reserved');
+@endphp
 
 <!-- Modal: Change Resource -->
 @if(in_array($booking->status, ['scheduled', 'work_order']))
