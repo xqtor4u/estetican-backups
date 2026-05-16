@@ -87,8 +87,9 @@
 </div>
 
 <!-- Modal: Final Payment (Liquidation) -->
-<div class="modal fade" id="modalRegisterFinalPayment" tabindex="-1" aria-hidden="true" x-data="{ 
-    balance: {{ $balance }}, 
+@if($acceptedQuote)
+<div class="modal fade" id="modalRegisterFinalPayment" tabindex="-1" aria-hidden="true" x-data="{
+    balance: {{ $balance }},
     method: 'Efectivo',
     destination: 'caja',
     updateDest() {
@@ -152,3 +153,4 @@
         </form>
     </div>
 </div>
+@endif

@@ -34,11 +34,6 @@ class Address extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public function phones()
-    {
-        return $this->morphMany(Phone::class, 'phoneable');
-    }
-
     public function getFormattedAddressAttribute(): string
     {
         $streetLine = trim(implode(' ', array_filter([

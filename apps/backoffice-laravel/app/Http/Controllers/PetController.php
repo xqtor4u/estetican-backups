@@ -187,6 +187,15 @@ class PetController extends Controller
 
     public function destroy(Request $request, Pet $pet)
     {
+        $activeBookings = $pet->spaBookings()
+            ->whereIn('status', ['scheduled', 'work_order'])
+            ->exists();
+
+        if ($activeBookings) {
+            return redirect()->back()
+                ->with('error', 'No se puede eliminar la mascota porque tiene citas activas. Cancélalas primero.');
+        }
+
         $pet->delete();
 
         $viewMode = $request->query('view') === 'table' ? 'table' : 'blocks';
