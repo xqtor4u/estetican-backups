@@ -185,7 +185,7 @@ class SpaBookingController extends Controller
         $pet = $booking->pet;
         $client = $pet?->client;
         $services = Service::where('is_active', true)->orderBy('name')->get();
-        $resources = Resource::where('administrative_status', 'active')->orderBy('code')->get();
+        $resources = Resource::whereIn('administrative_status', ['active', 'inactive'])->orderBy('code')->get();
         $assignedResourceId = $booking->resourceAllocations->firstWhere('allocation_type', 'reserved')?->resource_id;
 
         return view('agenda.edit', compact('page', 'booking', 'services', 'resources', 'assignedResourceId', 'pet', 'client'));
@@ -292,7 +292,7 @@ class SpaBookingController extends Controller
 
         $services = Service::where('is_active', true)->orderBy('name')->get();
 
-        $resources = Resource::where('administrative_status', 'active')
+        $resources = Resource::whereIn('administrative_status', ['active', 'inactive'])
             ->where('resource_type', 'cage')
             ->with('branch:id,name')
             ->orderBy('code')
@@ -434,7 +434,7 @@ class SpaBookingController extends Controller
             ->select(['id', 'branch_id', 'resource_type', 'code', 'name', 'capacity_label', 'administrative_status', 'operational_status'])
             ->with('branch:id,name')
             ->where('resource_type', 'cage')
-            ->where('administrative_status', 'active')
+            ->whereIn('administrative_status', ['active', 'inactive'])
             ->orderBy('branch_id')
             ->orderBy('code')
             ->get();

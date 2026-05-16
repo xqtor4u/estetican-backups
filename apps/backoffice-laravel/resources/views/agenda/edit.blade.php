@@ -44,7 +44,7 @@
                                     @foreach($resources as $resource)
                                         <option value="{{ $resource->id }}"
                                             @selected((string) old('resource_id', $assignedResourceId) === (string) $resource->id)>
-                                            {{ $resource->code }} · {{ $resource->name }}
+                                            {{ $resource->code }} · {{ $resource->name }}{{ $resource->administrative_status !== 'active' ? ' (inactivo)' : '' }}
                                         </option>
                                     @endforeach
                                 </select>
