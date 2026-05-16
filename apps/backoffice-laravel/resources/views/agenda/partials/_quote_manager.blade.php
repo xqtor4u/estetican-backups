@@ -129,7 +129,7 @@
                         <select x-ref="serviceSelector" class="form-select">
                             <option value="">Seleccionar servicio...</option>
                             @foreach($services as $s)
-                                <option value="{{ $s->id }}" data-name="{{ $s->name }}" data-price="{{ $s->suggested_duration_minutes > 0 ? $s->duration_minutes : $s->price ?? 0 }}">{{ $s->name }} (${{ number_format($s->price ?? 0, 2) }})</option>
+                                <option value="{{ $s->id }}" data-name="{{ $s->name }}" data-price="{{ $s->suggested_price ?? $s->price ?? 0 }}">{{ $s->name }} (${{ number_format($s->price ?? 0, 2) }})</option>
                             @endforeach
                         </select>
                         <button type="button" @click="addService()" class="btn btn-outline-primary">

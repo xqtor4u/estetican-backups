@@ -30,7 +30,7 @@ class DashboardController extends Controller
         $spaCounts = [
             'total'      => $spaToday->count(),
             'scheduled'  => $spaToday->where('status', 'scheduled')->count(),
-            'in_process' => $spaToday->where('status', 'in_process')->count(),
+            'work_order' => $spaToday->where('status', 'work_order')->count(),
             'completed'  => $spaToday->where('status', 'completed')->count(),
             'cancelled'  => $spaToday->where('status', 'cancelled')->count(),
         ];
@@ -57,7 +57,7 @@ class DashboardController extends Controller
 
         // Próximas citas SPA (las 5 siguientes)
         $upcomingBookings = SpaBooking::where('scheduled_at', '>=', now())
-            ->whereIn('status', ['scheduled', 'in_process'])
+            ->whereIn('status', ['scheduled', 'work_order'])
             ->with('pet.client')
             ->orderBy('scheduled_at')
             ->limit(5)

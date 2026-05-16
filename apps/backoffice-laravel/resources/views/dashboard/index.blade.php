@@ -24,8 +24,8 @@
                     <div class="agenda-hero-title">Agenda del día</div>
                     <div class="agenda-hero-sub">
                         {{ $spaCounts['total'] }} cita{{ $spaCounts['total'] !== 1 ? 's' : '' }} SPA
-                        @if($spaCounts['in_process'] > 0)
-                            &nbsp;·&nbsp; <span class="agenda-hero-badge">{{ $spaCounts['in_process'] }} en proceso</span>
+                        @if($spaCounts['work_order'] > 0)
+                            &nbsp;·&nbsp; <span class="agenda-hero-badge">{{ $spaCounts['work_order'] }} en proceso</span>
                         @endif
                         @if($hotelActive > 0)
                             &nbsp;·&nbsp; {{ $hotelActive }} en hotel
@@ -48,7 +48,7 @@
                 <div class="kpi-label">Citas SPA hoy</div>
                 <div class="kpi-sub">
                     <span class="badge bg-warning text-dark">{{ $spaCounts['scheduled'] }} prog.</span>
-                    <span class="badge bg-primary">{{ $spaCounts['in_process'] }} en proc.</span>
+                    <span class="badge bg-primary">{{ $spaCounts['work_order'] }} en proc.</span>
                     <span class="badge bg-success">{{ $spaCounts['completed'] }} listas</span>
                 </div>
             </div>
@@ -115,7 +115,7 @@
                         <div class="ms-auto">
                             @if($booking->status === 'scheduled')
                                 <span class="badge bg-warning text-dark">Programada</span>
-                            @elseif($booking->status === 'in_process')
+                            @elseif($booking->status === 'work_order')
                                 <span class="badge bg-primary text-white">En proceso</span>
                             @elseif($booking->status === 'completed')
                                 <span class="badge bg-success text-white">Completada</span>

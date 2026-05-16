@@ -207,6 +207,33 @@
 - Respaldo diario ejecutado.
 
 ---
+## 📅 Sesión: 16/05/2026 - Revisión Estática y Corrección de Bugs Críticos
+
+### ✅ Logros y Cambios
+
+**Auditoría estática del codebase (4 bugs corregidos):**
+
+- **[CRÍTICO] Estado `in_process` inexistente** — El estado válido es `work_order`. Corregido en:
+  - `SpaBookingController.php` (línea de `createForPet`)
+  - `DashboardController.php` (clave `$spaCounts` y query de próximas citas)
+  - `dashboard/index.blade.php` (3 referencias a `in_process`)
+- **[CRÍTICO] `markAsNoShow($booking)`** — Renombrado a `markNoShow($booking->id)` para coincidir con la firma del servicio (`BookingServiceInterface`).
+- **[CRÍTICO] `cancelBooking($booking, ...)`** — Corregido a `cancelBooking($booking->id, ...)` para pasar el ID entero que espera el servicio.
+- **[MEDIO] Lógica invertida en `data-price`** — `_quote_manager.blade.php` mostraba `duration_minutes` como precio. Corregido a `$s->suggested_price ?? $s->price ?? 0`.
+
+### 🚀 Estado del Sistema
+- Los flujos de cancelar cita, marcar no-show y el Dashboard ahora funcionan correctamente.
+- No quedan referencias a `in_process` ni a `markAsNoShow` en el proyecto.
+
+### 🛑 Pendientes / Backlog
+- **Tema de UI:** Reparar la persistencia y cambio reactivo de la paleta de colores.
+- **Favicon & Empresa:** Agregar subida de Favicon y datos generales del negocio.
+- **Email Avanzado:** Añadir configuración de credenciales SMTP (usuario/password, puertos, SSL/TLS).
+- **Zonas Horarias:** Reemplazar el selector UTC.
+- **Reportes PDF:** Iniciar el diseño y renderizado de presupuestos, órdenes de trabajo y facturas.
+- **Ecosistema Móvil:** Continuar desarrollo en `mob_apps/`.
+
+---
 ## 📅 Sesión: 15/05/2026 - Control de Identidad y Seguridad Operativa
 
 ### ✅ Logros y Cambios

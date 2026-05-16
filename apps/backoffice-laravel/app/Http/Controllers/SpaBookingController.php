@@ -265,14 +265,14 @@ class SpaBookingController extends Controller
             'cancellation_reason' => 'required|string|max:500',
         ]);
 
-        $this->bookingService->cancelBooking($booking, $validated['cancellation_reason']);
+        $this->bookingService->cancelBooking($booking->id, $validated['cancellation_reason']);
 
         return redirect()->route('agenda.index')->with('success', 'Sesión cancelada.');
     }
 
     public function markNoShow(SpaBooking $booking): RedirectResponse
     {
-        $this->bookingService->markAsNoShow($booking);
+        $this->bookingService->markNoShow($booking->id);
 
         return redirect()->route('agenda.index')->with('success', 'Sesión marcada como No se presentó.');
     }
@@ -304,7 +304,7 @@ class SpaBookingController extends Controller
 
         $upcomingBookings = SpaBooking::where('pet_id', $pet->id)
             ->where('scheduled_at', '>=', now())
-            ->whereIn('status', ['scheduled', 'in_process'])
+            ->whereIn('status', ['scheduled', 'work_order'])
             ->with('services.service')
             ->orderBy('scheduled_at')
             ->get();
