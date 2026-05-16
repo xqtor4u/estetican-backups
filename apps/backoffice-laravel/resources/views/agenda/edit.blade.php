@@ -1,6 +1,7 @@
 @php
-    $screenDebugId = 'AgEdi';
+    $screenDebugId = 'AgSpaEdi';
     $breadcrumbs = $page['breadcrumbs'];
+    $selectedServiceIds = old('services', $booking->services->pluck('service_id')->map(fn($id) => (string)$id)->toArray());
 @endphp
 @extends('layouts.app')
 @php($defaultScheduledAt = old('scheduled_at', $booking->scheduled_at?->format('Y-m-d\TH:i')))
@@ -12,14 +13,19 @@
     :subtitle="$page['header']['subtitle']"
 >
     <x-slot:actions>
-        <a href="{{ route('agenda.show', $booking) }}" class="btn btn-outline-secondary">Volver al booking</a>
+        <a href="{{ route('agenda.show', $booking) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Volver al detalle
+        </a>
     </x-slot:actions>
 </x-page-header>
 
 <div class="catalog-content-wide">
-    <div class="row g-3">
+    <div class="row g-4">
         <div class="col-lg-8">
             <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3">
+                    <h2 class="h6 text-uppercase text-body-secondary fw-bold mb-0">Datos de la Cita</h2>
+                </div>
                 <div class="card-body p-4">
                     <form action="{{ route('agenda.update', $booking) }}" method="POST">
                         @csrf
@@ -27,31 +33,65 @@
 
                         <div class="row g-3 mb-4">
                             <div class="col-md-4">
-                                <label for="scheduled_at" class="form-label">Nueva fecha y hora</label>
-                                <input id="scheduled_at" type="datetime-local" name="scheduled_at" value="{{ $defaultScheduledAt }}" class="form-control" required>
-                                <div class="form-text">Solo se reprograma horario y nota. Los servicios congelados permanecen iguales.</div>
+                                <label for="scheduled_at" class="form-label fw-semibold">Fecha y hora</label>
+                                <input id="scheduled_at" type="datetime-local" name="scheduled_at"
+                                       value="{{ $defaultScheduledAt }}" class="form-control" required>
                             </div>
                             <div class="col-md-4">
-                                <label for="resource_id" class="form-label">Jaula / recurso físico</label>
+                                <label for="resource_id" class="form-label fw-semibold">Jaula / recurso físico</label>
                                 <select id="resource_id" name="resource_id" class="form-select">
-                                    <option value="">Liberar asignación</option>
+                                    <option value="">Sin asignar</option>
                                     @foreach($resources as $resource)
-                                        <option value="{{ $resource->id }}" @selected((string) old('resource_id', $assignedResourceId) === (string) $resource->id)>
-                                            {{ $resource->code }} · {{ $resource->name }} · {{ $resource->branch?->name }}
+                                        <option value="{{ $resource->id }}"
+                                            @selected((string) old('resource_id', $assignedResourceId) === (string) $resource->id)>
+                                            {{ $resource->code }} · {{ $resource->name }}
                                         </option>
                                     @endforeach
                                 </select>
-                                <div class="form-text">Puedes cambiar la jaula o liberar la asignación al reprogramar.</div>
                             </div>
                             <div class="col-md-4">
-                                <label for="notes" class="form-label">Notas operativas</label>
-                                <textarea id="notes" name="notes" rows="4" class="form-control" placeholder="Ajustes para recepción, grooming o coordinación">{{ old('notes', $booking->notes) }}</textarea>
+                                <label for="notes" class="form-label fw-semibold">Notas operativas</label>
+                                <textarea id="notes" name="notes" rows="4" class="form-control"
+                                    placeholder="Ajustes para recepción, grooming o coordinación">{{ old('notes', $booking->notes) }}</textarea>
                             </div>
                         </div>
 
+                        @if($booking->status === 'scheduled')
+                        <hr>
+                        <h6 class="text-uppercase small text-body-secondary fw-bold mb-3">Servicios</h6>
+                        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2 mb-4">
+                            @foreach($services as $service)
+                                @php($checked = in_array((string)$service->id, $selectedServiceIds, true))
+                                <div class="col">
+                                    <label class="card h-100 border-2 {{ $checked ? 'border-primary bg-primary-subtle' : 'border' }}"
+                                           style="cursor:pointer;">
+                                        <div class="card-body p-2 d-flex align-items-start gap-2">
+                                            <input type="checkbox" name="services[]" value="{{ $service->id }}"
+                                                   class="form-check-input mt-1 flex-shrink-0" @checked($checked)>
+                                            <div>
+                                                <div class="fw-semibold small lh-sm">{{ $service->name }}</div>
+                                                <div class="text-muted" style="font-size:0.7rem;">${{ number_format($service->price ?? 0, 2) }}</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            @endforeach
+                        </div>
+                        @else
+                        <hr>
+                        <h6 class="text-uppercase small text-body-secondary fw-bold mb-2">Servicios (no editables en este estado)</h6>
+                        <div class="d-flex flex-wrap gap-2 mb-4">
+                            @foreach($booking->services as $bs)
+                                <span class="badge bg-light text-dark border">{{ $bs->service?->name ?? 'Servicio' }}</span>
+                            @endforeach
+                        </div>
+                        @endif
+
                         <div class="d-flex gap-2 flex-wrap justify-content-end">
                             <a href="{{ route('agenda.show', $booking) }}" class="btn btn-outline-secondary">Cancelar</a>
-                            <button type="submit" class="btn btn-primary">Guardar reprogramación</button>
+                            <button type="submit" class="btn btn-primary fw-bold">
+                                <i class="bi bi-check2 me-1"></i> Guardar cambios
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -61,11 +101,27 @@
         <div class="col-lg-4">
             <div class="card shadow-sm border-0">
                 <div class="card-body p-4">
-                    <h2 class="h5 mb-3">Contexto actual</h2>
-                    <p class="mb-2"><strong>Mascota:</strong> {{ $pet?->name ?: 'Sin mascota' }}</p>
-                    <p class="mb-2"><strong>Cliente:</strong> {{ trim(($client?->first_name ?? '') . ' ' . ($client?->last_name ?? '')) ?: 'Sin nombre visible' }}</p>
-                    <p class="mb-2"><strong>Horario actual:</strong> {{ $booking->scheduled_at?->format($datetimeFormat) ?: 'Sin fecha' }}</p>
-                    <p class="mb-0"><strong>Servicios:</strong> {{ $booking->services->count() }}</p>
+                    <h2 class="h6 text-uppercase text-body-secondary fw-bold mb-3">Resumen de la cita</h2>
+                    <dl class="row mb-0 small">
+                        <dt class="col-5 text-body-secondary">Mascota</dt>
+                        <dd class="col-7 fw-semibold">{{ $pet?->name ?: '—' }}</dd>
+
+                        <dt class="col-5 text-body-secondary">Cliente</dt>
+                        <dd class="col-7">{{ trim(($client?->first_name ?? '') . ' ' . ($client?->last_name ?? '')) ?: '—' }}</dd>
+
+                        <dt class="col-5 text-body-secondary">Estado</dt>
+                        <dd class="col-7">
+                            <span class="badge text-bg-{{ match($booking->status) {
+                                'scheduled' => 'secondary',
+                                'work_order' => 'warning',
+                                'completed' => 'success',
+                                default => 'light'
+                            } }}">{{ ucfirst(str_replace('_', ' ', $booking->status)) }}</span>
+                        </dd>
+
+                        <dt class="col-5 text-body-secondary">Programada</dt>
+                        <dd class="col-7">{{ $booking->scheduled_at?->format($datetimeFormat) ?: '—' }}</dd>
+                    </dl>
                 </div>
             </div>
         </div>

@@ -213,11 +213,26 @@ class SpaBookingController extends Controller
 
         $validated = $request->validate([
             'scheduled_at' => 'required|date',
-            'resource_id' => 'nullable|exists:resources,id',
-            'notes' => 'nullable|string',
+            'resource_id'  => 'nullable|exists:resources,id',
+            'notes'        => 'nullable|string',
+            'services'     => 'nullable|array',
+            'services.*'   => 'exists:services,id',
         ]);
 
         $this->bookingService->rescheduleBooking($booking->id, $validated['scheduled_at'], $validated['notes'] ?? null);
+
+        // Sync services only when still in scheduled state (not yet a work order)
+        if ($booking->status === 'scheduled' && $request->has('services')) {
+            $serviceIds = array_filter((array) ($validated['services'] ?? []));
+            $prices = \App\Models\Service::whereIn('id', $serviceIds)->pluck('price', 'id');
+            $booking->services()->delete();
+            foreach ($serviceIds as $serviceId) {
+                $booking->services()->create([
+                    'service_id'    => $serviceId,
+                    'current_price' => $prices[$serviceId] ?? 0,
+                ]);
+            }
+        }
 
         if (array_key_exists('resource_id', $validated)) {
             if (empty($validated['resource_id'])) {
