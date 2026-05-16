@@ -104,8 +104,10 @@
 
             <div class="agenda-timeline">
                 @forelse($timelineBookings as $booking)
-                    @php($isHotel = $booking instanceof \App\Models\HotelReservation)
-                    @php($detailUrl = $isHotel ? route('hotel-reservations.show', $booking) : route('agenda.show', $booking))
+                    @php
+                        $isHotel = $booking instanceof \App\Models\HotelReservation;
+                        $detailUrl = $isHotel ? route('hotel-reservations.show', $booking) : route('agenda.show', $booking);
+                    @endphp
                     <article class="agenda-timeline-item {{ $isHotel ? 'agenda-timeline-item--hotel' : '' }}"
                         style="cursor: pointer;"
                         onclick="if(!event.target.closest('a,button')) window.location='{{ $detailUrl }}'">
@@ -244,13 +246,7 @@
                             $balance = $total - $paid;
                         @endphp
                         <div class="catalog-stat {{ $balance > 0 && $aq ? 'text-danger' : '' }}">${{ number_format($balance, 2) }}</div>
-                        <div class="catalog-stat__hint">
-                            @if($paid > 0)
-                                saldo · pagado ${{ number_format($paid, 2) }}
-                            @else
-                                estimado
-                            @endif
-                        </div>
+                        <div class="catalog-stat__hint">{{ $paid > 0 ? 'saldo · pagado $' . number_format($paid, 2) : 'estimado' }}</div>
                     </td>
                     <td class="text-end">
                         <div class="catalog-actions-cluster justify-content-end">

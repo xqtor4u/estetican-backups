@@ -131,10 +131,19 @@
             </article>
             <article class="catalog-overview-card {{ $booking->status === 'completed' ? 'border-success border-2' : '' }}">
                 <span class="catalog-overview-card__eyebrow">Balance</span>
-                @php($totalPaid = $acceptedQuote ? ($client?->payments()->where('payable_id', $acceptedQuote->id)->sum('amount') ?? 0) : 0)
-                @php($balance = ($acceptedQuote?->total_amount ?? 0) - $totalPaid)
+                @php
+                    $totalPaid = $acceptedQuote ? ($acceptedQuote->cashLedgers->sum('amount') + $acceptedQuote->bankLedgers->sum('amount')) : 0;
+                    $quoteTotal = $acceptedQuote?->total_amount ?? $booking->total_estimated_price;
+                    $balance = $quoteTotal - $totalPaid;
+                @endphp
                 <div class="catalog-overview-card__value-sm text-{{ $balance > 0 ? 'danger' : 'success' }}">${{ number_format($balance, 2) }}</div>
-                <div class="catalog-overview-card__label">{{ $balance > 0 ? 'Por liquidar' : 'Pagado completo' }}</div>
+                <div class="catalog-overview-card__label">
+                    @if($totalPaid > 0)
+                        anticipo ${{ number_format($totalPaid, 2) }} · total ${{ number_format($quoteTotal, 2) }}
+                    @else
+                        {{ $balance > 0 ? 'Por liquidar' : 'Pagado completo' }}
+                    @endif
+                </div>
             </article>
         </div>
     </section>

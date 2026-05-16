@@ -427,8 +427,8 @@ class SpaBookingController extends Controller
             'executedServices.operator:id,full_name,name',
             'quotes.items.service',
             'quotes.items.operator',
-            'pet.client.cashLedgers',
-            'pet.client.bankLedgers',
+            'quotes.cashLedgers',
+            'quotes.bankLedgers',
         ])->loadCount('quotes');
     }
 

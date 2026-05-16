@@ -49,17 +49,17 @@
 
                 <h6 class="text-uppercase small text-body-secondary fw-bold mb-3">Ejecución Profesional</h6>
                 <div class="agenda-service-grid">
-                    @php($acceptedQuote = $booking->quotes->firstWhere('status', 'accepted'))
-                    @foreach($acceptedQuote?->items ?? $booking->services as $item)
+                    @foreach($booking->services as $item)
                         <div class="card bg-light border-0 mb-2">
                             <div class="card-body p-3">
-                                <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
                                     <div>
                                         <div class="fw-semibold text-primary">{{ $item->service->name }}</div>
                                         <small class="text-body-secondary">{{ $item->service->code }}</small>
                                     </div>
-                                    <div class="text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalAssignProfessional{{ $item->id }}">
+                                    <div class="text-end flex-shrink-0">
+                                        <div class="fw-bold text-dark">${{ number_format($item->current_price, 2) }}</div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary mt-1" data-bs-toggle="modal" data-bs-target="#modalAssignProfessional{{ $item->id }}">
                                             <i class="bi bi-person-badge me-1"></i> Asignar
                                         </button>
                                     </div>
@@ -74,6 +74,10 @@
                             </div>
                         </div>
                     @endforeach
+                    <div class="d-flex justify-content-between align-items-center px-2 py-2 border-top mt-1 fw-bold">
+                        <span class="text-body-secondary small text-uppercase">Total acordado</span>
+                        <span>${{ number_format($booking->services->sum('current_price'), 2) }}</span>
+                    </div>
                 </div>
             </div>
             
@@ -103,8 +107,8 @@
     </div>
 </div>
 
-<!-- Modal Example: Assign Professional -->
-@foreach($acceptedQuote?->items ?? [] as $item)
+<!-- Modal: Assign Professional -->
+@foreach($booking->services as $item)
 <div class="modal fade" id="modalAssignProfessional{{ $item->id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <form action="{{ route('agenda.items.assign', [$booking, $item]) }}" method="POST" class="modal-content">

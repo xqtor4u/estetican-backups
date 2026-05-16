@@ -85,8 +85,20 @@ class QuoteService implements QuoteServiceInterface
                 ]);
             }
 
-            // 4. Transform Booking status to Work Order
-            $quote->spaBooking->update(['status' => 'work_order']);
+            // 4. Transform Booking status to Work Order + sync services from accepted quote
+            $quote->loadMissing('items.service');
+            $booking = $quote->spaBooking;
+            $booking->services()->delete();
+            foreach ($quote->items as $item) {
+                $booking->services()->create([
+                    'service_id'    => $item->service_id,
+                    'current_price' => $item->price_override ?? $item->service?->price ?? 0,
+                ]);
+            }
+            $booking->update([
+                'status'                  => 'work_order',
+                'total_estimated_price'   => $quote->total_amount,
+            ]);
 
             return $quote;
         });
