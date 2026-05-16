@@ -1,11 +1,11 @@
 # 📘 Manual Técnico Modular - EstetiCAN 2
-**Versión de Documento:** 260515.1
-**Estado del Proyecto:** Operativo / Fase de Estabilización y Dashboard
+**Versión de Documento:** 260515.2
+**Estado del Proyecto:** Operativo / Fase de Estabilización — Agenda y Contabilidad Consolidadas
 
 ## 1. Arquitectura del Sistema
 EstetiCAN 2 es una aplicación de gestión backoffice construida sobre un stack moderno y robusto, optimizada para entornos de alta interactividad sin la complejidad de un SPA completo.
 
-- **Core:** Laravel 11.x (PHP 8.3+)
+- **Core:** Laravel 13.x (PHP 8.3+)
 - **Base de Datos:** MySQL 8.0
 - **Frontend:** Laravel Blade + Alpine.js 3.x + Bootstrap 5.3
 - **Gestión de Activos:** Laravel Vite (con soporte para hot-reload en WSL)
@@ -75,9 +75,38 @@ Gestiona la disponibilidad de activos físicos (Jaulas, Consultorios, Mesas).
 
 ---
 
-## 5. Mantenimiento y Extensibilidad
+## 5. Patrones Blade Críticos
+
+### ⚠️ `@php(expr)` con paréntesis anidados — BUG CONOCIDO
+El compilador Blade usa regex para `@php(expr)` y falla silenciosamente cuando la expresión contiene paréntesis anidados (ej: `route(...)`, `firstWhere(...)`, `in_array(...)`). Esto corrompe la compilación de todo el template a partir del punto del error.
+
+**Regla:** Nunca usar `@php(expr)` con funciones anidadas. Siempre usar el bloque:
+```blade
+@php
+    $var = expresion_compleja();
+@endphp
+```
+
+### Contabilidad: fuente única de verdad
+- `CashLedger` y `BankLedger` son morphMany en `Quote` (`payable_type = App\Models\Quote`).
+- Para calcular el saldo: `$quote->cashLedgers->sum('amount') + $quote->bankLedgers->sum('amount')`.
+- `client->payments()` NO es equivalente. No usar para calcular balances de citas.
+
+### Flujo de aceptación de quote
+Al llamar `QuoteService::acceptQuote()`:
+1. Quote → `status = accepted`
+2. Otros quotes del booking → `status = rejected`
+3. Si hay anticipo → crea `CashLedger` o `BankLedger` con `payable = Quote`
+4. Sincroniza `spa_booking_services` desde `quote_items` (precio correcto en `current_price`)
+5. Actualiza `spa_bookings.total_estimated_price = quote.total_amount`
+6. Booking → `status = work_order`
+
+---
+
+## 6. Mantenimiento y Extensibilidad
 - **Bitácora de Desarrollo:** Siempre consultar `BITACORA.md` en la raíz para el historial de cambios atómicos.
 - **Configuración de Sistema:** Centralizada en `SystemSettings`. Permite cambiar branding, colores, parámetros de Hacienda y correos sin tocar el código.
+- **Formato de hora global:** `ApplySystemSettings` middleware comparte `$timeFormat`, `$dateFormat`, `$datetimeFormat` con todas las vistas. No usar ternarias en los templates.
 
 ---
 *Documento generado automáticamente por Antigravity AI para la sesión 260515.*

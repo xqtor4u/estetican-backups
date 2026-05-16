@@ -162,6 +162,51 @@
 - **Zonas Horarias:** Reemplazar el selector UTC plano por un selector de zonas horarias completo con soporte de países y diferencias horarias reales.
 
 ---
+## 📅 Sesión: 15/05/2026 - Agenda Unificada: Estabilización Integral
+
+### ✅ Logros y Cambios
+
+**Formato de hora global (12h/24h):**
+- Centralizado en `ApplySystemSettings` middleware vía `view()->share(['timeFormat', 'dateFormat', 'datetimeFormat'])`. Eliminadas todas las ternarias dispersas en 13+ vistas.
+- Instalado **Flatpickr 4.6.13** vía npm para reemplazar los inputs `datetime-local` nativos. Lee el `data-time24h` del `<body>` y aplica `altInput` para separar formato de visualización del valor enviado al servidor.
+- Corregido `config/backoffice.php` donde faltaba la clave `time_format`.
+
+**AgSpaEdi (Editar Cita):**
+- Ahora pre-llena todos los campos de la cita guardada.
+- Permite editar servicios en estado `scheduled` (checkboxes), muestra badges de solo lectura en `work_order`.
+- Botón "Editar cita" movido al stepper operativo (visible en `scheduled` y `work_order`).
+
+**AgUniInd (Agenda Universal - Lista):**
+- Orden por defecto cambiado a descendente (más reciente primero).
+- Estado por defecto cambiado a `active` (incluye `scheduled` + `work_order`).
+- Columna Total muestra saldo real: total del quote aceptado menos anticipos pagados. Si hay anticipo, muestra "saldo · pagado $X".
+- Corregido ParseError causado por `@php(expr)` con paréntesis anidados dentro de `@forelse` que corrompía el compilador Blade. Solución: usar bloques `@php...@endphp` siempre.
+
+**AgSpaSho (Detalle de Cita):**
+- Modal "Cambiar Jaula" añadido (estaba el botón pero faltaba el HTML del modal).
+- Balance ahora usa `acceptedQuote->cashLedgers + bankLedgers` en vez de `client->payments()` (tabla incorrecta). Muestra anticipo y total en el hint.
+- Work Order muestra precio por servicio y total acordado al pie.
+
+**Recursos físicos:**
+- El filtro de recursos en dropdowns de reprogramación ahora incluye `active` e `inactive`, excluyendo solo `retired`.
+
+**Consolidación de fuente de verdad (fix arquitectónico):**
+- `QuoteService::acceptQuote()` ahora sincroniza `spa_booking_services` con los items del quote aceptado y actualiza `total_estimated_price` en el booking. Antes estas tres tablas divergían, generando datos inconsistentes entre vistas.
+- Ejecutado sync retroactivo sobre quotes ya aceptados en BD.
+
+### 🛑 Pendientes / Backlog
+- **Tema de UI:** Reparar persistencia y cambio reactivo de paleta de colores.
+- **Favicon & Empresa:** Subida de favicon desde UI + datos generales del negocio.
+- **Email Avanzado:** Credenciales SMTP (usuario/password, puertos, SSL/TLS).
+- **Zonas Horarias:** Reemplazar selector UTC por selector completo.
+- **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
+- **Ecosistema Móvil:** Continuar `mob_apps/operador`.
+
+### 💾 Cierre de Sesión
+- Commits: `fix(agenda): consolidar fuente de verdad...` y anteriores del día.
+- Respaldo diario ejecutado.
+
+---
 ## 📅 Sesión: 15/05/2026 - Control de Identidad y Seguridad Operativa
 
 ### ✅ Logros y Cambios
