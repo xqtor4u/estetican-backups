@@ -216,7 +216,7 @@
                         </div>
                     </div>
                     
-                    @if($booking->status === 'scheduled')
+                    @if(in_array($booking->status, ['scheduled', 'work_order']))
                         <button type="button" class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#modalChangeResource">
                             Cambiar asignación
                         </button>
@@ -248,19 +248,21 @@
                 </div>
             </div>
 
-            @if($booking->status === 'scheduled')
+            @if(in_array($booking->status, ['scheduled', 'work_order']))
                 <!-- Secondary Actions -->
                 <div class="card shadow-sm border-0 mb-3">
                     <div class="card-body p-4">
                         <h5 class="h6 text-uppercase text-body-secondary fw-bold mb-3">Gestión de Cita</h5>
                         <div class="d-grid gap-2">
                              <a href="{{ route('agenda.edit', $booking) }}" class="btn btn-outline-warning btn-sm border-2 fw-bold text-dark" style="border-color: #ffc107 !important;">
-                                 <i class="bi bi-calendar-range me-1"></i> Reprogramar Cita
+                                 <i class="bi bi-calendar-range me-1"></i> Editar / Reprogramar
                              </a>
-                             <hr class="my-2">
-                             <button type="button" class="btn btn-link link-danger btn-sm text-start p-0" data-bs-toggle="modal" data-bs-target="#modalCancel">
-                                <i class="bi bi-x-circle me-1"></i> Cancelar por completo...
-                             </button>
+                             @if($booking->status === 'scheduled')
+                                 <hr class="my-2">
+                                 <button type="button" class="btn btn-link link-danger btn-sm text-start p-0" data-bs-toggle="modal" data-bs-target="#modalCancel">
+                                    <i class="bi bi-x-circle me-1"></i> Cancelar por completo...
+                                 </button>
+                             @endif
                         </div>
                     </div>
                 </div>
