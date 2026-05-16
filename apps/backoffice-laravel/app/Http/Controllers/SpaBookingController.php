@@ -78,7 +78,7 @@ class SpaBookingController extends Controller
         }
 
         $sort = $request->query('sort', 'date');
-        $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
+        $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
 
         $bookingsQuery->select('spa_bookings.*');
 
