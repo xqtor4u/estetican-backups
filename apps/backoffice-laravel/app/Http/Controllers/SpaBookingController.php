@@ -198,7 +198,7 @@ class SpaBookingController extends Controller
             $booking->update(['status' => 'completed']);
             
             // SMTP Automated Messaging
-            $settings = app(\App\Support\SystemSettings\SystemSettings::class)->get('operational');
+            $settings = app(\App\Support\SystemSettings\SystemSettings::class)->all();
             if (($settings['operational_auto_email_report'] ?? false) && $booking->pet->client->email) {
                 try {
                     \Illuminate\Support\Facades\Mail::to($booking->pet->client->email)

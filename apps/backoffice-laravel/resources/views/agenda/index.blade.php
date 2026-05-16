@@ -102,11 +102,15 @@
 
             <div class="agenda-timeline">
                 @forelse($timelineBookings as $booking)
-                    <article class="agenda-timeline-item">
+                    @php($isHotel = $booking instanceof \App\Models\HotelReservation)
+                    @php($detailUrl = $isHotel ? route('hotel-reservations.show', $booking) : route('agenda.show', $booking))
+                    <article class="agenda-timeline-item {{ $isHotel ? 'agenda-timeline-item--hotel' : '' }}"
+                        style="cursor: pointer;"
+                        onclick="if(!event.target.closest('a,button')) window.location='{{ $detailUrl }}'">
                         <div class="agenda-timeline-item__time">
                             <div class="agenda-timeline-item__time-main">{{ $booking->time_window_label ?? $booking->scheduled_at?->format(config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A') }}</div>
                             <div class="agenda-timeline-item__time-sub">
-                                @if($booking instanceof \App\Models\SpaBooking)
+                                @if(!$isHotel)
                                     {{ $booking->estimated_duration_minutes }} min estimados
                                 @else
                                     Estancia Hotel
@@ -117,10 +121,10 @@
                             <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
                                 <div>
                                     <div class="d-flex align-items-center gap-2 mb-1">
-                                        @if($booking instanceof \App\Models\HotelReservation)
-                                            <span class="badge bg-info-subtle text-info border border-info-subtle small fw-bold" style="font-size: 0.65rem;">HOTEL</span>
+                                        @if($isHotel)
+                                            <span class="badge bg-info text-white fw-bold" style="font-size: 0.75rem;">HOTEL</span>
                                         @else
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle small fw-bold" style="font-size: 0.65rem;">SPA</span>
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold" style="font-size: 0.75rem;">SPA</span>
                                         @endif
                                         <div class="catalog-title-stack__title mb-0">{{ $booking->pet?->name ?: 'Mascota sin nombre' }}</div>
                                     </div>
@@ -132,7 +136,7 @@
                             </div>
 
                             <div class="catalog-inline-tags mt-2">
-                                @if($booking instanceof \App\Models\SpaBooking)
+                                @if(!$isHotel)
                                     @foreach($booking->services as $bookingService)
                                         <span class="catalog-inline-tag">{{ $bookingService->service?->name ?? 'Servicio' }}</span>
                                     @endforeach
@@ -147,18 +151,18 @@
                         </div>
                         <div class="agenda-timeline-item__meta">
                             <div class="catalog-stat">
-                                @if($booking instanceof \App\Models\SpaBooking)
+                                @if(!$isHotel)
                                     ${{ number_format((float) $booking->total_estimated_price, 2) }}
                                 @else
                                     --
                                 @endif
                             </div>
-                            <div class="catalog-stat__hint">{{ $booking instanceof \App\Models\SpaBooking ? 'estimado' : 'hotel cost' }}</div>
+                            <div class="catalog-stat__hint">{{ !$isHotel ? 'estimado' : 'hotel cost' }}</div>
                             <div class="catalog-actions-cluster mt-2">
-                                @if($booking instanceof \App\Models\SpaBooking)
-                                    <a href="{{ route('agenda.show', $booking) }}" class="btn btn-sm btn-outline-dark">Detalle</a>
+                                @if(!$isHotel)
+                                    <a href="{{ $detailUrl }}" class="btn btn-sm btn-outline-dark">Detalle</a>
                                 @else
-                                    <a href="{{ route('hotel-reservations.show', $booking) }}" class="btn btn-sm btn-outline-dark">Detalle</a>
+                                    <a href="{{ $detailUrl }}" class="btn btn-sm btn-outline-info">Ver Estancia</a>
                                 @endif
                                 <a href="{{ route('pets.show', ['pet' => $booking->pet, 'view' => 'blocks']) }}" class="btn btn-sm btn-outline-primary">Mascota</a>
                                 <a href="{{ route('clients.show', $booking->pet?->client) }}" class="btn btn-sm btn-outline-secondary">Cliente</a>
@@ -250,4 +254,11 @@
         </tbody>
     </x-list-table>
 </div>
+
+<style>
+.agenda-timeline-item--hotel {
+    background-color: rgba(13, 202, 240, 0.05);
+    border-left: 3px solid #0dcaf0;
+}
+</style>
 @endsection

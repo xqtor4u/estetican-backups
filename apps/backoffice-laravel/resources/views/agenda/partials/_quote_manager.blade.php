@@ -161,7 +161,7 @@
                 let s = 0;
                 @foreach($quote->items as $item)
                     @if($item->service->requires_advance)
-                        s += {{ $item->price_override ?? $item->service->price }} * ({{ $item->service->advance_percentage ?? settings('service_advance_percentage', 30) }} / 100);
+                        s += {{ $item->price_override ?? $item->service->price }} * ({{ $item->service->advance_percentage ?? app(\App\Support\SystemSettings\SystemSettings::class)->all()['service_advance_percentage'] }} / 100);
                     @endif
                 @endforeach
                 this.suggested = s.toFixed(2);
@@ -218,7 +218,7 @@
                     </div>
                     <div class="modal-footer border-0">
                         <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-success px-4" @if(!settings('allow_override_advance_requirement', true)) :disabled="$refs.advanceInput{{ $quote->id }}.value < suggested" @endif>
+                        <button type="submit" class="btn btn-success px-4" @if(!app(\App\Support\SystemSettings\SystemSettings::class)->all()['allow_override_advance_requirement']) :disabled="$refs.advanceInput{{ $quote->id }}.value < suggested" @endif>
                             Confirmar y Abrir Orden
                         </button>
                     </div>

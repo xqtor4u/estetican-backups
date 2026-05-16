@@ -172,20 +172,29 @@
                                 <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>
                                 <span>{{ $acceptedQuote->status === 'accepted' ? 'Imprimir Presupuesto' : 'Imprimir Borrador' }}</span>
                             </a>
+                        @else
+                            <button type="button" class="btn btn-light btn-sm text-start d-flex align-items-center opacity-50" disabled>
+                                <i class="bi bi-file-earmark-pdf me-2 text-muted"></i>
+                                <span>Presupuesto (sin cotización)</span>
+                            </button>
                         @endif
 
-                        @if($booking->status === 'work_order')
-                            <a href="{{ route('reports.work-order', $booking) }}" target="_blank" class="btn btn-light btn-sm text-start d-flex align-items-center">
-                                <i class="bi bi-tools me-2 text-warning"></i>
-                                <span>Imprimir Orden de Trabajo</span>
-                            </a>
-                        @endif
+                        <a href="{{ route('reports.work-order', $booking) }}" target="_blank" class="btn btn-light btn-sm text-start d-flex align-items-center">
+                            <i class="bi bi-tools me-2 text-warning"></i>
+                            <span>Imprimir Orden de Trabajo</span>
+                        </a>
 
                         @if($booking->status === 'completed')
                             <a href="{{ route('reports.invoice', $booking) }}" target="_blank" class="btn btn-light btn-sm text-start d-flex align-items-center">
                                 <i class="bi bi-receipt me-2 text-success"></i>
                                 <span>Imprimir Recibo de Pago</span>
                             </a>
+                        @else
+                            <button type="button" class="btn btn-light btn-sm text-start d-flex align-items-center opacity-50" disabled
+                                data-bs-toggle="tooltip" title="Disponible al completar la cita">
+                                <i class="bi bi-receipt me-2 text-muted"></i>
+                                <span>Recibo (pendiente de cierre)</span>
+                            </button>
                         @endif
                     </div>
                 </div>

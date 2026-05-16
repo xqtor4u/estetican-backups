@@ -10,19 +10,23 @@
             <div class="col-md-7">
                 <!-- Status Bar: Cage & Time -->
                 @php($allocation = $booking->resourceAllocations->first())
-                <div class="d-flex gap-3 mb-4" x-data="{ 
-                    startTime: new Date('{{ $booking->quotes->firstWhere('status', 'accepted')?->updated_at ?? $booking->updated_at }}').getTime(),
-                    now: new Date().getTime(),
-                    timer: '',
-                    update() {
-                        let diff = Math.floor((new Date().getTime() - this.startTime) / 1000);
+                @php($timerStartMs = ($booking->quotes->firstWhere('status', 'accepted')?->updated_at?->timestamp ?? $booking->updated_at->timestamp) * 1000)
+                <div class="d-flex gap-3 mb-4" x-data="{
+                    startTime: {{ $timerStartMs }},
+                    timer: '00:00:00',
+                    init() {
+                        this.tick();
+                        setInterval(() => this.tick(), 1000);
+                    },
+                    tick() {
+                        let diff = Math.floor((Date.now() - this.startTime) / 1000);
                         if (diff < 0) diff = 0;
                         let h = Math.floor(diff / 3600);
                         let m = Math.floor((diff % 3600) / 60);
                         let s = diff % 60;
-                        this.timer = [h, m, s].map(v => v < 10 ? '0' + v : v).join(':');
+                        this.timer = [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
                     }
-                }" x-init="update(); setInterval(() => update(), 1000)">
+                }">
                     <div class="flex-grow-1 p-3 border rounded-3 bg-white shadow-sm d-flex align-items-center">
                         <div class="bg-primary-subtle text-primary rounded-circle p-2 me-3">
                             <i class="bi bi-door-open-fill h4 mb-0"></i>
