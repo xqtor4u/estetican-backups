@@ -33,11 +33,11 @@ class SpaBookingController extends Controller
     {
         $page = AgendaPage::index();
         $search = trim((string) $request->query('search', ''));
-        $status = (string) $request->query('status', 'scheduled');
+        $status = (string) $request->query('status', 'active');
         $dateScope = (string) $request->query('date_scope', 'today');
 
-        if (!in_array($status, ['scheduled', 'completed', 'cancelled', 'no_show', 'unfulfillable', 'all', 'work_order'], true)) {
-            $status = 'scheduled';
+        if (!in_array($status, ['active', 'scheduled', 'work_order', 'completed', 'cancelled', 'no_show', 'unfulfillable', 'all'], true)) {
+            $status = 'active';
         }
 
         if (!in_array($dateScope, ['today', 'tomorrow', 'custom', 'all', 'full'], true)) {
@@ -52,14 +52,18 @@ class SpaBookingController extends Controller
             ->with([
                 'pet.client',
                 'services.service',
+                'quotes' => fn($q) => $q->where('status', 'accepted')
+                    ->with(['cashLedgers', 'bankLedgers']),
             ]);
 
-        if ($status !== 'all') {
+        if ($status === 'active') {
+            $bookingsQuery->whereIn('status', ['scheduled', 'work_order']);
+        } elseif ($status !== 'all') {
             $bookingsQuery->where('status', $status);
         }
 
         if ($dateScope === 'all') {
-            if ($status === 'scheduled') {
+            if (in_array($status, ['active', 'scheduled'])) {
                 $bookingsQuery->where('scheduled_at', '>=', now()->startOfDay());
             }
         } elseif ($dateScope === 'custom') {

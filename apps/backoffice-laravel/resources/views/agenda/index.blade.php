@@ -59,9 +59,11 @@
         <div class="col-lg-2 col-md-6">
             <label class="form-label">Estado</label>
             <select name="status" class="form-select">
-                <option value="scheduled" @selected($status === 'scheduled')>Programados</option>
-                <option value="all" @selected($status === 'all')>Todos</option>
+                <option value="active" @selected($status === 'active')>Activos (todos)</option>
+                <option value="scheduled" @selected($status === 'scheduled')>Solo programados</option>
+                <option value="work_order" @selected($status === 'work_order')>Solo en proceso</option>
                 <option value="completed" @selected($status === 'completed')>Completados</option>
+                <option value="all" @selected($status === 'all')>Todos</option>
                 <option value="cancelled" @selected($status === 'cancelled')>Cancelados</option>
                 <option value="no_show" @selected($status === 'no_show')>No show</option>
                 <option value="unfulfillable" @selected($status === 'unfulfillable')>No realizables</option>
@@ -235,8 +237,20 @@
                         <div class="catalog-stat__hint">estimados</div>
                     </td>
                     <td>
-                        <div class="catalog-stat">${{ number_format((float) $booking->total_estimated_price, 2) }}</div>
-                        <div class="catalog-stat__hint">estimado</div>
+                        @php
+                            $aq = $booking->quotes->firstWhere('status', 'accepted');
+                            $paid = $aq ? $aq->cashLedgers->sum('amount') + $aq->bankLedgers->sum('amount') : 0;
+                            $total = $aq ? $aq->total_amount : (float) $booking->total_estimated_price;
+                            $balance = $total - $paid;
+                        @endphp
+                        <div class="catalog-stat {{ $balance > 0 && $aq ? 'text-danger' : '' }}">${{ number_format($balance, 2) }}</div>
+                        <div class="catalog-stat__hint">
+                            @if($paid > 0)
+                                saldo · pagado ${{ number_format($paid, 2) }}
+                            @else
+                                estimado
+                            @endif
+                        </div>
                     </td>
                     <td class="text-end">
                         <div class="catalog-actions-cluster justify-content-end">
