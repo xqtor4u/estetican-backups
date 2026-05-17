@@ -111,7 +111,7 @@
         <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
             <button type="button" class="btn btn-sm btn-outline-dark address-editor-geocode-btn">Intentar traer coordenadas</button>
             <a href="#" class="btn btn-sm btn-outline-secondary disabled address-editor-maps-btn" target="_blank" rel="noopener noreferrer" aria-disabled="true">Mostrar en Google Maps</a>
-            <span class="small text-body-secondary address-editor-status">Captura al menos calle, número exterior y ciudad para buscar la dirección con precisión.</span>
+            <span class="small text-body-secondary address-editor-status">Captura al menos calle y ciudad para buscar la dirección con precisión.</span>
         </div>
         <div class="col-md-9">
             <input type="text" class="form-control form-control-sm address-editor-maps-source" placeholder="Copia y pega aquí las coordenadas, por ejemplo 25.6866142,-100.3161126">

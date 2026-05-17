@@ -93,7 +93,6 @@ const initSingleEditor = (root) => {
 
     const hasCoordinates = () => (fields.lat?.value || '').trim() !== '' && (fields.lng?.value || '').trim() !== '';
     const hasMinimumAddress = () => (fields.street?.value || '').trim() !== ''
-        && (fields.exterior?.value || '').trim() !== ''
         && (fields.city?.value || '').trim() !== '';
 
     const updateMapsButton = () => {
@@ -111,7 +110,7 @@ const initSingleEditor = (root) => {
             mapsButton.href = '#';
             mapsButton.classList.add('disabled');
             mapsButton.setAttribute('aria-disabled', 'true');
-            statusNode.textContent = 'Captura al menos calle, número exterior y ciudad para buscar la dirección con precisión.';
+            statusNode.textContent = 'Captura al menos calle y ciudad para buscar la dirección con precisión.';
             return;
         }
 
@@ -177,7 +176,7 @@ const initSingleEditor = (root) => {
         const address = buildAddress();
 
         if (!hasMinimumAddress()) {
-            statusNode.textContent = 'Captura al menos calle, número exterior y ciudad antes de intentar traer coordenadas.';
+            statusNode.textContent = 'Captura al menos calle y ciudad antes de intentar traer coordenadas.';
             return;
         }
 
