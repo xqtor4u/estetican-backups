@@ -95,8 +95,10 @@
             @endif
         </div>
 
-        @php($totalPaid = $allPayments->sum('amount'))
-        @php($balance = ($acceptedQuote?->total_amount ?? 0) - $totalPaid)
+        @php
+            $totalPaid = (float) $allPayments->sum('amount');
+            $balance   = (float) ($acceptedQuote?->total_amount ?? 0) - $totalPaid;
+        @endphp
 
         <div class="total-row grand-total">
             <span>{{ $balance > 0 ? 'SALDO PENDIENTE' : 'TOTAL LIQUIDADO' }}</span>

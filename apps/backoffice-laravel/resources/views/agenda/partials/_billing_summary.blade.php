@@ -6,6 +6,25 @@
         </div>
     </div>
     <div class="card-body">
+        @php
+            $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');
+            $cashPayments  = $acceptedQuote
+                ? $booking->pet->client->cashLedgers()
+                    ->where('payable_id', $acceptedQuote->id)
+                    ->where('payable_type', \App\Models\Quote::class)
+                    ->get()
+                : collect();
+            $bankPayments  = $acceptedQuote
+                ? $booking->pet->client->bankLedgers()
+                    ->where('payable_id', $acceptedQuote->id)
+                    ->where('payable_type', \App\Models\Quote::class)
+                    ->get()
+                : collect();
+            $allPayments = $cashPayments->concat($bankPayments)->sortBy('created_at');
+            $totalPaid   = (float) $allPayments->sum('amount');
+            $balance     = (float) ($acceptedQuote?->total_amount ?? 0) - $totalPaid;
+        @endphp
+
         <div class="row g-4">
             <div class="col-md-8">
                 <h6 class="text-uppercase small text-body-secondary fw-bold mb-3">Resumen de Cargos</h6>
@@ -18,7 +37,6 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @php($acceptedQuote = $booking->quotes->firstWhere('status', 'accepted'))
                             @if($acceptedQuote)
                                 @foreach($acceptedQuote->items as $item)
                                     <tr>
@@ -27,7 +45,6 @@
                                     </tr>
                                 @endforeach
                             @endif
-                            <!-- Add miscellaneous charges here from payments table with category 'misc_charge' if applicable -->
                         </tbody>
                         <tfoot class="table-group-divider">
                             <tr class="fw-bold">
@@ -41,21 +58,23 @@
                 <h6 class="text-uppercase small text-body-secondary fw-bold mb-3 mt-4">Pagos y Abonos</h6>
                 <div class="table-responsive">
                     <table class="table table-sm table-borderless">
-                            @php($cashPayments = $booking->pet->client->cashLedgers()->where('payable_id', $acceptedQuote?->id)->where('payable_type', App\Models\Quote::class)->get())
-                            @php($bankPayments = $booking->pet->client->bankLedgers()->where('payable_id', $acceptedQuote?->id)->where('payable_type', App\Models\Quote::class)->get())
-                            @php($allPayments = $cashPayments->concat($bankPayments)->sortBy('created_at'))
-                            @php($totalPaid = 0)
-                            @foreach($allPayments as $payment)
+                        <tbody>
+                            @forelse($allPayments as $payment)
                                 <tr>
                                     <td>
                                         <i class="bi bi-chevron-right small opacity-50 me-1"></i>
                                         {{ ucfirst($payment->category) }} ({{ $payment->payment_method }})
-                                        @if($payment->notes) <small class="text-body-secondary block">{{ $payment->notes }}</small> @endif
+                                        @if($payment->notes)
+                                            <small class="text-body-secondary d-block">{{ $payment->notes }}</small>
+                                        @endif
                                     </td>
                                     <td class="text-end text-success fw-semibold">-${{ number_format($payment->amount, 2) }}</td>
                                 </tr>
-                                @php($totalPaid += $payment->amount)
-                            @endforeach
+                            @empty
+                                <tr>
+                                    <td colspan="2" class="text-body-secondary text-center small">Sin abonos registrados</td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
@@ -64,9 +83,8 @@
             <div class="col-md-4">
                 <div class="p-4 bg-dark text-white rounded-4 shadow-lg text-center h-100 d-flex flex-column justify-content-center">
                     <div class="text-uppercase small opacity-75 mb-1">Saldo Pendiente</div>
-                    @php($balance = ($acceptedQuote?->total_amount ?? 0) - $totalPaid)
                     <div class="h1 fw-bold mb-3">${{ number_format(max(0, $balance), 2) }}</div>
-                    
+
                     @if($balance > 0)
                         <button type="button" class="btn btn-primary w-100 mb-2 py-2 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalRegisterFinalPayment">
                             <i class="bi bi-cash-stack me-1"></i> LIQUIDAR SALDO
@@ -76,10 +94,10 @@
                             <i class="bi bi-check-all me-2 h4 mb-0"></i> CUENTA PAGADA
                         </div>
                     @endif
-                    
-                    <button type="button" class="btn btn-outline-light w-100 py-2 opacity-75">
+
+                    <a href="{{ route('reports.invoice', $booking) }}" target="_blank" class="btn btn-outline-light w-100 py-2">
                         <i class="bi bi-printer me-1"></i> IMPRIMIR RECIBO
-                    </button>
+                    </a>
                 </div>
             </div>
         </div>
@@ -140,7 +158,7 @@
                 </div>
 
                 <div class="alert alert-info mt-4 mb-0 small border-0">
-                    <i class="bi bi-info-circle me-2"></i> 
+                    <i class="bi bi-info-circle me-2"></i>
                     Los pagos con tarjeta se marcan automáticamente como <strong>"En Banco"</strong> para el reporte fiscal.
                 </div>
             </div>
