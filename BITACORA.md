@@ -254,3 +254,62 @@
 - **Zonas Horarias:** Reemplazar el selector UTC.
 - **Reportes PDF:** Iniciar el diseño y renderizado de presupuestos, órdenes de trabajo y facturas en formato PDF imprimible.
 - **Ecosistema Móvil:** Continuar desarrollo en `mob_apps/`.
+
+---
+## 📅 Sesión: 16/05/2026 (continuación) - Corrección de Bugs de Flujo Completo y Editor de Dirección
+
+### ✅ Logros y Cambios
+
+**Bugs adicionales del ciclo de agenda (continuación de auditoría):**
+
+- **[CRÍTICO] Bug Blade `@php(expr)` con paréntesis anidados** — Identificada la causa raíz de múltiples `Undefined variable` en producción: el compilador Blade detiene el procesado en el primer `)` interno de `parse_url(...)`, `in_array(...)`, `firstWhere(...)`, etc. Todos los afectados convertidos a bloques `@php...@endphp`. Archivos corregidos:
+  - `resources/views/agenda/show.blade.php` — 7 instancias corregidas (incluyendo `$photoUrl` con `parse_url()` que rompía todo lo que seguía)
+  - `resources/views/agenda/partials/_billing_summary.blade.php` — reescrito completo
+  - `resources/views/reports/invoice.blade.php` — 2 instancias en cálculo de saldo
+
+- **[CRÍTICO] PHP 8.5 aritmética con null** — `null - 0` lanza `ErrorException`. Corregidos todos los cálculos financieros con casts `(float)` y `?? 0` en `show.blade.php`, `_billing_summary.blade.php` e `invoice.blade.php`.
+
+- **[CRÍTICO] `ReportController::quote()`** — Usaba relación `$quote->booking` (inexistente). Corregido a `$quote->spaBooking`. El recibo ahora imprime correctamente.
+
+- **[MEDIO] `PetController::destroy()`** — Sin guardia de citas activas. Ahora bloquea la eliminación si la mascota tiene citas en `scheduled` o `work_order` y muestra mensaje de error.
+
+- **[MEDIO] `Address::phones()` morphMany roto** — Las columnas `phoneable_id`/`phoneable_type` se eliminaron en migración `2026_03_20`. Relación removida del modelo.
+
+- **[MEDIO] Botón "IMPRIMIR RECIBO" en `_billing_summary`** — Era un `<button>` sin acción. Reemplazado por `<a href="{{ route('reports.invoice', $booking) }}" target="_blank">`.
+
+- **[BAJO] Modal "No se presentó"** — La ruta `agenda.no-show` existía pero no había botón en la UI de AgSpaSho. Agregado botón y modal.
+
+**Editor de Dirección (`address-editor.js` + `shared/address-editor.blade.php`):**
+
+- **[REFACTOR] Event delegation completo** — Reescrito de `initSingleEditor` + `DOMContentLoaded` (frágil) a handlers delegados en `document`. Los botones Geocodificación, Importar y el link de Maps ahora funcionan para cualquier tarjeta de dirección en el DOM, incluyendo las agregadas dinámicamente. Causa raíz del bug reportado: el módulo ejecuta como `type="module"` (defer) y en algunas condiciones el listener de `DOMContentLoaded` no se registraba antes de que el evento disparara.
+
+- **[UX] Flash visual al importar coordenadas** — Tras geocodificación exitosa o importación manual, la página hace scroll a los campos lat/lng y los bordea en azul 2 segundos para que el operador vea que se llenaron y deba guardar.
+
+- **[UX] Textos actualizados en Blade** — Instrucción de uso, placeholder del campo de pegado y nombres de botones clarificados para guiar el flujo correcto: Abrir Maps → clic en punto → copiar → pegar → Importar coordenadas.
+
+- **[DIAGNÓSTICO]** Confirmado vía logs de consola que Nominatim (OpenStreetMap) no devuelve resultados para calles de Aguascalientes (cobertura incompleta para México). El flujo confiable es Maps manual. El mensaje de error del botón de geocodificación ahora guía al usuario a ese flujo.
+
+### 📁 Archivos Modificados Esta Sesión
+- `app/Http/Controllers/SpaBookingController.php`
+- `app/Http/Controllers/DashboardController.php`
+- `app/Http/Controllers/PetController.php`
+- `app/Http/Controllers/ReportController.php`
+- `app/Models/Address.php`
+- `resources/views/dashboard/index.blade.php`
+- `resources/views/agenda/show.blade.php`
+- `resources/views/agenda/partials/_billing_summary.blade.php`
+- `resources/views/agenda/partials/_quote_manager.blade.php`
+- `resources/views/reports/invoice.blade.php`
+- `resources/views/shared/address-editor.blade.php`
+- `resources/js/modules/address-editor.js`
+
+### 🛑 Pendientes / Backlog
+- **Tema de UI:** Reparar la persistencia y cambio reactivo de la paleta de colores.
+- **Favicon & Empresa:** Agregar subida de Favicon y datos generales del negocio.
+- **Email Avanzado:** Credenciales SMTP (usuario/password, puertos, SSL/TLS).
+- **Zonas Horarias:** Reemplazar selector UTC.
+- **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
+- **Ecosistema Móvil:** Continuar `mob_apps/operador`.
+
+### 💾 Cierre de Sesión
+- Commits del día generados. Respaldo diario ejecutado. Sistema apagado.

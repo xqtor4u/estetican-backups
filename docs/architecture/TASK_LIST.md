@@ -1,7 +1,7 @@
 # Task List - EstetiCAN Backoffice
 
 Fecha de definición: 2026-03-30
-Última actualización: 2026-05-15
+Última actualización: 2026-05-16
 
 Este documento centraliza las tareas pendientes del proyecto. La bitácora (`Bitacora_Backoffice_Clientes_y_Pets.md`) registrará únicamente los cambios ya implementados.
 
@@ -46,6 +46,20 @@ Este documento centraliza las tareas pendientes del proyecto. La bitácora (`Bit
 - **[ ] Seguridad:** Añadir el `ojito` de contraseña en el formulario de login.
 
 ---
+## ✅ Completados (sesión 2026-05-16)
+- **[x] Bug `in_process` inexistente:** Corregido a `work_order` en SpaBookingController, DashboardController y dashboard/index.blade.php.
+- **[x] `markAsNoShow` / `cancelBooking` firma incorrecta:** Corregidos a `markNoShow($id)` y `cancelBooking($id, reason)`.
+- **[x] Bug `@php(expr)` Blade con paréntesis anidados:** Causa raíz identificada y corregida en show.blade.php (7 instancias), _billing_summary.blade.php y invoice.blade.php.
+- **[x] PHP 8.5 null arithmetic:** Casts `(float)` + `?? 0` en todos los cálculos financieros de vistas.
+- **[x] ReportController relación incorrecta:** `$quote->booking` → `$quote->spaBooking`. Recibo imprimible corregido.
+- **[x] PetController::destroy() sin guardia:** Bloquea eliminación con citas activas.
+- **[x] Address::phones() morphMany roto:** Columnas eliminadas en migración; relación removida.
+- **[x] Botón IMPRIMIR RECIBO en _billing_summary:** `<button>` sin acción → `<a href route()>` funcional.
+- **[x] Modal No-Show en AgSpaSho:** Botón y modal añadidos para registrar inasistencias.
+- **[x] data-price en _quote_manager:** Mostraba `duration_minutes`; corregido a `suggested_price ?? price`.
+- **[x] address-editor.js event delegation:** Reescrito completo. Handlers delegados en `document`, sin dependencia de DOMContentLoaded. Flash visual en lat/lng al importar coordenadas.
+- **[x] address-editor.blade.php textos:** Botones e instrucciones actualizados al flujo correcto (Maps manual).
+
 ## ✅ Completados (sesión 2026-05-15)
 - **[x] Formato hora global:** Centralizado en middleware, eliminadas ternarias dispersas, Flatpickr instalado.
 - **[x] AgSpaEdi:** Pre-llenado correcto, edición de servicios en `scheduled`.

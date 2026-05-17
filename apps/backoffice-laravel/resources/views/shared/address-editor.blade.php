@@ -106,18 +106,18 @@
             <input type="number" step="0.00000001" min="-180" max="180" name="{{ $inputName('lng') }}" value="{{ $fieldValue('lng') }}" class="form-control form-control-sm address-editor-lng">
         </div>
         <div class="col-12">
-            <div class="form-text small">Usa calle, número exterior e interior por separado. Si la dirección cae aproximada, importa el punto exacto desde Maps.</div>
+            <div class="form-text small">Usa calle, número exterior e interior por separado. Para el punto exacto: abre Google Maps, haz clic en la ubicación correcta, copia las coordenadas y pégalas abajo.</div>
         </div>
         <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
-            <button type="button" class="btn btn-sm btn-outline-dark address-editor-geocode-btn">Intentar traer coordenadas</button>
-            <a href="#" class="btn btn-sm btn-outline-secondary disabled address-editor-maps-btn" target="_blank" rel="noopener noreferrer" aria-disabled="true">Mostrar en Google Maps</a>
-            <span class="small text-body-secondary address-editor-status">Captura al menos calle y ciudad para buscar la dirección con precisión.</span>
+            <button type="button" class="btn btn-sm btn-outline-dark address-editor-geocode-btn">Geocodificación automática</button>
+            <a href="#" class="btn btn-sm btn-outline-secondary disabled address-editor-maps-btn" target="_blank" rel="noopener noreferrer" aria-disabled="true">Abrir en Google Maps</a>
+            <span class="small text-body-secondary address-editor-status">Captura al menos calle y ciudad para buscar la dirección.</span>
         </div>
         <div class="col-md-9">
-            <input type="text" class="form-control form-control-sm address-editor-maps-source" placeholder="Copia y pega aquí las coordenadas, por ejemplo 25.6866142,-100.3161126">
+            <input type="text" class="form-control form-control-sm address-editor-maps-source" placeholder="Pega aquí el link de Maps o las coordenadas: 25.6866142,-100.3161126">
         </div>
         <div class="col-md-3 d-flex align-items-end">
-            <button type="button" class="btn btn-sm btn-outline-primary w-100 address-editor-import-btn">Importar punto exacto</button>
+            <button type="button" class="btn btn-sm btn-outline-primary w-100 address-editor-import-btn">Importar coordenadas</button>
         </div>
     </div>
 
