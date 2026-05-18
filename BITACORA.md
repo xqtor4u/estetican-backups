@@ -313,3 +313,23 @@
 
 ### 💾 Cierre de Sesión
 - Commits del día generados. Respaldo diario ejecutado. Sistema apagado.
+
+---
+## 📅 Sesión: 17/05/2026 - Verificación y Arranque del Sistema
+
+### ✅ Logros y Cambios
+- **Corrección de Puertos Docker (WSL2):** Windows tenía reservado el rango de puertos 13xxx, impidiendo que los contenedores expusieran sus puertos. Corregido en `.env`:
+  - `FORWARD_DB_PORT`: `13306` → `23306`
+  - `FORWARD_REDIS_PORT`: `13379` → `16379`
+- **Verificación del Sistema:** Todos los contenedores (MySQL, Redis, Laravel, HTTPS) arrancaron sanos. App respondiendo HTTP 200 en `http://localhost:8080`.
+
+### 🛑 Pendientes / Backlog (sin cambios)
+- **Tema de UI:** Reparar la persistencia y cambio reactivo de la paleta de colores.
+- **Favicon & Empresa:** Agregar subida de Favicon y datos generales del negocio.
+- **Email Avanzado:** Credenciales SMTP (usuario/password, puertos, SSL/TLS).
+- **Zonas Horarias:** Reemplazar selector UTC.
+- **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
+- **Ecosistema Móvil:** Continuar `mob_apps/operador`.
+
+### 💾 Cierre de Sesión
+- Bitácora actualizada. Respaldo diario ejecutado. Sistema apagado.
