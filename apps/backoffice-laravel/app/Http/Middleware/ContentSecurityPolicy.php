@@ -17,7 +17,7 @@ class ContentSecurityPolicy
 
         $csp = implode('; ', [
             "default-src 'self'",
-            "script-src 'self' 'nonce-{$nonce}' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+            "script-src 'self' 'nonce-{$nonce}' https://cdnjs.cloudflare.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
             "font-src 'self' https://fonts.gstatic.com",
             "img-src 'self' data: blob:",

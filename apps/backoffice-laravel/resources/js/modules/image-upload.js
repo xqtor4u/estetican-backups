@@ -1,4 +1,4 @@
-function imageUploadFactory(initialUrl, aspectRatio, watermarkText = null, autoSubmitFormId = null) {
+export default function imageUploadFactory(initialUrl, aspectRatio, watermarkText = null, autoSubmitFormId = null) {
     return {
         imageUrl: initialUrl,
         cropper: null,
@@ -129,13 +129,3 @@ function imageUploadFactory(initialUrl, aspectRatio, watermarkText = null, autoS
         },
     };
 }
-
-// Global function for x-data="imageUpload(...)" Alpine resolution
-window.imageUpload = imageUploadFactory;
-
-// Alpine.data registration — fires before Alpine walks the DOM
-document.addEventListener('alpine:init', () => {
-    if (window.Alpine) {
-        window.Alpine.data('imageUpload', imageUploadFactory);
-    }
-});
