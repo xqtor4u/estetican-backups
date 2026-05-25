@@ -323,10 +323,16 @@ class ClientController extends Controller
                 }
                 
                 if (empty($petData['delete'])) {
-                    $client->pets()->updateOrCreate(
-                        ['id' => $petData['id'] ?? null],
-                        $this->preparePetData($petData, $client->id)
-                    );
+                    $petId = !empty($petData['id']) ? (int) $petData['id'] : null;
+                    if ($petId) {
+                        $client->pets()->where('id', $petId)->update(
+                            $this->preparePetData($petData, $client->id)
+                        );
+                    } else {
+                        $client->pets()->create(
+                            $this->preparePetData($petData, $client->id)
+                        );
+                    }
                 }
             }
         }
