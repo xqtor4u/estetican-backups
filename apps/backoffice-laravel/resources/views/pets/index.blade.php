@@ -77,7 +77,7 @@
 @endsection
 
 @push('scripts')
-<script>
+<script nonce="{{ csp_nonce() }}">
     function confirmPetDelete(button) {
         const form = button.closest('form');
         window.premiumConfirm('¿Estás seguro de que deseas eliminar esta mascota? Se aplicará un borrado lógico (Soft Delete) y la información se conservará para fines de marketing histórico.', () => {

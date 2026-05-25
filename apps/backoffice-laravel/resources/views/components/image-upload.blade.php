@@ -94,7 +94,7 @@
 </div>
 
 @once
-<script>
+<script nonce="{{ csp_nonce() }}">
     function imageUpload(initialUrl, aspectRatio, watermarkText = null, autoSubmitFormId = null) {
         return {
             imageUrl: initialUrl,

@@ -222,7 +222,7 @@
 </div>
 
 @push('scripts')
-<script>
+<script nonce="{{ csp_nonce() }}">
     document.addEventListener('DOMContentLoaded', function() {
         const testBtn = document.querySelector('[data-test-smtp="true"]');
         if (testBtn) {
