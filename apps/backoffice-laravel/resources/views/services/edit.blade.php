@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'SerEdi';
-    use App\Support\Pages\ServicesPage;
 
-    $page = ServicesPage::edit($service);
+    $page = \App\Support\Pages\ServicesPage::edit($service);
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

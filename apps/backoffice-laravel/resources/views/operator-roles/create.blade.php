@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'OprRolNew';
-    use App\Support\Pages\OperatorRolesPage;
 
-    $page = OperatorRolesPage::create();
+    $page = \App\Support\Pages\OperatorRolesPage::create();
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

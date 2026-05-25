@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'CliSho';
-    use App\Support\Pages\ClientsPage;
 
-    $page = ClientsPage::show($client);
+    $page = \App\Support\Pages\ClientsPage::show($client);
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

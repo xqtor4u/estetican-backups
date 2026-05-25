@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'BraNew';
-    use App\Support\Pages\BranchesPage;
 
-    $page = BranchesPage::create();
+    $page = \App\Support\Pages\BranchesPage::create();
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

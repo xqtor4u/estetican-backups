@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'BraInd';
-    use App\Support\Pages\BranchesPage;
 
-    $page = BranchesPage::index();
+    $page = \App\Support\Pages\BranchesPage::index();
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

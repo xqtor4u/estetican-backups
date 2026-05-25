@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'OpeInd';
-    use App\Support\Pages\OperatorsPage;
 
-    $page = OperatorsPage::index();
+    $page = \App\Support\Pages\OperatorsPage::index();
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

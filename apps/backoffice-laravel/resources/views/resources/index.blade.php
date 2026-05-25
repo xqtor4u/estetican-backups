@@ -1,9 +1,8 @@
 @php
     $screenDebugId = 'ResInd';
-    use App\Support\Pages\ResourcesPage;
     use Illuminate\Support\Str;
 
-    $page = ResourcesPage::index();
+    $page = \App\Support\Pages\ResourcesPage::index();
     $breadcrumbs = $page['breadcrumbs'];
     $resourceCollection = $resources->getCollection();
     $activeResourcesCount = $resourceCollection->where('administrative_status', 'active')->count();

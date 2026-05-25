@@ -1,10 +1,9 @@
 @php
     $screenDebugId = 'PetSho';
-    use App\Support\Pages\PetsPage;
 
     $isRootView = $isRootView ?? false;
     $returnViewMode = $returnViewMode ?? 'blocks';
-    $page = PetsPage::show($pet, $client, $isRootView, $returnViewMode);
+    $page = \App\Support\Pages\PetsPage::show($pet, $client, $isRootView, $returnViewMode);
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

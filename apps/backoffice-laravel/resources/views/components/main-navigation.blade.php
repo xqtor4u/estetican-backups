@@ -1,11 +1,10 @@
 @props(['screenDebugId' => null])
 
 @php
-    use App\Support\Navigation\MainNavigation;
 
     $backofficeConfig = config('backoffice');
-    $navigationGroups = MainNavigation::groups();
-    $mobileLinks = MainNavigation::mobileLinks();
+    $navigationGroups = \App\Support\Navigation\MainNavigation::groups();
+    $mobileLinks = \App\Support\Navigation\MainNavigation::mobileLinks();
     $showScreenDebugIds = (bool) data_get($backofficeConfig, 'ui.show_screen_debug_ids', false);
 @endphp
 

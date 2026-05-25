@@ -1,11 +1,10 @@
-@php($screenDebugId = 'UsrEdi')
+@php $screenDebugId = 'UsrEdi'; @endphp
 @extends('layouts.app')
 
 @section('title', 'Editar Usuario - ' . data_get(config('backoffice'), 'brand.kicker', 'EstetiCAN'))
 
 @php
-    use App\Support\Pages\UsersPage;
-    $page = UsersPage::edit($user);
+    $page = \App\Support\Pages\UsersPage::edit($user);
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 

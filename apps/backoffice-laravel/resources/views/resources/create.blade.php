@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'ResNew';
-    use App\Support\Pages\ResourcesPage;
 
-    $page = ResourcesPage::create();
+    $page = \App\Support\Pages\ResourcesPage::create();
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

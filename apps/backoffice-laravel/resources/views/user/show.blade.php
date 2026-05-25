@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'UsrSho';
-    use App\Support\Pages\UsersPage;
 
-    $page = UsersPage::show($user);
+    $page = \App\Support\Pages\UsersPage::show($user);
     $breadcrumbs = $page['breadcrumbs'];
     
     // Identificador de rol

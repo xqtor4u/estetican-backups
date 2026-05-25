@@ -1,7 +1,6 @@
 @php
     $screenDebugId = 'UsrInd';
-    use App\Support\Pages\UsersPage;
-    $page = UsersPage::index();
+    $page = \App\Support\Pages\UsersPage::index();
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

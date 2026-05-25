@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'BraSho';
-    use App\Support\Pages\BranchesPage;
 
-    $page = BranchesPage::show($branch);
+    $page = \App\Support\Pages\BranchesPage::show($branch);
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

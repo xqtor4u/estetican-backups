@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'OpeEdi';
-    use App\Support\Pages\OperatorsPage;
 
-    $page = OperatorsPage::edit($operator);
+    $page = \App\Support\Pages\OperatorsPage::edit($operator);
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

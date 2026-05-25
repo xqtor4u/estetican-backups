@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'PetInd';
-    use App\Support\Pages\PetsPage;
 
-    $page = PetsPage::index();
+    $page = \App\Support\Pages\PetsPage::index();
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

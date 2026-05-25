@@ -1,8 +1,7 @@
 @php
     $screenDebugId = 'BraEdi';
-    use App\Support\Pages\BranchesPage;
 
-    $page = BranchesPage::edit($branch);
+    $page = \App\Support\Pages\BranchesPage::edit($branch);
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')

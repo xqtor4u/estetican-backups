@@ -1,7 +1,6 @@
 @php
     $screenDebugId = 'UsrNew';
-    use App\Support\Pages\UsersPage;
-    $page = UsersPage::create();
+    $page = \App\Support\Pages\UsersPage::create();
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')
