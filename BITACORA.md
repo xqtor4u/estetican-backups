@@ -386,3 +386,36 @@ docker exec estetican_app php artisan view:clear
 - **Zonas Horarias:** Reemplazar selector UTC.
 - **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
 - **Ecosistema Móvil:** Continuar `mob_apps/operador`.
+
+---
+## 📅 Sesión: 25/05/2026 - Estabilización Post-Deploy en Producción
+
+### ✅ Logros y Cambios
+
+- **Assets en repo:** `public/build/` incluido en git y compilado en WSL. La OPi sirve CSS/JS sin npm.
+- **Uploads copiados a OPi:** `storage/app/public/` transferido vía `scp`. Fotos visualmente vacías porque los registros de `pet_photos` en BD están vacíos — subir desde UI.
+- **29 vistas corregidas:** `use App\Support\Pages\XxxPage;` dentro de `@php` inválido en Laravel 13. Reemplazado por FQCN en todas las vistas via script Python.
+- **`AuthServiceProvider` registrado** en `bootstrap/providers.php` — sin esto la `UserPolicy` nunca se cargaba.
+- **Manejo elegante de 403:** `bootstrap/app.php` captura `AuthorizationException` y redirige con mensaje amigable.
+- **`BaseRolesSeeder` ejecutado** en producción — permisos y roles creados.
+
+### 🛑 Bug Activo: 403 en `/users/{user}/edit`
+
+**Síntomas:** 403 "This action is unauthorized." El método `edit()` del controlador nunca se ejecuta (confirmado con log). El 403 viene de middleware antes del controlador.
+
+**Lo descartado:** UserPolicy, abort_unless, caché de Spatie/rutas/config/vistas, reinicio del contenedor. Usuario `admin@localhost` (ID 2) tiene rol `admin` confirmado en tinker.
+
+**Hipótesis pendiente:**
+- Middleware `role:admin|super-admin` de Spatie v6 puede tener cambio de sintaxis (`|` por `,`).
+- Verificar lista de usuarios en `https://app.estetican.org/users`.
+- Verificar versión: `docker exec estetican_app composer show spatie/laravel-permission`.
+
+### 🛑 Pendientes / Backlog
+- **[BLOQUEADO] 403 en edición de usuarios** — ver hipótesis arriba.
+- **Credenciales producción:** Cambiar password de `admin@localhost` desde la UI.
+- **Tema de UI:** Reparar persistencia y cambio reactivo de paleta de colores.
+- **Favicon & Empresa:** Subida de Favicon y datos generales del negocio.
+- **Email Avanzado:** Credenciales SMTP (usuario/password, puertos, SSL/TLS).
+- **Zonas Horarias:** Reemplazar selector UTC.
+- **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
+- **Ecosistema Móvil:** Continuar `mob_apps/operador`.
