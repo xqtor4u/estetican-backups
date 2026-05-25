@@ -14,7 +14,6 @@
 
 <div {{ $attributes->merge(['class' => 'image-upload-wrapper']) }}
      x-data="imageUpload('{{ $value ? Storage::disk('public')->url($value) : '' }}', {{ $aspectRatio }}, {{ $watermarkText ? '\'' . addslashes($watermarkText) . '\'' : 'null' }}, {{ $autoSubmitFormId ? '\'' . $autoSubmitFormId . '\'' : 'null' }})"
-     x-init="$el.dataset.alpineOk = '1'"
      style="max-width: {{ $maxWidth }};">
 
     <div class="position-relative mb-2">
