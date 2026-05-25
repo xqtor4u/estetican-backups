@@ -6,21 +6,23 @@ use App\Models\User;
 
 class UserPolicy
 {
-    // Permite ver cualquier usuario: solo super admin
+    private function isAdmin(User $user): bool
+    {
+        return $user->hasRole('admin') || $user->hasRole('super-admin') || $user->role === 'admin';
+    }
+
     public function viewAny(User $user)
     {
-        return $user->is_super_admin;
+        return $this->isAdmin($user);
     }
 
-    // Permite crear usuarios: solo super admin
     public function create(User $user)
     {
-        return $user->is_super_admin;
+        return $this->isAdmin($user);
     }
 
-    // Permite editar: super admin o el propio usuario
     public function update(User $user, User $model)
     {
-        return $user->getKey() === $model->getKey() || $user->is_super_admin;
+        return $user->getKey() === $model->getKey() || $this->isAdmin($user);
     }
 }
