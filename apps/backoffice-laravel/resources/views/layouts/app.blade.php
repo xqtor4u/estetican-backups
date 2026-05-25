@@ -119,7 +119,7 @@
         <script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
     @endunless
 
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         document.addEventListener('DOMContentLoaded', () => {
             // Config from PHP
             const toastDuration = {{ data_get($backofficeConfig, 'ui.toast_duration_ms', 5000) }};

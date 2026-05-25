@@ -12,9 +12,9 @@ import { GlobalAgenda } from './admin/GlobalAgenda';
 
 function RoleSelection() {
   return (
-    <div className="min-h-screen bg-[#f7f9fb] flex flex-col items-center justify-center p-6">
-      <h1 className="text-3xl font-bold mb-8 text-[#005da7]">Portal de Prototipos</h1>
-      <p className="text-gray-500 mb-8 max-w-xl text-center">Para mantener las experiencias separadas, por favor selecciona qué aplicación deseas probar. Cada una tiene su propio diseño y flujo.</p>
+    <div className="theme-client min-h-screen bg-background flex flex-col items-center justify-center p-6">
+      <h1 className="text-3xl font-bold mb-8 text-primary">Portal de Prototipos</h1>
+      <p className="text-on-surface-variant mb-8 max-w-xl text-center">Para mantener las experiencias separadas, por favor selecciona qué aplicación deseas probar. Cada una tiene su propio diseño y flujo.</p>
       
       <div className="grid md:grid-cols-2 gap-8 w-full max-w-4xl">
         

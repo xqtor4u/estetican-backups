@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ApplySystemSettings;
+use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\ProfileBackofficeRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -14,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+        $middleware->append(ContentSecurityPolicy::class);
         $middleware->append(ApplySystemSettings::class);
         $middleware->append(ProfileBackofficeRequests::class);
 

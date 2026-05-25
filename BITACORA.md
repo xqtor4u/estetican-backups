@@ -445,3 +445,56 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - **Zonas Horarias:** Reemplazar selector UTC.
 - **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
 - **Ecosistema Móvil:** Continuar `mob_apps/operador`.
+
+---
+## 📅 Sesión: 25/05/2026 (continuación) - Hardening de Seguridad y Fixes de App Móvil
+
+### ✅ Logros y Cambios
+
+**App Móvil (`mob_apps/operador`) — correcciones de UI:**
+- **Íconos rotos:** `index.html` no cargaba Material Symbols. Agregado `<link>` a Google Fonts con soporte completo de variaciones (`FILL`, `wght`, `opsz`).
+- **Título genérico:** `"My Google AI Studio App"` → `"EstetiCAN"`. Agregado `lang="es"` y `viewport-fit=cover`.
+- **Clases de tipografía no-op:** `font-headline-sm`, `font-label-md`, `font-body-sm` etc. no existían como utilidades Tailwind. Agregados todos los alias de font-family en `index.css` (`@theme`).
+- **Página de selección sin tema:** `RoleSelection` usaba colores hardcodeados. Migrado a `theme-client` + tokens (`bg-background`, `text-primary`, etc.).
+- **Archivos modificados:** `index.html`, `src/index.css`, `src/App.tsx`.
+
+**Hardening de seguridad en Cloudflare:**
+- **TLS mínimo → 1.2:** Cloudflare Edge Certificates → Minimum TLS Version.
+- **Always Use HTTPS:** activado (redirect en edge, sin tocar el servidor).
+- **HSTS:** `max-age=31536000; includeSubDomains` activado. Preload desactivado deliberadamente (compromiso irreversible).
+- **No-Sniff header:** `X-Content-Type-Options: nosniff` activado vía toggle de Cloudflare.
+- **Transform Rule de headers:** Una regla cubre tres headers: `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: geolocation=(), camera=(), microphone=()`.
+- **WAF Rule:** bloquea `/.htaccess` en el edge (path equals `/.htaccess` → Block).
+- **DNS CAA records (×4):** `issue` e `issuewild` para `letsencrypt.org` y `pki.goog` — solo estas CAs pueden emitir certificados para el dominio.
+
+**Hardening en el servidor (OPi):**
+- **`public/.htaccess` eliminado de producción:** el archivo es Apache-only, PHP lo servía como texto plano exponiendo configuración interna. Ahora devuelve 404.
+- **`expose_php = Off`** en `docker/php.ini`: elimina `X-Powered-By: PHP/8.5.6` de todas las respuestas. Persistido para rebuilds.
+- **Middleware `ContentSecurityPolicy`** (`app/Http/Middleware/ContentSecurityPolicy.php`): genera nonce por request, emite header CSP con fuentes reales del proyecto. Scripts inline bloqueados salvo los que lleven el nonce.
+- **Helper `csp_nonce()`** en `app/helpers.php`, autoloaded vía `composer.json`.
+- **`nonce="{{ csp_nonce() }}"` en el script inline del layout** (`resources/views/layouts/app.blade.php`).
+
+**Hallazgos descartados como accepted risk:**
+- Rutas protegidas devuelven 302 → seguridad por oscuridad sin beneficio real.
+- LUCKY13 / cifrados CBC → mitigado por Cloudflare; cipher suites requieren plan Business.
+- `/index.php` expuesto → revela PHP/Laravel, no accionable.
+
+### 📁 Archivos Modificados Esta Sesión
+- `mob_apps/operador/index.html`
+- `mob_apps/operador/src/index.css`
+- `mob_apps/operador/src/App.tsx`
+- `apps/backoffice-laravel/app/Http/Middleware/ContentSecurityPolicy.php` *(nuevo)*
+- `apps/backoffice-laravel/app/helpers.php` *(nuevo)*
+- `apps/backoffice-laravel/composer.json`
+- `apps/backoffice-laravel/bootstrap/app.php`
+- `apps/backoffice-laravel/resources/views/layouts/app.blade.php`
+- `apps/backoffice-laravel/docker/php.ini`
+
+### 🛑 Pendientes / Backlog
+- **Credenciales producción:** Cambiar password de `admin@localhost` desde la UI.
+- **Tema de UI:** Reparar persistencia y cambio reactivo de paleta de colores.
+- **Favicon & Empresa:** Subida de Favicon y datos generales del negocio.
+- **Email Avanzado:** Credenciales SMTP (usuario/password, puertos, SSL/TLS).
+- **Zonas Horarias:** Reemplazar selector UTC.
+- **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
+- **Ecosistema Móvil:** Continuar `mob_apps/operador` (requiere WSL/Node).
