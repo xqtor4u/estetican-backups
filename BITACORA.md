@@ -373,8 +373,8 @@ cd /opt/www/estetican && git pull
 cd apps/backoffice-laravel
 docker exec -i estetican_mysql mysql -u root -p<DB_PASSWORD> estetican < estetican.sql
 docker exec estetican_app php artisan migrate --force
-docker exec estetican_app php artisan config:cache
-docker exec estetican_app php artisan view:clear
+docker exec estetican_app php artisan config:clear
+docker exec estetican_app find /var/www/html/storage/framework/views -name "*.php" -delete
 ```
 
 ### 🛑 Pendientes / Backlog
@@ -393,25 +393,23 @@ docker exec estetican_app php artisan view:clear
 ### ✅ Logros y Cambios
 
 - **Assets en repo:** `public/build/` incluido en git y compilado en WSL. La OPi sirve CSS/JS sin npm.
-- **Uploads copiados a OPi:** `storage/app/public/` transferido vía `scp`. Fotos visualmente vacías porque los registros de `pet_photos` en BD están vacíos — subir desde UI.
-- **29 vistas corregidas:** `use App\Support\Pages\XxxPage;` dentro de `@php` inválido en Laravel 13. Reemplazado por FQCN en todas las vistas via script Python.
+- **Uploads copiados a OPi:** `storage/app/public/` transferido vía `scp`. Fotos vacías en BD — subir desde UI.
+- **29 vistas corregidas:** `use App\Support\Pages\XxxPage;` dentro de `@php` inválido en Laravel 13. Reemplazado por FQCN via script Python.
 - **`AuthServiceProvider` registrado** en `bootstrap/providers.php` — sin esto la `UserPolicy` nunca se cargaba.
 - **Manejo elegante de 403:** `bootstrap/app.php` captura `AuthorizationException` y redirige con mensaje amigable.
 - **`BaseRolesSeeder` ejecutado** en producción — permisos y roles creados.
+- **Bug 403 resuelto en edición/borrado de usuarios:**
+  - Causa raíz 1: vistas compiladas obsoletas en `storage/framework/views/` que no se borraban con `view:clear`. Solución: `find ... -delete` manual.
+  - Causa raíz 2: `UserPolicy` sin método `delete()` — agregado explícitamente.
+  - Causa raíz 3: `UserController::edit()` usaba `$this->authorize()` que dependía de policy no cargada — reemplazado por `abort_unless()` directo.
+- **Operaciones de usuarios verificadas en producción:** editar y borrar funcionando correctamente.
 
-### 🛑 Bug Activo: 403 en `/users/{user}/edit`
-
-**Síntomas:** 403 "This action is unauthorized." El método `edit()` del controlador nunca se ejecuta (confirmado con log). El 403 viene de middleware antes del controlador.
-
-**Lo descartado:** UserPolicy, abort_unless, caché de Spatie/rutas/config/vistas, reinicio del contenedor. Usuario `admin@localhost` (ID 2) tiene rol `admin` confirmado en tinker.
-
-**Hipótesis pendiente:**
-- Middleware `role:admin|super-admin` de Spatie v6 puede tener cambio de sintaxis (`|` por `,`).
-- Verificar lista de usuarios en `https://app.estetican.org/users`.
-- Verificar versión: `docker exec estetican_app composer show spatie/laravel-permission`.
+**Lección aprendida para deploys futuros:** después de `git pull`, siempre borrar vistas compiladas con:
+```bash
+docker exec estetican_app find /var/www/html/storage/framework/views -name "*.php" -delete
+```
 
 ### 🛑 Pendientes / Backlog
-- **[BLOQUEADO] 403 en edición de usuarios** — ver hipótesis arriba.
 - **Credenciales producción:** Cambiar password de `admin@localhost` desde la UI.
 - **Tema de UI:** Reparar persistencia y cambio reactivo de paleta de colores.
 - **Favicon & Empresa:** Subida de Favicon y datos generales del negocio.
