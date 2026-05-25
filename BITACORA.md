@@ -542,3 +542,32 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - **Zonas Horarias:** Reemplazar selector UTC.
 - **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
 - **Ecosistema Móvil:** Continuar `mob_apps/operador` (requiere WSL/Node).
+
+---
+## 📅 Sesión: 25/05/2026 (continuación) - Fix definitivo de subida de fotos (x-image-upload)
+
+### ✅ Logros y Cambios
+
+**Bug raíz resuelto — `applyCrop` no hacía nada:**
+- **Causa:** `this.cropper` era `null` al llamar `applyCrop()`. El flujo anterior inicializaba Cropper en un `setTimeout` de 150ms después de asignar `img.src = dataUrl`, pero las DataURLs tardan más de eso en cargar, por lo que Cropper se inicializaba antes de que el `<img>` tuviera dimensiones reales.
+- **Fix:** Se reestructuró `fileChosen()` en `image-upload.js` para usar el callback `img.onload` antes de asignar `img.src`. El modal se abre dentro de `onload` (cuando la imagen ya tiene dimensiones) y Cropper se inicializa en `setTimeout(300ms)` dentro de ese callback — garantizando que el modal es visible y la imagen cargada antes de que Cropper mida el contenedor.
+
+**Bug de recorte visible — solo aparecía la parte superior de la imagen:**
+- **Causa:** El contenedor del recortador tenía `max-height: 60vh` sin `overflow: hidden`. Sin un alto fijo, Cropper.js no puede calcular sus propios límites y el canvas desborda por abajo.
+- **Fix:** Contenedor cambiado a `height: 60vh; overflow: hidden` en `image-upload.blade.php`. Ahora que Cropper se inicializa con el modal visible (fix anterior), las medidas son correctas y los controles (handles) no se cortan.
+
+**Contexto de investigación de la sesión:**
+- `unsafe-eval` requerido en CSP — Alpine.js evalúa `x-data` / `@click` / `x-show` con `new AsyncFunction()`.
+- Alpine y Cropper migrados de CDN al bundle de Vite; CSS de Cropper descargado localmente como `vendor-cropper.css`.
+- Cache-Control `no-store` agregado al middleware CSP para evitar que Cloudflare sirva HTML con hashes de bundle obsoletos.
+
+### 📁 Archivos Modificados Esta Sesión
+- `resources/js/modules/image-upload.js` — `fileChosen` reestructurado con `img.onload`
+- `resources/views/components/image-upload.blade.php` — contenedor `height: 60vh; overflow: hidden`
+- `public/build/manifest.json` + `public/build/assets/app-C7-NYl4u.js` — bundle reconstruido
+
+### 🛑 Pendientes / Backlog (sin cambios)
+- Push a GitHub (varios commits acumulados).
+- Verificar Transform Rules Cloudflare.
+- Bloquear `/up`.
+- Credenciales producción, Tema de UI, Favicon & Empresa, Email Avanzado, Zonas Horarias, PDF, Móvil.
