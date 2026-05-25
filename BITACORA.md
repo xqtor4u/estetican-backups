@@ -490,7 +490,17 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - `apps/backoffice-laravel/resources/views/layouts/app.blade.php`
 - `apps/backoffice-laravel/docker/php.ini`
 
+### 🐛 Fix post-sesión
+- **`csp_nonce()` causaba 500:** `app('csp-nonce', '')` interpretaba el string como parámetro de inyección en lugar de valor por defecto → TypeError. Corregido con `app()->bound('csp-nonce') ? app('csp-nonce') : ''`. Commit: `1ed85aa`.
+
+### 💾 Cierre de Sesión
+- Dos commits pendientes de push a GitHub (requieren WSL): `bf28d62` y `1ed85aa`.
+- Sistema operativo y estable en producción.
+
 ### 🛑 Pendientes / Backlog
+- **Push a GitHub:** `git pull && git push origin main` desde WSL (commits `bf28d62` + `1ed85aa`).
+- **Verificar Transform Rules Cloudflare:** X-Frame-Options, Referrer-Policy y Permissions-Policy aún no aparecen en el scanner — confirmar que la regla está activa, no en borrador.
+- **Bloquear `/up`:** health check de Laravel devuelve 200 público, expone info del servidor.
 - **Credenciales producción:** Cambiar password de `admin@localhost` desde la UI.
 - **Tema de UI:** Reparar persistencia y cambio reactivo de paleta de colores.
 - **Favicon & Empresa:** Subida de Favicon y datos generales del negocio.
