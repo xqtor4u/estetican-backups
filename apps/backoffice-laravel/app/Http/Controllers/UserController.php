@@ -130,11 +130,6 @@ class UserController extends Controller
     // Formulario de edición (USEEDI)
     public function edit(User $user)
     {
-        \Illuminate\Support\Facades\Log::info('USER_EDIT_REACHED', [
-            'auth_id' => auth()->id(),
-            'target_user_id' => $user->id,
-            'has_role_admin' => auth()->user()?->hasRole('admin'),
-        ]);
         abort_unless(
             auth()->id() === $user->id || auth()->user()->hasRole('admin') || auth()->user()->hasRole('super-admin'),
             403, 'No tienes permiso para editar este usuario.'
