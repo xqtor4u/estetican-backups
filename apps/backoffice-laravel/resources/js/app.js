@@ -1,4 +1,5 @@
 import './bootstrap';
+import './modules/image-upload';
 import './modules/address-editor';
 import './modules/client-form';
 import './modules/confirm-actions';
