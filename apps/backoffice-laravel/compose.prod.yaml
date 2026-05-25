@@ -6,12 +6,7 @@
 # vía Cloudflare Tunnel → NPM → proxy_net → app:80
 services:
   app:
-    build:
-      context: './vendor/laravel/sail/runtimes/8.5'
-      dockerfile: Dockerfile
-      args:
-        WWWGROUP: '${WWWGROUP:-1000}'
-    image: 'estetican/app:prod'
+    image: 'laravelsail/php83:latest'
     container_name: estetican_app
     restart: unless-stopped
     ports:
