@@ -335,30 +335,51 @@
 - Bitácora actualizada. Respaldo diario ejecutado. Sistema apagado.
 
 ---
-## 📅 Sesión: 24/05/2026 - Infraestructura Producción Orange Pi 5 Plus
+## 📅 Sesión: 24/05/2026 - Deploy a Producción Orange Pi 5 Plus ✅ COMPLETADO
 
 ### ✅ Logros y Cambios
-- **Orange Pi 5 Plus lista como servidor de producción:** Docker, Nginx Proxy Manager, Cloudflare Tunnel y Portainer operativos. Dominio `app.estetican.org` funcionando.
-- **Arquitectura de red documentada:** NIC dual (WAN DHCP + LAN fija 192.168.100.250). Acceso SSH, SMB y paneles admin solo por LAN interna.
-- **Hardening base:** UFW, Fail2ban, SSH sin root/password, unattended-upgrades, backups automáticos a Google Drive vía rclone.
-- **compose.prod.yaml creado** (`apps/backoffice-laravel/compose.prod.yaml`): versión de producción sin Vite/Caddy, conectada a `proxy_net` (red de NPM), puertos solo en loopback.
-- **`.env.production.example` creado** (`apps/backoffice-laravel/.env.production.example`): template listo para completar en la OPi.
 
-### 🚀 Pasos de Migración Pendientes (orden de ejecución)
+**Infraestructura (sesión anterior):**
+- Orange Pi 5 Plus con Docker, NPM, Cloudflare Tunnel y Portainer operativos.
+- `compose.prod.yaml` y `.env.production.example` creados y subidos a GitHub.
 
-1. **Push a GitHub** — asegurarse que `compose.prod.yaml` y `.env.production.example` estén subidos.
-2. **Clonar repo en OPi** — `cd /opt/www && git clone git@github.com:xqtor4u/estetican-backups.git estetican`
-3. **Instalar Composer** — `docker run --rm -v $(pwd):/app composer:latest install --no-dev --optimize-autoloader --ignore-platform-reqs`
-4. **Crear `.env.production`** — copiar desde `.env.production.example`, pegar APP_KEY del `.env` local, cambiar password de DB.
-5. **Dump de BD (WSL)** — `./vendor/bin/sail exec mysql mysqldump -u sail -ppassword laravel > /tmp/estetican.sql`
-6. **Copiar dump a OPi** — vía `scp` o SMB a `/opt/www/estetican/`.
-7. **Build y arranque** — `docker compose -f compose.prod.yaml --env-file .env.production up -d --build`
-8. **Importar BD** — `docker exec -i estetican_mysql mysql -u estetican -p estetican < estetican.sql`
-9. **Setup inicial en contenedor** — `docker exec estetican_app php artisan migrate --force`, `storage:link`, `config:cache`, `route:cache`, `view:cache`.
-10. **Copiar uploads** — copiar `storage/app/public/` de WSL a OPi vía SMB.
-11. **Configurar NPM** — Proxy Host: `app.estetican.org` → Forward: `app:80` (por `proxy_net`). SSL Let's Encrypt.
+**Deploy ejecutado esta sesión:**
+- **Repo clonado en OPi** vía HTTPS (`/opt/www/estetican`).
+- **Composer instalado** con `docker run composer:latest --no-dev`.
+- **Dockerfile de Sail incluido en repo** (`docker/`) — la imagen `laravelsail/php83` no existe en Docker Hub; se buildea localmente desde `ubuntu:24.04`.
+- **Stack levantado** con `docker compose -f compose.prod.yaml --env-file .env.production up -d --build`.
+- **BD importada** — dump generado en WSL, copiado vía `scp`, importado con `mysql -u root`.
+- **`.env` creado** copiando `.env.production` (Laravel lo requiere con ese nombre exacto).
+- **Migraciones ejecutadas** — `php artisan migrate --force` (5 migraciones pendientes aplicadas).
+- **Assets compilados** en WSL con `sail npm run build`; `public/build/` incluido en repo (excluido de `.gitignore`) para servir sin npm en producción.
+- **NPM configurado** — Proxy Host `app.estetican.org` → `estetican_app:80`, SSL Let's Encrypt, **Force SSL desactivado** (Cloudflare Tunnel ya maneja HTTPS; activarlo causaba loop de redirecciones).
+- **App verificada** en `https://app.estetican.org` — dashboard y menú cargando correctamente.
+
+**Problemas resueltos durante el deploy:**
+- `$` en DB_PASSWORD causaba expansión de variables en Docker Compose → password simplificado a alfanumérico.
+- Volumen MySQL inicializado con password incorrecto → `down -v` y recreación del volumen.
+- Docker Compose v5 requiere buildx → `sudo apt-get install docker-buildx-plugin`.
+- Loop de redirecciones ERR_TOO_MANY_REDIRECTS → deshabilitar Force SSL en NPM.
+
+### 🚀 Procedimiento de Deploy (para referencia futura)
+```bash
+# En WSL — generar dump
+./vendor/bin/sail up -d mysql
+./vendor/bin/sail exec mysql mysqldump -u sail -ppassword laravel > /tmp/estetican.sql
+scp /tmp/estetican.sql tomas@192.168.100.250:/opt/www/estetican/apps/backoffice-laravel/
+
+# En OPi — actualizar y reiniciar
+cd /opt/www/estetican && git pull
+cd apps/backoffice-laravel
+docker exec -i estetican_mysql mysql -u root -p<DB_PASSWORD> estetican < estetican.sql
+docker exec estetican_app php artisan migrate --force
+docker exec estetican_app php artisan config:cache
+docker exec estetican_app php artisan view:clear
+```
 
 ### 🛑 Pendientes / Backlog
+- **Uploads:** Copiar `storage/app/public/` de WSL a OPi vía SMB (fotos de mascotas, etc.).
+- **Credenciales producción:** Cambiar password de `admin@localhost` desde la UI.
 - **Tema de UI:** Reparar la persistencia y cambio reactivo de la paleta de colores.
 - **Favicon & Empresa:** Agregar subida de Favicon y datos generales del negocio.
 - **Email Avanzado:** Credenciales SMTP (usuario/password, puertos, SSL/TLS).
