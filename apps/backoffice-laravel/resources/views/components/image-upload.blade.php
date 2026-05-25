@@ -68,8 +68,8 @@
                     <button type="button" class="btn-close" aria-label="Close" @click="cancelCrop"></button>
                 </div>
                 <div class="modal-body py-4 text-center">
-                    <div style="height: 60vh; width: 100%; overflow: hidden;" class="bg-dark rounded-4 shadow-sm mb-3">
-                        <img src="" x-ref="cropImage" style="max-width: 100%; display:block;">
+                    <div style="max-height: 60vh; width: 100%;" class="bg-dark rounded-4 shadow-sm mb-3">
+                        <img src="" x-ref="cropImage" style="max-width: 100%; display:block; max-height: 60vh;">
                     </div>
                     
                     <div class="btn-group shadow-sm" role="group" aria-label="Rotate Controls">
