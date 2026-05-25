@@ -333,3 +333,35 @@
 
 ### 💾 Cierre de Sesión
 - Bitácora actualizada. Respaldo diario ejecutado. Sistema apagado.
+
+---
+## 📅 Sesión: 24/05/2026 - Infraestructura Producción Orange Pi 5 Plus
+
+### ✅ Logros y Cambios
+- **Orange Pi 5 Plus lista como servidor de producción:** Docker, Nginx Proxy Manager, Cloudflare Tunnel y Portainer operativos. Dominio `app.estetican.org` funcionando.
+- **Arquitectura de red documentada:** NIC dual (WAN DHCP + LAN fija 192.168.100.250). Acceso SSH, SMB y paneles admin solo por LAN interna.
+- **Hardening base:** UFW, Fail2ban, SSH sin root/password, unattended-upgrades, backups automáticos a Google Drive vía rclone.
+- **compose.prod.yaml creado** (`apps/backoffice-laravel/compose.prod.yaml`): versión de producción sin Vite/Caddy, conectada a `proxy_net` (red de NPM), puertos solo en loopback.
+- **`.env.production.example` creado** (`apps/backoffice-laravel/.env.production.example`): template listo para completar en la OPi.
+
+### 🚀 Pasos de Migración Pendientes (orden de ejecución)
+
+1. **Push a GitHub** — asegurarse que `compose.prod.yaml` y `.env.production.example` estén subidos.
+2. **Clonar repo en OPi** — `cd /opt/www && git clone git@github.com:xqtor4u/estetican-backups.git estetican`
+3. **Instalar Composer** — `docker run --rm -v $(pwd):/app composer:latest install --no-dev --optimize-autoloader --ignore-platform-reqs`
+4. **Crear `.env.production`** — copiar desde `.env.production.example`, pegar APP_KEY del `.env` local, cambiar password de DB.
+5. **Dump de BD (WSL)** — `./vendor/bin/sail exec mysql mysqldump -u sail -ppassword laravel > /tmp/estetican.sql`
+6. **Copiar dump a OPi** — vía `scp` o SMB a `/opt/www/estetican/`.
+7. **Build y arranque** — `docker compose -f compose.prod.yaml --env-file .env.production up -d --build`
+8. **Importar BD** — `docker exec -i estetican_mysql mysql -u estetican -p estetican < estetican.sql`
+9. **Setup inicial en contenedor** — `docker exec estetican_app php artisan migrate --force`, `storage:link`, `config:cache`, `route:cache`, `view:cache`.
+10. **Copiar uploads** — copiar `storage/app/public/` de WSL a OPi vía SMB.
+11. **Configurar NPM** — Proxy Host: `app.estetican.org` → Forward: `app:80` (por `proxy_net`). SSL Let's Encrypt.
+
+### 🛑 Pendientes / Backlog
+- **Tema de UI:** Reparar la persistencia y cambio reactivo de la paleta de colores.
+- **Favicon & Empresa:** Agregar subida de Favicon y datos generales del negocio.
+- **Email Avanzado:** Credenciales SMTP (usuario/password, puertos, SSL/TLS).
+- **Zonas Horarias:** Reemplazar selector UTC.
+- **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
+- **Ecosistema Móvil:** Continuar `mob_apps/operador`.

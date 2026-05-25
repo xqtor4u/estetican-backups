@@ -1,0 +1,80 @@
+# Producción — Orange Pi 5 Plus
+# Uso: docker compose -f compose.prod.yaml --env-file .env.production up -d --build
+#
+# NPM alcanza el contenedor "app" directamente a través de proxy_net.
+# No se expone ningún puerto público; el acceso externo llega
+# vía Cloudflare Tunnel → NPM → proxy_net → app:80
+services:
+  app:
+    build:
+      context: './vendor/laravel/sail/runtimes/8.5'
+      dockerfile: Dockerfile
+      args:
+        WWWGROUP: '${WWWGROUP:-1000}'
+    image: 'estetican/app:prod'
+    container_name: estetican_app
+    restart: unless-stopped
+    ports:
+      # Solo loopback — para diagnóstico local en la OPi
+      - '127.0.0.1:${APP_PORT:-8000}:80'
+    environment:
+      WWWUSER: '${WWWUSER:-1000}'
+      LARAVEL_SAIL: 1
+      XDEBUG_MODE: 'off'
+    volumes:
+      - '.:/var/www/html'
+    networks:
+      - estetican
+      - proxy_net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mysql:
+    image: 'mysql:8.4'
+    container_name: estetican_mysql
+    restart: unless-stopped
+    ports:
+      # Solo loopback — para acceso desde la OPi si se necesita
+      - '127.0.0.1:${FORWARD_DB_PORT:-13306}:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: '${DB_DATABASE}'
+      MYSQL_USER: '${DB_USERNAME}'
+      MYSQL_PASSWORD: '${DB_PASSWORD}'
+    volumes:
+      - 'estetican-mysql:/var/lib/mysql'
+    networks:
+      - estetican
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-p${DB_PASSWORD}']
+      retries: 3
+      timeout: 5s
+
+  redis:
+    image: 'redis:alpine'
+    container_name: estetican_redis
+    restart: unless-stopped
+    volumes:
+      - 'estetican-redis:/data'
+    networks:
+      - estetican
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      retries: 3
+      timeout: 5s
+
+networks:
+  estetican:
+    driver: bridge
+  proxy_net:
+    external: true   # Red creada por NPM — no recrear
+
+volumes:
+  estetican-mysql:
+    driver: local
+  estetican-redis:
+    driver: local
