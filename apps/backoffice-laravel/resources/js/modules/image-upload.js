@@ -19,32 +19,38 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
             const reader = new FileReader();
 
             reader.onload = (e) => {
-                this.$refs.cropImage.src = e.target.result;
-
-                if (!this.modalInstance) {
-                    this.modalInstance = new bootstrap.Modal(this.$refs.cropModal);
-                }
-                this.modalInstance.show();
+                const img = this.$refs.cropImage;
 
                 if (this.cropper) {
                     this.cropper.destroy();
+                    this.cropper = null;
                 }
 
-                setTimeout(() => {
-                    this.cropper = new Cropper(this.$refs.cropImage, {
-                        aspectRatio: aspectRatio,
-                        viewMode: 1,
-                        dragMode: 'move',
-                        autoCropArea: 1,
-                        restore: false,
-                        guides: true,
-                        center: true,
-                        highlight: false,
-                        cropBoxMovable: true,
-                        cropBoxResizable: true,
-                        toggleDragModeOnDblclick: false,
-                    });
-                }, 150);
+                img.onload = () => {
+                    if (!this.modalInstance) {
+                        this.modalInstance = new bootstrap.Modal(this.$refs.cropModal);
+                    }
+                    this.modalInstance.show();
+
+                    // Small delay so the modal is fully visible before Cropper measures the container
+                    setTimeout(() => {
+                        this.cropper = new Cropper(img, {
+                            aspectRatio: aspectRatio,
+                            viewMode: 1,
+                            dragMode: 'move',
+                            autoCropArea: 1,
+                            restore: false,
+                            guides: true,
+                            center: true,
+                            highlight: false,
+                            cropBoxMovable: true,
+                            cropBoxResizable: true,
+                            toggleDragModeOnDblclick: false,
+                        });
+                    }, 300);
+                };
+
+                img.src = e.target.result;
             };
 
             reader.readAsDataURL(file);
