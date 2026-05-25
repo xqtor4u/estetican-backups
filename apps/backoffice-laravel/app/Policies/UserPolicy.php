@@ -6,23 +6,26 @@ use App\Models\User;
 
 class UserPolicy
 {
-    private function isAdmin(User $user): bool
+    public function before(User $user): ?bool
     {
-        return $user->hasRole('admin') || $user->hasRole('super-admin') || $user->role === 'admin';
+        if ($user->hasRole('admin') || $user->hasRole('super-admin') || $user->role === 'admin') {
+            return true;
+        }
+        return null;
     }
 
     public function viewAny(User $user)
     {
-        return $this->isAdmin($user);
+        return false;
     }
 
     public function create(User $user)
     {
-        return $this->isAdmin($user);
+        return false;
     }
 
     public function update(User $user, User $model)
     {
-        return $user->getKey() === $model->getKey() || $this->isAdmin($user);
+        return $user->getKey() === $model->getKey();
     }
 }
