@@ -21,7 +21,6 @@ class UserController extends Controller
     // Solo admin puede ver todos los usuarios (USEIND)
     public function index()
     {
-        $this->authorize('viewAny', User::class);
         $users = User::all();
         return view('user.index', compact('users'));
     }
@@ -42,8 +41,6 @@ class UserController extends Controller
     // Formulario de alta de usuario (USECRE)
     public function create()
     {
-        $this->authorize('create', User::class);
-        
         $operatorRoles = OperatorRole::where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -71,8 +68,6 @@ class UserController extends Controller
     // Guardar nuevo usuario (Fusión 14-Abr)
     public function store(Request $request)
     {
-        $this->authorize('create', User::class);
-        
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:users,name',
             'email' => 'required|email|max:255|unique:users,email',
@@ -164,8 +159,6 @@ class UserController extends Controller
     // Actualizar usuario (Fusión 14-Abr)
     public function update(Request $request, User $user)
     {
-        $this->authorize('update', $user);
-        
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:users,name,' . $user->id,
             'email' => 'required|email|max:255|unique:users,email,' . $user->id,
@@ -235,8 +228,6 @@ class UserController extends Controller
     // Eliminar usuario
     public function destroy(User $user)
     {
-        $this->authorize('delete', $user);
-        
         // Candado: No eliminarse a sí mismo
         if (Auth::id() === $user->id) {
             return back()->with('error', 'No puedes eliminar tu propia cuenta administrativa.');
