@@ -10,23 +10,24 @@
     'watermarkText' => null,
     'autoSubmitFormId' => null
 ])
+@php $inputId = 'img_upload_' . bin2hex(random_bytes(4)); @endphp
 
-<div {{ $attributes->merge(['class' => 'image-upload-wrapper']) }} 
+<div {{ $attributes->merge(['class' => 'image-upload-wrapper']) }}
      x-data="imageUpload('{{ $value ? Storage::disk('public')->url($value) : '' }}', {{ $aspectRatio }}, {{ $watermarkText ? '\'' . addslashes($watermarkText) . '\'' : 'null' }}, {{ $autoSubmitFormId ? '\'' . $autoSubmitFormId . '\'' : 'null' }})"
      style="max-width: {{ $maxWidth }};">
-    
+
     <div class="position-relative mb-2">
         <!-- Preview Area -->
-        <div class="image-upload-preview text-center shadow-sm 
-            @if($previewShape === 'circle') rounded-circle 
-            @elseif($previewShape === 'square') rounded-4 
+        <div class="image-upload-preview text-center shadow-sm
+            @if($previewShape === 'circle') rounded-circle
+            @elseif($previewShape === 'square') rounded-4
             @else rounded-4 @endif overflow-hidden border bg-light d-flex align-items-center justify-content-center"
              style="aspect-ratio: {{ $aspectRatio === 1 ? '1/1' : '4/3' }}; width: 100%;">
-            
+
             <template x-if="imageUrl">
                 <img :src="imageUrl" alt="Preview" class="img-fluid w-100 h-100 object-fit-cover">
             </template>
-            
+
             <template x-if="!imageUrl">
                 <div class="text-body-secondary py-4">
                     <i class="bi {{ $defaultIcon }} display-4"></i>
@@ -34,23 +35,22 @@
             </template>
         </div>
 
-        <input type="file" 
+        <input type="file"
                x-ref="fileInput"
-               name="{{ $name }}" 
-               id="{{ $name }}" 
+               name="{{ $name }}"
+               id="{{ $inputId }}"
                @if($formId) form="{{ $formId }}" @endif
-               class="d-none" 
+               class="d-none"
                accept="image/*"
-               @click="$event.target.value = ''"
                @change="fileChosen">
 
-        <!-- Trigger Button -->
-        <div class="btn btn-sm btn-dark rounded-circle position-absolute bottom-0 end-0 shadow-sm d-flex align-items-center justify-content-center"
+        <!-- Trigger Label — native click, no JS needed, avoids Permissions-Policy issues -->
+        <label for="{{ $inputId }}"
+               class="btn btn-sm btn-dark rounded-circle position-absolute bottom-0 end-0 shadow-sm d-flex align-items-center justify-content-center"
                style="width: 32px; height: 32px; cursor: pointer;"
-               title="Cambiar imagen"
-               @click="$refs.fileInput.click()">
+               title="Cambiar imagen">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-camera-fill" viewBox="0 0 16 16"><path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0"/><path d="M2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4zm.5 2a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1m9 2.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0"/></svg>
-        </div>
+        </label>
     </div>
 
     @if($label)

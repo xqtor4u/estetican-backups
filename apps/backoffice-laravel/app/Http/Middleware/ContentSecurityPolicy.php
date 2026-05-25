@@ -31,7 +31,7 @@ class ContentSecurityPolicy
         $response->headers->set('Content-Security-Policy', $csp);
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        $response->headers->set('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+        $response->headers->set('Permissions-Policy', 'geolocation=(), camera=(self), microphone=()');
         $response->headers->remove('X-Powered-By');
 
         return $response;
