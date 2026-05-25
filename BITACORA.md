@@ -497,10 +497,44 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - Dos commits pendientes de push a GitHub (requieren WSL): `bf28d62` y `1ed85aa`.
 - Sistema operativo y estable en producción.
 
+---
+## 📅 Sesión: 25/05/2026 (continuación) - Trazabilidad de Operaciones con spatie/laravel-activitylog
+
+### ✅ Logros y Cambios
+
+- **`spatie/laravel-activitylog` instalado** (`^5.0`). Migración `activity_log` ejecutada en producción.
+- **7 modelos instrumentados** con `LogsActivity` + `logOnlyDirty()` + `dontSubmitEmptyLogs()`:
+  - `SpaBooking` → log `citas-spa`
+  - `HotelReservation` → log `citas-hotel`
+  - `Payment` → log `pagos`
+  - `Quote` → log `presupuestos`
+  - `Pet` → log `mascotas` (excluye `profile_photo_path`)
+  - `User` → log `usuarios` + `CausesActivity` (excluye password/tokens)
+  - `SystemSetting` → log `configuracion`
+- **`ActivityLogController`** creado con filtros por módulo, evento, usuario y fecha. Paginado a 50 por página.
+- **Vista `/activity-log`** — tabla con diff de campos (antes → después) para eventos `updated`. Acceso solo para `admin|super-admin`.
+- **Menú de navegación** — "Bitácora de actividad" agregado bajo Catálogos (visible solo a admins).
+
+### 📁 Archivos Modificados Esta Sesión
+- `composer.json` / `composer.lock`
+- `config/activitylog.php` *(nuevo)*
+- `database/migrations/2026_05_25_154836_create_activity_log_table.php` *(nuevo)*
+- `app/Models/SpaBooking.php`
+- `app/Models/HotelReservation.php`
+- `app/Models/Payment.php`
+- `app/Models/Quote.php`
+- `app/Models/Pet.php`
+- `app/Models/User.php`
+- `app/Models/SystemSetting.php`
+- `app/Http/Controllers/ActivityLogController.php` *(nuevo)*
+- `resources/views/activity-log/index.blade.php` *(nuevo)*
+- `routes/web.php`
+- `app/Support/Navigation/Groups/CatalogsNavigation.php`
+
 ### 🛑 Pendientes / Backlog
-- **Push a GitHub:** `git pull && git push origin main` desde WSL (commits `bf28d62` + `1ed85aa`).
-- **Verificar Transform Rules Cloudflare:** X-Frame-Options, Referrer-Policy y Permissions-Policy aún no aparecen en el scanner — confirmar que la regla está activa, no en borrador.
-- **Bloquear `/up`:** health check de Laravel devuelve 200 público, expone info del servidor.
+- **Push a GitHub:** `git push origin main` desde WSL (varios commits acumulados).
+- **Verificar Transform Rules Cloudflare:** X-Frame-Options, Referrer-Policy y Permissions-Policy.
+- **Bloquear `/up`:** health check de Laravel devuelve 200 público.
 - **Credenciales producción:** Cambiar password de `admin@localhost` desde la UI.
 - **Tema de UI:** Reparar persistencia y cambio reactivo de paleta de colores.
 - **Favicon & Empresa:** Subida de Favicon y datos generales del negocio.

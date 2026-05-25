@@ -22,6 +22,7 @@ use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\UserSettingsController;
 
 Route::get('/', function () {
@@ -93,6 +94,8 @@ Route::middleware('auth')->group(function () {
         Route::get('users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
         Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+
+        Route::get('activity-log', [ActivityLogController::class, 'index'])->name('activity-log.index');
     });
 
     // Configuración personal del usuario

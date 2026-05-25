@@ -53,11 +53,18 @@ class CatalogsNavigation
                 'route' => route('users.index'),
                 'active' => request()->routeIs('users.*'),
             ];
+
+            $items[] = [
+                'label' => 'Bitácora de actividad',
+                'description' => 'Registro de todas las operaciones realizadas por los usuarios.',
+                'route' => route('activity-log.index'),
+                'active' => request()->routeIs('activity-log.*'),
+            ];
         }
 
         return [
             'label' => 'Catálogos',
-            'active' => request()->routeIs('services.*', 'operators.*', 'operator-roles.*', 'branches.*', 'users.*'),
+            'active' => request()->routeIs('services.*', 'operators.*', 'operator-roles.*', 'branches.*', 'users.*', 'activity-log.*'),
             'items' => $items,
         ];
     }
