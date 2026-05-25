@@ -34,6 +34,12 @@ class ContentSecurityPolicy
         $response->headers->set('Permissions-Policy', 'geolocation=(), camera=(self), microphone=()');
         $response->headers->remove('X-Powered-By');
 
+        // Prevent Cloudflare or any proxy from caching HTML responses.
+        // Nonces and CSRF tokens must never be served from cache.
+        if (!$response->headers->has('Cache-Control')) {
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        }
+
         return $response;
     }
 }
