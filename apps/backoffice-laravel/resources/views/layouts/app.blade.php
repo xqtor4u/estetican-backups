@@ -34,6 +34,7 @@
         <link rel="preconnect" href="{{ $fontPreconnect }}" @if(str_contains($fontPreconnect, 'gstatic')) crossorigin @endif>
     @endforeach
     <link href="{{ data_get($backofficeConfig, 'fonts.stylesheet_url') }}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body
     class="app-density-{{ $appDensity }}"
@@ -159,8 +160,6 @@
             });
         });
     </script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     @stack('scripts')
 </body>
 </html>

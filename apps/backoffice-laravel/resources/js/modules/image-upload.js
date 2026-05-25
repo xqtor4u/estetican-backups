@@ -19,12 +19,17 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
             const reader = new FileReader();
 
             reader.onload = (e) => {
-                this.$refs.cropImage.src = e.target.result;
+                try {
+                    this.$refs.cropImage.src = e.target.result;
 
-                if (!this.modalInstance) {
-                    this.modalInstance = new bootstrap.Modal(this.$refs.cropModal);
+                    if (!this.modalInstance) {
+                        this.modalInstance = new bootstrap.Modal(this.$refs.cropModal);
+                    }
+                    this.modalInstance.show();
+                } catch (err) {
+                    alert('Error al abrir recorte: ' + err.message);
+                    return;
                 }
-                this.modalInstance.show();
 
                 if (this.cropper) {
                     this.cropper.destroy();
@@ -47,6 +52,7 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
                 }, 150);
             };
 
+            reader.onerror = () => alert('Error al leer el archivo.');
             reader.readAsDataURL(file);
         },
         rotateLeft() {
