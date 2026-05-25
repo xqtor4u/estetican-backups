@@ -417,3 +417,31 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - **Zonas Horarias:** Reemplazar selector UTC.
 - **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
 - **Ecosistema Móvil:** Continuar `mob_apps/operador`.
+
+---
+## 📅 Sesión: 24/05/2026 (continuación) - Limpieza Final de Autorización en UserController
+
+### ✅ Logros y Cambios
+
+- **Eliminados todos los `authorize()` redundantes de `UserController`:** Las llamadas a `$this->authorize()` en `index()`, `create()`, `store()`, `update()` y `destroy()` fueron removidas. El middleware `role:admin|super-admin` que envuelve las rutas ya garantiza acceso exclusivo a admins — los `authorize()` duplicaban la comprobación y en algunos contextos la bloqueaban.
+  - `index()` — `authorize('viewAny')` eliminado
+  - `create()` — `authorize('create')` eliminado
+  - `store()` — `authorize('create')` eliminado
+  - `update()` — `authorize('update')` eliminado
+  - `destroy()` — `authorize('delete')` eliminado
+- Commit: `fix(users): eliminar authorize() redundantes en UserController` → push a `main`.
+
+### 🚀 Para aplicar en OPi
+```bash
+cd /opt/www/estetican && git pull
+docker exec estetican_app find /var/www/html/storage/framework/views -name "*.php" -delete
+```
+
+### 🛑 Pendientes / Backlog
+- **Credenciales producción:** Cambiar password de `admin@localhost` desde la UI.
+- **Tema de UI:** Reparar persistencia y cambio reactivo de paleta de colores.
+- **Favicon & Empresa:** Subida de Favicon y datos generales del negocio.
+- **Email Avanzado:** Credenciales SMTP (usuario/password, puertos, SSL/TLS).
+- **Zonas Horarias:** Reemplazar selector UTC.
+- **Reportes PDF:** Diseño e impresión de presupuestos, órdenes de trabajo y facturas.
+- **Ecosistema Móvil:** Continuar `mob_apps/operador`.
