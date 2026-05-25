@@ -24,5 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (\Illuminate\Auth\Access\AuthorizationException $e, $request) {
+            return redirect()->back()->withErrors(['error' => 'No tienes permiso para realizar esta acción.']);
+        });
     })->create();
