@@ -28,4 +28,9 @@ class UserPolicy
     {
         return $user->getKey() === $model->getKey();
     }
+
+    public function delete(User $user, User $model)
+    {
+        return false;
+    }
 }
