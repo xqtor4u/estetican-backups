@@ -20,7 +20,7 @@ class SpaBooking extends Model
         return LogOptions::defaults()
             ->logFillable()
             ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
+            ->dontLogEmptyChanges()
             ->useLogName('citas-spa');
     }
 

@@ -24,7 +24,7 @@ class Pet extends Model
                        'microchip_code', 'tattoo_code', 'sex', 'coat_color', 'size',
                        'is_sterilized', 'notes'])
             ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
+            ->dontLogEmptyChanges()
             ->useLogName('mascotas');
     }
 

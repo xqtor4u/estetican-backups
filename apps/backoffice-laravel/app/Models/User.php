@@ -50,7 +50,7 @@ class User extends Authenticatable
                        'is_active', 'can_login', 'is_operator', 'operator_role_id',
                        'role', 'hire_date', 'notes'])
             ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
+            ->dontLogEmptyChanges()
             ->useLogName('usuarios');
     }
 

@@ -16,7 +16,7 @@ class SystemSetting extends Model
         return LogOptions::defaults()
             ->logOnly(['section', 'key', 'value'])
             ->logOnlyDirty()
-            ->dontSubmitEmptyLogs()
+            ->dontLogEmptyChanges()
             ->useLogName('configuracion');
     }
 
