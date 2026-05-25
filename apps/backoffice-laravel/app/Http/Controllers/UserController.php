@@ -130,7 +130,10 @@ class UserController extends Controller
     // Formulario de edición (USEEDI)
     public function edit(User $user)
     {
-        $this->authorize('update', $user);
+        abort_unless(
+            auth()->id() === $user->id || auth()->user()->hasRole('admin') || auth()->user()->hasRole('super-admin'),
+            403, 'No tienes permiso para editar este usuario.'
+        );
         
         $operatorRoles = OperatorRole::where('is_active', true)
             ->orderBy('name')
