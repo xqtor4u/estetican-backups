@@ -14,7 +14,7 @@
 /.certs
 /auth.json
 /node_modules
-/public/build
+# /public/build  ← incluido en repo para deploy en producción
 /public/hot
 /public/storage
 /storage/*.key
