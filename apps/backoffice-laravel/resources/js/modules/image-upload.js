@@ -20,37 +20,42 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
 
             reader.onload = (e) => {
                 const img = this.$refs.cropImage;
+                const modalEl = this.$refs.cropModal;
 
                 if (this.cropper) {
                     this.cropper.destroy();
                     this.cropper = null;
                 }
 
-                img.onload = () => {
-                    if (!this.modalInstance) {
-                        this.modalInstance = new bootstrap.Modal(this.$refs.cropModal);
-                    }
-                    this.modalInstance.show();
+                // Set the image source now; by the time shown.bs.modal fires
+                // (after the 300ms Bootstrap fade), the DataURL will be decoded.
+                img.src = e.target.result;
 
-                    // Small delay so the modal is fully visible before Cropper measures the container
-                    setTimeout(() => {
-                        this.cropper = new Cropper(img, {
-                            aspectRatio: aspectRatio,
-                            viewMode: 1,
-                            dragMode: 'move',
-                            autoCropArea: 1,
-                            restore: false,
-                            guides: true,
-                            center: true,
-                            highlight: false,
-                            cropBoxMovable: true,
-                            cropBoxResizable: true,
-                            toggleDragModeOnDblclick: false,
-                        });
-                    }, 300);
+                if (!this.modalInstance) {
+                    this.modalInstance = new bootstrap.Modal(modalEl);
+                }
+
+                // Initialize Cropper only after the modal is fully visible and
+                // has stable layout — shown.bs.modal fires once the fade is done.
+                const onShown = () => {
+                    modalEl.removeEventListener('shown.bs.modal', onShown);
+                    this.cropper = new Cropper(img, {
+                        aspectRatio: aspectRatio,
+                        viewMode: 1,
+                        dragMode: 'move',
+                        autoCropArea: 1,
+                        restore: false,
+                        guides: true,
+                        center: true,
+                        highlight: false,
+                        cropBoxMovable: true,
+                        cropBoxResizable: true,
+                        toggleDragModeOnDblclick: false,
+                    });
                 };
 
-                img.src = e.target.result;
+                modalEl.addEventListener('shown.bs.modal', onShown);
+                this.modalInstance.show();
             };
 
             reader.readAsDataURL(file);
