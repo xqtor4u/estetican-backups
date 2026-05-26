@@ -608,8 +608,27 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - `resources/views/components/image-upload.blade.php` — contenedor `height: 60vh; overflow: hidden`
 - `public/build/manifest.json` + `public/build/assets/app-C7-NYl4u.js` — bundle reconstruido
 
-### 🛑 Pendientes / Backlog (sin cambios)
-- Push a GitHub (varios commits acumulados).
-- Verificar Transform Rules Cloudflare.
-- Bloquear `/up`.
-- Credenciales producción, Tema de UI, Favicon & Empresa, Email Avanzado, Zonas Horarias, PDF, Móvil.
+### 🛑 Pendientes al cierre de sesión
+- Tema de UI, Favicon & Empresa, Email Avanzado, Zonas Horarias, Credenciales producción, Bloquear `/up`, Cloudflare Transform Rules, PDF, Móvil.
+
+---
+## 📅 Sesión: 25/05/2026 (continuación 4) - Push a GitHub + configuración SSH
+
+### ✅ Logros y Cambios
+
+**Push a GitHub completado:**
+- 25 commits acumulados pusheados a `origin/main` (`https://github.com/xqtor4u/estetican-backups.git`).
+- **Problema de autenticación resuelto:** El remote usaba HTTPS y no había credenciales almacenadas. Se detectó clave SSH existente en `~/.ssh/id_ed25519` (generada en sesión previa). La clave pública fue registrada en GitHub (`estetican-opi`).
+- Remote cambiado de HTTPS a SSH: `git remote set-url origin git@github.com:xqtor4u/estetican-backups.git`.
+- GitHub agregado a `~/.ssh/known_hosts` con `ssh-keyscan`.
+- Todas las sesiones futuras pueden hacer push con `git push origin main` sin credenciales adicionales.
+
+**Backlog priorizado:**
+- Ver `docs/tecnico/BACKLOG.md` para el listado completo con prioridades.
+
+### 📁 Archivos Modificados
+- `~/.ssh/known_hosts` — github.com agregado
+- Remote URL cambiado a SSH (solo en configuración git local)
+
+### 🛑 Pendientes (Backlog activo)
+Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
