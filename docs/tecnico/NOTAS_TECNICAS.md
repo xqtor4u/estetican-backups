@@ -1,153 +1,275 @@
-# Notas Técnicas de Desarrollo — EstetiCAN
+# Base de Errores Conocidos (KEDB) — EstetiCAN
+### Known Error Database · Gestión de Problemas ITIL 4
 
-> Este archivo documenta bugs no obvios, decisiones de arquitectura con consecuencias prácticas,
-> y soluciones que costaron tiempo de diagnóstico. Cada entrada explica el SÍNTOMA, la CAUSA RAÍZ
-> y la SOLUCIÓN, para que no se repita el mismo problema.
+> **Propósito ITIL:** Este archivo es el registro formal de Problemas del servicio.
+> Un Problema es la causa raíz de uno o más Incidentes. Documentarlo aquí previene
+> que el mismo Incidente se repita y reduce el MTTR (Mean Time To Restore) de futuras
+> ocurrencias.
+>
+> **Cuándo crear una entrada:** Cuando se resuelve un bug no trivial, o cuando
+> se identifica un riesgo técnico aunque no haya ocurrido aún como incidente.
+>
+> **Formato de cada entrada:**
+> - **ID:** NT-XXX (secuencial)
+> - **Clasificación:** Severidad (P1–P4) e impacto (quién/qué afecta)
+> - **Síntoma:** Lo que ve el usuario o el operador
+> - **Causa raíz:** El por qué técnico real
+> - **Workaround:** Solución temporal si existe (para aplicar mientras se resuelve)
+> - **Solución definitiva:** El fix permanente aplicado
+> - **Lección:** La regla de oro para que no vuelva a ocurrir
 
 ---
 
-## NT-001 — cropperjs: v2 incompatible con código v1
+## Índice de Severidades
 
-**Fecha:** 2026-05-25
-**Componente:** `x-image-upload` / `resources/js/modules/image-upload.js`
-**Síntoma:** Al subir una foto, el modal abría pero la imagen se veía pequeña; no recortaba, no giraba y no guardaba.
+| Nivel | Criterio | Tiempo de respuesta |
+|---|---|---|
+| **P1 — Crítico** | Sistema caído o flujo de negocio principal bloqueado | Inmediato (Cambio de Emergencia) |
+| **P2 — Alto** | Funcionalidad importante rota, hay workaround parcial | Misma sesión |
+| **P3 — Medio** | Funcionalidad degradada, usuarios pueden operar con dificultad | Próxima sesión |
+| **P4 — Bajo** | Problema cosmético o riesgo identificado (no manifestado) | Backlog |
+
+---
+
+## NT-001 — cropperjs v2 incompatible con código v1
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-05-25 |
+| **Severidad** | P1 — Crítico |
+| **Componente** | `x-image-upload` / `resources/js/modules/image-upload.js` |
+| **Impacto** | Subida de fotos 100% inoperativa en todo el sistema (7 vistas afectadas) |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+Al subir una foto, el modal abría pero la imagen se veía muy pequeña; no recortaba, no giraba y no guardaba. El comportamiento era idéntico en todas las entidades (mascotas, recursos, operadores, usuarios).
 
 **Causa raíz:**
-El `package.json` tenía `"cropperjs": "^2.1.1"`. La v2 es una reescritura completa basada en Web Components (`<cropper-canvas>`, `<cropper-selection>`, etc.) con API completamente distinta. La v1 tenía métodos `rotate()`, `getCroppedCanvas()` y opciones como `aspectRatio`, `viewMode`, `dragMode`, etc. En v2 esos métodos NO EXISTEN en el objeto `Cropper`. La clase `Cropper` de v2 solo tiene `getCropperCanvas()`, `getCropperImage()`, `getCropperSelection()` y `destroy()`.
+`package.json` tenía `"cropperjs": "^2.1.1"`. La v2 es una reescritura completa basada en Web Components (`<cropper-canvas>`, `<cropper-selection>`, etc.) con API totalmente distinta a v1. En v2, los métodos `rotate()`, `getCroppedCanvas()` y las opciones `aspectRatio`, `viewMode`, `dragMode`, `autoCropArea`, etc. **no existen** en la clase `Cropper`. La clase v2 solo expone `getCropperCanvas()`, `getCropperImage()`, `getCropperSelection()`, `destroy()`. El código usaba la API de v1 (la misma que funcionaba vía CDN `cropperjs@1.6.2`). El modal se abría porque Bootstrap funciona independientemente, pero Cropper inicializaba un objeto v2 vacío — de ahí la imagen pequeña (la `<img>` original sin Cropper encima).
 
-El código usa la API de v1 (la misma que corría del CDN `cropperjs@1.6.2`).
+**Workaround:**
+Ninguno viable. El sistema de fotos era completamente inoperable.
 
-**Solución:**
+**Solución definitiva:**
 ```bash
 npm install cropperjs@1.6.2 --save-exact
 npm run build
+# En package.json queda: "cropperjs": "1.6.2" (sin ^)
 ```
 
-**Regla de oro:**
-- El CSS en `resources/css/vendor-cropper.css` es de v1. Si alguna vez se actualiza cropperjs, se debe descargar el CSS de la versión correspondiente Y verificar que todos los métodos usados existan en la nueva API.
-- `package.json` debe fijar la versión exacta: `"cropperjs": "1.6.2"` (sin `^`).
+**Lección:**
+- Las librerías de UI con major versions son **ítems de configuración controlados**. Ver CMDB en `ESTRATEGIA_DESARROLLO.md §8`.
+- **Nunca usar `^` en librerías de UI** como cropperjs o flatpickr. Los breaking changes entre major versions son totales.
+- El CSS en `resources/css/vendor-cropper.css` es de v1. Si se actualiza cropperjs, el CSS también debe actualizarse y las diferencias de API deben auditarse.
 
 ---
 
-## NT-002 — Inicialización de Cropper.js en modal Bootstrap
+## NT-002 — Inicialización de Cropper.js antes de que el modal sea visible
 
-**Fecha:** 2026-05-25
-**Componente:** `x-image-upload` / `resources/js/modules/image-upload.js`
-**Síntoma:** Imagen visible en el modal pero el recortador no aparece o aparece con dimensiones incorrectas (muy pequeño).
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-05-25 |
+| **Severidad** | P2 — Alto |
+| **Componente** | `x-image-upload` / `resources/js/modules/image-upload.js` |
+| **Impacto** | Recortador aparece con dimensiones incorrectas o sin renderizar |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+La imagen se veía en el modal pero el recortador no aparecía, o aparecía muy pequeño. Los controles de Cropper (handles, crop box) no eran visibles o eran diminutos.
 
 **Causa raíz:**
-Cropper.js mide el contenedor cuando se inicializa. Si se inicializa antes de que el modal de Bootstrap sea visible (`.modal.fade` no ha terminado su transición), el contenedor tiene dimensiones 0 o incorrectas.
+Cropper.js mide el contenedor DOM cuando se inicializa (`new Cropper(img, options)`). Si se llama antes de que Bootstrap haya completado la animación `fade` del modal (`.show()` dispara la animación, pero el modal no tiene dimensiones reales hasta que termina), Cropper obtiene `clientWidth: 0` o dimensiones incorrectas y construye un canvas de tamaño 0.
 
-**Solución:**
+Los intentos fallidos fueron:
+- `setTimeout(300ms)` → el tiempo varía según el dispositivo
+- `img.decode()` → decodifica la imagen pero no garantiza que el modal tenga layout
+
+**Workaround:**
+Ninguno funcional. El síntoma era indistinguible de NT-001 para el usuario.
+
+**Solución definitiva:**
 ```javascript
 // Registrar el listener ANTES de abrir el modal
 const onShown = () => {
     modalEl.removeEventListener('shown.bs.modal', onShown);
-    requestAnimationFrame(() => {         // garantiza un frame pintado
-        this.cropper = new Cropper(img, { aspectRatio, ... });
+    requestAnimationFrame(() => {         // garantiza exactamente un frame pintado
+        this.cropper = new Cropper(img, { aspectRatio, ...opciones });
     });
 };
 modalEl.addEventListener('shown.bs.modal', onShown);
-img.src = dataUrl;              // asignar src después del listener
-this.modalInstance.show();      // abrir modal — shown.bs.modal se disparará al terminar la animación (~300ms)
+img.src = dataUrl;              // asignar src DESPUÉS del listener
+this.modalInstance.show();      // fired → shown.bs.modal al terminar animación (~300ms)
 ```
 
-**Por qué `requestAnimationFrame`:** `shown.bs.modal` puede dispararse justo antes de que el navegador pinte el frame final. El `rAF` garantiza que Cropper mide dimensiones reales.
+`shown.bs.modal` es el evento oficial de Bootstrap que garantiza que el modal es completamente visible. El `requestAnimationFrame` adicional asegura que el navegador ha pintado al menos un frame.
 
-**Por qué NO `img.decode()`:** `decode()` en un elemento oculto dentro de un modal no garantiza que el modal tenga layout. El tiempo de la animación Bootstrap (~300ms) es suficiente para que cualquier DataURL se decodifique.
+**Lección:**
+- Siempre inicializar librerías de visualización (Cropper, Charts, Maps) dentro del evento de "elemento visible" de su contenedor, nunca antes.
+- `img.decode()` sirve para decodificar datos de imagen, no para garantizar layout CSS.
 
 ---
 
 ## NT-003 — Contenedor del modal: `height` fijo vs `max-height`
 
-**Fecha:** 2026-05-25
-**Componente:** `resources/views/components/image-upload.blade.php`
-**Síntoma:** El recortador aparece pero el área de recorte es mínima o solo muestra la parte superior de la imagen.
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-05-25 |
+| **Severidad** | P3 — Medio |
+| **Componente** | `resources/views/components/image-upload.blade.php` |
+| **Impacto** | El área de recorte muestra solo la parte superior de la imagen |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+El recortador se inicializaba correctamente pero solo mostraba la parte superior de la imagen. Los handles de Cropper quedaban fuera del área visible.
 
 **Causa raíz:**
-Con `max-height: 60vh; overflow: hidden`, el contenedor tiene una altura determinada por el contenido (la imagen). Cuando Cropper.js mide el contenedor antes de que la imagen tenga sus dimensiones correctas, puede obtener un alto de 0 o incorrecto.
+El contenedor del modal tenía `max-height: 60vh; overflow: hidden`. Con `max-height`, la altura del contenedor es determinada por el contenido (la imagen). Cuando hay imágenes con orientación portrait (más altas que anchas), `width: 100%` hace la imagen tan alta que excede el viewport y los controles de Cropper quedan ocultos por `overflow: hidden`. Con `height: 60vh` (fijo), el contenedor siempre tiene 60vh sin importar la imagen.
 
-**Solución:**
+**Workaround:**
+Usar solo imágenes landscape. No aplicable en producción.
+
+**Solución definitiva:**
 ```html
-<!-- CORRECTO: altura fija para que Cropper pueda medir -->
+<!-- CORRECTO: altura fija -->
 <div style="height: 60vh; overflow: hidden;">
     <img src="" x-ref="cropImage" style="display:block; max-width: 100%;">
 </div>
 
-<!-- INCORRECTO: altura variable, Cropper puede medir 0 -->
+<!-- INCORRECTO: altura variable según contenido -->
 <div style="max-height: 60vh; overflow: hidden;">
     <img src="" x-ref="cropImage" style="display:block; width: 100%;">
 </div>
 ```
 
-**Regla:** El contenedor de Cropper.js siempre debe tener una altura CSS fija (`height`, no `max-height`).
+**Lección:**
+- Cropper.js necesita un contenedor con **dimensiones absolutas** (no relativas al contenido).
+- `max-height` + `overflow:hidden` es una combinación que recorta visualmente pero no fija el layout desde la perspectiva de Cropper.
 
 ---
 
 ## NT-004 — Alpine.js: `x-ref` en Blade Components con `x-data` anidado
 
-**Fecha:** 2026-05-25
-**Componente:** `resources/show.blade.php` (patrón B de auto-submit)
-**Síntoma / Contexto:** El form padre necesita un ref al `x-image-upload` para encontrar el input de archivo y enviar el form programáticamente.
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-05-25 |
+| **Severidad** | P4 — Bajo (diseño documentado, no bug) |
+| **Componente** | `resources/show.blade.php` — Patrón B de auto-submit |
+| **Impacto** | Si se implementa incorrectamente, el form no se envía al aplicar el recorte |
+| **Estado** | ✅ DOCUMENTADO |
 
-**Patrón que funciona:**
+**Contexto:**
+El form padre necesita acceder al `input[type=file]` dentro de `x-image-upload` para verificar si hay archivo antes de enviar.
+
+**Patrón correcto:**
 ```blade
 <form x-data="{ submit() { this.$el.submit(); } }">
     <div @image-cropped="submit()">
+        {{-- x-ref va en el componente Blade, no en el div wrapper --}}
         <x-image-upload x-ref="photoInput" ... />
     </div>
 </form>
 ```
 
-`x-ref="photoInput"` sobre el Blade component pasa el atributo al div raíz del componente (via `$attributes->merge()`). Alpine del form padre puede acceder a `this.$refs.photoInput` porque el `x-ref` está en el elemento raíz del componente hijo, que técnicamente pertenece al scope del padre (el scope hijo comienza con `x-data` que está en el mismo elemento).
+`x-ref="photoInput"` sobre un Blade component pasa el atributo al div raíz del componente mediante `$attributes->merge()`. Alpine del form padre puede acceder con `this.$refs.photoInput` porque el `x-ref` está en el elemento raíz del componente hijo, que pertenece al scope del padre (el scope hijo comienza con `x-data` en ese mismo elemento).
 
-**Alternativa más simple:** usar `autoSubmitFormId` en el componente directamente.
+**Alternativa más simple (preferida):**
+```blade
+<x-image-upload autoSubmitFormId="mi-form-id" ... />
+```
+Usar `autoSubmitFormId` directamente en el componente evita toda esta complejidad.
 
 ---
 
 ## NT-005 — Blade: `@php(expr)` con paréntesis anidados
 
-**Fecha:** 2026-05-15 (detectado en auditoría)
-**Síntoma:** Variables `undefined` aleatorias en producción. El compilador Blade detiene el procesado en el primer `)` interno de `parse_url(...)`, `in_array(...)`, `firstWhere(...)`, etc.
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-05-15 (detectado en auditoría de producción) |
+| **Severidad** | P1 — Crítico |
+| **Componente** | Compilador Blade (afecta cualquier vista) |
+| **Impacto** | Variables `undefined` aleatorias en producción. 29 vistas afectadas en el incidente del 25/05. |
+| **Estado** | ✅ RESUELTO (corrección masiva aplicada con script Python) |
 
-**Causa raíz:** La directiva `@php(expr)` tiene un parser rudimentario que no maneja paréntesis anidados.
+**Síntoma:**
+Variables PHP aparecen como `undefined` de forma aleatoria en producción. El error puede ser `Undefined variable $X` en cualquier punto de la vista después de la directiva afectada.
 
-**Solución:** Usar siempre el bloque completo:
+**Causa raíz:**
+La directiva `@php(expr)` tiene un parser que no maneja paréntesis anidados. Al encontrar el primer `)` interno (en funciones como `parse_url(...)`, `in_array(...)`, `firstWhere(...)`), el compilador Blade cierra la directiva y el resto de la expresión queda sin procesar, corrompiendo todo lo que sigue en la vista.
+
+**Workaround:**
+Extraer la expresión a una variable PHP antes del template. No siempre práctico.
+
+**Solución definitiva:**
 ```blade
-{{-- MAL --}}
+{{-- ❌ MAL: el parser Blade falla en el primer ) interno --}}
 @php($url = parse_url($value, PHP_URL_PATH))
+@php($found = in_array($item->id, $ids))
 
-{{-- BIEN --}}
+{{-- ✅ BIEN: bloque completo, sin ambigüedad --}}
 @php
     $url = parse_url($value, PHP_URL_PATH);
+    $found = in_array($item->id, $ids);
 @endphp
 ```
+
+**Lección:**
+- **Regla absoluta:** No usar `@php(expr)` en ninguna vista. Solo `@php ... @endphp`.
+- Si se instalan templates de terceros o se generan vistas automáticamente, revisar que cumplan esta regla.
+- Las vistas compiladas en caché pueden ocultar el error hasta que la caché se limpie. Siempre limpiar vistas después de cambios en Blade.
 
 ---
 
 ## NT-006 — CSP + Alpine.js requiere `unsafe-eval`
 
-**Fecha:** 2026-05-25
-**Componente:** `app/Http/Middleware/ContentSecurityPolicy.php`
-**Síntoma:** Alpine.js no evalúa expresiones (`x-data`, `@click`, `x-show`) cuando hay CSP sin `unsafe-eval`.
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-05-25 |
+| **Severidad** | P1 — Crítico (Alpine completamente bloqueado sin esto) |
+| **Componente** | `app/Http/Middleware/ContentSecurityPolicy.php` |
+| **Impacto** | Alpine.js no evalúa ninguna expresión. La UI interactiva queda completamente rota. |
+| **Estado** | ✅ RESUELTO |
 
-**Causa raíz:** Alpine.js v3 usa `new AsyncFunction()` internamente para evaluar expresiones de templates, lo que requiere `unsafe-eval`.
+**Síntoma:**
+Con CSP activo sin `unsafe-eval`: los directives `x-data`, `@click`, `x-show`, `x-if` no tienen efecto. La UI parece "muerta".
 
-**Solución en CSP:**
+**Causa raíz:**
+Alpine.js v3 evalúa sus expresiones de template usando `new AsyncFunction()` (equivalente a `eval()`). Esta API requiere `unsafe-eval` en la directiva `script-src` del CSP. Sin ella, el navegador bloquea la evaluación silenciosamente.
+
+**Solución definitiva:**
 ```php
+// ContentSecurityPolicy.php
 "script-src 'self' 'nonce-{$nonce}' 'unsafe-eval'",
 ```
 
-**Nota:** Los scripts inline (JS en `<script>`) necesitan el nonce. Alpine cargado desde el bundle no necesita nonce porque el bundle es `'self'`.
+**Lección:**
+- Los scripts inline (bloques `<script>...</script>`) necesitan el nonce.
+- El bundle (servido desde `/build/assets/`) es `'self'` y no necesita nonce.
+- `unsafe-eval` es necesario para Alpine pero NO para Bootstrap, Cropper u otras librerías.
+- Considerar migrar a Alpine CSP Build (versión sin `eval`) si se requiere mayor seguridad en el futuro.
 
 ---
 
-## NT-007 — Bootstrap Modal movido al body rompe Alpine $refs
+## NT-007 — Riesgo: Bootstrap Modal desvincula Alpine `$refs` si se mueve al body
 
-**Fecha:** 2026-05-25 (riesgo conocido, no ocurrido)
-**Componente:** `x-image-upload`
-**Contexto:** Bootstrap Modal mueve el elemento modal al `<body>` cuando tiene `data-bs-backdrop`. Esto podría sacar el modal del scope de Alpine.
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-05-25 |
+| **Severidad** | P4 — Bajo (riesgo identificado, no ocurrido) |
+| **Componente** | `x-image-upload` — modal Bootstrap |
+| **Impacto** | Potencial: `this.$refs.cropModal` queda `undefined` si Bootstrap mueve el modal |
+| **Estado** | ⚠️ RIESGO DOCUMENTADO — no ocurre en configuración actual |
 
-**Estado actual:** No ocurre porque `data-bs-backdrop="static"` se aplica sin `data-bs-target` — el modal es inicializado por JS con `new bootstrap.Modal(modalEl)` pasando la referencia directa. Bootstrap no lo mueve al body en este caso porque lo inicializamos con la referencia al elemento, no con un trigger HTML.
+**Contexto:**
+Bootstrap Modal puede mover el elemento `<div class="modal">` al `<body>` cuando se usa `data-bs-target` (trigger HTML declarativo). Si el modal sale del scope Alpine, `this.$refs.cropModal` podría quedar inválido.
 
-**Si se manifiesta:** Usar `document.body.appendChild(modalEl)` manualmente y guardar el ref antes de moverlo.
+**Por qué NO ocurre actualmente:**
+El modal se inicializa vía JS con `new bootstrap.Modal(modalEl)` pasando la referencia directa. En este modo Bootstrap NO mueve el elemento al body. El modal permanece donde está en el DOM, dentro del scope Alpine.
+
+**Si llegara a ocurrir:**
+1. Guardar la referencia antes de que Bootstrap mueva el modal: `const modalRef = this.$refs.cropModal`
+2. Mover manualmente: `document.body.appendChild(modalRef)`
+3. Inicializar Cropper con la referencia guardada (no con `this.$refs`)
+
+**Lección:**
+- Siempre inicializar Bootstrap Modal con la referencia al elemento, no con atributos `data-bs-target`.
+- Preferir `new bootstrap.Modal(element)` sobre `<button data-bs-toggle="modal" data-bs-target="#...">`.
