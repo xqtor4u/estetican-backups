@@ -20,7 +20,7 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
             this.originalFile = file;
             const reader = new FileReader();
 
-            reader.onload = async (e) => {
+            reader.onload = (e) => {
                 const img = this.$refs.cropImage;
                 const modalEl = this.$refs.cropModal;
 
@@ -29,38 +29,38 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
                     this.cropper = null;
                 }
 
-                // Decode the DataURL image fully before doing anything with layout
-                img.src = e.target.result;
-                try { await img.decode(); } catch (_) { /* decode() not critical */ }
-
                 if (!this.modalInstance) {
                     this.modalInstance = new bootstrap.Modal(modalEl);
                 }
 
-                // Wait for Bootstrap modal fade to finish (shown.bs.modal)
-                // so Cropper measures real container dimensions
-                await new Promise(resolve => {
-                    const onShown = () => {
-                        modalEl.removeEventListener('shown.bs.modal', onShown);
-                        resolve();
-                    };
-                    modalEl.addEventListener('shown.bs.modal', onShown);
-                    this.modalInstance.show();
-                });
+                // Abrir modal primero; el handler shown.bs.modal inicializa Cropper
+                // cuando el contenedor ya tiene dimensiones reales.
+                const onShown = () => {
+                    modalEl.removeEventListener('shown.bs.modal', onShown);
+                    requestAnimationFrame(() => {
+                        this.cropper = new Cropper(img, {
+                            aspectRatio: aspectRatio,
+                            viewMode: 1,
+                            dragMode: 'move',
+                            autoCropArea: 1,
+                            restore: false,
+                            guides: true,
+                            center: true,
+                            highlight: false,
+                            cropBoxMovable: true,
+                            cropBoxResizable: true,
+                            toggleDragModeOnDblclick: false,
+                        });
+                    });
+                };
 
-                this.cropper = new Cropper(img, {
-                    aspectRatio: aspectRatio,
-                    viewMode: 1,
-                    dragMode: 'move',
-                    autoCropArea: 1,
-                    restore: false,
-                    guides: true,
-                    center: true,
-                    highlight: false,
-                    cropBoxMovable: true,
-                    cropBoxResizable: true,
-                    toggleDragModeOnDblclick: false,
-                });
+                // Registrar listener antes de asignar src para evitar race condition
+                modalEl.addEventListener('shown.bs.modal', onShown);
+
+                // Asignar src después del listener; la animación de Bootstrap (~300ms)
+                // da tiempo suficiente para que el DataURL se decodifique.
+                img.src = e.target.result;
+                this.modalInstance.show();
             };
 
             reader.readAsDataURL(file);
