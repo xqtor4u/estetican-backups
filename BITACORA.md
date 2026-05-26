@@ -565,6 +565,27 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - `public/build/` (rebuild)
 
 ---
+## 📅 Sesión: 25/05/2026 (continuación 3) - Auditoría de fotos y documentación técnica
+
+### ✅ Logros y Cambios
+
+**Auditoría completa del sistema de fotos:**
+- Verificados todos los usos de `x-image-upload`: 7 vistas, 3 patrones de envío, 5 ImageManagers.
+- Sin bugs adicionales encontrados. El fix de cropperjs v1.6.2 cubre todos los usos.
+
+**Documentación técnica creada:**
+- `docs/tecnico/NOTAS_TECNICAS.md` — 7 entradas NT (cropperjs v2 vs v1, inicialización Cropper en modal, contenedor height fijo, $refs en Alpine, @php anidados, CSP + Alpine, Bootstrap Modal).
+- `docs/tecnico/image-upload-system.md` — referencia completa del componente (props, flujo JS, inventario, ImageManagers, patrones).
+- `docs/tecnico/ESTRATEGIA_DESARROLLO.md` — workflow de sesión, convenciones de commit, reglas de dependencias npm, checklist de deploy.
+- `CLAUDE.md` actualizado con referencias a los nuevos docs y reglas críticas.
+
+### 📁 Archivos Modificados
+- `docs/tecnico/NOTAS_TECNICAS.md` *(nuevo)*
+- `docs/tecnico/image-upload-system.md` *(nuevo)*
+- `docs/tecnico/ESTRATEGIA_DESARROLLO.md` *(nuevo)*
+- `CLAUDE.md`
+
+---
 ## 📅 Sesión: 25/05/2026 (continuación) - Fix definitivo de subida de fotos (x-image-upload)
 
 ### ✅ Logros y Cambios

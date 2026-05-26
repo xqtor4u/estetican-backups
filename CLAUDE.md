@@ -8,6 +8,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **After changes:** Update `BITACORA.md` with touched files and pending items. Move "good ideas" to `docs/architecture/IDEAS_FUTURO.md`, not a new file.
 
+## Technical Documentation
+
+| File | Purpose |
+|---|---|
+| `docs/tecnico/NOTAS_TECNICAS.md` | Bugs, root causes and solutions (NT-XXX). Read before touching image upload, Alpine, or CSP. |
+| `docs/tecnico/ESTRATEGIA_DESARROLLO.md` | Dev workflow, commit conventions, deploy checklist, dependency rules. |
+| `docs/tecnico/image-upload-system.md` | Full reference for the `x-image-upload` component — props, patterns, backend managers. |
+
+**Critical rules from notes:**
+- `cropperjs` is pinned to `1.6.2` (exact). v2 has incompatible API. Do NOT upgrade without reading NT-001.
+- Always clear compiled Blade views after `git pull` in production (see NT-005 and deploy checklist).
+- Alpine.js requires `unsafe-eval` in CSP (see NT-006).
+
 ## Development Environment
 
 This project runs on **WSL 2 + Docker (Laravel Sail)**. All commands assume you are inside WSL.
