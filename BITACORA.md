@@ -544,18 +544,22 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - **Ecosistema Móvil:** Continuar `mob_apps/operador` (requiere WSL/Node).
 
 ---
-## 📅 Sesión: 25/05/2026 (continuación 2) - Fix regresión subida de fotos
+## 📅 Sesión: 25/05/2026 (continuación 2) - Fix definitivo subida de fotos (causa raíz encontrada)
 
 ### ✅ Logros y Cambios
 
-**Regresión corregida en `x-image-upload`:**
-- El commit `8c9a7e5` había revertido dos fixes que estaban correctos:
-  1. Contenedor del recortador volvió de `height: 60vh` a `max-height: 60vh` → Cropper.js no puede medir el contenedor y la vista del recorte aparece pequeña, sin crop ni giro.
-  2. Cambió `img.onload` por `img.decode()` sobre un elemento oculto → menos confiable.
-- **Fix aplicado:** Contenedor vuelve a `height: 60vh; overflow: hidden` (fijo). Flujo de JS: registrar `shown.bs.modal` listener → asignar `img.src` → abrir modal → en el evento, `requestAnimationFrame` → inicializar Cropper.
-- Bundle reconstruido (`app-Blg2BhZ6.js`). Caché de vistas y config limpiada.
+**Causa raíz identificada y corregida:**
+- `package.json` tenía `cropperjs: "^2.1.1"` (npm) pero todo el código usa la API de **v1** (la que corría desde CDN cuando funcionaba). La v2 usa Web Components (`<cropper-canvas>`, `<cropper-selection>`, etc.) y no tiene los métodos `rotate()`, `getCroppedCanvas()`, ni las opciones `aspectRatio`, `viewMode`, etc. — por eso la imagen "se hacía pequeña", no giraba, no recortaba y no guardaba.
+- **Fix:** Downgrade a `cropperjs@1.6.2` (versión exacta del CDN anterior). Verificado: `removed 11 packages, changed 1 package`.
+
+**Fixes de JS/CSS aplicados en la misma sesión (commits previos):**
+- Contenedor del recortador: `height: 60vh; overflow: hidden` (fijo, no `max-height`) para que Cropper mida el contenedor correctamente.
+- Flujo de `fileChosen`: registrar `shown.bs.modal` listener → asignar `img.src` → `modalInstance.show()` → en el evento, `requestAnimationFrame` → `new Cropper(img, {...})`.
+- Bundle reconstruido (`app-DReE3rzJ.js`). Caché de vistas limpiada.
+- **Verificado por usuario: funciona correctamente.**
 
 ### 📁 Archivos Modificados
+- `apps/backoffice-laravel/package.json` + `package-lock.json`
 - `resources/js/modules/image-upload.js`
 - `resources/views/components/image-upload.blade.php`
 - `public/build/` (rebuild)
