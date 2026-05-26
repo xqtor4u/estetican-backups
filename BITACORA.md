@@ -544,6 +544,23 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - **Ecosistema Móvil:** Continuar `mob_apps/operador` (requiere WSL/Node).
 
 ---
+## 📅 Sesión: 25/05/2026 (continuación 2) - Fix regresión subida de fotos
+
+### ✅ Logros y Cambios
+
+**Regresión corregida en `x-image-upload`:**
+- El commit `8c9a7e5` había revertido dos fixes que estaban correctos:
+  1. Contenedor del recortador volvió de `height: 60vh` a `max-height: 60vh` → Cropper.js no puede medir el contenedor y la vista del recorte aparece pequeña, sin crop ni giro.
+  2. Cambió `img.onload` por `img.decode()` sobre un elemento oculto → menos confiable.
+- **Fix aplicado:** Contenedor vuelve a `height: 60vh; overflow: hidden` (fijo). Flujo de JS: registrar `shown.bs.modal` listener → asignar `img.src` → abrir modal → en el evento, `requestAnimationFrame` → inicializar Cropper.
+- Bundle reconstruido (`app-Blg2BhZ6.js`). Caché de vistas y config limpiada.
+
+### 📁 Archivos Modificados
+- `resources/js/modules/image-upload.js`
+- `resources/views/components/image-upload.blade.php`
+- `public/build/` (rebuild)
+
+---
 ## 📅 Sesión: 25/05/2026 (continuación) - Fix definitivo de subida de fotos (x-image-upload)
 
 ### ✅ Logros y Cambios
