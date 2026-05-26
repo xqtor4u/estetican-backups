@@ -632,3 +632,26 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 
 ### 🛑 Pendientes (Backlog activo)
 Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
+
+---
+## 📅 Sesión: 25/05/2026 (continuación 5) - Respaldo automático de BD a Google Drive
+
+### ✅ Logros y Cambios
+
+**Script de respaldo automático configurado y probado:**
+- `scripts/auto_backup_db.sh` reescrito: ruta actualizada a `/opt/www/estetican`, nombre de contenedor MySQL correcto (`estetican_mysql`), `--no-tablespaces` para evitar warning de PROCESS privilege.
+- Subida automática a `gdrive:OrangePiBackups/estetican-db/` vía rclone (ya configurado).
+- Retención local de 7 días con rotación automática.
+- Probado manualmente — dump generado (24K) y subido a Drive correctamente.
+- **Cron instalado:** `0 3 * * * /opt/www/estetican/scripts/auto_backup_db.sh >> /var/log/estetican_backup.log 2>&1` (diario 3am).
+
+**Sistema de respaldo completo:**
+- Código + docs → GitHub (push manual al cerrar sesión)
+- BD → Google Drive (automático 3am diario) + local 7 días
+
+### 📁 Archivos Modificados
+- `scripts/auto_backup_db.sh` — reescrito completamente
+- `crontab` — cron diario 3am instalado
+
+### 🛑 Pendientes (Backlog activo)
+Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
