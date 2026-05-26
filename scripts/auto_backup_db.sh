@@ -1,33 +1,47 @@
 #!/usr/bin/env bash
-# 🛡️ Seguro contra Atorones - EstetiCAN 2
-# Respaldo automático de base de datos
+# Respaldo automático de BD + subida a Google Drive — EstetiCAN
+# Cron: 0 3 * * * /opt/www/estetican/scripts/auto_backup_db.sh >> /var/log/estetican_backup.log 2>&1
 
-SET_DIR="/home/tomas/EstetiCAN_2"
-APP_DIR="$SET_DIR/apps/backoffice-laravel"
-BACKUP_DIR="$SET_DIR/backups/auto"
+set -euo pipefail
+
+APP_DIR="/opt/www/estetican/apps/backoffice-laravel"
+BACKUP_DIR="/opt/www/estetican/backups"
+GDRIVE_PATH="OrangePiBackups/estetican-db"
+RETENTION_DAYS=7
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M")
-FILE_NAME="auto_backup_$TIMESTAMP.sql.gz"
+FILE_NAME="backup_${TIMESTAMP}.sql.gz"
 
-# Asegurar que el directorio existe
 mkdir -p "$BACKUP_DIR"
 
-# Cargar variables del .env (para DB_PASSWORD, etc)
-if [ -f "$APP_DIR/.env" ]; then
-    export $(grep -v '^#' "$APP_DIR/.env" | xargs)
+# Cargar credenciales desde .env
+if [ ! -f "$APP_DIR/.env" ]; then
+    echo "[ERROR] .env no encontrado en $APP_DIR"
+    exit 1
+fi
+export $(grep -v '^#' "$APP_DIR/.env" | grep -E '^DB_' | xargs)
+
+echo "[$(date)] Iniciando respaldo: $FILE_NAME"
+
+# Dump desde el contenedor MySQL
+if docker exec estetican_mysql mysqldump \
+    -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" \
+    --single-transaction --routines --triggers --no-tablespaces \
+    | gzip > "$BACKUP_DIR/$FILE_NAME"; then
+    echo "[$(date)] Dump OK: $FILE_NAME ($(du -sh "$BACKUP_DIR/$FILE_NAME" | cut -f1))"
 else
-    echo "Error: .env no encontrado en $APP_DIR"
+    echo "[ERROR] Falló el dump de la base de datos."
     exit 1
 fi
 
-# Realizar el dump desde Docker
-# Usamos -T para evitar errores de TTY en cron
-if docker compose -f "$APP_DIR/compose.yaml" exec -T mysql mysqldump -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" | gzip > "$BACKUP_DIR/$FILE_NAME"; then
-    echo "✅ Respaldo exitoso: $FILE_NAME"
-    
-    # Rotación: Borrar archivos con más de 7 días (10080 minutos)
-    find "$BACKUP_DIR" -name "auto_backup_*.sql.gz" -mmin +10080 -delete
-    echo "♻️ Rotación de archivos antiguos completada."
+# Subir a Google Drive
+if rclone copy "$BACKUP_DIR/$FILE_NAME" "gdrive:$GDRIVE_PATH" --quiet; then
+    echo "[$(date)] Subido a Drive: gdrive:$GDRIVE_PATH/$FILE_NAME"
 else
-    echo "❌ Error al realizar el respaldo."
-    exit 1
+    echo "[ADVERTENCIA] No se pudo subir a Drive. El backup local sí existe."
 fi
+
+# Rotación local: borrar archivos con más de N días
+find "$BACKUP_DIR" -name "backup_*.sql.gz" -mtime +$RETENTION_DAYS -delete
+echo "[$(date)] Rotación local completada (retención: ${RETENTION_DAYS} días)."
+
+echo "[$(date)] Respaldo finalizado."
