@@ -13,7 +13,6 @@
 
 | ID | Ítem | Tipo | Notas |
 |---|---|---|---|
-| BL-005 | Cambiar password de `admin@localhost` desde la UI | Seguridad | Producción expuesta con credencial default |
 | BL-006 | Bloquear endpoint `/up` (health check Laravel — devuelve 200 público) | Seguridad | Información de infraestructura expuesta |
 | BL-007 | Verificar Transform Rules Cloudflare: X-Frame-Options, Referrer-Policy, Permissions-Policy | Seguridad | Completar cabeceras HTTP de seguridad |
 
@@ -43,6 +42,7 @@
 | — | Fix inicialización Cropper: shown.bs.modal + rAF | 25/05/2026 | `8c9a7e5` |
 | — | Documentación técnica ITIL: NOTAS_TECNICAS, image-upload-system, ESTRATEGIA | 25/05/2026 | `0a593d4` |
 | — | Push a GitHub + configuración SSH (clave `estetican-opi`) | 25/05/2026 | — |
+| BL-005 | Cambiar password de `admin@localhost` desde la UI | 28/05/2026 | — |
 
 ---
 
