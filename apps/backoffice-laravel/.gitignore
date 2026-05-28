@@ -26,6 +26,7 @@ Thumbs.db
 /auth_debug.json
 /backups/
 /apps/
+estetican.sql
 /check_*.php
 /fix_*.php
 /diag_*.php
