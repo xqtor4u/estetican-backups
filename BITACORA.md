@@ -655,3 +655,17 @@ Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
 
 ### 🛑 Pendientes (Backlog activo)
 Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
+
+---
+## 📅 Sesión: 28/05/2026 - Mantenimiento de repositorio
+
+### ✅ Logros y Cambios
+
+- **`.gitignore` actualizado:** `estetican.sql` agregado a `apps/backoffice-laravel/.gitignore`. El dump generado por `apagar_backoffice.sh` no debe versionarse — cambia en cada backup y puede contener datos sensibles de clientes.
+- **Comparación local vs GitHub:** Verificado que todos los archivos de trabajo (`BITACORA.md`, `BACKLOG.md`, `NOTAS_TECNICAS.md`, `ESTRATEGIA_DESARROLLO.md`, `IDEAS_FUTURO.md`) están en sincronía exacta con `origin/main`.
+
+### 📁 Archivos Modificados
+- `apps/backoffice-laravel/.gitignore` — agregada entrada `estetican.sql`
+
+### 🛑 Pendientes (Backlog activo)
+Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
