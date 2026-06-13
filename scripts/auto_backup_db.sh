@@ -23,7 +23,7 @@ export $(grep -v '^#' "$APP_DIR/.env" | grep -E '^DB_' | xargs)
 echo "[$(date)] Iniciando respaldo: $FILE_NAME"
 
 # Dump desde el contenedor MySQL
-if docker exec estetican_mysql mysqldump \
+if docker exec backoffice-laravel-mysql-1 mysqldump \
     -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" \
     --single-transaction --routines --triggers --no-tablespaces \
     | gzip > "$BACKUP_DIR/$FILE_NAME"; then

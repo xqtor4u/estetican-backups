@@ -1,9 +1,13 @@
 # Producción — Orange Pi 5 Plus
-# Uso: docker compose -f compose.prod.yaml --env-file .env.production up -d --build
+# Uso: docker compose -f compose.prod.yaml up -d
 #
 # NPM alcanza el contenedor "app" directamente a través de proxy_net.
 # No se expone ningún puerto público; el acceso externo llega
 # vía Cloudflare Tunnel → NPM → proxy_net → app:80
+#
+# IMPORTANTE: name: estetican-prod separa este proyecto de Sail (backoffice-laravel).
+# Sin este nombre, Sail puede interferir y detener estetican_mysql al arrancar.
+name: estetican-prod
 services:
   app:
     build:

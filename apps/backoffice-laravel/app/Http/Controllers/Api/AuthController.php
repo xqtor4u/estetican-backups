@@ -27,10 +27,6 @@ class AuthController extends Controller
             return response()->json(['message' => 'Usuario inactivo'], 403);
         }
 
-        if (! $user->can_login) {
-            return response()->json(['message' => 'Este usuario no tiene permiso de acceso a la app'], 403);
-        }
-
         $plain  = Str::random(40);
         $hashed = hash('sha256', $plain);
 
