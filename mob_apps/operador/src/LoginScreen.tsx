@@ -98,6 +98,7 @@ export function LoginScreen() {
         </button>
 
       </form>
+      <p className="text-center text-[9px] font-mono text-on-surface-variant/30 mt-8">MobLog</p>
     </div>
   );
 }

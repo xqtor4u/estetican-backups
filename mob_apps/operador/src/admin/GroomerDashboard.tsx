@@ -9,6 +9,7 @@ export function GroomerDashboard() {
           <h1 className="font-headline-sm text-headline-sm font-bold text-primary">Groomer</h1>
         </div>
         <div className="flex items-center gap-4">
+          <span className="text-[9px] font-mono text-on-surface-variant/30">MobGro</span>
           <span className="material-symbols-outlined text-primary cursor-pointer active:scale-95 transition-transform">qr_code_scanner</span>
         </div>
       </header>

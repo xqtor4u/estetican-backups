@@ -188,7 +188,7 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
         <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-surface-container-high">
           <span className="material-symbols-outlined text-on-surface">arrow_back</span>
         </button>
-        <h1 className="font-bold text-lg text-on-surface flex-1">Nueva mascota</h1>
+        <h1 className="font-bold text-lg text-on-surface flex-1">Nueva mascota <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobPetNew</span></h1>
         <button onClick={save} disabled={saving}
           className="flex items-center gap-1 bg-primary text-on-primary px-3 py-1.5 rounded-full text-sm font-semibold active:scale-95 transition-transform disabled:opacity-60">
           <span className="material-symbols-outlined text-base">save</span>
@@ -363,7 +363,7 @@ export function PetDetail() {
             <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-surface-container-high">
               <span className="material-symbols-outlined text-on-surface">arrow_back</span>
             </button>
-            <h1 className="font-bold text-lg text-on-surface flex-1">Nueva mascota</h1>
+            <h1 className="font-bold text-lg text-on-surface flex-1">Nueva mascota <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobPetNew</span></h1>
           </header>
           <div className="flex flex-col items-center justify-center flex-1 gap-4 p-8 text-center">
             <span className="material-symbols-outlined text-6xl text-on-surface-variant/40" style={{ fontVariationSettings: "'FILL' 1" }}>person_search</span>
@@ -398,7 +398,7 @@ export function PetDetail() {
         <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
           <span className="material-symbols-outlined text-on-surface">arrow_back</span>
         </button>
-        <h1 className="font-bold text-lg text-on-surface flex-1 truncate">{editing ? edits.name || pet.name : pet.name}</h1>
+        <h1 className="font-bold text-lg text-on-surface flex-1 truncate">{editing ? edits.name || pet.name : pet.name} <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobPetDet</span></h1>
 
         {editing ? (
           <div className="flex items-center gap-2">

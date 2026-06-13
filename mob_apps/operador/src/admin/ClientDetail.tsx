@@ -116,7 +116,7 @@ function NewClientForm({ navigate, returnTo }: { navigate: ReturnType<typeof use
         <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-surface-container-high">
           <span className="material-symbols-outlined text-on-surface">arrow_back</span>
         </button>
-        <h1 className="font-bold text-lg text-on-surface flex-1">Nuevo cliente</h1>
+        <h1 className="font-bold text-lg text-on-surface flex-1">Nuevo cliente <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobCliNew</span></h1>
         <button onClick={save} disabled={saving}
           className="flex items-center gap-1 bg-primary text-on-primary px-3 py-1.5 rounded-full text-sm font-semibold active:scale-95 transition-transform disabled:opacity-60">
           <span className="material-symbols-outlined text-base">save</span>
@@ -242,6 +242,7 @@ export function ClientDetail() {
         </button>
         <h1 className="font-bold text-lg text-on-surface flex-1 truncate">
           {editing ? `${edits.first_name} ${edits.last_name}`.trim() || client.full_name : client.full_name}
+          <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal ml-1">MobCliDet</span>
         </h1>
 
         {editing ? (

@@ -59,6 +59,7 @@ export function ClientSearch() {
         </button>
         <h1 className="font-bold text-lg text-on-surface flex-1">
           {isSelecting ? 'Seleccionar dueño' : 'Clientes'}
+          <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal ml-1">{isSelecting ? 'MobCliSel' : 'MobCliSrch'}</span>
         </h1>
         <button
           onClick={goNuevoCliente}

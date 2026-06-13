@@ -8,7 +8,8 @@ export function AssignService() {
         <Link to="/admin/directory" className="mr-4 text-on-surface-variant flex items-center justify-center">
           <span className="material-symbols-outlined">arrow_back</span>
         </Link>
-        <span className="font-headline-sm text-headline-sm font-bold text-primary truncate">Nueva Cita</span>
+        <span className="font-headline-sm text-headline-sm font-bold text-primary truncate flex-1">Nueva Cita</span>
+        <span className="text-[9px] font-mono text-on-surface-variant/30">MobSvcAsn</span>
       </header>
 
       <main className="flex-1 w-full max-w-4xl mx-auto px-gutter py-section-padding md:py-container-margin">

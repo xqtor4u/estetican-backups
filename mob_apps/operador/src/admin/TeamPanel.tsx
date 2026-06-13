@@ -8,6 +8,7 @@ export function TeamPanel() {
         <div className="flex items-center gap-operational-gap">
           <span className="font-headline-sm text-headline-sm font-bold text-primary dark:text-secondary-fixed-dim">Equipo</span>
         </div>
+        <span className="text-[9px] font-mono text-on-surface-variant/30">MobTeam</span>
       </header>
 
       <main className="container mx-auto px-gutter py-section-padding md:grid md:grid-cols-12 gap-container-margin">

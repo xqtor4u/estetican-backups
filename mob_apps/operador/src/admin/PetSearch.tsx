@@ -48,7 +48,7 @@ export function PetSearch() {
         >
           <span className="material-symbols-outlined text-on-surface">arrow_back</span>
         </button>
-        <h1 className="font-bold text-lg text-on-surface flex-1">Mascotas</h1>
+        <h1 className="font-bold text-lg text-on-surface flex-1">Mascotas <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobPetSrch</span></h1>
         <button
           onClick={() => navigate('/clientes/seleccionar', { state: { returnTo: '/mascotas/nuevo' } })}
           className="flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-sm font-semibold active:scale-95 transition-transform"

@@ -9,6 +9,7 @@ export function GlobalAgenda() {
         <div className="flex items-center gap-4">
           <h1 className="font-headline-sm text-headline-sm font-bold text-primary">EstetiCAN</h1>
         </div>
+        <span className="text-[9px] font-mono text-on-surface-variant/30">MobAgGbl</span>
       </header>
 
       <main className="flex-1 overflow-y-auto hidden-scrollbar flex flex-col items-center">

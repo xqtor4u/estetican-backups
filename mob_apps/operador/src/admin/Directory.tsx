@@ -11,6 +11,7 @@ export function Directory() {
           </Link>
           <h1 className="font-headline-sm text-headline-sm font-bold text-primary">BarkStyle Pro</h1>
         </div>
+        <span className="text-[9px] font-mono text-on-surface-variant/30">MobDir</span>
       </header>
 
       <main className="pt-20 pb-24 px-4 md:px-container-margin max-w-7xl mx-auto">

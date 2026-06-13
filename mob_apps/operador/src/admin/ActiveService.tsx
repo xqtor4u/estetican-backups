@@ -11,6 +11,7 @@ export function ActiveService() {
           </Link>
           <span className="font-headline-sm text-headline-sm font-bold text-primary">BarkStyle Pro</span>
         </div>
+        <span className="text-[9px] font-mono text-on-surface-variant/30">MobSvcAct</span>
       </header>
       
       <main className="pt-20 px-4 md:px-container-margin max-w-4xl mx-auto space-y-6">
