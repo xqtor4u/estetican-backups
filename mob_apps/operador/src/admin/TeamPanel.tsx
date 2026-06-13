@@ -6,10 +6,7 @@ export function TeamPanel() {
     <div className="bg-background text-on-background min-h-screen pb-20 md:pb-0 pt-14">
       <header className="bg-surface dark:bg-on-primary-container text-on-surface dark:text-surface font-headline-md text-headline-md docked full-width top-0 border-b border-outline-variant flex items-center justify-between px-gutter w-full h-14 fixed z-50">
         <div className="flex items-center gap-operational-gap">
-          <Link to="/" className="text-on-surface hover:bg-surface-container-high transition-colors rounded-full p-2 flex items-center justify-center">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 0" }}>arrow_back</span>
-          </Link>
-          <span className="font-headline-sm text-headline-sm font-bold text-primary dark:text-secondary-fixed-dim">SPA Canino Admin</span>
+          <span className="font-headline-sm text-headline-sm font-bold text-primary dark:text-secondary-fixed-dim">Equipo</span>
         </div>
       </header>
 

@@ -53,12 +53,14 @@ class Pet extends Model
         'size',
         'profile_photo_path',
         'is_sterilized',
+        'flagged_for_deletion',
         'notes',
     ];
 
     protected $casts = [
-        'birth_date' => 'date',
-        'death_date' => 'date',
+        'birth_date'           => 'date',
+        'death_date'           => 'date',
+        'flagged_for_deletion' => 'boolean',
         'is_sterilized' => 'boolean',
     ];
 

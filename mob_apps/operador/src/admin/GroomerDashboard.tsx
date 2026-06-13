@@ -6,8 +6,7 @@ export function GroomerDashboard() {
     <div className="bg-background text-on-surface">
       <header className="fixed top-0 w-full z-50 flex items-center justify-between px-6 h-16 bg-surface-bright shadow-sm">
         <div className="flex items-center gap-4">
-          <Link to="/" className="material-symbols-outlined text-primary cursor-pointer active:scale-95 transition-transform">arrow_back</Link>
-          <h1 className="font-headline-sm text-headline-sm font-bold text-primary">BarkStyle Pro</h1>
+          <h1 className="font-headline-sm text-headline-sm font-bold text-primary">Groomer</h1>
         </div>
         <div className="flex items-center gap-4">
           <span className="material-symbols-outlined text-primary cursor-pointer active:scale-95 transition-transform">qr_code_scanner</span>

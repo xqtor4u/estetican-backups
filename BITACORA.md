@@ -669,3 +669,127 @@ Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
 
 ### 🛑 Pendientes (Backlog activo)
 Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
+
+---
+## 📅 Sesión: 30/05/2026 - Relevamiento y definición de arquitectura app mobile
+
+### ✅ Logros y Cambios
+
+**Relevamiento completo del estado de `mob_apps/operador/`:**
+- 8 pantallas prototipadas con datos hardcodeados: `GlobalAgenda`, `TeamPanel`, `GroomerDashboard`, `ActiveService`, `Directory`, `AssignService` (admin) + `ClientDashboard`, `ClientBooking` (cliente, descartable).
+- Stack confirmado: React 19 + Vite + Tailwind 4 + React Router 7 + lucide-react + motion.
+- No hay conexión a API Laravel todavía.
+
+**Decisiones arquitectónicas definidas:**
+- La app mobile es **exclusivamente para empleados y administradores** del negocio. No para clientes dueños de mascotas.
+- La app cliente (`src/client/`) es un proyecto separado y diferente — no se trabaja en este repositorio.
+- La mobile comparte la misma BD MySQL que el backoffice, consumiendo un **API REST JSON** en el mismo Laravel (`routes/api.php`, controladores en `app/Http/Controllers/Api/`).
+- El backoffice de escritorio (Blade + Alpine) **no se modifica** — los endpoints API son aditivos.
+- Autenticación mobile vía **Laravel Sanctum** (tokens), no sesiones web.
+
+### 📁 Archivos Modificados
+- Ninguno (sesión de relevamiento y definición — sin código escrito)
+
+### 🛑 Próximos pasos (BL-009)
+1. Decidir si seguir prototipando UI o arrancar conexión API
+2. Si API: setup Sanctum + primer endpoint (agenda del día) + reemplazar datos hardcodeados en `GlobalAgenda`
+
+---
+## 📅 Sesión: 12/06/2026 — App Móvil: CRUD Mascotas/Clientes + Autenticación
+
+### ✅ Logros y Cambios
+
+#### App móvil (`mob_apps/operador/`)
+
+**Infraestructura y acceso de red:**
+- Vite expuesto en `192.168.100.250:3000` (red 100, no red 200) con proxy `/api` y `/storage` → `http://127.0.0.1:8000`.
+- Puerto 3000 abierto en UFW. Dev server en segundo plano con `nohup`.
+- Proceso arranca: `cd mob_apps/operador && nohup npm run dev > /tmp/mobile-dev.log 2>&1 &`
+
+**Arquitectura de app (reescritura completa de `App.tsx`):**
+- Eliminada pantalla de selección de rol. Entrada directa a `AdminLayout` con barra de navegación inferior.
+- 4 pestañas fijas: Agenda, Equipo, Groomer, Directorio.
+- Botón **Menú** (hamburguesa) que abre drawer desde abajo con todas las secciones.
+- `MENU_SECTIONS` es la fuente única del menú — agregar una línea agrega la sección en toda la app.
+- Drawer muestra nombre y rol del usuario logueado + botón **Cerrar sesión**.
+
+**Pantallas implementadas y conectadas a API:**
+- `GlobalAgenda` — 4 botones de acceso rápido: Agenda, Mascota, Cliente, Cobrar.
+- `PetSearch` — búsqueda con debounce 300ms, toggle tarjetas/tabla, fotos proxeadas.
+- `PetDetail` — vista/edición (patrón CRUD: solo lectura hasta presionar Editar). Campos completos. Marcado para eliminación. Alertas médicas. Próximas citas.
+- `NewPetForm` — alta de nueva mascota: foto con persistencia base64 en sessionStorage (sobrevive apertura de cámara), todos los campos, flujo de selección de dueño.
+- `ClientSearch` — modo normal y modo selección (con banner de contexto). Seleccionar dueño regresa a nueva mascota con el cliente en el estado.
+- `ClientDetail` — vista/edición. Teléfonos editables (tipo + número, agregar/quitar). Pets clickeables. Botones de llamada y WhatsApp.
+- `NewClientForm` — alta de nuevo cliente con teléfono **obligatorio**. Al guardar regresa al flujo de nueva mascota si viene de ese contexto.
+
+**Autenticación:**
+- `AuthContext.tsx` — token en `localStorage`, intercepta automáticamente todos los `fetch` a `/api/*` añadiendo `Authorization: Bearer`.
+- `LoginScreen.tsx` — campo **Usuario** (nombre de login, no email), contraseña con ojo, mensajes de error del servidor. Campos grandes (py-5, text-lg) para uso táctil.
+- `AuthGuard` — si no hay sesión muestra login; si hay token lo verifica con `/api/me` al iniciar. Spinner mientras verifica.
+
+#### Backoffice — API (`apps/backoffice-laravel/`)
+
+**Nuevos endpoints `routes/api.php` (todos protegidos por token excepto login):**
+- `POST /api/login` — usuario + contraseña, devuelve token + info de usuario con roles.
+- `POST /api/logout` — invalida el token en BD.
+- `GET /api/me` — verifica sesión activa.
+- `GET|POST /api/pets` — listado con búsqueda + alta de mascota con foto.
+- `GET|PATCH /api/pets/{id}` — detalle y edición.
+- `GET|POST /api/clients` — listado con búsqueda + alta de cliente.
+- `GET|PATCH /api/clients/{id}` — detalle y edición con sync de teléfonos.
+
+**Nuevos archivos de backend:**
+- `database/migrations/2026_06_12_000001_create_api_tokens_table.php` — tokens SHA-256.
+- `app/Models/ApiToken.php` — modelo de token.
+- `app/Http/Middleware/ApiAuthenticate.php` — valida Bearer token, verifica `is_active` y `can_login`.
+- `app/Http/Controllers/Api/AuthController.php` — login/logout/me. Login por campo `name` del usuario.
+- `app/Http/Controllers/Api/PetController.php` — index/show/store/update. Fix de búsqueda por nombre de dueño (first_name + last_name en lugar de `name` inexistente).
+- `app/Http/Controllers/Api/ClientController.php` — index/show/store/update con sync de teléfonos en PATCH.
+
+**Migración correctiva:**
+- `2026_03_28_000001_add_operator_fields_to_users_table.php` — corregido `after('full_name')` (columna inexistente) → `after('last_name')`. Hecho idempotente con `Schema::hasColumn()` para tolerar reinicios parciales.
+
+**Fix en `.env`:**
+- `MAIL_HOST=<SERVIDOR_SMTP>` tenía angle brackets que causaban error de sintaxis bash al levantar Sail. Limpiado a valor vacío.
+
+### 🐛 Problemas encontrados y resueltos
+
+| Problema | Causa | Solución |
+|---|---|---|
+| `api_tokens` table not found | Migración no ejecutada | `sail artisan migrate` |
+| `full_name` column not found en migración | Referencia a columna inexistente | Cambiado `after('full_name')` → `after('last_name')` |
+| Duplicate column `first_name` | Migración parcialmente ejecutada antes del fallo | Hecha idempotente con `hasColumn()` |
+| Puerto 8000 en uso al levantar Sail | `estetican_app` (producción) ya lo usaba | `sudo fuser -k 8000/tcp` |
+| Backoffice da 500 tras reinicio de contenedores | `estetican_app` perdió red a MySQL cuando Sail recreó los contenedores | `docker network connect backoffice-laravel_sail estetican_app` |
+| Login pedía email en móvil | `autoComplete="username"` activa sugerencias de email en iOS/Android | Cambiado a `autoComplete="off"` |
+| Foto de mascota perdida al volver de cámara | `File` object no serializable; React estado reiniciado | Foto convertida a base64 → guardada en sessionStorage → al enviar, base64 → Blob si `photo` es null |
+
+### 🔧 Estado del sistema al cierre de sesión
+
+**Backoffice (producción en OPi):**
+- Contenedores Sail levantados y operativos (`backoffice-laravel-*`).
+- `estetican_app` reconectado a red Sail con `docker network connect`.
+- Todas las migraciones aplicadas incluyendo `api_tokens`.
+- **PENDIENTE:** hacer push a GitHub (`git push origin main`).
+
+**App móvil:**
+- Dev server debe reiniciarse manualmente: `cd /opt/www/estetican/mob_apps/operador && nohup npm run dev > /tmp/mobile-dev.log 2>&1 &`
+- Login funcional con usuario/contraseña del backoffice.
+- CRUD de mascotas y clientes conectado a API real.
+
+### 🛑 Pendientes activos (ver BACKLOG.md)
+
+**App móvil — bugs conocidos:**
+- BL-010: Foto de mascota no se muestra en `ClientDetail` (lista de mascotas del dueño).
+- BL-011: Foto de mascota no se muestra en `PetSearch` (tarjetas y tabla).
+
+**App móvil — funcionalidad incompleta:**
+- "Cambiar dueño" en edición de mascota → próximamente.
+- Botón "Agregar cita" en `PetDetail` → próximamente.
+- Flujo retorno de nuevo cliente → nueva mascota (parcialmente implementado, falta verificar).
+
+**Backoffice (BL activos):**
+- BL-001 Tema de UI, BL-002 Favicon, BL-003 SMTP, BL-004 Zonas horarias, BL-006 Bloquear `/up`, BL-007 Cloudflare Transform Rules, BL-008 PDF, BL-009 Ecosistema móvil.
+
+**App cliente (futura — separada):**
+- BL-012: Autoregistro de clientes — va en app pública separada, no en `mob_apps/operador`.

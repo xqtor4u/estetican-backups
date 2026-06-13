@@ -1,20 +1,39 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export function GlobalAgenda() {
+  const navigate = useNavigate();
   return (
     <div className="bg-background text-on-background font-body-md min-h-screen flex flex-col pb-20 md:pb-0">
       <header className="bg-surface border-b border-outline-variant flex items-center justify-between px-gutter w-full h-14 sticky top-0 z-40">
         <div className="flex items-center gap-4">
-          <Link to="/" className="hover:bg-surface-container-high transition-colors p-2 rounded-full flex items-center justify-center">
-            <span className="material-symbols-outlined text-primary">arrow_back</span>
-          </Link>
-          <h1 className="font-headline-sm text-headline-sm font-bold text-primary">SPA Canino Admin</h1>
+          <h1 className="font-headline-sm text-headline-sm font-bold text-primary">EstetiCAN</h1>
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto hidden-scrollbar flex flex-col items-center">
         <div className="w-full max-w-[1200px] px-gutter py-section-padding flex flex-col gap-operational-gap">
+
+          {/* Accesos rápidos */}
+          <div className="grid grid-cols-4 gap-2">
+            <button className="flex flex-col items-center justify-center gap-1.5 bg-surface-container text-on-surface rounded-2xl py-3 px-2 active:scale-95 transition-transform border border-outline-variant shadow-sm">
+              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>edit_calendar</span>
+              <span className="text-[11px] font-semibold leading-tight text-center">Agenda</span>
+            </button>
+            <button onClick={() => navigate('/mascotas')} className="flex flex-col items-center justify-center gap-1.5 bg-surface-container text-on-surface rounded-2xl py-3 px-2 active:scale-95 transition-transform border border-outline-variant shadow-sm">
+              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
+              <span className="text-[11px] font-semibold leading-tight text-center">Mascota</span>
+            </button>
+            <button className="flex flex-col items-center justify-center gap-1.5 bg-surface-container text-on-surface rounded-2xl py-3 px-2 active:scale-95 transition-transform border border-outline-variant shadow-sm">
+              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+              <span className="text-[11px] font-semibold leading-tight text-center">Cliente</span>
+            </button>
+            <button className="flex flex-col items-center justify-center gap-1.5 bg-surface-container text-on-surface rounded-2xl py-3 px-2 active:scale-95 transition-transform border border-outline-variant shadow-sm">
+              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>payments</span>
+              <span className="text-[11px] font-semibold leading-tight text-center">Cobrar</span>
+            </button>
+          </div>
+
           <section className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant shadow-sm">
             <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
               <button className="flex items-center justify-center bg-secondary-container text-on-secondary-container font-label-md text-label-md px-4 py-2 rounded-full shrink-0">Hoy, 24 Oct</button>
@@ -125,14 +144,6 @@ export function GlobalAgenda() {
         </div>
       </main>
 
-      <nav className="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center py-2 bg-surface-container-lowest z-50 h-16 border-t border-outline-variant">
-        <Link to="/agenda-global" className="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1">
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
-        </Link>
-        <Link to="/admin/team" className="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1">
-          <span className="material-symbols-outlined">groups</span>
-        </Link>
-      </nav>
     </div>
   );
 }

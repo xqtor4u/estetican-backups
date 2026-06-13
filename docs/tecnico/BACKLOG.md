@@ -25,12 +25,20 @@
 | BL-003 | Email Avanzado: credenciales SMTP (usuario/password, puertos, SSL/TLS) | Feature | Actualmente solo tiene host configurado |
 | BL-004 | Zonas Horarias: reemplazar selector UTC por selector completo | Feature | Selector actual solo muestra offsets UTC, no nombres de zona |
 
+### Prioridad Alta — Nuevas Capacidades
+
+| ID | Ítem | Tipo | Notas |
+|---|---|---|---|
+| BL-009 | Ecosistema Móvil: continuar `mob_apps/operador` (requiere WSL/Node nvm) | Feature | React 19 + Vite — API Laravel pendiente de conexión |
+| BL-010 | App móvil: foto de mascota no se muestra en `ClientDetail` (lista de mascotas del dueño) — investigar cómo se construye la URL de imagen | Bug | `mob_apps/operador` |
+| BL-011 | App móvil: foto de mascota tampoco se muestra en `PetSearch` (tarjetas y tabla) — misma investigación pendiente que BL-010 | Bug | `mob_apps/operador` |
+| BL-012 | App clientes (futura): autoregistro de clientes — crear cuenta desde la app pública; usuarios del operador se dan de alta solo desde el backoffice | Feature | App separada, no `mob_apps/operador` |
+
 ### Prioridad Baja — Nuevas Capacidades
 
 | ID | Ítem | Tipo | Notas |
 |---|---|---|---|
 | BL-008 | Reportes PDF: diseño e impresión de presupuestos, órdenes de trabajo y facturas | Feature | Evaluar `barryvdh/laravel-dompdf` o Browsershot |
-| BL-009 | Ecosistema Móvil: continuar `mob_apps/operador` (requiere WSL/Node nvm) | Feature | React 19 + Vite — API Laravel pendiente de conexión |
 
 ---
 
