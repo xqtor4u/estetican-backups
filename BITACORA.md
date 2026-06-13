@@ -793,3 +793,38 @@ Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
 
 **App cliente (futura — separada):**
 - BL-012: Autoregistro de clientes — va en app pública separada, no en `mob_apps/operador`.
+
+---
+## 📅 Sesión: 13/06/2026 — Restauración de producción (OPi)
+
+### ✅ Logros y Cambios
+
+**Diagnóstico y fix de caída total del backoffice (error 600 / timeout 1min+):**
+- **Causa raíz:** Al levantar Sail en sesiones anteriores, ambos compose files (`compose.yaml` de Sail y `compose.prod.yaml`) compartían el mismo nombre de proyecto Docker (`backoffice-laravel`). Sail reemplazó/detuvo `estetican_mysql` al arrancar, dejando `estetican_app` sin BD — cada request esperaba el timeout de conexión TCP (~1 min) antes de fallar.
+- **Fix inmediato:** `docker compose -f compose.prod.yaml up -d mysql` — restauró `estetican_mysql` con el volumen `backoffice-laravel_estetican-mysql` (datos reales: 5 usuarios, 6 mascotas, 4 clientes).
+- **Fix permanente:** `compose.prod.yaml` ahora tiene `name: estetican-prod` — aísla el proyecto de producción del proyecto Sail para siempre.
+
+**Fix de login app móvil (siempre retornaba 403):**
+- **Causa raíz:** `AuthController::login()` chequeaba `$user->can_login`, pero esa columna no existe en `users` (solo existe en `operator_roles`). Laravel la leía como `null` → bloqueaba todos los logins.
+- **Fix:** Removida la verificación de `can_login`. El check de `is_active` (columna que sí existe) es suficiente.
+
+**Fix de proxy Vite → API de producción (app móvil se quedaba colgada):**
+- **Causa raíz:** El Sail dev (`backoffice-laravel-laravel.test-1`) estaba corriendo en OPi sin necesidad y capturaba `0.0.0.0:8000`, bloqueando el proxy Vite que apunta a `127.0.0.1:8000`.
+- **Fix:** Detenidos los contenedores Sail en OPi (no se necesitan en producción). Reiniciado `estetican_app` para que tomara el puerto 8000. Reiniciado el dev server Vite (había dos procesos duplicados).
+
+**Migración pendiente aplicada:**
+- `2026_06_12_000001_create_api_tokens_table` faltaba en producción — aplicada con `php artisan migrate --force`.
+
+### 📁 Archivos Modificados
+- `apps/backoffice-laravel/app/Http/Controllers/Api/AuthController.php` — removido check `can_login`
+- `apps/backoffice-laravel/compose.prod.yaml` — agregado `name: estetican-prod`
+- `scripts/auto_backup_db.sh` — nombre de contenedor MySQL actualizado
+
+### 🔧 Estado del sistema al cierre
+- Backoffice: operativo, login web funcionando.
+- App móvil: login y CRUD funcionando.
+- `estetican_mysql` + `estetican_app`: corriendo y saludables.
+- Sail detenido en OPi (correcto para entorno de producción).
+
+### 🛑 Pendientes (Backlog activo)
+Ver `docs/tecnico/BACKLOG.md`.
