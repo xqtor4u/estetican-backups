@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\AgendaController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PetController;
 use App\Http\Middleware\ApiAuthenticate;
 use Illuminate\Support\Facades\Route;
@@ -23,4 +25,8 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/clients',           [ClientController::class, 'store']);
     Route::get('/clients/{client}',   [ClientController::class, 'show']);
     Route::patch('/clients/{client}', [ClientController::class, 'update']);
+
+    Route::get('/agenda',    [AgendaController::class,   'index']);
+    Route::get('/operators', [OperatorController::class, 'index']);
+    Route::get('/branches',  [OperatorController::class, 'branches']);
 });

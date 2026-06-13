@@ -1,150 +1,303 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
+interface Branch   { id: number; name: string }
+interface Booking  {
+  id: number;
+  time: string;
+  status: string;
+  notes: string | null;
+  total: number | null;
+  pet: { id: number; name: string; species: string | null; breed: string | null; photo: string | null };
+  client: { id: number; name: string } | null;
+  services: { id: number | null; name: string; type: string | null }[];
+  operators: { id: number; name: string; photo_url: string | null }[];
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  scheduled: 'Programada',
+  work_order: 'En proceso',
+  completed:  'Completada',
+  no_show:    'No se presentó',
+};
+const STATUS_COLOR: Record<string, string> = {
+  scheduled:  'bg-primary/10 text-primary border-primary/30',
+  work_order: 'bg-secondary-container text-on-secondary-container border-secondary-fixed',
+  completed:  'bg-tertiary-container/40 text-on-tertiary-container border-tertiary-fixed-dim',
+  no_show:    'bg-error/10 text-error border-error/30',
+};
+
+function toDateStr(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+function addDays(d: Date, n: number) {
+  const r = new Date(d); r.setDate(r.getDate() + n); return r;
+}
+function fmtDate(d: Date) {
+  return d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
+}
 
 export function GlobalAgenda() {
   const navigate = useNavigate();
+
+  const [today]        = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [operators,    setOperators]    = useState<Operator[]>([]);
+  const [branches,     setBranches]     = useState<Branch[]>([]);
+  const [bookings,     setBookings]     = useState<Booking[]>([]);
+  const [loadingAg,    setLoadingAg]    = useState(true);
+  const [filterOp,     setFilterOp]     = useState<number | null>(null);
+
+  // Carga inicial: operadores y sucursales
+  useEffect(() => {
+    fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
+    fetch('/api/branches').then(r => r.json()).then(setBranches).catch(() => {});
+  }, []);
+
+  // Carga de agenda al cambiar fecha
+  const loadAgenda = useCallback((date: Date) => {
+    setLoadingAg(true);
+    fetch(`/api/agenda?date=${toDateStr(date)}`)
+      .then(r => r.json())
+      .then(setBookings)
+      .catch(() => setBookings([]))
+      .finally(() => setLoadingAg(false));
+  }, []);
+
+  useEffect(() => { loadAgenda(selectedDate); }, [selectedDate, loadAgenda]);
+
+  // Filtro de operador
+  const visibleBookings = filterOp == null
+    ? bookings
+    : bookings.filter(b => b.operators.some(o => o.id === filterOp));
+
+  const isSameDay = (a: Date, b: Date) => toDateStr(a) === toDateStr(b);
+  const isToday    = isSameDay(selectedDate, today);
+  const isTomorrow = isSameDay(selectedDate, addDays(today, 1));
+
   return (
-    <div className="bg-background text-on-background font-body-md min-h-screen flex flex-col pb-20 md:pb-0">
-      <header className="bg-surface border-b border-outline-variant flex items-center justify-between px-gutter w-full h-14 sticky top-0 z-40">
-        <div className="flex items-center gap-4">
-          <h1 className="font-headline-sm text-headline-sm font-bold text-primary">EstetiCAN</h1>
+    <div className="bg-background text-on-background min-h-screen flex flex-col pb-20 md:pb-0">
+      {/* Header */}
+      <header className="bg-surface border-b border-outline-variant flex items-center justify-between px-4 w-full h-14 sticky top-0 z-40">
+        <div className="flex items-center gap-2">
+          <h1 className="font-bold text-lg text-primary">EstetiCAN</h1>
+          {branches.length === 1 && (
+            <span className="text-xs text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full border border-outline-variant">
+              {branches[0].name}
+            </span>
+          )}
         </div>
-        <span className="text-[9px] font-mono text-on-surface-variant/30">MobAgGbl</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/mascotas')}
+            className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
+          >
+            <span className="material-symbols-outlined text-on-surface-variant text-xl">pets</span>
+          </button>
+          <button
+            onClick={() => navigate('/clientes/seleccionar')}
+            className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
+          >
+            <span className="material-symbols-outlined text-on-surface-variant text-xl">person_search</span>
+          </button>
+          <span className="text-[9px] font-mono text-on-surface-variant/30">MobAgGbl</span>
+        </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto hidden-scrollbar flex flex-col items-center">
-        <div className="w-full max-w-[1200px] px-gutter py-section-padding flex flex-col gap-operational-gap">
+      <main className="flex-1 flex flex-col">
 
-          {/* Accesos rápidos */}
-          <div className="grid grid-cols-4 gap-2">
-            <button className="flex flex-col items-center justify-center gap-1.5 bg-surface-container text-on-surface rounded-2xl py-3 px-2 active:scale-95 transition-transform border border-outline-variant shadow-sm">
-              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>edit_calendar</span>
-              <span className="text-[11px] font-semibold leading-tight text-center">Agenda</span>
-            </button>
-            <button onClick={() => navigate('/mascotas')} className="flex flex-col items-center justify-center gap-1.5 bg-surface-container text-on-surface rounded-2xl py-3 px-2 active:scale-95 transition-transform border border-outline-variant shadow-sm">
-              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
-              <span className="text-[11px] font-semibold leading-tight text-center">Mascota</span>
-            </button>
-            <button className="flex flex-col items-center justify-center gap-1.5 bg-surface-container text-on-surface rounded-2xl py-3 px-2 active:scale-95 transition-transform border border-outline-variant shadow-sm">
-              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
-              <span className="text-[11px] font-semibold leading-tight text-center">Cliente</span>
-            </button>
-            <button className="flex flex-col items-center justify-center gap-1.5 bg-surface-container text-on-surface rounded-2xl py-3 px-2 active:scale-95 transition-transform border border-outline-variant shadow-sm">
-              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>payments</span>
-              <span className="text-[11px] font-semibold leading-tight text-center">Cobrar</span>
-            </button>
-          </div>
+        {/* Selector de fecha */}
+        <div className="bg-surface border-b border-outline-variant px-4 py-2 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+          <button
+            onClick={() => setSelectedDate(addDays(selectedDate, -1))}
+            className="p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0"
+          >
+            <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_left</span>
+          </button>
 
-          <section className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant shadow-sm">
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
-              <button className="flex items-center justify-center bg-secondary-container text-on-secondary-container font-label-md text-label-md px-4 py-2 rounded-full shrink-0">Hoy, 24 Oct</button>
-              <button className="flex items-center justify-center bg-surface-container text-on-surface-variant font-label-md text-label-md px-4 py-2 rounded-full shrink-0 border border-outline-variant">Mañana</button>
-              <button className="flex items-center justify-center p-2 text-on-surface-variant">
-                <span className="material-symbols-outlined">calendar_month</span>
+          {[-1, 0, 1, 2].map(offset => {
+            const d = addDays(today, offset);
+            const sel = isSameDay(d, selectedDate);
+            return (
+              <button
+                key={offset}
+                onClick={() => setSelectedDate(d)}
+                className={`flex flex-col items-center px-3 py-1.5 rounded-xl shrink-0 transition-colors ${
+                  sel ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface border border-outline-variant'
+                }`}
+              >
+                <span className="text-[10px] uppercase tracking-wide opacity-70">
+                  {offset === 0 ? 'Hoy' : offset === 1 ? 'Mañana' : fmtDate(d).split(' ')[0]}
+                </span>
+                <span className="text-sm font-bold leading-tight">
+                  {d.getDate()}
+                </span>
               </button>
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider shrink-0 mr-2">Operador:</span>
-              <button className="flex items-center justify-center bg-surface-tint text-white font-label-md text-label-md px-3 py-1.5 rounded-full shrink-0">Todos</button>
-              <button className="flex items-center justify-center bg-surface-container text-on-surface-variant font-label-md text-label-md px-3 py-1.5 rounded-full shrink-0 border border-outline-variant">
-                <div className="w-4 h-4 rounded-full bg-primary-fixed-dim mr-2 overflow-hidden flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[10px] text-primary">person</span>
-                </div>
-                Roberto S.
-              </button>
-            </div>
-          </section>
+            );
+          })}
 
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden mt-2 relative">
-            <div className="grid grid-cols-[60px_1fr] md:grid-cols-[80px_1fr_1fr_1fr] bg-surface-container-low border-b border-outline-variant sticky top-0 z-10">
-              <div className="p-3 flex items-center justify-center text-on-surface-variant font-label-sm text-label-sm border-r border-outline-variant">Hora</div>
-              <div className="hidden md:flex p-3 items-center justify-center font-label-md text-label-md text-on-surface border-r border-outline-variant gap-2 bg-surface-container-low">
-                <div className="w-6 h-6 rounded-full bg-primary-fixed-dim overflow-hidden flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[14px] text-primary">person</span>
-                </div>
-                Roberto S.
-              </div>
-              <div className="hidden md:flex p-3 items-center justify-center font-label-md text-label-md text-on-surface border-r border-outline-variant gap-2 bg-surface-container-low">
-                <div className="w-6 h-6 rounded-full bg-secondary-fixed-dim overflow-hidden flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[14px] text-on-secondary-fixed">person</span>
-                </div>
-                Maria L.
-              </div>
-              <div className="hidden md:flex p-3 items-center justify-center font-label-md text-label-md text-on-surface gap-2 bg-surface-container-low">
-                <div className="w-6 h-6 rounded-full bg-tertiary-fixed-dim overflow-hidden flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[14px] text-tertiary-container">person</span>
-                </div>
-                Juan P.
-              </div>
-              <div className="md:hidden p-3 flex items-center justify-center font-label-md text-label-md text-on-surface bg-surface-container-low">
-                Agenda Global
-              </div>
-            </div>
+          <input
+            type="date"
+            className="sr-only"
+            id="date-picker"
+            value={toDateStr(selectedDate)}
+            onChange={e => e.target.value && setSelectedDate(new Date(e.target.value + 'T12:00:00'))}
+          />
+          <label
+            htmlFor="date-picker"
+            className="p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-on-surface-variant text-lg">calendar_month</span>
+          </label>
 
-            <div className="relative">
-              <div className="grid grid-cols-[60px_1fr] md:grid-cols-[80px_1fr_1fr_1fr] min-h-[100px] border-b border-outline-variant">
-                <div className="p-2 md:p-4 flex flex-col items-center justify-start border-r border-outline-variant bg-surface-bright">
-                  <span className="font-mono-data text-mono-data text-on-surface-variant">09:00</span>
-                  <span className="font-label-sm text-label-sm text-on-surface-variant opacity-60">AM</span>
-                </div>
-                <div className="col-span-1 md:col-span-3 grid grid-cols-1 md:grid-cols-3">
-                  <div className="p-2 border-b md:border-b-0 md:border-r border-outline-variant relative group">
-                    <div className="bg-surface border border-outline-variant rounded-lg p-3 h-full flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group cursor-pointer">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex flex-col">
-                          <span className="font-headline-sm text-headline-sm text-on-surface font-bold">Max</span>
-                          <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Golden Retriever</span>
-                        </div>
-                        <div className="bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-secondary-fixed">
-                          En Curso
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="material-symbols-outlined text-[16px] text-primary">content_cut</span>
-                        <span className="font-body-sm text-body-sm text-on-surface">Baño y Corte Full</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-auto pt-2 border-t border-surface-container-high">
-                        <span className="font-mono-data text-mono-data text-on-surface-variant bg-surface-container-low px-1.5 py-0.5 rounded">09:00 - 10:30</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-2 border-b md:border-b-0 md:border-r border-outline-variant relative group">
-                    <div className="bg-error-container/20 border border-error-container rounded-lg p-3 h-full flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group cursor-pointer">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-error"></div>
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex flex-col">
-                          <span className="font-headline-sm text-headline-sm text-on-surface font-bold">Luna</span>
-                          <span className="font-label-sm text-label-sm text-error uppercase tracking-wider flex items-center gap-1">
-                            Alerta Médica
-                          </span>
-                        </div>
-                        <div className="bg-surface-container text-on-surface-variant px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border border-outline-variant">
-                          Esperando
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between mt-auto pt-2 border-t border-surface-container-high">
-                        <span className="font-mono-data text-mono-data text-on-surface-variant bg-surface-container-low px-1.5 py-0.5 rounded">09:00 - 10:00</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-2 relative group flex items-center justify-center bg-surface-container-lowest hover:bg-surface-container-low transition-colors">
-                    <Link to="/admin/assign" className="w-full h-full min-h-[80px]">
-                      <button className="border border-dashed border-outline-variant rounded-lg w-full h-full flex flex-col items-center justify-center gap-1 text-on-surface-variant hover:text-primary hover:border-primary transition-colors group-hover:bg-surface-bright">
-                        <span className="material-symbols-outlined">add_circle</span>
-                        <span className="font-label-md text-label-md">Asignar a Juan</span>
-                      </button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <button
+            onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+            className="p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0"
+          >
+            <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
+          </button>
         </div>
-      </main>
 
+        {/* Filtro de operadores */}
+        {operators.length > 0 && (
+          <div className="px-4 py-2 flex items-center gap-2 overflow-x-auto hide-scrollbar border-b border-outline-variant bg-surface">
+            <span className="text-xs text-on-surface-variant shrink-0">Operador:</span>
+            <button
+              onClick={() => setFilterOp(null)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-colors ${
+                filterOp == null
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-surface-container text-on-surface border border-outline-variant'
+              }`}
+            >
+              Todos
+            </button>
+            {operators.map(op => (
+              <button
+                key={op.id}
+                onClick={() => setFilterOp(filterOp === op.id ? null : op.id)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-colors ${
+                  filterOp === op.id
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-surface-container text-on-surface border border-outline-variant'
+                }`}
+              >
+                {op.photo_url ? (
+                  <img src={op.photo_url} className="w-4 h-4 rounded-full object-cover" alt="" />
+                ) : (
+                  <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+                )}
+                {op.name.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Encabezado de fecha + contador */}
+        <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-on-surface">
+            {isToday ? 'Hoy' : isTomorrow ? 'Mañana' : fmtDate(selectedDate)}
+            {' — '}
+            <span className="text-on-surface-variant font-normal">
+              {selectedDate.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+          </h2>
+          {!loadingAg && (
+            <span className="text-xs text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full border border-outline-variant">
+              {visibleBookings.length} {visibleBookings.length === 1 ? 'cita' : 'citas'}
+            </span>
+          )}
+        </div>
+
+        {/* Lista de citas */}
+        <div className="flex-1 px-4 pb-4 flex flex-col gap-3">
+
+          {loadingAg ? (
+            <div className="flex items-center justify-center py-16">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant/40 animate-spin">progress_activity</span>
+            </div>
+          ) : visibleBookings.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <span className="material-symbols-outlined text-5xl text-on-surface-variant/30" style={{ fontVariationSettings: "'FILL' 1" }}>event_busy</span>
+              <p className="text-sm text-on-surface-variant">Sin citas para este día</p>
+              <button className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-transform">
+                <span className="material-symbols-outlined text-base">add</span>
+                Nueva cita
+              </button>
+            </div>
+          ) : (
+            visibleBookings.map(b => (
+              <div
+                key={b.id}
+                className="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
+                onClick={() => {/* futuro: ir al detalle de cita */}}
+              >
+                {/* Franja de estado */}
+                <div className={`h-1 w-full ${
+                  b.status === 'work_order' ? 'bg-secondary' :
+                  b.status === 'completed'  ? 'bg-tertiary'  :
+                  b.status === 'no_show'    ? 'bg-error'     : 'bg-primary'
+                }`} />
+
+                <div className="p-3 flex gap-3">
+                  {/* Foto mascota */}
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
+                    {b.pet.photo ? (
+                      <img src={b.pet.photo} className="w-full h-full object-cover" alt={b.pet.name} />
+                    ) : (
+                      <span className="material-symbols-outlined text-primary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
+                    )}
+                  </div>
+
+                  {/* Info principal */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-bold text-on-surface text-sm truncate">{b.pet.name}</p>
+                        {b.pet.breed && (
+                          <p className="text-xs text-on-surface-variant truncate">{b.pet.breed}</p>
+                        )}
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${STATUS_COLOR[b.status] ?? 'bg-surface-container text-on-surface-variant border-outline-variant'}`}>
+                        {STATUS_LABEL[b.status] ?? b.status}
+                      </span>
+                    </div>
+
+                    {/* Servicios */}
+                    {b.services.length > 0 && (
+                      <p className="text-xs text-on-surface mt-1 truncate">
+                        {b.services.map(s => s.name).join(' · ')}
+                      </p>
+                    )}
+
+                    {/* Footer: hora, cliente, operadores */}
+                    <div className="flex items-center gap-3 mt-2 flex-wrap">
+                      <span className="flex items-center gap-1 text-xs text-on-surface-variant font-mono">
+                        <span className="material-symbols-outlined text-sm">schedule</span>
+                        {b.time}
+                      </span>
+                      {b.client && (
+                        <span className="flex items-center gap-1 text-xs text-on-surface-variant truncate">
+                          <span className="material-symbols-outlined text-sm">person</span>
+                          {b.client.name}
+                        </span>
+                      )}
+                      {b.operators.length > 0 && (
+                        <span className="flex items-center gap-1 text-xs text-on-surface-variant">
+                          <span className="material-symbols-outlined text-sm">content_cut</span>
+                          {b.operators.map(o => o.name.split(' ')[0]).join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+      </main>
     </div>
   );
 }
