@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Pet;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class PetController extends Controller
 {
@@ -28,7 +29,7 @@ class PetController extends Controller
             'microchip'    => $pet->microchip_code,
             'tattoo'       => $pet->tattoo_code,
             'notes'        => $pet->notes,
-            'photo'        => $pet->profile_photo_path ? '/storage/'.$pet->profile_photo_path : null,
+            'photo'        => $pet->profile_photo_path ? Storage::disk('public')->url($pet->profile_photo_path) : null,
             'owner'        => $pet->client ? [
                 'id'    => $pet->client->id,
                 'name'  => $pet->client->full_name,
@@ -126,7 +127,7 @@ class PetController extends Controller
             'breed'      => $pet->breed,
             'owner'      => $pet->client?->full_name,
             'photo'      => $pet->profile_photo_path
-                                ? '/storage/'.$pet->profile_photo_path
+                                ? Storage::disk('public')->url($pet->profile_photo_path)
                                 : null,
             'next_visit' => optional(
                                 $pet->spaBookings()

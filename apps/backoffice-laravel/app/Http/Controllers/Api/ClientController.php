@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Phone;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ClientController extends Controller
 {
@@ -54,7 +55,7 @@ class ClientController extends Controller
                 'id'    => $pet->id,
                 'name'  => $pet->name,
                 'breed' => $pet->breed,
-                'photo' => $pet->profile_photo_path ? '/storage/'.$pet->profile_photo_path : null,
+                'photo' => $pet->profile_photo_path ? Storage::disk('public')->url($pet->profile_photo_path) : null,
             ]),
         ];
     }
