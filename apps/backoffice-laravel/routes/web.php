@@ -24,6 +24,10 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\UserSettingsController;
+use App\Http\Controllers\Finances\AccountController;
+use App\Http\Controllers\Finances\PaymentMethodController;
+use App\Http\Controllers\Finances\DocumentSeriesController;
+use App\Http\Controllers\Finances\CashRegisterController;
 
 Route::get('/', function () {
     return auth()->check()
@@ -96,6 +100,14 @@ Route::middleware('auth')->group(function () {
         Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
         Route::get('activity-log', [ActivityLogController::class, 'index'])->name('activity-log.index');
+
+        // Módulo de Finanzas
+        Route::prefix('finances')->name('finances.')->group(function () {
+            Route::resource('accounts', AccountController::class)->except(['show']);
+            Route::resource('payment-methods', PaymentMethodController::class)->except(['show']);
+            Route::resource('document-series', DocumentSeriesController::class)->except(['show']);
+            Route::resource('cash-registers', CashRegisterController::class)->except(['show']);
+        });
     });
 
     // Configuración personal del usuario

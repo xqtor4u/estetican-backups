@@ -4,6 +4,7 @@ namespace App\Support\Navigation;
 
 use App\Support\Navigation\Groups\CatalogsNavigation;
 use App\Support\Navigation\Groups\ClientsNavigation;
+use App\Support\Navigation\Groups\FinanzasNavigation;
 use App\Support\Navigation\Groups\OperationsNavigation;
 
 
@@ -18,6 +19,7 @@ class MainNavigation
             ClientsNavigation::group(),
             OperationsNavigation::group(),
             CatalogsNavigation::group(),
+            FinanzasNavigation::group(),
         ];
     }
 
