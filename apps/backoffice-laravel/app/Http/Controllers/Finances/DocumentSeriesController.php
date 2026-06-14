@@ -24,6 +24,8 @@ class DocumentSeriesController extends Controller
             'recibo'        => 'Recibo',
             'factura'       => 'Factura',
             'sin_documento' => 'Sin doc.',
+            'orden_spa'     => 'Orden SPA',
+            'orden_hotel'   => 'Orden Hotel',
         ];
 
         return view('finances.document-series.index', compact('series', 'typeLabels'));
@@ -96,7 +98,7 @@ class DocumentSeriesController extends Controller
     private function rules(?DocumentSeries $series = null): array
     {
         return [
-            'document_type' => ['required', Rule::in(['recibo', 'factura', 'sin_documento'])],
+            'document_type' => ['required', Rule::in(['recibo', 'factura', 'sin_documento', 'orden_spa', 'orden_hotel'])],
             'name'          => ['required', 'string', 'max:255'],
             'prefix'        => ['required', 'string', 'max:20'],
             'suffix'        => ['nullable', 'string', 'max:20'],
