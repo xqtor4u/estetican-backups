@@ -1,7 +1,10 @@
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-white py-3">
         <div class="d-flex justify-content-between align-items-center">
-            <h2 class="h5 mb-0">Orden de Trabajo #{{ $booking->id }}</h2>
+            <h2 class="h5 mb-0">
+                {{ $booking->order_folio ?? 'Orden de Trabajo' }}
+                <span class="text-body-secondary fw-normal small ms-1">#{{ $booking->id }}</span>
+            </h2>
             <span class="badge rounded-pill text-bg-warning">En Proceso</span>
         </div>
     </div>

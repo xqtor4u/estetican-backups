@@ -33,6 +33,13 @@ interface AccountingServiceInterface
     ): JournalEntry;
 
     /**
+     * Asigna el folio de orden de trabajo a un SpaBooking si aún no tiene uno.
+     * Busca la primera serie activa de tipo 'orden_spa' y genera el siguiente folio.
+     * No hace nada si ya tiene folio o no hay serie configurada.
+     */
+    public function assignOrderFolio(SpaBooking $booking): ?string;
+
+    /**
      * Crea un asiento contable para un cobro de cita, sin requerir un Quote formal.
      * Selecciona automáticamente la primera serie de recibos activa.
      * Devuelve null si no hay serie configurada o el método no tiene cuenta.

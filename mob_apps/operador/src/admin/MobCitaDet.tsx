@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 /* ── Tipos ────────────────────────────────────────────────── */
 interface BookingDetail {
   id: number;
+  order_folio: string | null;
   scheduled_at: string;
   time: string;
   end_time: string | null;
@@ -381,6 +382,11 @@ export function MobCitaDet() {
           <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${STATUS_COLOR[booking.status] ?? ''}`}>
             {STATUS_LABEL[booking.status] ?? booking.status}
           </span>
+          {booking.order_folio && (
+            <span className="font-mono text-xs font-bold text-on-surface-variant bg-surface-container px-2.5 py-1 rounded-lg border border-outline-variant">
+              {booking.order_folio}
+            </span>
+          )}
           <span className="flex items-center gap-1.5 font-mono text-sm font-semibold text-on-surface">
             <span className="material-symbols-outlined text-base text-on-surface-variant">schedule</span>
             {booking.time}{booking.end_time ? ` → ${booking.end_time}` : ''}

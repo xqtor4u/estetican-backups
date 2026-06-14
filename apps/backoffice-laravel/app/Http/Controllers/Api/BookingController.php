@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\Operator;
 use App\Models\Service;
@@ -28,6 +29,7 @@ class BookingController extends Controller
 
         return [
             'id'               => $b->id,
+            'order_folio'      => $b->order_folio,
             'scheduled_at'     => $b->scheduled_at->format('Y-m-d H:i:s'),
             'time'             => $b->scheduled_at->format('H:i'),
             'end_time'         => $endTime,
@@ -153,6 +155,15 @@ class BookingController extends Controller
         }
 
         $booking->save();
+
+        // Generar folio de orden al iniciar el trabajo
+        if (($data['status'] ?? null) === 'work_order' && ! $booking->order_folio) {
+            try {
+                app(AccountingServiceInterface::class)->assignOrderFolio($booking);
+            } catch (\Throwable) {
+                // No interrumpir el cambio de estado si falla la asignación del folio
+            }
+        }
 
         return response()->json($this->serialize($booking->fresh()));
     }

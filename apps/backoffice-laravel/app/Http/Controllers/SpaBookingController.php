@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Models\Client;
@@ -481,6 +482,13 @@ class SpaBookingController extends Controller
         ]);
 
         $this->quoteService->acceptQuote($quote, $validated);
+
+        // Asignar folio de orden al convertirse en work_order
+        try {
+            app(AccountingServiceInterface::class)->assignOrderFolio($booking->fresh());
+        } catch (\Throwable) {
+            // No interrumpir el flujo si falla la asignación del folio
+        }
 
         return redirect()->route('agenda.show', $booking)->with('success', 'Presupuesto aceptado. La sesión ahora es una Orden de Trabajo activa.');
     }

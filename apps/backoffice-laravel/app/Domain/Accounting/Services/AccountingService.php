@@ -111,6 +111,30 @@ class AccountingService implements AccountingServiceInterface
         });
     }
 
+    public function assignOrderFolio(SpaBooking $booking): ?string
+    {
+        if ($booking->order_folio) {
+            return $booking->order_folio;
+        }
+
+        $series = DocumentSeries::where('document_type', 'orden_spa')
+            ->where('is_active', true)
+            ->first();
+
+        if (! $series) {
+            return null;
+        }
+
+        $folio = $this->getNextFolio($series->id);
+
+        $booking->update([
+            'order_series_id' => $series->id,
+            'order_folio'     => $folio['display'],
+        ]);
+
+        return $folio['display'];
+    }
+
     public function createEntryForBookingPayment(
         SpaBooking    $booking,
         PaymentMethod $paymentMethod,
