@@ -20,7 +20,13 @@ class DocumentSeriesController extends Controller
             ->orderBy('id')
             ->get();
 
-        return view('finances.document-series.index', compact('series'));
+        $typeLabels = [
+            'recibo'        => 'Recibo',
+            'factura'       => 'Factura',
+            'sin_documento' => 'Sin doc.',
+        ];
+
+        return view('finances.document-series.index', compact('series', 'typeLabels'));
     }
 
     public function create(): View

@@ -43,9 +43,6 @@
                 </thead>
                 <tbody>
                     @forelse($methods as $method)
-                        @php
-                            $typeLabels = ['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia', 'crypto' => 'Cripto', 'gateway' => 'Pasarela'];
-                        @endphp
                         <tr class="{{ $method->is_active ? '' : 'table-secondary opacity-60' }}">
                             <td><code class="fw-semibold">{{ $method->code }}</code></td>
                             <td>{{ $method->name }}</td>

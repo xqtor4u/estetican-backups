@@ -273,3 +273,42 @@ El modal se inicializa vía JS con `new bootstrap.Modal(modalEl)` pasando la ref
 **Lección:**
 - Siempre inicializar Bootstrap Modal con la referencia al elemento, no con atributos `data-bs-target`.
 - Preferir `new bootstrap.Modal(element)` sobre `<button data-bs-toggle="modal" data-bs-target="#...">`.
+
+---
+
+## NT-008 — Blade: `@php ... @endphp` multi-línea rompe el section stack cuando coexiste con `<x-slot>`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-06-14 |
+| **Severidad** | P2 — Alto (500 en producción) |
+| **Componente** | Blade — section stack / componentes con slots |
+| **Impacto** | `ViewException: Cannot end a section without first starting one` |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+Vistas con `@extends` + `@section` + `<x-slot:actions>` + bloque `@php ... @endphp` multi-línea arrojaban 500 en producción con el error `Cannot end a section without first starting one`.
+
+**Causa raíz:**
+El compilador de Blade gestiona `@section`/`@endsection` y los slots de componentes (`<x-slot:actions>`) a través del mismo stack interno. Un bloque `@php ... @endphp` multi-línea, al compilarse como `<?php ... ?>`, interfiere con el rastreo del stack en ciertos contextos, dejando a `@endsection` sin una sección abierta que cerrar.
+
+**Solución:**
+Nunca definir variables con `@php ... @endphp` (forma de bloque) dentro de vistas que tengan `@section` + componentes con slots. En cambio:
+
+1. **Preferido:** pasar la variable desde el controlador con `compact()`.
+2. **Alternativa:** usar la forma de expresión `@php($var = valor)` (sin `@endphp`) para asignaciones simples dentro del cuerpo de un loop.
+3. **Para arrays estáticos** usados en la vista: siempre definirlos en el controlador.
+
+**Lo que NO produce el error:**
+- `@php($var = expr)` en una sola línea (sin `@endphp`).
+- Bloques `@php ... @endphp` dentro de partials `@include` (que no tienen `@section`).
+
+**Patrón correcto:**
+```php
+// Controlador
+return view('finances.payment-methods.index', compact('methods', 'typeLabels'));
+```
+```blade
+{{-- Vista: sin @php de bloque --}}
+{{ $typeLabels[$method->type] ?? $method->type }}
+```

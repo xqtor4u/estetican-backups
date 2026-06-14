@@ -44,10 +44,7 @@
                 </thead>
                 <tbody>
                     @forelse($series as $s)
-                        @php
-                            $typeLabels = ['recibo' => 'Recibo', 'factura' => 'Factura', 'sin_documento' => 'Sin doc.'];
-                            $example = $s->prefix . str_pad($s->next_number, $s->padding, '0', STR_PAD_LEFT) . $s->suffix;
-                        @endphp
+                        @php($example = $s->prefix . str_pad($s->next_number, $s->padding, '0', STR_PAD_LEFT) . $s->suffix)
                         <tr class="{{ $s->is_active ? '' : 'table-secondary opacity-60' }}">
                             <td class="fw-semibold">{{ $s->name }}</td>
                             <td>

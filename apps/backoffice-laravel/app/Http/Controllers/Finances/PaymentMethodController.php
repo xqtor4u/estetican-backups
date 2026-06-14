@@ -19,7 +19,15 @@ class PaymentMethodController extends Controller
             ->orderBy('code')
             ->get();
 
-        return view('finances.payment-methods.index', compact('methods'));
+        $typeLabels = [
+            'cash'     => 'Efectivo',
+            'card'     => 'Tarjeta',
+            'transfer' => 'Transferencia',
+            'crypto'   => 'Cripto',
+            'gateway'  => 'Pasarela',
+        ];
+
+        return view('finances.payment-methods.index', compact('methods', 'typeLabels'));
     }
 
     public function create(): View
