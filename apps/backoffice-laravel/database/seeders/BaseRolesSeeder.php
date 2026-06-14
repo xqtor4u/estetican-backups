@@ -38,6 +38,16 @@ class BaseRolesSeeder extends Seeder
             }
         }
 
+        // Permisos granulares del módulo financiero
+        $financialPermissions = [
+            'cobros.registrar',
+            'caja.abrir',
+            'caja.cerrar',
+            'asientos.aprobar',
+        ];
+
+        $permissions = array_merge($permissions, $financialPermissions);
+
         // 2. Crear/Asegurar Permisos
         foreach ($permissions as $permission) {
             \Spatie\Permission\Models\Permission::firstOrCreate([

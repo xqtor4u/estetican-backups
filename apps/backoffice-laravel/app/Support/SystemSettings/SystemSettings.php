@@ -329,6 +329,14 @@ class SystemSettings
                         'default' => true,
                         'rules' => ['nullable', 'boolean'],
                     ],
+                    'booking_grace_minutes' => [
+                        'label' => 'Tolerancia para iniciar servicio (minutos)',
+                        'type' => 'number',
+                        'default' => 15,
+                        'rules' => ['required', 'integer', 'min:0', 'max:120'],
+                        'input' => ['min' => 0, 'max' => 120, 'step' => 5],
+                        'help' => 'Margen permitido antes o después de la hora programada. Si el operador inicia fuera de este rango, la app móvil pedirá confirmación.',
+                    ],
                 ],
             ],
             'fiscal' => [
@@ -412,6 +420,32 @@ class SystemSettings
                             ['value' => '12h', 'label' => '12 horas (AM/PM)'],
                             ['value' => '24h', 'label' => '24 horas'],
                         ],
+                    ],
+                ],
+            ],
+            'finanzas' => [
+                'label' => 'Finanzas',
+                'description' => 'Configuración del módulo contable, caja y documentos.',
+                'fields' => [
+                    'finanzas_requiere_apertura_caja' => [
+                        'label'   => 'Requerir apertura de caja para cobrar',
+                        'type'    => 'boolean',
+                        'default' => false,
+                        'help'    => 'Si está activo, el operador debe abrir una sesión de caja antes de registrar cobros.',
+                        'rules'   => ['nullable', 'boolean'],
+                    ],
+                    'finanzas_asientos_auto_aplicar' => [
+                        'label'   => 'Aplicar asientos automáticamente',
+                        'type'    => 'boolean',
+                        'default' => true,
+                        'help'    => 'Si está activo, los asientos se aplican al confirmar el cobro sin requerir aprobación adicional.',
+                        'rules'   => ['nullable', 'boolean'],
+                    ],
+                    'finanzas_moneda' => [
+                        'label'   => 'Moneda de operación',
+                        'type'    => 'text',
+                        'default' => 'MXN',
+                        'rules'   => ['required', 'string', 'size:3'],
                     ],
                 ],
             ],

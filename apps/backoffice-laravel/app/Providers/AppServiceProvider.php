@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Accounting\Contracts\AccountingServiceInterface;
+use App\Domain\Accounting\Services\AccountingService;
 use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Commercial\Services\QuoteService;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
@@ -23,6 +25,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(BookingServiceInterface::class, BookingService::class);
         $this->app->bind(ResourceAllocationServiceInterface::class, ResourceAllocationService::class);
         $this->app->bind(QuoteServiceInterface::class, QuoteService::class);
+        $this->app->bind(AccountingServiceInterface::class, AccountingService::class);
     }
 
     /**
