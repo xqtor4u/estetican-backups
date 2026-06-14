@@ -828,3 +828,108 @@ Ver `docs/tecnico/BACKLOG.md` — 9 ítems ordenados por prioridad.
 
 ### 🛑 Pendientes (Backlog activo)
 Ver `docs/tecnico/BACKLOG.md`.
+
+---
+## 📅 Sesión: 13/06/2026 (cont.) — App móvil: agenda, cobro y tolerancia de inicio
+
+### ✅ Logros y Cambios
+
+**Check-in/check-out de operadores por sucursal:**
+- Nuevo modelo `OperatorCheckin` + migración.
+- `CheckinController` (API): `status`, `checkin` (con auto-checkout y nota de transgresión si cambia de sucursal), `checkout`.
+- Widget `CheckinWidget` en el drawer del menú.
+
+**MobCitaNueva — captura de cita:**
+- Selector de fecha, operador, catálogo de servicios, control de duración (±15 min), grilla de slots 09:00–19:00 (cada 30 min).
+- Envía `scheduled_at` como `"YYYY-MM-DD HH:MM:00"` (fix timezone con `localDateStr`).
+- Muestra pantalla de éxito 1.5 s y regresa.
+
+**MobCitaDet — detalle/edición de cita:**
+- Vista completa con mascota, cliente, servicios, operador, notas.
+- Modo edición inline (mismos controles que MobCitaNueva).
+- Acciones de cambio de estado: Iniciar / No se presentó / Cancelar (con modal de motivo) / Completar y cobrar.
+- Accesible desde GlobalAgenda y PetDetail.
+
+**GlobalAgenda y PetDetail:**
+- Tarjetas de cita navegan a `/citas/:id`.
+- Hora mostrada como `09:00 → 10:30` (incluye duración).
+
+**MobCobro — registro de cobro:**
+- Flujo de dos pasos: form → confirm → saving → done.
+- Previene registro de pago cuando la terminal rechaza la tarjeta.
+- Métodos: efectivo (→caja), tarjeta débito/crédito (→banco), transferencia (→banco).
+- Contador de intentos con banner de advertencia en reintento.
+
+**Tolerancia para "Iniciar servicio" (booking_grace_minutes):**
+- Nuevo parámetro `booking_grace_minutes` (default 15 min) en sección `clinical` de `SystemSettings`.
+- Endpoint `GET /api/settings/booking` → `{ grace_minutes: 15 }`.
+- En MobCitaDet: al tocar "Iniciar servicio", compara hora actual vs `scheduled_at`. Si la diferencia supera la tolerancia (antes o después), muestra diálogo de confirmación con mensaje específico ("X min de retraso" / "X min antes de la hora") antes de proceder.
+
+### 📁 Archivos Modificados/Creados
+- `apps/backoffice-laravel/app/Models/SpaBooking.php` — `operator_id`, `duration_minutes` en fillable; relación `operator()`
+- `apps/backoffice-laravel/app/Models/OperatorCheckin.php` — nuevo
+- `apps/backoffice-laravel/app/Http/Controllers/Api/CheckinController.php` — nuevo
+- `apps/backoffice-laravel/app/Http/Controllers/Api/BookingController.php` — nuevo
+- `apps/backoffice-laravel/app/Http/Controllers/Api/PaymentController.php` — nuevo
+- `apps/backoffice-laravel/app/Http/Controllers/Api/AgendaController.php` — `end_time`, `duration_minutes`
+- `apps/backoffice-laravel/app/Http/Controllers/Api/SettingController.php` — nuevo
+- `apps/backoffice-laravel/app/Support/SystemSettings/SystemSettings.php` — campo `booking_grace_minutes`
+- `apps/backoffice-laravel/routes/api.php` — rutas checkin, bookings, payments, settings/booking
+- `mob_apps/operador/src/App.tsx` — rutas MobCitaNueva, MobCitaDet, MobCobro; CheckinWidget
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx` — nuevo
+- `mob_apps/operador/src/admin/MobCitaDet.tsx` — nuevo (con graceDialog)
+- `mob_apps/operador/src/admin/MobCobro.tsx` — nuevo
+- `mob_apps/operador/src/admin/GlobalAgenda.tsx` — onClick + end_time
+- `mob_apps/operador/src/admin/PetDetail.tsx` — botón nueva cita + citas clickeables
+
+### 🔧 Migraciones aplicadas
+- `create_operator_checkins_table`
+- `add_operator_id_to_spa_bookings`
+- `add_duration_minutes_to_spa_bookings`
+
+### 🛑 Pendientes activos
+- UI de `booking_grace_minutes` en backoffice (sección Operación Clínica ya lo tiene — solo verificar que se vea en la vista).
+- Push a GitHub.
+- BL-006, BL-007, BL-001..004, BL-008.
+
+---
+## 📅 Sesión: 14/06/2026 — Módulo contable (doble entrada)
+
+### ✅ Logros y Cambios
+
+**Consolidación documental:**
+- Eliminados 13 archivos obsoletos (TASK_LIST, especificaciones técnicas duplicadas, manuales heredados).
+- Creado `docs/tecnico/MODELO_BD.md` — inventario completo de 35+ tablas con columnas y notas de negocio. **Fuente de verdad del esquema.**
+- Actualizado `CLAUDE.md` con protocolo "Al iniciar / Al cerrar" y referencia a MODELO_BD.
+- Actualizados `IDEAS_FUTURO.md` y `BACKLOG.md` con BL-017..021.
+
+**Módulo contable — infraestructura completa:**
+- 9 migraciones: `accounts`, `payment_methods`, `document_series`, `documents`, `journal_entries`, `journal_entry_lines`, `cash_registers`, `cash_sessions`, `add_account_id_to_services`.
+- 8 modelos Eloquent con relaciones y métodos de utilidad (`isBalanced`, `isCancellable`, `activeSession`, etc.).
+- `AccountingService` en `app/Domain/Accounting/` (Interface + Implementación): `getNextFolio` (lockForUpdate), `createPaymentEntry` (distribución proporcional), `cancelEntry`.
+- 3 seeders: `AccountsSeeder` (catálogo estándar mexicano 1000–5900), `PaymentMethodsSeeder`, `DocumentSeriesSeeder`.
+- Binding en `AppServiceProvider`.
+- Sección `finanzas` en `SystemSettings` (requiere_apertura_caja, asientos_auto_aplicar, moneda).
+- Permisos Spatie agregados en `BaseRolesSeeder`: `cobros.registrar`, `caja.abrir`, `caja.cerrar`, `asientos.aprobar`.
+- `MODELO_BD.md` actualizado con las 8 tablas nuevas y columna `account_id` en `services`.
+
+### 📁 Archivos Creados/Modificados
+- `database/migrations/2026_06_14_100000..100800_*` — 9 migraciones
+- `app/Models/Account.php`, `PaymentMethod.php`, `DocumentSeries.php`, `Document.php`, `JournalEntry.php`, `JournalEntryLine.php`, `CashRegister.php`, `CashSession.php`
+- `app/Domain/Accounting/Contracts/AccountingServiceInterface.php` — nuevo
+- `app/Domain/Accounting/Services/AccountingService.php` — nuevo
+- `database/seeders/AccountsSeeder.php`, `PaymentMethodsSeeder.php`, `DocumentSeriesSeeder.php` — nuevos
+- `app/Providers/AppServiceProvider.php` — binding AccountingService
+- `app/Support/SystemSettings/SystemSettings.php` — sección finanzas
+- `database/seeders/BaseRolesSeeder.php` — 4 permisos financieros
+- `docs/tecnico/MODELO_BD.md` — creado + actualizado con tablas contables
+
+### 🛑 Pendientes activos
+- **Aplicar migraciones y seeders en producción OPi** (migrations + db:seed --class=AccountsSeeder etc.)
+- BL-018: UI Backoffice → Finanzas (catálogo de cuentas, métodos de pago, series de documentos, cajas)
+- BL-019: Apertura y corte de caja en backoffice
+- BL-020: Conectar flujo de cobro (billing_summary + MobCobro) al AccountingService
+- BL-021: Migrar datos históricos cash_ledgers/bank_ledgers
+- BL-013: Push a GitHub
+- BL-006, BL-007: Seguridad (bloquear /up, Cloudflare Rules)
+- BL-010/011: Fotos de mascotas en app móvil

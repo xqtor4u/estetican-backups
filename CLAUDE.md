@@ -2,24 +2,57 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Session Protocol
+## Protocolo de sesión
 
-**Before writing code:** Read `BITACORA.md` (root) and identify the current sprint. Do not work on items not listed there.
+### Al iniciar — leer siempre
 
-**After changes:** Update `BITACORA.md` with touched files and pending items. Move "good ideas" to `docs/architecture/IDEAS_FUTURO.md`, not a new file.
-
-## Technical Documentation
-
-| File | Purpose |
+| Archivo | Qué buscar |
 |---|---|
-| `docs/tecnico/NOTAS_TECNICAS.md` | Bugs, root causes and solutions (NT-XXX). Read before touching image upload, Alpine, or CSP. |
-| `docs/tecnico/ESTRATEGIA_DESARROLLO.md` | Dev workflow, commit conventions, deploy checklist, dependency rules. |
-| `docs/tecnico/image-upload-system.md` | Full reference for the `x-image-upload` component — props, patterns, backend managers. |
+| `BITACORA.md` | Última sesión: qué se hizo, qué quedó pendiente |
+| `docs/tecnico/BACKLOG.md` | Sprint activo: ítems priorizados por ID |
 
-**Critical rules from notes:**
-- `cropperjs` is pinned to `1.6.2` (exact). v2 has incompatible API. Do NOT upgrade without reading NT-001.
-- Always clear compiled Blade views after `git pull` in production (see NT-005 and deploy checklist).
-- Alpine.js requires `unsafe-eval` in CSP (see NT-006).
+No trabajar en ítems que no estén en el backlog activo.
+
+### Al iniciar — leer según contexto
+
+| Archivo | Cuándo |
+|---|---|
+| `docs/tecnico/MODELO_BD.md` | Antes de crear migraciones, tocar modelos o diseñar cualquier feature |
+| `docs/tecnico/NOTAS_TECNICAS.md` | Antes de tocar image upload, Alpine.js o CSP |
+| `docs/tecnico/image-upload-system.md` | Antes de tocar `x-image-upload` |
+| `docs/tecnico/ESTRATEGIA_DESARROLLO.md` | Antes de hacer deploy o cambiar dependencias |
+| `docs/OPI_PRODUCCION.md` | Antes de trabajar en producción (OPi) |
+
+### Al cerrar — actualizar siempre
+
+| Archivo | Qué registrar |
+|---|---|
+| `BITACORA.md` | Resumen de la sesión: logros, archivos tocados, pendientes |
+| `docs/tecnico/BACKLOG.md` | Mover ítems completados, agregar nuevos si corresponde |
+
+### Al cerrar — actualizar si aplica
+
+| Archivo | Cuándo |
+|---|---|
+| `docs/tecnico/MODELO_BD.md` | Si se creó o modificó una tabla o columna |
+| `docs/architecture/IDEAS_FUTURO.md` | Si surgió una idea que no entra en el sprint actual |
+| `docs/tecnico/NOTAS_TECNICAS.md` | Si se resolvió un bug con causa raíz no obvia |
+
+## Documentación técnica de referencia
+
+| Archivo | Propósito |
+|---|---|
+| `docs/tecnico/MODELO_BD.md` | Inventario completo de tablas y campos — **actualizar al crear/modificar tablas** |
+| `docs/tecnico/NOTAS_TECNICAS.md` | Bugs, causas raíz y soluciones (NT-XXX) |
+| `docs/tecnico/ESTRATEGIA_DESARROLLO.md` | Workflow de sesión, convenciones de commit, checklist de deploy, reglas de dependencias |
+| `docs/tecnico/image-upload-system.md` | Referencia completa del componente `x-image-upload` — props, patrones, ImageManagers |
+| `docs/OPI_PRODUCCION.md` | Guía de operación del servidor de producción (Orange Pi 5 Plus) |
+| `docs/architecture/IDEAS_FUTURO.md` | Ideas y funcionalidades para sprints futuros |
+
+**Reglas críticas:**
+- `cropperjs` está fijado en `1.6.2` (exacto). v2 tiene API incompatible. NO actualizar sin leer NT-001.
+- Siempre borrar vistas compiladas Blade después de `git pull` en producción (ver NT-005 y checklist de deploy).
+- Alpine.js requiere `unsafe-eval` en CSP (ver NT-006).
 
 ## Development Environment
 
@@ -123,14 +156,14 @@ The **Agenda detail view** (`agenda/show.blade.php`) is context-driven: it rende
 
 ### Mobile App (`mob_apps/operador/`)
 
-Separate React 19 + Vite + Tailwind app (not yet connected to Laravel API). Uses Node.js v20 native in WSL (via `nvm`) to avoid Windows path conflicts.
+React 19 + Vite + Tailwind app connected to the Laravel API via Bearer token (Laravel Sanctum custom tokens in `api_tokens` table). Auth, pets, clients, agenda, bookings, checkin and payments are all wired. Uses Node.js v20 native in WSL (via `nvm`).
 
 ```bash
-# From mob_apps/operador/
-npm run dev
+# From mob_apps/operador/ — dev server (exposes on LAN port 3000)
+nohup npm run dev > /tmp/mobile-dev.log 2>&1 &
 ```
 
-Requires `GEMINI_API_KEY` in `.env.local`.
+API controllers live in `app/Http/Controllers/Api/`. Routes in `routes/api.php`.
 
 ## Important Patterns
 
