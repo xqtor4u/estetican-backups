@@ -413,7 +413,7 @@ export function PetDetail() {
           </div>
         ) : (
           <div className="flex items-center gap-1">
-            <button onClick={() => {}} className="p-2 rounded-full hover:bg-surface-container-high transition-colors" title="Agregar cita">
+            <button onClick={() => navigate(`/mascotas/${pet.id}/cita/nueva`)} className="p-2 rounded-full hover:bg-surface-container-high transition-colors" title="Agregar cita">
               <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>event_add</span>
             </button>
             <button onClick={() => setEditing(true)} className="p-2 rounded-full hover:bg-surface-container-high transition-colors" title="Editar">
@@ -510,13 +510,18 @@ export function PetDetail() {
               <div className="flex flex-col gap-2">
                 <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Próximas citas</p>
                 {pet.upcoming_bookings.map(b => (
-                  <div key={b.id} className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center gap-3">
+                  <button key={b.id} onClick={() => navigate(`/citas/${b.id}`)}
+                    className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center gap-3 w-full text-left active:bg-surface-container transition-colors">
                     <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>event</span>
-                    <div><p className="text-sm font-semibold">{b.date}</p><p className="text-xs text-on-surface-variant">{b.time}</p></div>
-                    <span className={`ml-auto text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold">{b.date}</p>
+                      <p className="text-xs text-on-surface-variant">{b.time}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                       b.status === 'work_order' ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container text-on-surface-variant'
                     }`}>{b.status === 'work_order' ? 'En curso' : 'Agendada'}</span>
-                  </div>
+                    <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
+                  </button>
                 ))}
               </div>
             )}

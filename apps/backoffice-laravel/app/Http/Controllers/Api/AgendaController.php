@@ -41,11 +41,17 @@ class AgendaController extends Controller
                     ->values();
             }
 
+            $endTime = $b->duration_minutes
+                ? $b->scheduled_at->copy()->addMinutes($b->duration_minutes)->format('H:i')
+                : null;
+
             return [
-                'id'          => $b->id,
-                'scheduled_at' => $b->scheduled_at,
-                'time'        => $b->scheduled_at->format('H:i'),
-                'status'      => $b->status,
+                'id'               => $b->id,
+                'scheduled_at'     => $b->scheduled_at,
+                'time'             => $b->scheduled_at->format('H:i'),
+                'end_time'         => $endTime,
+                'duration_minutes' => $b->duration_minutes,
+                'status'           => $b->status,
                 'notes'       => $b->notes,
                 'total'       => $b->total_estimated_price,
                 'pet'         => [

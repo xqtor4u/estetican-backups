@@ -6,6 +6,8 @@ interface Branch   { id: number; name: string }
 interface Booking  {
   id: number;
   time: string;
+  end_time: string | null;
+  duration_minutes: number | null;
   status: string;
   notes: string | null;
   total: number | null;
@@ -231,7 +233,7 @@ export function GlobalAgenda() {
               <div
                 key={b.id}
                 className="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
-                onClick={() => {/* futuro: ir al detalle de cita */}}
+                onClick={() => navigate(`/citas/${b.id}`)}
               >
                 {/* Franja de estado */}
                 <div className={`h-1 w-full ${
@@ -275,7 +277,7 @@ export function GlobalAgenda() {
                     <div className="flex items-center gap-3 mt-2 flex-wrap">
                       <span className="flex items-center gap-1 text-xs text-on-surface-variant font-mono">
                         <span className="material-symbols-outlined text-sm">schedule</span>
-                        {b.time}
+                        {b.time}{b.end_time ? ` → ${b.end_time}` : ''}
                       </span>
                       {b.client && (
                         <span className="flex items-center gap-1 text-xs text-on-surface-variant truncate">

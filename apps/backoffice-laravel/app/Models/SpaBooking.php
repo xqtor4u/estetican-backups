@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 
-#[Fillable(['pet_id', 'scheduled_at', 'status', 'total_estimated_price', 'notes', 'cancellation_reason'])]
+#[Fillable(['pet_id', 'operator_id', 'scheduled_at', 'duration_minutes', 'status', 'total_estimated_price', 'notes', 'cancellation_reason'])]
 class SpaBooking extends Model
 {
     use LogsActivity;
@@ -35,6 +35,11 @@ class SpaBooking extends Model
     public function pet(): BelongsTo
     {
         return $this->belongsTo(Pet::class);
+    }
+
+    public function operator(): BelongsTo
+    {
+        return $this->belongsTo(Operator::class);
     }
 
     public function services(): HasMany
