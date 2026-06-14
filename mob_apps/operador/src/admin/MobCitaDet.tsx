@@ -20,6 +20,7 @@ interface BookingDetail {
 interface ServiceCat { id: number; name: string; type: string | null; price: number; duration_minutes: number | null }
 interface OperatorCat { id: number; name: string; role: string | null; photo_url: string | null }
 interface OccBooking  { id: number; time: string }
+interface BookingPayment { id: number; amount: number; payment_method: string; category: string; destination: string; created_at: string }
 
 /* ── Status UI ───────────────────────────────────────────── */
 const STATUS_LABEL: Record<string, string> = {
@@ -138,6 +139,10 @@ export function MobCitaDet() {
   const [graceMinutes, setGraceMinutes] = useState(15);
   const [graceDialog,  setGraceDialog]  = useState<{ diffMinutes: number } | null>(null);
 
+  /* Pagos registrados */
+  const [payments,     setPayments]     = useState<BookingPayment[]>([]);
+  const [totalPaid,    setTotalPaid]    = useState(0);
+
   /* Guardado / error de carga */
   const [saving,    setSaving]    = useState(false);
   const [saveErr,   setSaveErr]   = useState<string | null>(null);
@@ -190,6 +195,17 @@ export function MobCitaDet() {
 
     load();
   }, [id]);
+
+  /* ── Carga pagos ──────────────────────────────────────── */
+  useEffect(() => {
+    if (!booking) return;
+    fetch(`/api/bookings/${booking.id}/payments`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { payments: BookingPayment[]; paid: number } | null) => {
+        if (data) { setPayments(data.payments); setTotalPaid(data.paid); }
+      })
+      .catch(() => {});
+  }, [booking]);
 
   /* ── Carga slots ocupados ──────────────────────────────── */
   const loadOccupied = useCallback((date: Date, excludeId: number) => {
@@ -716,6 +732,45 @@ export function MobCitaDet() {
                       )}
                     </div>
                   ))}
+                </div>
+              </section>
+            )}
+
+            {/* Cobros */}
+            {(payments.length > 0 || booking.status === 'completed') && (
+              <section>
+                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Cobros</p>
+                <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
+                  {payments.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-on-surface-variant/60">Sin cobros registrados</div>
+                  ) : (
+                    <>
+                      {payments.map((p, i) => (
+                        <div key={p.id ?? i} className={`px-4 py-3 flex items-center gap-3 ${i > 0 ? 'border-t border-outline-variant' : ''}`}>
+                          <span className="material-symbols-outlined text-tertiary text-lg shrink-0"
+                            style={{ fontVariationSettings: "'FILL' 1" }}>
+                            {p.destination === 'caja' ? 'point_of_sale' : 'account_balance'}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-on-surface">{p.payment_method}</p>
+                            <p className="text-xs text-on-surface-variant">
+                              {p.category === 'liquidacion' ? 'Liquidación' : 'Anticipo'} ·{' '}
+                              {p.destination === 'caja' ? 'Caja' : 'Banco'}
+                            </p>
+                          </div>
+                          <span className="text-sm font-bold text-tertiary shrink-0">
+                            ${p.amount.toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                      {payments.length > 1 && (
+                        <div className="border-t border-outline-variant px-4 py-2.5 flex items-center justify-between bg-surface-container">
+                          <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Total cobrado</span>
+                          <span className="text-sm font-bold text-on-surface">${totalPaid.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </section>
             )}

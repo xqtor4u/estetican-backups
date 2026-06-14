@@ -1,5 +1,52 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 14/06/2026 - Módulo Contable Completo + Cobro Móvil
+
+### ✅ Logros y Cambios
+
+**Módulo contable (BL-017):**
+- 8 nuevas migraciones: `accounts`, `payment_methods`, `document_series`, `documents`, `journal_entries`, `journal_entry_lines`, `cash_registers`, `cash_sessions` + `account_id` en `services`
+- 8 modelos Eloquent con relaciones y casts correctos
+- 3 seeders: `AccountsSeeder` (plan de cuentas estándar), `PaymentMethodsSeeder` (Efectivo EFECT, Tarjeta DEB/CRED, SPEI), `DocumentSeriesSeeder`
+- `AccountingService` en `app/Domain/Accounting/Services/` con `getNextFolio()`, `createPaymentEntry()` (flujo backoffice con Quote), `createEntryForBookingPayment()` (flujo móvil sin Quote), `cancelEntry()`
+- Aplicadas en producción: `php artisan migrate` + seeders ejecutados
+
+**Backoffice — Pantallas Finanzas (BL-018):**
+- 4 controladores CRUD en `app/Http/Controllers/Finances/`
+- 4 grupos de vistas Blade en `resources/views/finances/`
+- `FinanzasNavigation.php` — grupo en menú lateral (gateado por permiso `cobros.registrar`)
+- NT-008 documentada: nunca `@php...@endphp` multi-línea dentro de `@section` + `<x-slot>`, pasar arrays desde controlador
+
+**Seguridad (BL-006):**
+- `/up` movido a `/up/{HEALTH_CHECK_SECRET}` en `bootstrap/app.php`
+- Secret generado en `.env.production` con `openssl rand -hex 16`
+
+**Fix fotos móvil (BL-010/011):**
+- `PetController` y `ClientController` — URL de foto cambiada de `/storage/...` a `Storage::disk('public')->url()`
+- Permite URLs absolutas accesibles desde cualquier origen (app móvil)
+
+**Cobro móvil (BL-020):**
+- `GET /api/payment-methods` — endpoint nuevo que devuelve métodos activos con ícono y dest
+- `PaymentController` reescrito: ahora escribe en `Payment` model (no en ledgers) + crea `JournalEntry` automáticamente si el método tiene cuenta contable asignada
+- Backward compat: sigue leyendo `CashLedger`/`BankLedger` en el `index()` hasta BL-021
+- `MobCobro.tsx` actualizado: métodos dinámicos de API, campo "Referencia" cuando `requires_reference`, no más selector manual de destino (se deriva del tipo de método)
+
+### 📁 Archivos Clave Modificados
+- `app/Domain/Accounting/Services/AccountingService.php` — nuevo método `createEntryForBookingPayment()`
+- `app/Domain/Accounting/Contracts/AccountingServiceInterface.php` — firma nueva
+- `app/Models/Service.php` — `account_id` en fillable + relación `account()`
+- `app/Http/Controllers/Api/PaymentController.php` — reescrito
+- `routes/api.php` — nueva ruta `GET /api/payment-methods`
+- `mob_apps/operador/src/admin/MobCobro.tsx` — métodos dinámicos, referencia condicional
+
+### 🔄 Pendientes para Próxima Sesión
+- **BL-013** — Push a GitHub
+- **BL-019** — Apertura/corte de caja (cash_sessions)
+- **BL-021** — Migrar datos históricos de ledgers a journal_entries
+- **BL-007** — Transform Rules Cloudflare
+
+---
+
 ## 📅 Sesión: 17/04/2026 - Unificación Operativa y Estabilización
 
 ### ✅ Logros y Cambios

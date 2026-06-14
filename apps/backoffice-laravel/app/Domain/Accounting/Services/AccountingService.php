@@ -10,6 +10,7 @@ use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\PaymentMethod;
 use App\Models\Quote;
+use App\Models\SpaBooking;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -110,6 +111,78 @@ class AccountingService implements AccountingServiceInterface
         });
     }
 
+    public function createEntryForBookingPayment(
+        SpaBooking    $booking,
+        PaymentMethod $paymentMethod,
+        float         $amount,
+        ?string       $reference = null,
+        ?string       $notes = null
+    ): ?JournalEntry {
+        if (! $paymentMethod->account_id) {
+            return null;
+        }
+
+        $series = DocumentSeries::where('is_active', true)
+            ->where('document_type', 'recibo')
+            ->first();
+
+        if (! $series) {
+            return null;
+        }
+
+        $issuedBy = auth()->user();
+        $client   = $booking->pet->client;
+
+        return DB::transaction(function () use (
+            $booking, $paymentMethod, $amount, $reference, $notes, $series, $issuedBy, $client
+        ) {
+            $folio = $this->getNextFolio($series->id);
+
+            $document = Document::create([
+                'document_series_id' => $series->id,
+                'document_type'      => 'recibo',
+                'folio_number'       => $folio['number'],
+                'folio_display'      => $folio['display'],
+                'status'             => 'emitido',
+                'client_id'          => $client->id,
+                'branch_id'          => $issuedBy->branch_id ?? null,
+                'issued_by_user_id'  => $issuedBy->id,
+                'subtotal'           => $amount,
+                'tax_amount'         => 0,
+                'total'              => $amount,
+                'gateway_reference'  => $reference,
+                'documentable_id'    => $booking->id,
+                'documentable_type'  => SpaBooking::class,
+            ]);
+
+            $entry = JournalEntry::create([
+                'entry_date'         => now()->toDateString(),
+                'description'        => "Cobro {$folio['display']} — {$client->first_name} {$client->last_name}",
+                'status'             => 'aplicado',
+                'document_id'        => $document->id,
+                'branch_id'          => $document->branch_id,
+                'created_by_user_id' => $issuedBy->id,
+                'posted_by_user_id'  => $issuedBy->id,
+                'posted_at'          => now(),
+                'reference_id'       => $booking->id,
+                'reference_type'     => SpaBooking::class,
+                'notes'              => $notes,
+            ]);
+
+            $this->buildDebitLinesFromBooking($entry, $booking, $amount);
+
+            JournalEntryLine::create([
+                'journal_entry_id' => $entry->id,
+                'account_id'       => $paymentMethod->account_id,
+                'debit'            => 0,
+                'credit'           => $amount,
+                'description'      => $paymentMethod->name,
+            ]);
+
+            return $entry->load('lines.account', 'document');
+        });
+    }
+
     public function cancelEntry(JournalEntry $entry, User $cancelledBy): void
     {
         DB::transaction(function () use ($entry, $cancelledBy) {
@@ -158,6 +231,53 @@ class AccountingService implements AccountingServiceInterface
                 }
                 // Ajustar diferencia de centavos en el primer ítem
                 $diff = round($totalAmount - array_sum($byAccount), 2);
+                $firstKey = array_key_first($byAccount);
+                $byAccount[$firstKey] = round($byAccount[$firstKey] + $diff, 2);
+            }
+        }
+
+        foreach ($byAccount as $accountId => $amount) {
+            JournalEntryLine::create([
+                'journal_entry_id' => $entry->id,
+                'account_id'       => $accountId,
+                'debit'            => $amount,
+                'credit'           => 0,
+                'description'      => 'Ingreso por servicios',
+            ]);
+        }
+    }
+
+    private function buildDebitLinesFromBooking(JournalEntry $entry, SpaBooking $booking, float $totalAmount): void
+    {
+        $fallback  = Account::where('code', self::FALLBACK_INCOME_CODE)->first();
+        $byAccount = [];
+
+        $booking->load('services.service');
+
+        foreach ($booking->services as $bookingService) {
+            $accountId = $bookingService->service?->account_id ?? $fallback?->id;
+
+            if (! $accountId) {
+                throw new RuntimeException('No hay cuenta contable de respaldo (4900). Ejecuta el seeder de cuentas.');
+            }
+
+            $price = (float) ($bookingService->current_price ?? 0);
+            $byAccount[$accountId] = ($byAccount[$accountId] ?? 0) + $price;
+        }
+
+        if (empty($byAccount)) {
+            if (! $fallback) {
+                throw new RuntimeException('No hay cuenta contable de respaldo (4900). Ejecuta el seeder de cuentas.');
+            }
+            $byAccount[$fallback->id] = $totalAmount;
+        } else {
+            $itemsTotal = array_sum($byAccount);
+            if ($itemsTotal > 0 && round($itemsTotal, 2) !== round($totalAmount, 2)) {
+                $ratio = $totalAmount / $itemsTotal;
+                foreach ($byAccount as $accountId => $amount) {
+                    $byAccount[$accountId] = round($amount * $ratio, 2);
+                }
+                $diff     = round($totalAmount - array_sum($byAccount), 2);
                 $firstKey = array_key_first($byAccount);
                 $byAccount[$firstKey] = round($byAccount[$firstKey] + $diff, 2);
             }

@@ -6,6 +6,7 @@ use App\Models\Document;
 use App\Models\JournalEntry;
 use App\Models\PaymentMethod;
 use App\Models\Quote;
+use App\Models\SpaBooking;
 use App\Models\User;
 
 interface AccountingServiceInterface
@@ -30,6 +31,19 @@ interface AccountingServiceInterface
         ?string       $reference = null,
         ?string       $notes = null
     ): JournalEntry;
+
+    /**
+     * Crea un asiento contable para un cobro de cita, sin requerir un Quote formal.
+     * Selecciona automáticamente la primera serie de recibos activa.
+     * Devuelve null si no hay serie configurada o el método no tiene cuenta.
+     */
+    public function createEntryForBookingPayment(
+        SpaBooking    $booking,
+        PaymentMethod $paymentMethod,
+        float         $amount,
+        ?string       $reference = null,
+        ?string       $notes = null
+    ): ?JournalEntry;
 
     /**
      * Cancela un asiento y su documento de respaldo.

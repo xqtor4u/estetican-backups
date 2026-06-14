@@ -8,6 +8,8 @@
     <div class="card-body">
         @php
             $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');
+
+            // Pagos legacy (ligados al Quote vía CashLedger/BankLedger)
             $cashPayments  = $acceptedQuote
                 ? $booking->pet->client->cashLedgers()
                     ->where('payable_id', $acceptedQuote->id)
@@ -20,9 +22,15 @@
                     ->where('payable_type', \App\Models\Quote::class)
                     ->get()
                 : collect();
-            $allPayments = $cashPayments->concat($bankPayments)->sortBy('created_at');
+
+            // Pagos nuevos (ligados directamente al SpaBooking vía Payment model — cobros desde app móvil)
+            $newPayments = \App\Models\Payment::where('payable_type', \App\Models\SpaBooking::class)
+                ->where('payable_id', $booking->id)
+                ->get();
+
+            $allPayments = $cashPayments->concat($bankPayments)->concat($newPayments)->sortBy('created_at');
             $totalPaid   = (float) $allPayments->sum('amount');
-            $balance     = (float) ($acceptedQuote?->total_amount ?? 0) - $totalPaid;
+            $balance     = (float) ($acceptedQuote?->total_amount ?? $booking->total_estimated_price ?? 0) - $totalPaid;
         @endphp
 
         <div class="row g-4">

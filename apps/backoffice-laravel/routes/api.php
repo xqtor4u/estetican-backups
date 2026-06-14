@@ -45,4 +45,25 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/checkout',      [CheckinController::class, 'checkout']);
 
     Route::get('/settings/booking', [SettingController::class, 'booking']);
+
+    Route::get('/payment-methods', function () {
+        return \App\Models\PaymentMethod::where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($m) => [
+                'code'               => $m->code,
+                'name'               => $m->name,
+                'type'               => $m->type,
+                'requires_reference' => (bool) $m->requires_reference,
+                'icon'               => match ($m->type) {
+                    'cash'     => 'payments',
+                    'card'     => 'credit_card',
+                    'transfer' => 'account_balance',
+                    'crypto'   => 'currency_bitcoin',
+                    'gateway'  => 'link',
+                    default    => 'payment',
+                },
+                'dest' => $m->type === 'cash' ? 'caja' : 'banco',
+            ]);
+    });
 });

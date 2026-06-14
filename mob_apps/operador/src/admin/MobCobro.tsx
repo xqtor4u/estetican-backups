@@ -22,22 +22,25 @@ interface ExistingPayment {
   notes: string | null;
   created_at: string;
 }
-
-/* ── Constantes ──────────────────────────────────────────── */
-const METHODS = [
-  { value: 'Efectivo',       icon: 'payments',         dest: 'caja'  },
-  { value: 'Tarjeta débito', icon: 'credit_card',      dest: 'banco' },
-  { value: 'Tarjeta crédito',icon: 'credit_score',     dest: 'banco' },
-  { value: 'Transferencia',  icon: 'account_balance',  dest: 'banco' },
-] as const;
-type MethodValue = typeof METHODS[number]['value'];
+interface PaymentMethodOption {
+  code: string;
+  name: string;
+  type: string;
+  requires_reference: boolean;
+  icon: string;
+  dest: 'caja' | 'banco';
+}
 
 /* ── Estados de la pantalla ──────────────────────────────── */
-// form      → captura de método/monto
-// confirm   → "¿Se cobró exitosamente?"
-// saving    → enviando al servidor
-// done      → cobro registrado con éxito
 type Screen = 'form' | 'confirm' | 'saving' | 'done';
+interface DoneSummary {
+  amount: number;
+  methodName: string;
+  dest: 'caja' | 'banco';
+  bookingId: number;
+  petId: number;
+  petName: string;
+}
 
 /* ── Helpers ─────────────────────────────────────────────── */
 function fmtMoney(n: number) {
@@ -53,42 +56,46 @@ export function MobCobro() {
   const navigate = useNavigate();
 
   /* Datos remotos */
-  const [booking,  setBooking]  = useState<BookingSummary | null>(null);
-  const [existing, setExisting] = useState<ExistingPayment[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [loadErr,  setLoadErr]  = useState<string | null>(null);
+  const [booking,     setBooking]     = useState<BookingSummary | null>(null);
+  const [existing,    setExisting]    = useState<ExistingPayment[]>([]);
+  const [apiMethods,  setApiMethods]  = useState<PaymentMethodOption[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [loadErr,     setLoadErr]     = useState<string | null>(null);
 
   /* Formulario */
-  const [method,    setMethod]    = useState<MethodValue>('Efectivo');
-  const [dest,      setDest]      = useState<'caja' | 'banco'>('caja');
-  const [amountStr, setAmountStr] = useState('');
-  const [notes,     setNotes]     = useState('');
+  const [selectedCode, setSelectedCode] = useState<string>('');
+  const [amountStr,    setAmountStr]    = useState('');
+  const [reference,    setReference]    = useState('');
+  const [notes,        setNotes]        = useState('');
 
   /* Flujo de pantallas */
-  const [screen,  setScreen]  = useState<Screen>('form');
-  const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0); // cuántas veces falló el método
-
-  /* ── Sincronizar destino al elegir método ─────────────── */
-  useEffect(() => {
-    const m = METHODS.find(m => m.value === method);
-    if (m) setDest(m.dest);
-  }, [method]);
+  const [screen,      setScreen]      = useState<Screen>('form');
+  const [saveErr,     setSaveErr]     = useState<string | null>(null);
+  const [attempt,     setAttempt]     = useState(0);
+  const [doneSummary, setDoneSummary] = useState<DoneSummary | null>(null);
 
   /* ── Carga inicial ────────────────────────────────────── */
   useEffect(() => {
     if (!id) return;
     const load = async () => {
       try {
-        const [bRes, pRes] = await Promise.all([
+        const [bRes, pRes, mRes] = await Promise.all([
           fetch(`/api/bookings/${id}`),
           fetch(`/api/bookings/${id}/payments`),
+          fetch('/api/payment-methods'),
         ]);
         if (!bRes.ok) { setLoadErr('No se pudo cargar la cita.'); return; }
-        const [b, p]: [BookingSummary, { payments: ExistingPayment[]; paid: number }] =
-          await Promise.all([bRes.json(), pRes.json()]);
+
+        const [b, p, m]: [
+          BookingSummary,
+          { payments: ExistingPayment[]; paid: number },
+          PaymentMethodOption[]
+        ] = await Promise.all([bRes.json(), pRes.json(), mRes.json()]);
+
         setBooking(b);
         setExisting(p.payments);
+        setApiMethods(m);
+        setSelectedCode(m[0]?.code ?? '');
         const balance = Math.max(0, b.total - p.paid);
         setAmountStr(balance > 0 ? balance.toFixed(2) : b.total.toFixed(2));
       } catch {
@@ -100,6 +107,12 @@ export function MobCobro() {
     load();
   }, [id]);
 
+  /* ── Método seleccionado ──────────────────────────────── */
+  const selectedMethod = useMemo(
+    () => apiMethods.find(m => m.code === selectedCode) ?? null,
+    [apiMethods, selectedCode]
+  );
+
   /* ── Cálculos ─────────────────────────────────────────── */
   const totalPaid = useMemo(() => existing.reduce((s, p) => s + p.amount, 0), [existing]);
   const balance   = useMemo(() => Math.max(0, (booking?.total ?? 0) - totalPaid), [booking, totalPaid]);
@@ -107,7 +120,7 @@ export function MobCobro() {
 
   /* ── Paso 1: ir a confirmación ────────────────────────── */
   const goConfirm = () => {
-    if (amount <= 0 || !booking) return;
+    if (amount <= 0 || !booking || !selectedMethod) return;
     setSaveErr(null);
     setScreen('confirm');
   };
@@ -117,14 +130,13 @@ export function MobCobro() {
     setAttempt(a => a + 1);
     setSaveErr(null);
     setScreen('form');
-    // Limpiar el método para que el usuario elija otro conscientemente
-    setMethod('Efectivo');
-    setDest('caja');
+    setSelectedCode(apiMethods[0]?.code ?? '');
+    setReference('');
   };
 
   /* ── Paso 2: pago exitoso → registrar en BD ──────────── */
   const confirm = async () => {
-    if (!booking) return;
+    if (!booking || !selectedMethod) return;
     setScreen('saving');
     setSaveErr(null);
     try {
@@ -132,11 +144,11 @@ export function MobCobro() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount:          amount,
-          payment_method:  method,
-          destination:     dest,
-          notes:           notes.trim() || null,
-          mark_completed:  true,
+          amount:               amount,
+          payment_method_code:  selectedMethod.code,
+          reference:            reference.trim() || null,
+          notes:                notes.trim() || null,
+          mark_completed:       true,
         }),
       });
       const data = await res.json();
@@ -145,6 +157,14 @@ export function MobCobro() {
         setScreen('confirm');
         return;
       }
+      setDoneSummary({
+        amount,
+        methodName: selectedMethod.name,
+        dest:       selectedMethod.dest,
+        bookingId:  booking.id,
+        petId:      booking.pet.id,
+        petName:    booking.pet.name,
+      });
       setScreen('done');
     } catch {
       setSaveErr('No se pudo conectar con el servidor.');
@@ -154,27 +174,34 @@ export function MobCobro() {
 
   /* ══════════════════════════════════════════════════════ */
   /* ── Pantalla de éxito ────────────────────────────────── */
-  if (screen === 'done' && booking) {
+  if (screen === 'done' && doneSummary) {
+    const ds = doneSummary;
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-6 px-8 text-center pb-20">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-8 px-6 text-center">
         <div className="w-24 h-24 rounded-full bg-tertiary-container flex items-center justify-center">
-          <span className="material-symbols-outlined text-6xl text-on-tertiary-container"
-            style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          <span className="material-symbols-outlined text-on-tertiary-container"
+            style={{ fontSize: 56, fontVariationSettings: "'FILL' 1" }}>check_circle</span>
         </div>
-        <div>
-          <p className="text-2xl font-bold text-on-surface">{fmtMoney(amount)}</p>
-          <p className="text-sm text-on-surface-variant mt-1">{method} · {dest === 'caja' ? 'Caja' : 'Banco'}</p>
-          <p className="text-xs text-on-surface-variant/60 mt-2">
-            Cita #{booking.id} · {booking.pet.name} · completada
+
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-3xl font-bold text-on-surface">{fmtMoney(ds.amount)}</p>
+          <p className="text-base text-on-surface-variant">
+            {ds.methodName} · {ds.dest === 'caja' ? 'Caja' : 'Banco'}
+          </p>
+          <p className="text-sm text-on-surface-variant/60 mt-1">
+            Cita #{ds.bookingId} · {ds.petName} · completada
           </p>
         </div>
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          <button onClick={() => navigate(`/mascotas/${booking.pet.id}`, { replace: true })}
-            className="w-full py-3.5 rounded-2xl bg-primary text-on-primary font-semibold text-sm">
-            Ver ficha de {booking.pet.name}
+
+        <div className="flex flex-col gap-3 w-full">
+          <button
+            onClick={() => navigate(`/mascotas/${ds.petId}`, { replace: true })}
+            className="w-full py-4 rounded-2xl bg-primary text-on-primary font-semibold text-base">
+            Ver ficha de {ds.petName}
           </button>
-          <button onClick={() => navigate('/agenda', { replace: true })}
-            className="w-full py-3.5 rounded-2xl bg-surface-container border border-outline-variant text-on-surface font-semibold text-sm">
+          <button
+            onClick={() => navigate('/agenda', { replace: true })}
+            className="w-full py-4 rounded-2xl bg-surface-container border border-outline-variant text-on-surface font-semibold text-base">
             Ir a la agenda
           </button>
         </div>
@@ -183,9 +210,9 @@ export function MobCobro() {
   }
 
   /* ── Pantalla de confirmación ─────────────────────────── */
-  if ((screen === 'confirm' || screen === 'saving') && booking) {
-    const isSaving = screen === 'saving';
-    const methodIcon = METHODS.find(m => m.value === method)?.icon ?? 'payments';
+  if ((screen === 'confirm' || screen === 'saving') && booking && selectedMethod) {
+    const isSaving   = screen === 'saving';
+    const methodIcon = selectedMethod.icon;
     return (
       <div className="min-h-screen bg-background flex flex-col pb-20">
         <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
@@ -198,7 +225,6 @@ export function MobCobro() {
 
         <div className="flex flex-col items-center gap-6 px-6 pt-12">
 
-          {/* Resumen visual del cobro intentado */}
           <div className={`w-28 h-28 rounded-full flex items-center justify-center ${
             isSaving ? 'bg-surface-container' : 'bg-secondary-container'
           }`}>
@@ -210,10 +236,13 @@ export function MobCobro() {
 
           <div className="text-center">
             <p className="text-3xl font-bold text-on-surface">{fmtMoney(amount)}</p>
-            <p className="text-base text-on-surface-variant mt-1">{method}</p>
+            <p className="text-base text-on-surface-variant mt-1">{selectedMethod.name}</p>
             <p className="text-sm text-on-surface-variant">
-              {dest === 'caja' ? 'Se registrará en Caja' : 'Se registrará en Banco'}
+              {selectedMethod.dest === 'caja' ? 'Se registrará en Caja' : 'Se registrará en Banco'}
             </p>
+            {reference && (
+              <p className="text-xs text-on-surface-variant/70 mt-1">Ref: {reference}</p>
+            )}
           </div>
 
           {attempt > 0 && (
@@ -237,14 +266,11 @@ export function MobCobro() {
 
           {!isSaving && (
             <div className="flex flex-col gap-3 w-full mt-4">
-              {/* Botón principal: confirmar éxito → registrar */}
               <button onClick={confirm}
                 className="w-full flex items-center justify-center gap-2 bg-tertiary text-on-tertiary py-4 rounded-2xl font-bold text-base active:scale-[0.98] transition-transform">
                 <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                 Sí, el cobro fue exitoso
               </button>
-
-              {/* Botón secundario: el pago falló → volver a elegir */}
               <button onClick={paymentFailed}
                 className="w-full flex items-center justify-center gap-2 bg-error/10 text-error border border-error/30 py-4 rounded-2xl font-semibold text-base active:scale-[0.98] transition-transform">
                 <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>
@@ -379,50 +405,61 @@ export function MobCobro() {
           <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">
             Método de pago
           </p>
-          <div className="grid grid-cols-2 gap-2">
-            {METHODS.map(m => {
-              const sel = method === m.value;
-              return (
-                <button key={m.value} onClick={() => setMethod(m.value)}
-                  className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border transition-colors text-left ${
-                    sel
-                      ? 'bg-primary/10 border-primary/40 text-primary'
-                      : 'bg-surface-container border-outline-variant text-on-surface'
-                  }`}>
-                  <span className="material-symbols-outlined text-xl"
-                    style={{ fontVariationSettings: `'FILL' ${sel ? 1 : 0}` }}>{m.icon}</span>
-                  <span className="text-sm font-medium leading-tight">{m.value}</span>
-                </button>
-              );
-            })}
-          </div>
+          {apiMethods.length === 0 ? (
+            <p className="text-sm text-on-surface-variant/60 italic">
+              No hay métodos de pago configurados.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {apiMethods.map(m => {
+                const sel = selectedCode === m.code;
+                return (
+                  <button key={m.code} onClick={() => { setSelectedCode(m.code); setReference(''); }}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border transition-colors text-left ${
+                      sel
+                        ? 'bg-primary/10 border-primary/40 text-primary'
+                        : 'bg-surface-container border-outline-variant text-on-surface'
+                    }`}>
+                    <span className="material-symbols-outlined text-xl"
+                      style={{ fontVariationSettings: `'FILL' ${sel ? 1 : 0}` }}>{m.icon}</span>
+                    <span className="text-sm font-medium leading-tight">{m.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </section>
 
-        {/* ── Destino ─────────────────────────────────── */}
-        <section>
-          <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">
-            Destino
-            <span className="font-normal normal-case ml-1 text-on-surface-variant/50">
-              — {dest === 'caja' ? 'se registra en caja' : 'se registra en banco'}
+        {/* ── Destino (indicativo, no editable) ──────── */}
+        {selectedMethod && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-surface-container/60 rounded-xl">
+            <span className="material-symbols-outlined text-base text-on-surface-variant"
+              style={{ fontVariationSettings: "'FILL' 1" }}>
+              {selectedMethod.dest === 'caja' ? 'point_of_sale' : 'account_balance'}
             </span>
-          </p>
-          <div className="flex gap-2">
-            {(['caja', 'banco'] as const).map(d => (
-              <button key={d} onClick={() => setDest(d)}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl border font-semibold text-sm transition-colors ${
-                  dest === d
-                    ? 'bg-secondary-container text-on-secondary-container border-secondary-fixed'
-                    : 'bg-surface-container border-outline-variant text-on-surface-variant'
-                }`}>
-                <span className="material-symbols-outlined text-base"
-                  style={{ fontVariationSettings: `'FILL' ${dest === d ? 1 : 0}` }}>
-                  {d === 'caja' ? 'point_of_sale' : 'account_balance'}
-                </span>
-                {d === 'caja' ? 'Caja' : 'Banco'}
-              </button>
-            ))}
+            <p className="text-xs text-on-surface-variant">
+              Se registrará en <span className="font-semibold">
+                {selectedMethod.dest === 'caja' ? 'Caja' : 'Banco'}
+              </span>
+            </p>
           </div>
-        </section>
+        )}
+
+        {/* ── Referencia (cuando el método la requiere) ─ */}
+        {selectedMethod?.requires_reference && (
+          <section>
+            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">
+              Referencia <span className="font-normal normal-case text-on-surface-variant/50">(número de transacción, aprobación…)</span>
+            </p>
+            <input
+              type="text"
+              value={reference}
+              onChange={e => setReference(e.target.value)}
+              placeholder="Ej. TXN-0012345"
+              className="w-full bg-surface-container border border-outline-variant rounded-2xl px-4 py-3 text-sm text-on-surface outline-none focus:border-primary"
+            />
+          </section>
+        )}
 
         {/* ── Monto ───────────────────────────────────── */}
         <section>
@@ -451,7 +488,7 @@ export function MobCobro() {
             Notas <span className="font-normal normal-case text-on-surface-variant/50">(opcional)</span>
           </p>
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-            placeholder="Referencia, número de transacción…"
+            placeholder="Observaciones adicionales…"
             className="w-full bg-surface-container border border-outline-variant rounded-2xl px-4 py-3 text-sm text-on-surface outline-none focus:border-primary resize-none" />
         </section>
 
@@ -459,13 +496,13 @@ export function MobCobro() {
 
       {/* ── FAB ─────────────────────────────────────────── */}
       <div className="fixed bottom-16 left-4 right-4 z-30">
-        <button onClick={goConfirm} disabled={amount <= 0}
+        <button onClick={goConfirm} disabled={amount <= 0 || !selectedMethod}
           className="w-full flex items-center justify-center gap-2 bg-tertiary text-on-tertiary py-4 rounded-2xl text-base font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-40">
           <span className="material-symbols-outlined"
             style={{ fontVariationSettings: "'FILL' 1" }}>
-            {dest === 'caja' ? 'point_of_sale' : 'account_balance'}
+            {selectedMethod?.dest === 'caja' ? 'point_of_sale' : 'account_balance'}
           </span>
-          Cobrar {fmtMoney(amount)} · {dest === 'caja' ? 'Caja' : 'Banco'}
+          Cobrar {fmtMoney(amount)}{selectedMethod ? ` · ${selectedMethod.dest === 'caja' ? 'Caja' : 'Banco'}` : ''}
         </button>
       </div>
 

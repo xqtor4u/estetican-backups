@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'code',
     'operator_role_id',
+    'account_id',
     'type',
     'name',
     'description',
@@ -41,6 +42,11 @@ class Service extends Model
     public function executedServiceItems(): HasMany
     {
         return $this->hasMany(ExecutedServiceItem::class);
+    }
+
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(Account::class);
     }
 
     public function operatorRole(): BelongsTo
