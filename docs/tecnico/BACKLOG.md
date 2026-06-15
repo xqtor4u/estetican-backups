@@ -20,7 +20,6 @@
 
 | ID | Ítem | Tipo | Notas |
 |---|---|---|---|
-| BL-013 | Push a GitHub (rama `main`) — acumular commits de sesiones 13-14/06/2026 | Mantenimiento | `git push origin main` desde OPi |
 
 ### Prioridad Media — Funcionalidad de UI y Configuración
 
@@ -58,6 +57,8 @@
 | BL-005 | Cambiar password de `admin@localhost` desde la UI | 28/05/2026 | — |
 | BL-006 | Bloquear endpoint `/up` con secret key en `bootstrap/app.php` | 14/06/2026 | — |
 | BL-009 | Ecosistema Móvil: app `mob_apps/operador` conectada a API real | 13/06/2026 | — |
+| BL-013 | Push a GitHub + deploy mov.estetican.org en producción | 15/06/2026 | `338690a` |
+| BL-015 | App móvil: historial multi-modelo (SPA + Hotel) en MobPetJobs con filtros dinámicos | 15/06/2026 | `c9f1a2d` |
 | BL-010 | App móvil: foto de mascota no se mostraba — URL relativa → `Storage::disk('public')->url()` | 14/06/2026 | — |
 | BL-011 | App móvil: foto en PetSearch misma raíz que BL-010 — misma corrección | 14/06/2026 | — |
 | BL-014 | `booking_grace_minutes` — verificado, funciona correctamente | 14/06/2026 | — |

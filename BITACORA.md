@@ -1,5 +1,40 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 15/06/2026 - App Móvil Multi-modelo + Deploy mov.estetican.org
+
+### ✅ Logros y Cambios
+
+**Historial multi-modelo en MobPetJobs:**
+- `GET /api/work-order-types` — nuevo endpoint que lee `DocumentSeries` activos con `document_type LIKE 'orden_%'` y devuelve `[{code, label, icon}]`; si se agrega veterinaria en la BD aparece automáticamente en la app
+- `GET /api/pets/{pet}/bookings` — reescrito para fusionar `SpaBooking` + `HotelReservation` con forma normalizada `{id, model_type, fecha, fecha_iso, status, order_folio, descripcion, total}` ordenados por fecha desc
+- `MobPetJobs.tsx` — nueva fila de chips "Tipo" (solo visible si hay >1 tipo en BD); filtros de estado cubren ambos modelos (`fulfilled` de hotel = "Completada", `work_order` de SPA = "Pendiente"); ícono de tipo en columna Fecha
+
+**Infraestructura — mov.estetican.org (producción):**
+- Nuevo contenedor `estetican_mob` (nginx:alpine) en `compose.prod.yaml` — sirve `mob_apps/operador/dist/` como archivos estáticos
+- `mob_apps/operador/nginx.conf` — proxea `/api/` y `/storage/` al contenedor `app` (Laravel), SPA fallback con `try_files`
+- Cloudflare Tunnel `orangepi-estetican` — ruta `mov.estetican.org → http://192.168.100.250:80` agregada en "Published application routes"
+- NPM — proxy host `mov.estetican.org → estetican_mob:80` con certificado wildcard `*.estetican.org`
+- `https://mov.estetican.org` verificado y operando en producción
+
+**Workflow de actualización de la app móvil:**
+```bash
+cd /opt/www/estetican/mob_apps/operador && npm run build
+docker exec estetican_mob nginx -s reload
+```
+
+### 📁 Archivos Clave Modificados
+- `apps/backoffice-laravel/routes/api.php` — endpoints `work-order-types` y `pets/{pet}/bookings` actualizados
+- `apps/backoffice-laravel/compose.prod.yaml` — servicio `mob` agregado
+- `mob_apps/operador/nginx.conf` — nuevo, config nginx para contenedor estático
+- `mob_apps/operador/src/admin/MobPetJobs.tsx` — soporte multi-modelo completo
+
+### 🔄 Pendientes para Próxima Sesión
+- **BL-019** — Apertura/corte de caja (cash_sessions)
+- **BL-021** — Migrar datos históricos de ledgers a journal_entries
+- **BL-007** — Transform Rules Cloudflare
+
+---
+
 ## 📅 Sesión: 14/06/2026 - Módulo Contable Completo + Cobro Móvil
 
 ### ✅ Logros y Cambios
