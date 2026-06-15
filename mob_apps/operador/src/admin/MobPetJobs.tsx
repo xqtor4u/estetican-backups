@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { setNavCrumbs } from '../navState';
+import { getNavCrumbs, setNavCrumbs } from '../navState';
+import { getUserPrefs } from '../hooks/useUserPrefs';
 import { useSortable, SortBtn } from '../hooks/useSortable';
+import { ScreenHeader } from '../ScreenHeader';
 
 /* ── Tipos ──────────────────────────────────────────────── */
 interface WorkOrderType {
@@ -71,6 +73,8 @@ function shortDate(ymd: string): string {
 export function MobPetJobs() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const crumbs = getNavCrumbs();
+  const { showBreadcrumbs } = getUserPrefs();
 
   const [petName,        setPetName]        = useState('');
   const [bookings,       setBookings]       = useState<JobBooking[]>([]);
@@ -157,23 +161,20 @@ export function MobPetJobs() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
 
-      {/* ── Header ──────────────────────────────────────────── */}
-      <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
-        <button onClick={() => navigate(`/mascotas/${id}`)}
-          className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
-          <span className="material-symbols-outlined text-on-surface">arrow_back</span>
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-on-surface text-base leading-tight truncate">
-            Trabajos
-            <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal ml-1">MobPetJobs</span>
-          </p>
-          {petName && <p className="text-xs text-on-surface-variant truncate">{petName}</p>}
-        </div>
-        <span className="text-xs text-on-surface-variant/50 shrink-0">
-          {sorted.length} {sorted.length === 1 ? 'reg.' : 'regs.'}
-        </span>
-      </header>
+      <ScreenHeader
+        title="Trabajos"
+        screenTag="MobPetJobs"
+        subtitle={petName || undefined}
+        onBack={() => navigate(`/mascotas/${id}`)}
+        crumbs={crumbs}
+        showBreadcrumbs={showBreadcrumbs}
+        onCrumbClick={(to) => navigate(to)}
+        rightAction={
+          <span className="text-xs text-on-surface-variant/50">
+            {sorted.length} {sorted.length === 1 ? 'reg.' : 'regs.'}
+          </span>
+        }
+      />
 
       {/* ── Filtros de tipo (solo si hay >1 tipo configurado) ── */}
       {showTypeFilter && (

@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { getNavCrumbs } from '../navState';
+import { getUserPrefs } from '../hooks/useUserPrefs';
+import { ScreenHeader } from '../ScreenHeader';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface BookingSummary {
@@ -54,6 +57,8 @@ function fmtTime(iso: string) {
 export function MobCobro() {
   const { id }   = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const crumbs = getNavCrumbs();
+  const { showBreadcrumbs } = getUserPrefs();
 
   /* Datos remotos */
   const [booking,     setBooking]     = useState<BookingSummary | null>(null);
@@ -215,13 +220,11 @@ export function MobCobro() {
     const methodIcon = selectedMethod.icon;
     return (
       <div className="min-h-screen bg-background flex flex-col pb-20">
-        <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
-          <button onClick={() => !isSaving && setScreen('form')} disabled={isSaving}
-            className="p-2 rounded-full hover:bg-surface-container-high transition-colors disabled:opacity-40">
-            <span className="material-symbols-outlined text-on-surface">arrow_back</span>
-          </button>
-          <p className="font-bold text-on-surface text-base flex-1">¿Se cobró exitosamente?</p>
-        </header>
+        <ScreenHeader
+          title="¿Se cobró exitosamente?"
+          noCrumbs
+          onBack={() => !isSaving && setScreen('form')}
+        />
 
         <div className="flex flex-col items-center gap-6 px-6 pt-12">
 
@@ -310,19 +313,15 @@ export function MobCobro() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-32">
 
-      <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
-        <button onClick={() => navigate(-1)}
-          className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
-          <span className="material-symbols-outlined text-on-surface">arrow_back</span>
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-on-surface text-base leading-tight">
-            Cobro de servicio{' '}
-            <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobCobro</span>
-          </p>
-          <p className="text-xs text-on-surface-variant">Cita #{booking.id} · {booking.pet.name}</p>
-        </div>
-      </header>
+      <ScreenHeader
+        title="Cobro de servicio"
+        screenTag="MobCobro"
+        subtitle={`Cita #${booking.id} · ${booking.pet.name}`}
+        onBack={() => navigate(-1)}
+        crumbs={crumbs}
+        showBreadcrumbs={showBreadcrumbs}
+        onCrumbClick={(to) => navigate(to)}
+      />
 
       <div className="flex flex-col gap-5 px-4 pt-5">
 

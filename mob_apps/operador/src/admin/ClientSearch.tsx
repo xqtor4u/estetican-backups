@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { getNavCrumbs, setNavCrumbs } from '../navState';
+import { getUserPrefs } from '../hooks/useUserPrefs';
+import { ScreenHeader } from '../ScreenHeader';
 
 interface ClientRow {
   id: number;
@@ -39,9 +42,9 @@ export function ClientSearch() {
 
   const selectClient = (client: ClientRow) => {
     if (isSelecting) {
-      // Volver a la pantalla que pidió la selección, llevando el cliente elegido
       navigate(returnTo, { state: { selectedClient: { id: client.id, name: client.name } } });
     } else {
+      setNavCrumbs([{ label: 'Clientes', to: '/clientes' }]);
       navigate(`/clientes/${client.id}`);
     }
   };
@@ -50,25 +53,28 @@ export function ClientSearch() {
     navigate('/clientes/nuevo', { state: { returnTo } });
   };
 
+  const crumbs = getNavCrumbs();
+  const { showBreadcrumbs } = getUserPrefs();
+
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
-      {/* Header */}
-      <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
-          <span className="material-symbols-outlined text-on-surface">arrow_back</span>
-        </button>
-        <h1 className="font-bold text-lg text-on-surface flex-1">
-          {isSelecting ? 'Seleccionar dueño' : 'Clientes'}
-          <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal ml-1">{isSelecting ? 'MobCliSel' : 'MobCliSrch'}</span>
-        </h1>
-        <button
-          onClick={goNuevoCliente}
-          className="flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-sm font-semibold active:scale-95 transition-transform"
-        >
-          <span className="material-symbols-outlined text-lg">add</span>
-          Nuevo
-        </button>
-      </header>
+      <ScreenHeader
+        title={isSelecting ? 'Seleccionar dueño' : 'Clientes'}
+        screenTag={isSelecting ? 'MobCliSel' : 'MobCliSrch'}
+        onBack={() => navigate(-1)}
+        crumbs={crumbs}
+        showBreadcrumbs={showBreadcrumbs}
+        onCrumbClick={(to) => navigate(to)}
+        rightAction={
+          <button
+            onClick={goNuevoCliente}
+            className="flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-sm font-semibold active:scale-95 transition-transform"
+          >
+            <span className="material-symbols-outlined text-lg">add</span>
+            Nuevo
+          </button>
+        }
+      />
 
       {/* Banner de contexto */}
       {isSelecting && (

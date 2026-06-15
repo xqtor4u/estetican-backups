@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { getNavCrumbs } from '../navState';
+import { getUserPrefs } from '../hooks/useUserPrefs';
+import { ScreenHeader } from '../ScreenHeader';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface PetMin   { id: number; name: string; species: string | null; photo: string | null }
@@ -61,6 +64,8 @@ function slotAddMins(slot: string, mins: number): string {
 export function MobCitaNueva() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const crumbs = getNavCrumbs();
+  const { showBreadcrumbs } = getUserPrefs();
 
   const today = useMemo(() => new Date(), []);
 
@@ -269,41 +274,28 @@ export function MobCitaNueva() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-28">
 
-      {/* ── Header ───────────────────────────────────────── */}
-      <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
-        >
-          <span className="material-symbols-outlined text-on-surface">arrow_back</span>
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-on-surface text-base leading-tight">
-            Nueva cita{' '}
-            <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobCitaNueva</span>
-          </p>
-          {pet && (
-            <p className="text-xs text-on-surface-variant truncate">{pet.name}{pet.species ? ` · ${pet.species}` : ''}</p>
-          )}
-        </div>
-        <button
-          onClick={save}
-          disabled={!canSave || saving}
-          className="flex items-center gap-1.5 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-all disabled:opacity-40 disabled:scale-100"
-        >
-          {saving ? (
-            <>
-              <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
-              Guardando…
-            </>
-          ) : (
-            <>
-              <span className="material-symbols-outlined text-base">event_available</span>
-              Agendar
-            </>
-          )}
-        </button>
-      </header>
+      <ScreenHeader
+        title="Nueva cita"
+        screenTag="MobCitaNueva"
+        subtitle={pet ? `${pet.name}${pet.species ? ` · ${pet.species}` : ''}` : undefined}
+        onBack={() => navigate(-1)}
+        crumbs={crumbs}
+        showBreadcrumbs={showBreadcrumbs}
+        onCrumbClick={(to) => navigate(to)}
+        rightAction={
+          <button
+            onClick={save}
+            disabled={!canSave || saving}
+            className="flex items-center gap-1.5 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-all disabled:opacity-40 disabled:scale-100"
+          >
+            {saving ? (
+              <><span className="material-symbols-outlined text-base animate-spin">progress_activity</span>Guardando…</>
+            ) : (
+              <><span className="material-symbols-outlined text-base">event_available</span>Agendar</>
+            )}
+          </button>
+        }
+      />
 
       {/* ── Banner mascota ───────────────────────────────── */}
       {pet && (
