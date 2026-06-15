@@ -46,39 +46,66 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
 
     Route::get('/settings/booking', [SettingController::class, 'booking']);
 
+    // Tipos de orden activos — fuente de verdad desde DocumentSeries
+    Route::get('/work-order-types', function () {
+        static $map = [
+            'orden_spa'   => ['code' => 'spa',   'label' => 'SPA',         'icon' => 'content_cut'],
+            'orden_hotel' => ['code' => 'hotel', 'label' => 'Hotel',       'icon' => 'hotel'],
+            'orden_vet'   => ['code' => 'vet',   'label' => 'Veterinaria', 'icon' => 'medical_services'],
+        ];
+
+        return response()->json(
+            \App\Models\DocumentSeries::where('is_active', true)
+                ->where('document_type', 'LIKE', 'orden_%')
+                ->orderBy('document_type')
+                ->get()
+                ->map(fn ($s) => $map[$s->document_type] ?? [
+                    'code'  => str_replace('orden_', '', $s->document_type),
+                    'label' => ucfirst(str_replace('orden_', '', $s->document_type)),
+                    'icon'  => 'work',
+                ])
+                ->unique('code')
+                ->values()
+        );
+    });
+
+    // Historial de citas/reservaciones de una mascota (todos los modelos de negocio)
     Route::get('/pets/{pet}/bookings', function (\App\Models\Pet $pet) {
-        $bookings = \App\Models\SpaBooking::where('pet_id', $pet->id)
+        // SPA
+        $spa = \App\Models\SpaBooking::where('pet_id', $pet->id)
             ->with(['services.service'])
             ->orderByDesc('scheduled_at')
-            ->get();
-
-        return response()->json($bookings->map(function ($b) {
-            $payments = \App\Models\Payment::where('payable_type', \App\Models\SpaBooking::class)
-                ->where('payable_id', $b->id)
-                ->orderBy('created_at')
-                ->get();
-
-            return [
+            ->get()
+            ->map(fn ($b) => [
                 'id'          => $b->id,
+                'model_type'  => 'spa',
                 'fecha'       => $b->scheduled_at->format('Y-m-d'),
                 'fecha_iso'   => $b->scheduled_at->toISOString(),
                 'status'      => $b->status,
                 'order_folio' => $b->order_folio,
-                'services'    => $b->services->map(fn ($s) => [
-                    'name'             => $s->service?->name ?? '—',
-                    'price'            => (float) ($s->current_price ?? 0),
-                    'duration_minutes' => $s->service?->duration_minutes,
-                ])->values(),
-                'payments'    => $payments->map(fn ($p) => [
-                    'id'             => $p->id,
-                    'amount'         => (float) $p->amount,
-                    'payment_method' => $p->payment_method ?? 'N/A',
-                    'category'       => $p->category,
-                    'destination'    => $p->destination,
-                    'created_at'     => $p->created_at->format('Y-m-d H:i:s'),
-                ])->values(),
-            ];
-        }));
+                'descripcion' => $b->services->map(fn ($s) => $s->service?->name ?? '—')->filter()->join(' · ') ?: '—',
+                'total'       => (float) ($b->total_estimated_price ?? $b->services->sum('current_price')),
+            ]);
+
+        // Hotel
+        $hotel = \App\Models\HotelReservation::where('pet_id', $pet->id)
+            ->orderByDesc('start_at')
+            ->get()
+            ->map(fn ($h) => [
+                'id'          => $h->id,
+                'model_type'  => 'hotel',
+                'fecha'       => $h->start_at->format('Y-m-d'),
+                'fecha_iso'   => $h->start_at->toISOString(),
+                'status'      => $h->status,
+                'order_folio' => $h->order_folio,
+                'descripcion' => 'Entrada ' . $h->start_at->format('d/m') .
+                                 ($h->end_at ? ' → Salida ' . $h->end_at->format('d/m') : ''),
+                'total'       => 0,
+            ]);
+
+        return response()->json(
+            $spa->concat($hotel)->sortByDesc('fecha_iso')->values()
+        );
     });
 
     Route::get('/payment-methods', function () {
