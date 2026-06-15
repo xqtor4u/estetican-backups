@@ -1,7 +1,7 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useUserPrefs } from '../hooks/useUserPrefs';
+import { ScreenHeader } from '../ScreenHeader';
 
 function Toggle({ value, onChange, label, description }: {
   value: boolean;
@@ -26,26 +26,13 @@ function Toggle({ value, onChange, label, description }: {
 }
 
 export function MobUserConfig() {
-  const navigate = useNavigate();
   const { user }  = useAuth();
   const { prefs, update } = useUserPrefs();
 
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
 
-      {/* Header */}
-      <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
-        >
-          <span className="material-symbols-outlined text-on-surface">arrow_back</span>
-        </button>
-        <p className="font-bold text-on-surface text-base">
-          Configuración personal{' '}
-          <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobUserConf</span>
-        </p>
-      </header>
+      <ScreenHeader title="Configuración personal" screenTag="MobUserConf" />
 
       {/* Perfil */}
       {user && (
