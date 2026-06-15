@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSortable, SortBtn } from '../hooks/useSortable';
-import { setNavCrumbs } from '../navState';
-import { ScreenHeader } from '../ScreenHeader';
+import { getUserPrefs } from '../hooks/useUserPrefs';
+import { getNavCrumbs } from '../navState';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface BookingDetail {
@@ -122,6 +122,10 @@ function parseDateLocal(datetimeStr: string): Date {
 export function MobCitaDet() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+  /* Breadcrumbs del módulo navState — más confiable que location.state */
+  const crumbs = getNavCrumbs();
+  const showBreadcrumbs = getUserPrefs().showBreadcrumbs;
 
   /* Toast de éxito */
   const [toast, setToast] = useState<string | null>(null);
@@ -391,14 +395,41 @@ export function MobCitaDet() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-28">
 
-      <ScreenHeader
-        title={`Cita #${booking.id}`}
-        screenTag="MobCitaDet"
-        subtitle={booking.pet.name}
-        onBack={() => editing ? setEditing(false) : navigate(-1)}
-        backIcon={editing ? 'close' : 'arrow_back'}
-        noCrumbs={editing}
-        rightAction={editing ? (
+      {/* ── Header ───────────────────────────────────────── */}
+      <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
+        <button onClick={() => editing ? setEditing(false) : navigate(-1)}
+          className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+          <span className="material-symbols-outlined text-on-surface">
+            {editing ? 'close' : 'arrow_back'}
+          </span>
+        </button>
+        <div className="flex-1 min-w-0">
+          {showBreadcrumbs && crumbs.length > 0 ? (
+            <div className="flex items-center gap-1 overflow-hidden">
+              {crumbs.map((c, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <span className="text-xs text-on-surface-variant/50 shrink-0">›</span>}
+                  <button
+                    onClick={() => navigate(c.to)}
+                    className="text-xs text-primary font-medium truncate active:opacity-70"
+                  >
+                    {c.label}
+                  </button>
+                </React.Fragment>
+              ))}
+              <span className="text-xs text-on-surface-variant/50 shrink-0">›</span>
+              <span className="text-sm font-bold text-on-surface truncate">Cita #{booking.id}</span>
+            </div>
+          ) : (
+            <p className="font-bold text-on-surface text-base leading-tight truncate">
+              Cita #{booking.id}{' '}
+              <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobCitaDet</span>
+            </p>
+          )}
+          <p className="text-xs text-on-surface-variant truncate">{booking.pet.name}</p>
+        </div>
+
+        {editing ? (
           <button onClick={saveEdit} disabled={saving}
             className="flex items-center gap-1.5 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-all disabled:opacity-40">
             {saving
@@ -411,7 +442,7 @@ export function MobCitaDet() {
             <span className="material-symbols-outlined text-on-surface">edit</span>
           </button>
         ) : null}
-      />
+      </header>
 
       {/* ── Franja de estado ─────────────────────────────── */}
       <div className={`h-1.5 w-full ${STATUS_BAR[booking.status] ?? 'bg-outline-variant'}`} />
@@ -442,7 +473,7 @@ export function MobCitaDet() {
 
         {/* ── Mascota y cliente ─────────────────────────── */}
         <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
-          <button onClick={() => { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/mascotas/${booking.pet.id}`); }}
+          <button onClick={() => navigate(`/mascotas/${booking.pet.id}`)}
             className="w-full flex items-center gap-3 px-4 py-3 active:bg-surface-container transition-colors">
             <div className="w-12 h-12 rounded-xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
               {booking.pet.photo
@@ -457,7 +488,7 @@ export function MobCitaDet() {
           </button>
 
           {booking.client && (
-            <button onClick={() => { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/clientes/${booking.client!.id}`); }}
+            <button onClick={() => navigate(`/clientes/${booking.client!.id}`)}
               className="w-full flex items-center gap-3 px-4 py-3 border-t border-outline-variant active:bg-surface-container transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
               <div className="flex-1 text-left min-w-0">
@@ -478,7 +509,7 @@ export function MobCitaDet() {
                   key={action.value}
                   disabled={saving}
                   onClick={() => {
-                    if (action.cobro)                { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/citas/${booking.id}/cobro`); return; }
+                    if (action.cobro)                { navigate(`/citas/${booking.id}/cobro`); return; }
                     if (action.value === 'cancelled') { setShowCancel(true);  return; }
                     if (action.value === 'no_show')   { setShowNoShow(true);  return; }
                     if (action.value === 'work_order') {

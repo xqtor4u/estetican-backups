@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { setNavCrumbs } from '../navState';
 
 interface ClientRow {
   id: number;
@@ -43,7 +42,6 @@ export function ClientSearch() {
       // Volver a la pantalla que pidió la selección, llevando el cliente elegido
       navigate(returnTo, { state: { selectedClient: { id: client.id, name: client.name } } });
     } else {
-      setNavCrumbs([{ label: 'Clientes', to: '/clientes/seleccionar' }]);
       navigate(`/clientes/${client.id}`);
     }
   };

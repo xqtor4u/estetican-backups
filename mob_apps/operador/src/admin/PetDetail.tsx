@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { setNavCrumbs } from '../navState';
-import { ScreenHeader } from '../ScreenHeader';
 
 interface Owner { id: number; name: string; phone: string | null }
 interface Alert { id: number; description: string }
@@ -396,11 +395,14 @@ export function PetDetail() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
 
-      <ScreenHeader
-        title={editing ? edits.name || pet.name : pet.name}
-        screenTag="MobPetDet"
-        noCrumbs={editing}
-        rightAction={editing ? (
+      {/* ── Header ───────────────────────────────────────── */}
+      <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
+        <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+          <span className="material-symbols-outlined text-on-surface">arrow_back</span>
+        </button>
+        <h1 className="font-bold text-lg text-on-surface flex-1 truncate">{editing ? edits.name || pet.name : pet.name} <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobPetDet</span></h1>
+
+        {editing ? (
           <div className="flex items-center gap-2">
             <button onClick={cancelEdit} className="px-3 py-1.5 rounded-full text-sm text-on-surface-variant border border-outline-variant active:scale-95 transition-transform">
               Cancelar
@@ -413,8 +415,7 @@ export function PetDetail() {
           </div>
         ) : (
           <div className="flex items-center gap-1">
-            <button onClick={() => { setNavCrumbs([{ label: pet.name, to: `/mascotas/${pet.id}` }]); navigate(`/mascotas/${pet.id}/cita/nueva`); }}
-              className="p-2 rounded-full hover:bg-surface-container-high transition-colors" title="Agregar cita">
+            <button onClick={() => navigate(`/mascotas/${pet.id}/cita/nueva`)} className="p-2 rounded-full hover:bg-surface-container-high transition-colors" title="Agregar cita">
               <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>event_add</span>
             </button>
             <button onClick={() => setEditing(true)} className="p-2 rounded-full hover:bg-surface-container-high transition-colors" title="Editar">
@@ -422,7 +423,7 @@ export function PetDetail() {
             </button>
           </div>
         )}
-      />
+      </header>
 
       <div className="flex flex-col gap-4 px-4 pt-5 pb-4">
 
@@ -528,7 +529,7 @@ export function PetDetail() {
             )}
 
             {/* Botón de historial de trabajos */}
-            <button onClick={() => { setNavCrumbs([{ label: pet.name, to: `/mascotas/${pet.id}` }]); navigate(`/mascotas/${pet.id}/trabajos`); }}
+            <button onClick={() => navigate(`/mascotas/${pet.id}/trabajos`)}
               className="w-full flex items-center gap-3 bg-surface border border-outline-variant rounded-2xl px-4 py-3 active:bg-surface-container transition-colors text-left">
               <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>work_history</span>
               <div className="flex-1 min-w-0">

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { setNavCrumbs } from '../navState';
-import { ScreenHeader } from '../ScreenHeader';
 import { useSortable, SortBtn } from '../hooks/useSortable';
 
 /* ── Tipos ──────────────────────────────────────────────── */
@@ -158,17 +157,23 @@ export function MobPetJobs() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
 
-      <ScreenHeader
-        title="Trabajos"
-        screenTag="MobPetJobs"
-        subtitle={petName || undefined}
-        onBack={() => navigate(`/mascotas/${id}`)}
-        rightAction={
-          <span className="text-xs text-on-surface-variant/50">
-            {sorted.length} {sorted.length === 1 ? 'reg.' : 'regs.'}
-          </span>
-        }
-      />
+      {/* ── Header ──────────────────────────────────────────── */}
+      <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
+        <button onClick={() => navigate(`/mascotas/${id}`)}
+          className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+          <span className="material-symbols-outlined text-on-surface">arrow_back</span>
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-on-surface text-base leading-tight truncate">
+            Trabajos
+            <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal ml-1">MobPetJobs</span>
+          </p>
+          {petName && <p className="text-xs text-on-surface-variant truncate">{petName}</p>}
+        </div>
+        <span className="text-xs text-on-surface-variant/50 shrink-0">
+          {sorted.length} {sorted.length === 1 ? 'reg.' : 'regs.'}
+        </span>
+      </header>
 
       {/* ── Filtros de tipo (solo si hay >1 tipo configurado) ── */}
       {showTypeFilter && (
