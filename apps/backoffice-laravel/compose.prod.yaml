@@ -71,6 +71,19 @@ services:
       retries: 3
       timeout: 5s
 
+  mob:
+    image: nginx:alpine
+    container_name: estetican_mob
+    restart: unless-stopped
+    volumes:
+      - '../../mob_apps/operador/dist:/usr/share/nginx/html:ro'
+      - '../../mob_apps/operador/nginx.conf:/etc/nginx/conf.d/default.conf:ro'
+    networks:
+      - estetican
+      - proxy_net
+    depends_on:
+      - app
+
 networks:
   estetican:
     driver: bridge
