@@ -56,7 +56,6 @@ export function MobPetJobs() {
   const [petName,      setPetName]      = useState('');
   const [bookings,     setBookings]     = useState<JobBooking[]>([]);
   const [loading,      setLoading]      = useState(true);
-  const [showFilter,   setShowFilter]   = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pendientes');
   const [dateRange,    setDateRange]    = useState<DateRange>(0);
 
@@ -110,18 +109,6 @@ export function MobPetJobs() {
   const { sortKey, direction, toggle, sorted } =
     useSortable<JobRow>(filteredRows, 'fecha_iso', 'desc');
 
-  /* Etiqueta de filtro activo */
-  const filterLabel = useMemo(() => {
-    const parts: string[] = [];
-    if (statusFilter !== 'todas') {
-      parts.push({ pendientes: 'Pendientes', completadas: 'Completadas', canceladas: 'Canceladas' }[statusFilter] ?? statusFilter);
-    }
-    if (dateRange > 0) parts.push(`últimos ${dateRange} días`);
-    return parts.length > 0 ? parts.join(' · ') : 'Todos los trabajos';
-  }, [statusFilter, dateRange]);
-
-  const hasActiveFilter = statusFilter !== 'pendientes' || dateRange > 0;
-
   /* ── Render ─────────────────────────────────────────────── */
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -145,23 +132,41 @@ export function MobPetJobs() {
           </p>
           {petName && <p className="text-xs text-on-surface-variant truncate">{petName}</p>}
         </div>
-        <button onClick={() => setShowFilter(true)}
-          className="relative p-2 rounded-full hover:bg-surface-container-high transition-colors">
-          <span className="material-symbols-outlined text-on-surface">filter_list</span>
-          {hasActiveFilter && (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
-          )}
-        </button>
+        <span className="text-xs text-on-surface-variant/50 shrink-0">
+          {sorted.length} {sorted.length === 1 ? 'reg.' : 'regs.'}
+        </span>
       </header>
 
-      {/* ── Barra de filtro activo ───────────────────────────── */}
-      <div className="px-4 py-2 flex items-center gap-2 border-b border-outline-variant bg-surface/80">
-        <span className="material-symbols-outlined text-sm text-on-surface-variant">filter_alt</span>
-        <span className="text-xs text-on-surface-variant flex-1 truncate">{filterLabel}</span>
-        <span className="text-xs text-on-surface-variant/50 shrink-0">
-          {sorted.length} {sorted.length === 1 ? 'registro' : 'registros'}
-        </span>
+      {/* ── Filtros de estado ────────────────────────────────── */}
+      <div className="bg-surface border-b border-outline-variant px-3 py-2 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+        {(['pendientes', 'completadas', 'canceladas', 'todas'] as StatusFilter[]).map(f => (
+          <button key={f} onClick={() => setStatusFilter(f)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 border transition-colors ${
+              statusFilter === f
+                ? 'bg-primary text-on-primary border-primary'
+                : 'bg-surface-container text-on-surface-variant border-outline-variant'
+            }`}>
+            {{ pendientes: 'Pendientes', completadas: 'Completadas', canceladas: 'Canceladas', todas: 'Todas' }[f]}
+          </button>
+        ))}
       </div>
+
+      {/* ── Filtro de período (solo si no es pendientes) ─────── */}
+      {statusFilter !== 'pendientes' && (
+        <div className="bg-surface border-b border-outline-variant px-3 py-1.5 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+          <span className="text-[10px] text-on-surface-variant/60 shrink-0 uppercase tracking-wide">Período:</span>
+          {([30, 90, 0] as DateRange[]).map(d => (
+            <button key={d} onClick={() => setDateRange(d)}
+              className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 border transition-colors ${
+                dateRange === d
+                  ? 'bg-secondary text-on-secondary border-secondary'
+                  : 'bg-surface-container text-on-surface-variant border-outline-variant'
+              }`}>
+              {d === 0 ? 'Todo' : `${d} días`}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Tabla ────────────────────────────────────────────── */}
       {sorted.length === 0 ? (
@@ -228,55 +233,6 @@ export function MobPetJobs() {
         </div>
       )}
 
-      {/* ── Bottom sheet de filtros ──────────────────────────── */}
-      {showFilter && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-            onClick={() => setShowFilter(false)} />
-          <div className="fixed left-0 right-0 bottom-0 z-50 bg-surface rounded-t-3xl shadow-2xl px-4 pb-8 pt-3">
-            {/* Asa */}
-            <div className="flex justify-center mb-4">
-              <div className="w-10 h-1 rounded-full bg-outline-variant" />
-            </div>
-            <p className="text-sm font-bold text-on-surface mb-4">Filtrar trabajos</p>
-
-            {/* Filtro por estado */}
-            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Estado</p>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {(['pendientes', 'completadas', 'canceladas', 'todas'] as StatusFilter[]).map(f => (
-                <button key={f} onClick={() => setStatusFilter(f)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                    statusFilter === f
-                      ? 'bg-primary text-on-primary border-primary'
-                      : 'bg-surface-container text-on-surface-variant border-outline-variant'
-                  }`}>
-                  {{ pendientes: 'Pendientes', completadas: 'Completadas', canceladas: 'Canceladas', todas: 'Todas' }[f]}
-                </button>
-              ))}
-            </div>
-
-            {/* Filtro por período */}
-            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Período</p>
-            <div className="flex gap-2 mb-6">
-              {([30, 90, 0] as DateRange[]).map(d => (
-                <button key={d} onClick={() => setDateRange(d)}
-                  className={`flex-1 py-2 rounded-full text-xs font-semibold border transition-colors ${
-                    dateRange === d
-                      ? 'bg-secondary text-on-secondary border-secondary'
-                      : 'bg-surface-container text-on-surface-variant border-outline-variant'
-                  }`}>
-                  {d === 0 ? 'Todo' : `${d} días`}
-                </button>
-              ))}
-            </div>
-
-            <button onClick={() => setShowFilter(false)}
-              className="w-full py-3 bg-primary text-on-primary rounded-2xl font-semibold text-sm active:scale-[0.98] transition-transform">
-              Aplicar filtro
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }
