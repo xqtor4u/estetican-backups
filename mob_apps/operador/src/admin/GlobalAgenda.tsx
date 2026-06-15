@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { setNavCrumbs } from '../navState';
 
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
 interface Branch   { id: number; name: string }
@@ -240,7 +241,7 @@ export function GlobalAgenda() {
               {vencidas.map(v => (
                 <button
                   key={v.id}
-                  onClick={() => navigate(`/citas/${v.id}`, { state: { crumbs: [{ label: 'Agenda', to: '/agenda' }] } })}
+                  onClick={() => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate(`/citas/${v.id}`); }}
                   className="flex items-center gap-3 px-4 py-3 text-left active:bg-error/10 transition-colors w-full"
                 >
                   <div className="w-8 h-8 rounded-lg bg-error/10 overflow-hidden flex items-center justify-center shrink-0">
@@ -283,7 +284,7 @@ export function GlobalAgenda() {
               <div
                 key={b.id}
                 className="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
-                onClick={() => navigate(`/citas/${b.id}`, { state: { crumbs: [{ label: 'Agenda', to: '/agenda' }] } })}
+                onClick={() => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate(`/citas/${b.id}`); }}
               >
                 {/* Franja de estado */}
                 <div className={`h-1 w-full ${

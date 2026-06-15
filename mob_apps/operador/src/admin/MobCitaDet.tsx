@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useSortable, SortBtn } from '../hooks/useSortable';
 import { getUserPrefs } from '../hooks/useUserPrefs';
+import { getNavCrumbs } from '../navState';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface BookingDetail {
@@ -121,10 +122,9 @@ function parseDateLocal(datetimeStr: string): Date {
 export function MobCitaDet() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
 
-  /* Breadcrumbs pasados por quien navegó aquí */
-  const crumbs: { label: string; to: string }[] = (location.state as any)?.crumbs ?? [];
+  /* Breadcrumbs del módulo navState — más confiable que location.state */
+  const crumbs = getNavCrumbs();
   const showBreadcrumbs = getUserPrefs().showBreadcrumbs;
 
   /* Toast de éxito */
@@ -405,20 +405,20 @@ export function MobCitaDet() {
         </button>
         <div className="flex-1 min-w-0">
           {showBreadcrumbs && crumbs.length > 0 ? (
-            <div className="flex items-center gap-1 text-xs text-on-surface-variant overflow-hidden">
+            <div className="flex items-center gap-1 overflow-hidden">
               {crumbs.map((c, i) => (
                 <React.Fragment key={i}>
-                  {i > 0 && <span className="opacity-40 shrink-0">›</span>}
+                  {i > 0 && <span className="text-xs text-on-surface-variant/50 shrink-0">›</span>}
                   <button
                     onClick={() => navigate(c.to)}
-                    className="truncate hover:text-primary transition-colors"
+                    className="text-xs text-primary font-medium truncate active:opacity-70"
                   >
                     {c.label}
                   </button>
                 </React.Fragment>
               ))}
-              <span className="opacity-40 shrink-0">›</span>
-              <span className="font-semibold text-on-surface truncate">Cita #{booking.id}</span>
+              <span className="text-xs text-on-surface-variant/50 shrink-0">›</span>
+              <span className="text-sm font-bold text-on-surface truncate">Cita #{booking.id}</span>
             </div>
           ) : (
             <p className="font-bold text-on-surface text-base leading-tight truncate">

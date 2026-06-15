@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { setNavCrumbs } from '../navState';
 
 interface Owner { id: number; name: string; phone: string | null }
 interface Alert { id: number; description: string }
@@ -511,7 +512,7 @@ export function PetDetail() {
               <div className="flex flex-col gap-2">
                 <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Próximas citas</p>
                 {pet.upcoming_bookings.map(b => (
-                  <button key={b.id} onClick={() => navigate(`/citas/${b.id}`, { state: { crumbs: [{ label: pet.name, to: `/mascotas/${pet.id}` }] } })}
+                  <button key={b.id} onClick={() => { setNavCrumbs([{ label: pet.name, to: `/mascotas/${pet.id}` }]); navigate(`/citas/${b.id}`); }}
                     className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center gap-3 w-full text-left active:bg-surface-container transition-colors">
                     <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>event</span>
                     <div className="flex-1">

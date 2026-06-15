@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { setNavCrumbs } from '../navState';
 import { useSortable, SortBtn } from '../hooks/useSortable';
 
 /* ── Tipos ──────────────────────────────────────────────── */
@@ -140,9 +141,8 @@ export function MobPetJobs() {
 
   function handleRowTap(row: JobRow) {
     if (row.model_type === 'spa') {
-      navigate(`/citas/${row.id}`, {
-        state: { crumbs: [{ label: petName || 'Mascota', to: `/mascotas/${id}` }] },
-      });
+      setNavCrumbs([{ label: petName || 'Mascota', to: `/mascotas/${id}` }]);
+      navigate(`/citas/${row.id}`);
     }
     // otros modelos: vista de detalle pendiente
   }
