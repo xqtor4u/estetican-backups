@@ -14,7 +14,8 @@ import { TeamPanel } from './admin/TeamPanel';
 import { GlobalAgenda } from './admin/GlobalAgenda';
 import { MobCitaNueva } from './admin/MobCitaNueva';
 import { MobCitaDet } from './admin/MobCitaDet';
-import { MobCobro }  from './admin/MobCobro';
+import { MobCobro }    from './admin/MobCobro';
+import { MobPetJobs } from './admin/MobPetJobs';
 
 /* ═══════════════════════════════════════════════════════════
    FUENTE ÚNICA DEL MENÚ — agregar secciones aquí
@@ -362,6 +363,7 @@ export default function App() {
             <Route path="/directorio/asignar"   element={<AdminLayout><AssignService /></AdminLayout>} />
             <Route path="/mascotas"                    element={<AdminLayout><PetSearch /></AdminLayout>} />
             <Route path="/mascotas/nuevo"             element={<AdminLayout><PetDetail /></AdminLayout>} />
+            <Route path="/mascotas/:id/trabajos"      element={<AdminLayout><MobPetJobs /></AdminLayout>} />
             <Route path="/mascotas/:id/cita/nueva"    element={<AdminLayout><MobCitaNueva /></AdminLayout>} />
             <Route path="/citas/:id"                  element={<AdminLayout><MobCitaDet /></AdminLayout>} />
             <Route path="/citas/:id/cobro"            element={<AdminLayout><MobCobro /></AdminLayout>} />

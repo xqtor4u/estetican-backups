@@ -1,44 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { useSortable, SortBtn } from '../hooks/useSortable';
 
 interface Owner { id: number; name: string; phone: string | null }
 interface Alert { id: number; description: string }
 interface Booking { id: number; date: string; time: string; status: string }
 
-interface PetBookingSvc { name: string; price: number; duration_minutes: number | null }
-interface PetBookingPmt { id: number; amount: number; payment_method: string; category: string; destination: string; created_at: string }
-interface PetBooking    { id: number; fecha: string; fecha_iso: string; status: string; order_folio: string | null; services: PetBookingSvc[]; payments: PetBookingPmt[] }
-interface PetTxRow      { key: string; booking_id: number; booking_status: string; folio_label: string; tipo: string; descripcion: string; detalle: string; monto: number; fecha_iso: string; fecha_short: string }
-
-type TxFilter  = 'pendientes' | 'todas' | 'cobros' | 'servicios';
-type DateRange = 30 | 90 | 0;
-
-const TX_STATUS_LABEL: Record<string, string> = {
-  scheduled:  'Agendada',
-  work_order: 'En proceso',
-  completed:  'Completada',
-  cancelled:  'Cancelada',
-  no_show:    'No se presentó',
-};
-const TX_STATUS_COLOR: Record<string, string> = {
-  scheduled:  'bg-primary/10 text-primary',
-  work_order: 'bg-secondary/10 text-secondary',
-  completed:  'bg-tertiary/10 text-tertiary',
-  cancelled:  'bg-error/10 text-error',
-  no_show:    'bg-error/10 text-error',
-};
-
-function minsToHHMM(m: number): string {
-  const h = Math.floor(m / 60), min = m % 60;
-  if (h === 0) return `${min} min`;
-  if (min === 0) return `${h} h`;
-  return `${h} h ${min} min`;
-}
-function shortDate(ymd: string): string {
-  const [y, mo, d] = ymd.split('-');
-  return `${d}/${mo}/${y.slice(2)}`;
-}
 
 interface Pet {
   id: number;
@@ -346,12 +312,6 @@ export function PetDetail() {
   const set = (key: keyof EditState) => (val: string | boolean) =>
     setEdits(d => d ? { ...d, [key]: val } : d);
 
-  /* Historial de movimientos */
-  const [petBookings,     setPetBookings]     = useState<PetBooking[]>([]);
-  const [loadingHistory,  setLoadingHistory]  = useState(false);
-  const [txFilter,        setTxFilter]        = useState<TxFilter>('pendientes');
-  const [dateRange,       setDateRange]       = useState<DateRange>(30);
-
   useEffect(() => {
     if (isNew) return;
     fetch(`/api/pets/${id}`).then(r => r.json()).then((data: Pet) => {
@@ -360,54 +320,6 @@ export function PetDetail() {
       setLoading(false);
     });
   }, [id, isNew]);
-
-  useEffect(() => {
-    if (isNew || !id) return;
-    setLoadingHistory(true);
-    fetch(`/api/pets/${id}/bookings`)
-      .then(r => r.ok ? r.json() : [])
-      .then((data: PetBooking[]) => setPetBookings(data))
-      .catch(() => {})
-      .finally(() => setLoadingHistory(false));
-  }, [id, isNew]);
-
-  const allTxRows = useMemo<PetTxRow[]>(() => {
-    const rows: PetTxRow[] = [];
-    for (const b of petBookings) {
-      const folioLabel = b.order_folio ?? (TX_STATUS_LABEL[b.status] ?? b.status);
-      for (let i = 0; i < b.services.length; i++) {
-        const s = b.services[i];
-        rows.push({ key: `b${b.id}-s${i}`, booking_id: b.id, booking_status: b.status, folio_label: folioLabel,
-          tipo: 'Servicio', descripcion: s.name, detalle: s.duration_minutes ? minsToHHMM(s.duration_minutes) : '',
-          monto: s.price, fecha_iso: b.fecha_iso, fecha_short: shortDate(b.fecha) });
-      }
-      for (const p of b.payments) {
-        rows.push({ key: `b${b.id}-p${p.id}`, booking_id: b.id, booking_status: b.status, folio_label: folioLabel,
-          tipo: p.category === 'liquidacion' ? 'Liquidación' : 'Anticipo',
-          descripcion: p.payment_method, detalle: p.destination === 'caja' ? 'Caja' : 'Banco',
-          monto: p.amount, fecha_iso: p.created_at, fecha_short: shortDate(p.created_at.slice(0, 10)) });
-      }
-    }
-    return rows;
-  }, [petBookings]);
-
-  const filteredRows = useMemo<PetTxRow[]>(() => {
-    let rows = allTxRows;
-    if (txFilter !== 'pendientes' && dateRange > 0) {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - dateRange);
-      rows = rows.filter(r => new Date(r.fecha_iso) >= cutoff);
-    }
-    switch (txFilter) {
-      case 'pendientes': return rows.filter(r => r.booking_status === 'scheduled' || r.booking_status === 'work_order');
-      case 'cobros':     return rows.filter(r => r.tipo !== 'Servicio');
-      case 'servicios':  return rows.filter(r => r.tipo === 'Servicio');
-      default:           return rows;
-    }
-  }, [allTxRows, txFilter, dateRange]);
-
-  const { sortKey: txSortKey, direction: txDir, toggle: txToggle, sorted: sortedTxRows } =
-    useSortable<PetTxRow>(filteredRows, 'fecha_iso', 'desc');
 
   const cancelEdit = () => { setEditing(false); if (pet) setEdits(petToEdits(pet)); };
 
@@ -615,99 +527,16 @@ export function PetDetail() {
               </div>
             )}
 
-            {/* ── Historial de movimientos ─────────────────── */}
-            <section>
-              <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Historial de movimientos</p>
-
-              {/* Chips de tipo */}
-              <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1 mb-2">
-                {(['pendientes', 'todas', 'cobros', 'servicios'] as TxFilter[]).map(f => (
-                  <button key={f} onClick={() => setTxFilter(f)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 border transition-colors ${
-                      txFilter === f
-                        ? 'bg-primary text-on-primary border-primary'
-                        : 'bg-surface-container text-on-surface-variant border-outline-variant'
-                    }`}>
-                    {f === 'pendientes' ? 'Pendientes' : f === 'todas' ? 'Todas' : f === 'cobros' ? 'Solo cobros' : 'Solo SPA'}
-                  </button>
-                ))}
+            {/* Botón de historial de trabajos */}
+            <button onClick={() => navigate(`/mascotas/${pet.id}/trabajos`)}
+              className="w-full flex items-center gap-3 bg-surface border border-outline-variant rounded-2xl px-4 py-3 active:bg-surface-container transition-colors text-left">
+              <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>work_history</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-on-surface">Historial de trabajos</p>
+                <p className="text-xs text-on-surface-variant">Servicios, cobros y movimientos</p>
               </div>
-
-              {/* Chips de rango de fecha */}
-              {txFilter !== 'pendientes' && (
-                <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1 mb-3">
-                  {([30, 90, 0] as DateRange[]).map(d => (
-                    <button key={d} onClick={() => setDateRange(d)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium shrink-0 border transition-colors ${
-                        dateRange === d
-                          ? 'bg-secondary text-on-secondary border-secondary'
-                          : 'bg-surface-container text-on-surface-variant border-outline-variant'
-                      }`}>
-                      {d === 0 ? 'Todo el historial' : `Últimos ${d} días`}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {loadingHistory ? (
-                <div className="flex items-center justify-center py-6 gap-2 text-on-surface-variant">
-                  <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
-                  <span className="text-sm">Cargando historial…</span>
-                </div>
-              ) : sortedTxRows.length === 0 ? (
-                <div className="bg-surface border border-outline-variant rounded-2xl px-4 py-5 flex flex-col items-center gap-2 text-center">
-                  <span className="material-symbols-outlined text-3xl text-on-surface-variant/40" style={{ fontVariationSettings: "'FILL' 1" }}>receipt_long</span>
-                  <p className="text-sm text-on-surface-variant">Sin movimientos para este filtro</p>
-                  <button onClick={() => { setTxFilter('todas'); setDateRange(0); }}
-                    className="text-xs text-primary underline">Ver todo el historial</button>
-                </div>
-              ) : (
-                <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
-                  {/* Encabezado sorteable */}
-                  <div className="flex items-center gap-1 px-3 py-2.5 border-b border-outline-variant bg-surface-container/50">
-                    <SortBtn label="Fecha"  col="fecha_iso"   sortKey={txSortKey} direction={txDir} onToggle={txToggle} className="w-[72px] shrink-0" />
-                    <SortBtn label="Tipo"   col="tipo"        sortKey={txSortKey} direction={txDir} onToggle={txToggle} className="w-[76px] shrink-0" />
-                    <SortBtn label="Detalle" col="descripcion" sortKey={txSortKey} direction={txDir} onToggle={txToggle} className="flex-1" />
-                    <SortBtn label="Monto"  col="monto"       sortKey={txSortKey} direction={txDir} onToggle={txToggle} className="w-14 justify-end shrink-0" />
-                  </div>
-
-                  {sortedTxRows.map((row, i) => (
-                    <button key={row.key} onClick={() => navigate(`/citas/${row.booking_id}`)}
-                      className={`w-full flex items-center gap-1 px-3 py-2.5 text-left active:bg-surface-container transition-colors ${i > 0 ? 'border-t border-outline-variant' : ''}`}>
-                      {/* Fecha + folio */}
-                      <div className="w-[72px] shrink-0">
-                        <p className="text-[11px] font-mono text-on-surface-variant leading-tight">{row.fecha_short}</p>
-                        <span className={`text-[9px] font-bold px-1 py-px rounded leading-tight block truncate ${TX_STATUS_COLOR[row.booking_status] ?? 'bg-surface-container text-on-surface-variant'}`}>
-                          {row.folio_label.length > 12 ? row.folio_label.slice(0, 12) + '…' : row.folio_label}
-                        </span>
-                      </div>
-
-                      {/* Tipo */}
-                      <div className="w-[76px] flex items-center gap-1 shrink-0">
-                        <span className={`material-symbols-outlined text-sm ${row.tipo === 'Servicio' ? 'text-primary' : 'text-tertiary'}`}
-                          style={{ fontVariationSettings: "'FILL' 1" }}>
-                          {row.tipo === 'Servicio' ? 'content_cut' : 'payments'}
-                        </span>
-                        <span className={`text-[11px] font-semibold truncate ${row.tipo === 'Servicio' ? 'text-primary' : 'text-tertiary'}`}>
-                          {row.tipo}
-                        </span>
-                      </div>
-
-                      {/* Descripción */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-on-surface truncate">{row.descripcion}</p>
-                        {row.detalle && <p className="text-[11px] text-on-surface-variant">{row.detalle}</p>}
-                      </div>
-
-                      {/* Monto */}
-                      <span className={`text-sm font-bold w-14 text-right shrink-0 ${row.tipo === 'Servicio' ? 'text-on-surface' : 'text-tertiary'}`}>
-                        ${row.monto.toFixed(0)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
+              <span className="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+            </button>
 
             {/* Notas */}
             {pet.notes && (
