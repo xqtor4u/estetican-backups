@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useSortable, SortBtn } from '../hooks/useSortable';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface BookingDetail {
@@ -22,6 +23,14 @@ interface ServiceCat { id: number; name: string; type: string | null; price: num
 interface OperatorCat { id: number; name: string; role: string | null; photo_url: string | null }
 interface OccBooking  { id: number; time: string }
 interface BookingPayment { id: number; amount: number; payment_method: string; category: string; destination: string; created_at: string }
+interface TxRow {
+  key: string;
+  tipo: string;
+  descripcion: string;
+  detalle: string;
+  monto: number;
+  fecha_iso: string;
+}
 
 /* ── Status UI ───────────────────────────────────────────── */
 const STATUS_LABEL: Record<string, string> = {
@@ -143,6 +152,31 @@ export function MobCitaDet() {
   /* Pagos registrados */
   const [payments,     setPayments]     = useState<BookingPayment[]>([]);
   const [totalPaid,    setTotalPaid]    = useState(0);
+
+  /* Movimientos unificados (servicios + cobros) */
+  const txRows = useMemo<TxRow[]>(() => {
+    if (!booking) return [];
+    const svcRows: TxRow[] = booking.services.map((s, i) => ({
+      key:        `svc-${i}`,
+      tipo:       'Servicio',
+      descripcion: s.name,
+      detalle:    s.duration_minutes ? minutesToHHMM(s.duration_minutes) : '',
+      monto:      s.price,
+      fecha_iso:  booking.scheduled_at,
+    }));
+    const pmtRows: TxRow[] = payments.map(p => ({
+      key:        `pmt-${p.id}`,
+      tipo:       p.category === 'liquidacion' ? 'Liquidación' : 'Anticipo',
+      descripcion: p.payment_method,
+      detalle:    p.destination === 'caja' ? 'Caja' : 'Banco',
+      monto:      p.amount,
+      fecha_iso:  p.created_at,
+    }));
+    return [...svcRows, ...pmtRows];
+  }, [booking, payments]);
+
+  const { sortKey: txSortKey, direction: txDir, toggle: txToggle, sorted: sortedTxRows } =
+    useSortable<TxRow>(txRows, 'fecha_iso');
 
   /* Guardado / error de carga */
   const [saving,    setSaving]    = useState(false);
@@ -721,61 +755,72 @@ export function MobCitaDet() {
               </p>
             </div>
 
-            {/* Servicios */}
-            {booking.services.length > 0 && (
+            {/* ── Movimientos: servicios + cobros en tabla ordenable ── */}
+            {txRows.length > 0 && (
               <section>
-                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Servicios</p>
-                <div className="flex flex-col gap-1.5">
-                  {booking.services.map((s, i) => (
-                    <div key={i} className="bg-surface border border-outline-variant rounded-xl px-4 py-2.5 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-base text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>content_cut</span>
-                      <span className="text-sm text-on-surface flex-1">{s.name}</span>
-                      {s.duration_minutes && (
-                        <span className="text-xs text-on-surface-variant">{minutesToHHMM(s.duration_minutes)}</span>
-                      )}
-                      {s.price > 0 && (
-                        <span className="text-xs font-semibold text-on-surface">${s.price.toFixed(0)}</span>
-                      )}
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Movimientos</p>
+                  <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-lg border ${
+                    booking.order_folio
+                      ? 'text-primary bg-primary/8 border-primary/30'
+                      : (STATUS_COLOR[booking.status] ?? 'text-on-surface-variant bg-surface-container border-outline-variant')
+                  }`}>
+                    {booking.order_folio ?? (STATUS_LABEL[booking.status] ?? booking.status)}
+                  </span>
+                </div>
+
+                <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
+                  {/* Encabezado sorteable */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 border-b border-outline-variant bg-surface-container/50">
+                    <SortBtn label="Tipo"        col="tipo"        sortKey={txSortKey} direction={txDir} onToggle={txToggle} className="w-[88px] shrink-0" />
+                    <SortBtn label="Descripción" col="descripcion" sortKey={txSortKey} direction={txDir} onToggle={txToggle} className="flex-1" />
+                    <SortBtn label="Monto"       col="monto"       sortKey={txSortKey} direction={txDir} onToggle={txToggle} className="w-16 justify-end shrink-0" />
+                  </div>
+
+                  {/* Filas */}
+                  {sortedTxRows.map((row, i) => (
+                    <div
+                      key={row.key}
+                      className={`flex items-center gap-2 px-3 py-2.5 ${i > 0 ? 'border-t border-outline-variant' : ''}`}
+                    >
+                      {/* Tipo */}
+                      <div className="w-[88px] flex items-center gap-1 shrink-0">
+                        <span
+                          className={`material-symbols-outlined text-base ${row.tipo === 'Servicio' ? 'text-primary' : 'text-tertiary'}`}
+                          style={{ fontVariationSettings: "'FILL' 1" }}
+                        >
+                          {row.tipo === 'Servicio' ? 'content_cut' : 'payments'}
+                        </span>
+                        <span className={`text-xs font-semibold truncate ${row.tipo === 'Servicio' ? 'text-primary' : 'text-tertiary'}`}>
+                          {row.tipo}
+                        </span>
+                      </div>
+
+                      {/* Descripción */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-on-surface truncate">{row.descripcion}</p>
+                        {row.detalle && (
+                          <p className="text-xs text-on-surface-variant">{row.detalle}</p>
+                        )}
+                      </div>
+
+                      {/* Monto */}
+                      <span className={`text-sm font-bold w-16 text-right shrink-0 ${
+                        row.tipo === 'Servicio' ? 'text-on-surface' : 'text-tertiary'
+                      }`}>
+                        ${row.monto.toFixed(2)}
+                      </span>
                     </div>
                   ))}
-                </div>
-              </section>
-            )}
 
-            {/* Cobros */}
-            {(payments.length > 0 || booking.status === 'completed') && (
-              <section>
-                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Cobros</p>
-                <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
-                  {payments.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-on-surface-variant/60">Sin cobros registrados</div>
-                  ) : (
-                    <>
-                      {payments.map((p, i) => (
-                        <div key={p.id ?? i} className={`px-4 py-3 flex items-center gap-3 ${i > 0 ? 'border-t border-outline-variant' : ''}`}>
-                          <span className="material-symbols-outlined text-tertiary text-lg shrink-0"
-                            style={{ fontVariationSettings: "'FILL' 1" }}>
-                            {p.destination === 'caja' ? 'point_of_sale' : 'account_balance'}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-on-surface">{p.payment_method}</p>
-                            <p className="text-xs text-on-surface-variant">
-                              {p.category === 'liquidacion' ? 'Liquidación' : 'Anticipo'} ·{' '}
-                              {p.destination === 'caja' ? 'Caja' : 'Banco'}
-                            </p>
-                          </div>
-                          <span className="text-sm font-bold text-tertiary shrink-0">
-                            ${p.amount.toFixed(2)}
-                          </span>
-                        </div>
-                      ))}
-                      {payments.length > 1 && (
-                        <div className="border-t border-outline-variant px-4 py-2.5 flex items-center justify-between bg-surface-container">
-                          <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Total cobrado</span>
-                          <span className="text-sm font-bold text-on-surface">${totalPaid.toFixed(2)}</span>
-                        </div>
-                      )}
-                    </>
+                  {/* Pie: total cobrado */}
+                  {totalPaid > 0 && (
+                    <div className="border-t-2 border-outline-variant px-3 py-2.5 flex items-center justify-between bg-surface-container">
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">
+                        Total cobrado
+                      </span>
+                      <span className="text-sm font-bold text-tertiary">${totalPaid.toFixed(2)}</span>
+                    </div>
                   )}
                 </div>
               </section>
