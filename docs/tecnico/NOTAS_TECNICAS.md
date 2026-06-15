@@ -312,3 +312,34 @@ return view('finances.payment-methods.index', compact('methods', 'typeLabels'));
 {{-- Vista: sin @php de bloque --}}
 {{ $typeLabels[$method->type] ?? $method->type }}
 ```
+
+
+---
+
+## NT-009 — Cloudflare Tunnel: "Hostname routes" ≠ hostnames públicos
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-06-15 |
+| **Severidad** | P3 — Medio (confusión de UI que bloquea el deploy) |
+| **Componente** | Cloudflare Zero Trust — configuración del tunnel `orangepi-estetican` |
+| **Impacto** | Tiempo perdido intentando configurar hostname público en el lugar equivocado |
+| **Estado** | ✅ DOCUMENTADO |
+
+**Síntoma:**
+Al agregar un subdominio nuevo (`mov.estetican.org`) al tunnel de Cloudflare, la sección "Hostname routes" en Zero Trust → Networks → Connectors parece el lugar correcto pero en realidad es para **hostnames privados** (red privada, requiere Cloudflare WARP / One Client).
+
+**Causa raíz:**
+Cloudflare renombró y reorganizó su interfaz de Zero Trust. La tabla de "Public Hostnames" del tunnel (antes en la pestaña del mismo nombre al editar el tunnel) ahora se llama **"Published application routes"** y está en una pestaña diferente dentro del mismo tunnel.
+
+**Solución:**
+Para agregar un hostname público a un tunnel existente:
+1. Zero Trust → Networks → Connectors → Cloudflare Tunnels → clic en el tunnel
+2. Pestaña **Published application routes** (NO "Hostname routes")
+3. Botón "Add" → Subdomain + Domain + Service: `http://192.168.100.250:80`
+4. Cloudflare crea el registro DNS automáticamente (tipo Tunnel)
+
+**Lección:**
+- "Hostname routes" = red privada (necesita WARP)
+- "Published application routes" = hostnames públicos accesibles desde cualquier browser
+- Al agregar la ruta, NO crear manualmente el registro DNS — Cloudflare lo crea solo con tipo "Tunnel"
