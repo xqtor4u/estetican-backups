@@ -16,6 +16,15 @@ interface Booking  {
   services: { id: number | null; name: string; type: string | null }[];
   operators: { id: number; name: string; photo_url: string | null }[];
 }
+interface Vencida {
+  id: number;
+  time: string;
+  date_label: string;
+  status: string;
+  pet: { id: number; name: string; photo: string | null };
+  client: { id: number; name: string } | null;
+  services: { name: string }[];
+}
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: 'Programada',
@@ -50,11 +59,14 @@ export function GlobalAgenda() {
   const [bookings,     setBookings]     = useState<Booking[]>([]);
   const [loadingAg,    setLoadingAg]    = useState(true);
   const [filterOp,     setFilterOp]     = useState<number | null>(null);
+  const [vencidas,     setVencidas]     = useState<Vencida[]>([]);
+  const [showVencidas, setShowVencidas] = useState(true);
 
-  // Carga inicial: operadores y sucursales
+  // Carga inicial: operadores, sucursales y citas vencidas
   useEffect(() => {
     fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
     fetch('/api/branches').then(r => r.json()).then(setBranches).catch(() => {});
+    fetch('/api/agenda/vencidas').then(r => r.ok ? r.json() : []).then(setVencidas).catch(() => {});
   }, []);
 
   // Carga de agenda al cambiar fecha
@@ -212,6 +224,44 @@ export function GlobalAgenda() {
           )}
         </div>
 
+        {/* ── Citas vencidas sin resolver ───────────────────── */}
+        {vencidas.length > 0 && showVencidas && (
+          <div className="mx-4 mt-3 bg-error/8 border border-error/30 rounded-2xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-error/20">
+              <span className="material-symbols-outlined text-error text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              <p className="flex-1 text-sm font-semibold text-error">
+                {vencidas.length} {vencidas.length === 1 ? 'cita pendiente sin resolver' : 'citas pendientes sin resolver'}
+              </p>
+              <button onClick={() => setShowVencidas(false)} className="p-1 rounded-full hover:bg-error/10">
+                <span className="material-symbols-outlined text-error/60 text-base">close</span>
+              </button>
+            </div>
+            <div className="flex flex-col divide-y divide-error/10">
+              {vencidas.map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => navigate(`/citas/${v.id}`, { state: { crumbs: [{ label: 'Agenda', to: '/agenda' }] } })}
+                  className="flex items-center gap-3 px-4 py-3 text-left active:bg-error/10 transition-colors w-full"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-error/10 overflow-hidden flex items-center justify-center shrink-0">
+                    {v.pet.photo
+                      ? <img src={v.pet.photo} className="w-full h-full object-cover" alt={v.pet.name} />
+                      : <span className="material-symbols-outlined text-error text-base" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-on-surface truncate">{v.pet.name}</p>
+                    <p className="text-xs text-error/80">
+                      {v.date_label} {v.time}
+                      {v.services.length > 0 && ` · ${v.services.map(s => s.name).join(', ')}`}
+                    </p>
+                  </div>
+                  <span className="material-symbols-outlined text-error/50 text-base shrink-0">chevron_right</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Lista de citas */}
         <div className="flex-1 px-4 pb-4 flex flex-col gap-3">
 
@@ -233,7 +283,7 @@ export function GlobalAgenda() {
               <div
                 key={b.id}
                 className="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
-                onClick={() => navigate(`/citas/${b.id}`)}
+                onClick={() => navigate(`/citas/${b.id}`, { state: { crumbs: [{ label: 'Agenda', to: '/agenda' }] } })}
               >
                 {/* Franja de estado */}
                 <div className={`h-1 w-full ${

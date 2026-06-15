@@ -511,7 +511,7 @@ export function PetDetail() {
               <div className="flex flex-col gap-2">
                 <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Próximas citas</p>
                 {pet.upcoming_bookings.map(b => (
-                  <button key={b.id} onClick={() => navigate(`/citas/${b.id}`)}
+                  <button key={b.id} onClick={() => navigate(`/citas/${b.id}`, { state: { crumbs: [{ label: pet.name, to: `/mascotas/${pet.id}` }] } })}
                     className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center gap-3 w-full text-left active:bg-surface-container transition-colors">
                     <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>event</span>
                     <div className="flex-1">

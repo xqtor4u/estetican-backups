@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 /* ── Tipos ────────────────────────────────────────────────── */
@@ -80,9 +80,14 @@ export function MobCitaNueva() {
   const [notes,        setNotes]        = useState('');
 
   /* Estado de envío */
-  const [saving,  setSaving]  = useState(false);
-  const [saved,   setSaved]   = useState(false);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [saving,      setSaving]      = useState(false);
+  const [saved,       setSaved]       = useState(false);
+  const [saveErr,     setSaveErr]     = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  /* Refs para scroll a campos con error */
+  const svcSectionRef  = useRef<HTMLElement>(null);
+  const slotSectionRef = useRef<HTMLElement>(null);
 
   /* Carga inicial: mascota, servicios, operadores */
   useEffect(() => {
@@ -118,8 +123,16 @@ export function MobCitaNueva() {
     [services, selSvcs]
   );
 
-  /* Al cambiar servicios, resetear ajuste manual */
-  useEffect(() => { setCustomDur(null); }, [selSvcs]);
+  /* Al cambiar servicios, resetear ajuste manual y limpiar error */
+  useEffect(() => {
+    setCustomDur(null);
+    if (selSvcs.length > 0) setFieldErrors(prev => { const n = { ...prev }; delete n.services; return n; });
+  }, [selSvcs]);
+
+  /* Al seleccionar horario, limpiar error de slot */
+  useEffect(() => {
+    if (selSlot) setFieldErrors(prev => { const n = { ...prev }; delete n.slot; return n; });
+  }, [selSlot]);
 
   /* Duración efectiva: la del usuario si la ajustó, sino la del catálogo (mínimo 15 min) */
   const effectiveDuration = customDur ?? (catalogDuration > 0 ? catalogDuration : STEP);
@@ -172,7 +185,24 @@ export function MobCitaNueva() {
   const canSave = selSlot !== null && !isSlotInvalid(selSlot) && pet !== null;
 
   const save = async () => {
-    if (!canSave || saving) return;
+    if (saving) return;
+
+    // Validación client-side con feedback por campo
+    const errs: Record<string, string> = {};
+    if (selSvcs.length === 0) errs.services = 'Selecciona al menos un servicio para continuar';
+    if (!selSlot)              errs.slot     = 'Selecciona un horario';
+    else if (isSlotInvalid(selSlot)) errs.slot = 'Este horario tiene conflicto con otra cita';
+
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      setTimeout(() => {
+        if (errs.services) svcSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        else if (errs.slot) slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
+      return;
+    }
+
+    setFieldErrors({});
     setSaving(true);
     setSaveErr(null);
 
@@ -339,9 +369,11 @@ export function MobCitaNueva() {
         </section>
 
         {/* ── 2. Servicios ─────────────────────────────── */}
-        <section>
+        <section ref={svcSectionRef}>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Servicios</p>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${fieldErrors.services ? 'text-error' : 'text-on-surface-variant'}`}>
+              Servicios {fieldErrors.services ? '· requerido' : ''}
+            </p>
             {selSvcs.length > 0 && (
               <span className="text-xs text-on-surface-variant bg-surface-container border border-outline-variant px-2 py-0.5 rounded-full">
                 {minutesToHHMM(catalogDuration)} · ${totalPrice.toFixed(0)}
@@ -349,6 +381,12 @@ export function MobCitaNueva() {
             )}
           </div>
 
+          {fieldErrors.services && (
+            <p className="text-xs text-error flex items-center gap-1 mb-2">
+              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+              {fieldErrors.services}
+            </p>
+          )}
           {services.length === 0 ? (
             <p className="text-sm text-on-surface-variant italic">Cargando servicios…</p>
           ) : (
@@ -362,7 +400,9 @@ export function MobCitaNueva() {
                     className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-colors text-left ${
                       sel
                         ? 'bg-primary/10 border-primary/40'
-                        : 'bg-surface-container border-outline-variant'
+                        : fieldErrors.services
+                          ? 'bg-error/5 border-error/30'
+                          : 'bg-surface-container border-outline-variant'
                     }`}
                   >
                     <span
@@ -488,10 +528,10 @@ export function MobCitaNueva() {
         </section>
 
         {/* ── 5. Horario ───────────────────────────────── */}
-        <section>
+        <section ref={slotSectionRef}>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">
-              Horario — {fmtLong(selDate)}
+            <p className={`text-xs font-semibold uppercase tracking-wide ${fieldErrors.slot ? 'text-error' : 'text-on-surface-variant'}`}>
+              Horario — {fmtLong(selDate)} {fieldErrors.slot ? '· requerido' : ''}
             </p>
             {selSlot && endTime && (
               <span className="text-xs text-primary font-semibold">
@@ -500,6 +540,12 @@ export function MobCitaNueva() {
             )}
           </div>
 
+          {fieldErrors.slot && (
+            <p className="text-xs text-error flex items-center gap-1 mb-2">
+              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+              {fieldErrors.slot}
+            </p>
+          )}
           {loadSlots ? (
             <div className="flex items-center gap-2 py-6 text-on-surface-variant text-sm">
               <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
@@ -613,45 +659,48 @@ export function MobCitaNueva() {
           </div>
         )}
 
-        {/* ── Error ────────────────────────────────────── */}
-        {saveErr && (
-          <div className="bg-error/10 border border-error/30 rounded-2xl px-4 py-3 flex items-start gap-2">
-            <span className="material-symbols-outlined text-error text-xl shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
-            <div>
-              <p className="text-sm font-semibold text-error">No se pudo agendar</p>
-              <p className="text-xs text-error/80 mt-0.5">{saveErr}</p>
-            </div>
-          </div>
-        )}
-
       </div>
+
+      {/* ── Banner fijo: error de servidor ───────────── */}
+      {saveErr && (
+        <div className="fixed bottom-32 left-4 right-4 z-40 bg-error text-on-error rounded-2xl px-4 py-3 flex items-start gap-2 shadow-lg">
+          <span className="material-symbols-outlined text-xl shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold leading-tight">No se pudo agendar</p>
+            <p className="text-xs mt-0.5 opacity-90">{saveErr}</p>
+          </div>
+          <button onClick={() => setSaveErr(null)} className="shrink-0 p-1 rounded-full hover:bg-white/20">
+            <span className="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      )}
 
       {/* ── Botón flotante de acción ─────────────────── */}
       <div className="fixed bottom-16 left-4 right-4 z-30">
         <button
           onClick={save}
-          disabled={!canSave || saving || (selSlot !== null && isSlotInvalid(selSlot))}
-          className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-4 rounded-2xl text-base font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-40 disabled:scale-100"
+          disabled={saving}
+          className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-4 rounded-2xl text-base font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-60 disabled:scale-100"
         >
           {saving ? (
             <>
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
               Guardando cita…
             </>
-          ) : !selSlot ? (
-            <>
-              <span className="material-symbols-outlined">touch_app</span>
-              Selecciona un horario
-            </>
-          ) : isSlotInvalid(selSlot) ? (
+          ) : selSlot && isSlotInvalid(selSlot) ? (
             <>
               <span className="material-symbols-outlined">warning</span>
               Horario con conflicto
             </>
-          ) : (
+          ) : canSave ? (
             <>
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>event_available</span>
               Agendar {selSlot}{endTime ? ` → ${endTime}` : ''}
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined">event_available</span>
+              Agendar cita
             </>
           )}
         </button>

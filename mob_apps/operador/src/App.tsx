@@ -14,8 +14,9 @@ import { TeamPanel } from './admin/TeamPanel';
 import { GlobalAgenda } from './admin/GlobalAgenda';
 import { MobCitaNueva } from './admin/MobCitaNueva';
 import { MobCitaDet } from './admin/MobCitaDet';
-import { MobCobro }    from './admin/MobCobro';
-import { MobPetJobs } from './admin/MobPetJobs';
+import { MobCobro }      from './admin/MobCobro';
+import { MobPetJobs }    from './admin/MobPetJobs';
+import { MobUserConfig } from './admin/MobUserConfig';
 
 /* ═══════════════════════════════════════════════════════════
    FUENTE ÚNICA DEL MENÚ — agregar secciones aquí
@@ -249,6 +250,18 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
             </div>
           ))}
 
+          {/* Configuración personal */}
+          <div className="bg-surface-container rounded-2xl overflow-hidden">
+            <button
+              onClick={() => go('/configuracion')}
+              className="w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-surface-container-high transition-colors"
+            >
+              <span className="material-symbols-outlined text-2xl text-on-surface-variant">manage_accounts</span>
+              <span className="text-sm font-medium text-on-surface">Configuración personal</span>
+              <span className="material-symbols-outlined text-base text-on-surface-variant ml-auto">chevron_right</span>
+            </button>
+          </div>
+
           {/* Cerrar sesión */}
           <div className="bg-surface-container rounded-2xl overflow-hidden">
             <button
@@ -371,6 +384,7 @@ export default function App() {
             <Route path="/clientes/seleccionar" element={<AdminLayout><ClientSearch /></AdminLayout>} />
             <Route path="/clientes/nuevo"       element={<AdminLayout><ClientDetail /></AdminLayout>} />
             <Route path="/clientes/:id"         element={<AdminLayout><ClientDetail /></AdminLayout>} />
+            <Route path="/configuracion"        element={<AdminLayout><MobUserConfig /></AdminLayout>} />
           </Routes>
         </AuthGuard>
       </Router>

@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useSortable, SortBtn } from '../hooks/useSortable';
+import { getUserPrefs } from '../hooks/useUserPrefs';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface BookingDetail {
@@ -120,6 +121,20 @@ function parseDateLocal(datetimeStr: string): Date {
 export function MobCitaDet() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  /* Breadcrumbs pasados por quien navegó aquí */
+  const crumbs: { label: string; to: string }[] = (location.state as any)?.crumbs ?? [];
+  const showBreadcrumbs = getUserPrefs().showBreadcrumbs;
+
+  /* Toast de éxito */
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = (msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(msg);
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
+  };
   const today = useMemo(() => new Date(), []);
 
   /* Datos remotos */
@@ -144,6 +159,10 @@ export function MobCitaDet() {
   /* Cancelación */
   const [cancelReason, setCancelReason] = useState('');
   const [showCancel,   setShowCancel]   = useState(false);
+
+  /* No se presentó */
+  const [noShowReason, setNoShowReason] = useState('');
+  const [showNoShow,   setShowNoShow]   = useState(false);
 
   /* Tolerancia de inicio */
   const [graceMinutes, setGraceMinutes] = useState(15);
@@ -292,14 +311,13 @@ export function MobCitaDet() {
   };
 
   /* ── Cambio de estado (sin edición) ───────────────────── */
-  const changeStatus = async (newStatus: string) => {
+  const changeStatus = async (newStatus: string, reason?: string) => {
     if (!booking) return;
     setSaving(true);
     setSaveErr(null);
     try {
       const body: Record<string, unknown> = { status: newStatus };
-      if (newStatus === 'cancelled' && cancelReason.trim())
-        body.cancellation_reason = cancelReason.trim();
+      if (reason?.trim()) body.cancellation_reason = reason.trim();
 
       const res = await fetch(`/api/bookings/${booking.id}`, {
         method: 'PATCH',
@@ -309,8 +327,9 @@ export function MobCitaDet() {
       const data = await res.json();
       if (!res.ok) { setSaveErr(data.message ?? 'Error'); setSaving(false); return; }
       setBooking(data);
-      setShowCancel(false);
-      setCancelReason('');
+      setShowCancel(false);  setCancelReason('');
+      setShowNoShow(false);  setNoShowReason('');
+      showToast(STATUS_LABEL[newStatus] ? `Cita marcada como: ${STATUS_LABEL[newStatus]}` : 'Estado actualizado');
     } catch { setSaveErr('No se pudo conectar con el servidor.'); }
     setSaving(false);
   };
@@ -349,6 +368,7 @@ export function MobCitaDet() {
       setCustomDur(data.duration_minutes ?? null);
       setNotes(data.notes ?? '');
       setEditing(false);
+      showToast('Cambios guardados');
     } catch { setSaveErr('No se pudo conectar con el servidor.'); }
     setSaving(false);
   };
@@ -384,10 +404,28 @@ export function MobCitaDet() {
           </span>
         </button>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-on-surface text-base leading-tight truncate">
-            Cita #{booking.id}{' '}
-            <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobCitaDet</span>
-          </p>
+          {showBreadcrumbs && crumbs.length > 0 ? (
+            <div className="flex items-center gap-1 text-xs text-on-surface-variant overflow-hidden">
+              {crumbs.map((c, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <span className="opacity-40 shrink-0">›</span>}
+                  <button
+                    onClick={() => navigate(c.to)}
+                    className="truncate hover:text-primary transition-colors"
+                  >
+                    {c.label}
+                  </button>
+                </React.Fragment>
+              ))}
+              <span className="opacity-40 shrink-0">›</span>
+              <span className="font-semibold text-on-surface truncate">Cita #{booking.id}</span>
+            </div>
+          ) : (
+            <p className="font-bold text-on-surface text-base leading-tight truncate">
+              Cita #{booking.id}{' '}
+              <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobCitaDet</span>
+            </p>
+          )}
           <p className="text-xs text-on-surface-variant truncate">{booking.pet.name}</p>
         </div>
 
@@ -471,8 +509,9 @@ export function MobCitaDet() {
                   key={action.value}
                   disabled={saving}
                   onClick={() => {
-                    if (action.cobro)               { navigate(`/citas/${booking.id}/cobro`); return; }
-                    if (action.value === 'cancelled') { setShowCancel(true); return; }
+                    if (action.cobro)                { navigate(`/citas/${booking.id}/cobro`); return; }
+                    if (action.value === 'cancelled') { setShowCancel(true);  return; }
+                    if (action.value === 'no_show')   { setShowNoShow(true);  return; }
                     if (action.value === 'work_order') {
                       const now = new Date();
                       const scheduled = parseDateLocal(booking.scheduled_at);
@@ -520,6 +559,33 @@ export function MobCitaDet() {
               <button onClick={() => changeStatus('cancelled')} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-error text-on-error disabled:opacity-50">
                 Confirmar cancelación
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Modal no se presentó ─────────────────────── */}
+        {showNoShow && (
+          <div className="bg-error/8 border border-error/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-error text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>person_off</span>
+              <p className="text-sm font-semibold text-error">¿El cliente no se presentó?</p>
+            </div>
+            <textarea
+              value={noShowReason}
+              onChange={e => setNoShowReason(e.target.value)}
+              rows={2}
+              placeholder="Observación (opcional): no avisó, llegó tarde, error de agenda…"
+              className="w-full bg-background border border-error/30 rounded-xl px-3 py-2 text-sm outline-none resize-none focus:border-error"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => { setShowNoShow(false); setNoShowReason(''); }}
+                className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                Cancelar
+              </button>
+              <button onClick={() => changeStatus('no_show', noShowReason)} disabled={saving}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-error text-on-error disabled:opacity-50">
+                Confirmar
               </button>
             </div>
           </div>
@@ -849,10 +915,12 @@ export function MobCitaDet() {
               </div>
             )}
 
-            {/* Motivo de cancelación */}
+            {/* Motivo de cancelación / observación no-show */}
             {booking.cancellation_reason && (
               <div className="bg-error/8 border border-error/30 rounded-2xl px-4 py-3">
-                <p className="text-xs font-semibold text-error uppercase tracking-wide mb-1">Motivo de cancelación</p>
+                <p className="text-xs font-semibold text-error uppercase tracking-wide mb-1">
+                  {booking.status === 'no_show' ? 'Observación' : 'Motivo de cancelación'}
+                </p>
                 <p className="text-sm text-on-surface leading-relaxed">{booking.cancellation_reason}</p>
               </div>
             )}
@@ -878,6 +946,26 @@ export function MobCitaDet() {
               ? <><span className="material-symbols-outlined animate-spin">progress_activity</span>Guardando…</>
               : <><span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>save</span>
                   Guardar cambios · {selSlot}{endTime ? ` → ${endTime}` : ''}</>}
+          </button>
+        </div>
+      )}
+
+      {/* ── Toast de éxito ───────────────────────────── */}
+      {toast && (
+        <div className="fixed bottom-20 left-4 right-4 z-50 flex items-center gap-3 bg-inverse-surface text-inverse-on-surface rounded-2xl px-4 py-3 shadow-xl"
+             style={{ background: 'var(--color-on-surface, #1c1b1f)', color: 'var(--color-surface, #fffbfe)' }}>
+          <span className="material-symbols-outlined text-xl shrink-0" style={{ fontVariationSettings: "'FILL' 1", color: '#4ade80' }}>check_circle</span>
+          <span className="flex-1 text-sm font-medium">{toast}</span>
+          {crumbs.length > 0 && (
+            <button
+              onClick={() => navigate(crumbs[crumbs.length - 1].to)}
+              className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border border-white/30 hover:bg-white/10 transition-colors"
+            >
+              Regresar
+            </button>
+          )}
+          <button onClick={() => setToast(null)} className="shrink-0 p-1 rounded-full hover:bg-white/10">
+            <span className="material-symbols-outlined text-base">close</span>
           </button>
         </div>
       )}

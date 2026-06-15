@@ -31,13 +31,13 @@ interface JobRow {
   total:       number;
 }
 
-type StatusFilter = 'pendientes' | 'completadas' | 'canceladas' | 'todas';
+type StatusFilter = 'pendientes' | 'completadas' | 'no_show' | 'canceladas' | 'todas';
 type DateRange    = 0 | 30 | 90;
 
 /* ── Constantes ─────────────────────────────────────────── */
 const PENDING_STATUSES   = ['scheduled', 'work_order'];
 const COMPLETED_STATUSES = ['completed', 'fulfilled'];
-const CANCELLED_STATUSES = ['cancelled', 'no_show'];
+const CANCELLED_STATUSES = ['cancelled'];
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled:  'Agendada',
@@ -127,6 +127,7 @@ export function MobPetJobs() {
     switch (statusFilter) {
       case 'pendientes':  return rows.filter(r => PENDING_STATUSES.includes(r.status));
       case 'completadas': return rows.filter(r => COMPLETED_STATUSES.includes(r.status));
+      case 'no_show':     return rows.filter(r => r.status === 'no_show');
       case 'canceladas':  return rows.filter(r => CANCELLED_STATUSES.includes(r.status));
       default:            return rows;
     }
@@ -139,7 +140,9 @@ export function MobPetJobs() {
 
   function handleRowTap(row: JobRow) {
     if (row.model_type === 'spa') {
-      navigate(`/citas/${row.id}`);
+      navigate(`/citas/${row.id}`, {
+        state: { crumbs: [{ label: petName || 'Mascota', to: `/mascotas/${id}` }] },
+      });
     }
     // otros modelos: vista de detalle pendiente
   }
@@ -200,14 +203,16 @@ export function MobPetJobs() {
 
       {/* ── Filtros de estado ────────────────────────────────── */}
       <div className="bg-surface border-b border-outline-variant px-3 py-2 flex items-center gap-2 overflow-x-auto hide-scrollbar">
-        {(['pendientes', 'completadas', 'canceladas', 'todas'] as StatusFilter[]).map(f => (
+        {(['pendientes', 'completadas', 'no_show', 'canceladas', 'todas'] as StatusFilter[]).map(f => (
           <button key={f} onClick={() => setStatusFilter(f)}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 border transition-colors ${
               statusFilter === f
-                ? 'bg-primary text-on-primary border-primary'
+                ? f === 'no_show'
+                  ? 'bg-error text-on-error border-error'
+                  : 'bg-primary text-on-primary border-primary'
                 : 'bg-surface-container text-on-surface-variant border-outline-variant'
             }`}>
-            {{ pendientes: 'Pendientes', completadas: 'Completadas', canceladas: 'Canceladas', todas: 'Todas' }[f]}
+            {{ pendientes: 'Pendientes', completadas: 'Completadas', no_show: 'No se presentó', canceladas: 'Canceladas', todas: 'Todas' }[f]}
           </button>
         ))}
       </div>

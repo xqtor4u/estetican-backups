@@ -29,7 +29,8 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::get('/clients/{client}',   [ClientController::class, 'show']);
     Route::patch('/clients/{client}', [ClientController::class, 'update']);
 
-    Route::get('/agenda',    [AgendaController::class,  'index']);
+    Route::get('/agenda',          [AgendaController::class, 'index']);
+    Route::get('/agenda/vencidas', [AgendaController::class, 'vencidas']);
     Route::get('/operators', [OperatorController::class, 'index']);
     Route::get('/branches',  [OperatorController::class, 'branches']);
 

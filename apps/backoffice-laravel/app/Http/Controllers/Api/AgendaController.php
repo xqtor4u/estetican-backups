@@ -77,6 +77,51 @@ class AgendaController extends Controller
         }));
     }
 
+    /** Citas abiertas de días anteriores sin resolver (scheduled/work_order) */
+    public function vencidas()
+    {
+        $bookings = SpaBooking::whereIn('status', ['scheduled', 'work_order'])
+            ->where('scheduled_at', '<', now()->startOfDay())
+            ->with([
+                'pet:id,name,species,breed,profile_photo_path,client_id',
+                'pet.client:id,first_name,last_name',
+                'services.service:id,name,type',
+            ])
+            ->orderBy('scheduled_at')
+            ->get();
+
+        return response()->json($bookings->map(function (SpaBooking $b) {
+            $endTime = $b->duration_minutes
+                ? $b->scheduled_at->copy()->addMinutes($b->duration_minutes)->format('H:i')
+                : null;
+
+            return [
+                'id'           => $b->id,
+                'scheduled_at' => $b->scheduled_at,
+                'time'         => $b->scheduled_at->format('H:i'),
+                'date_label'   => $b->scheduled_at->translatedFormat('D j M'),
+                'end_time'     => $endTime,
+                'status'       => $b->status,
+                'notes'        => $b->notes,
+                'total'        => $b->total_estimated_price,
+                'pet'          => [
+                    'id'    => $b->pet->id,
+                    'name'  => $b->pet->name,
+                    'photo' => $b->pet->profile_photo_path
+                        ? Storage::disk('public')->url($b->pet->profile_photo_path)
+                        : null,
+                ],
+                'client'   => $b->pet->client ? [
+                    'id'   => $b->pet->client->id,
+                    'name' => trim($b->pet->client->first_name . ' ' . $b->pet->client->last_name),
+                ] : null,
+                'services' => $b->services->map(fn ($s) => [
+                    'name' => $s->service?->name ?? '—',
+                ])->values(),
+            ];
+        }));
+    }
+
     private function operatorPhoto($operator): ?string
     {
         if (! $operator->profile_photo_path) return null;
