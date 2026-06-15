@@ -46,6 +46,41 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
 
     Route::get('/settings/booking', [SettingController::class, 'booking']);
 
+    Route::get('/pets/{pet}/bookings', function (\App\Models\Pet $pet) {
+        $bookings = \App\Models\SpaBooking::where('pet_id', $pet->id)
+            ->with(['services.service'])
+            ->orderByDesc('scheduled_at')
+            ->get();
+
+        return response()->json($bookings->map(function ($b) {
+            $payments = \App\Models\Payment::where('payable_type', \App\Models\SpaBooking::class)
+                ->where('payable_id', $b->id)
+                ->orderBy('created_at')
+                ->get();
+
+            return [
+                'id'          => $b->id,
+                'fecha'       => $b->scheduled_at->format('Y-m-d'),
+                'fecha_iso'   => $b->scheduled_at->toISOString(),
+                'status'      => $b->status,
+                'order_folio' => $b->order_folio,
+                'services'    => $b->services->map(fn ($s) => [
+                    'name'             => $s->service?->name ?? '—',
+                    'price'            => (float) ($s->current_price ?? 0),
+                    'duration_minutes' => $s->service?->duration_minutes,
+                ])->values(),
+                'payments'    => $payments->map(fn ($p) => [
+                    'id'             => $p->id,
+                    'amount'         => (float) $p->amount,
+                    'payment_method' => $p->payment_method ?? 'N/A',
+                    'category'       => $p->category,
+                    'destination'    => $p->destination,
+                    'created_at'     => $p->created_at->format('Y-m-d H:i:s'),
+                ])->values(),
+            ];
+        }));
+    });
+
     Route::get('/payment-methods', function () {
         return \App\Models\PaymentMethod::where('is_active', true)
             ->orderBy('name')
