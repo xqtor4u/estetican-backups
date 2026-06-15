@@ -41,7 +41,10 @@ export function MobUserConfig() {
         >
           <span className="material-symbols-outlined text-on-surface">arrow_back</span>
         </button>
-        <p className="font-bold text-on-surface text-base">Configuración personal</p>
+        <p className="font-bold text-on-surface text-base">
+          Configuración personal{' '}
+          <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobUserConf</span>
+        </p>
       </header>
 
       {/* Perfil */}
