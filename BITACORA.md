@@ -1,5 +1,37 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 15-16/06/2026 - Breadcrumbs en app móvil (todas las pantallas)
+
+### ✅ Logros y Cambios
+
+**Breadcrumbs universales vía `ScreenHeader` (componente puro, sin hooks):**
+- `src/ScreenHeader.tsx` — creado como componente plantilla; `onBack` es opcional (pantallas raíz); `noCrumbs` suprime los crumbs; props: `crumbs`, `showBreadcrumbs`, `onCrumbClick`, `rightAction`, `subtitle`, `backIcon`
+- Todas las pantallas migradas al template: `MobCitaDet`, `PetDetail`, `ClientDetail`, `ClientSearch`, `MobCobro`, `MobCitaNueva`, `MobPetJobs`, `MobUserConfig`, `GlobalAgenda`
+- `navState.ts` — singleton `setNavCrumbs/getNavCrumbs/clearNavCrumbs` para pasar crumbs entre navegaciones
+- `App.tsx` — `NavLink` del nav inferior llama `clearNavCrumbs` síncronamente al tap (limpia contexto de navegación al cambiar de sección)
+- `PetSearch.goToPet` — llama `setNavCrumbs([{Mascotas}])` antes de navegar
+- `ClientSearch.selectClient` — llama `setNavCrumbs([{Clientes}])` y pasa `{ state: { _crumbs } }` en navigate
+- `PetDetail` → dueño — pasa crumbs acumulados via `location.state._crumbs` (bypass del singleton que era sobreescrito)
+- `ClientDetail` — prefiere `location.state._crumbs` sobre `getNavCrumbs()` como fuente de verdad
+
+**Flujos verificados por el usuario:**
+- Agenda → Cita: `Agenda › Cita #N`
+- Mascotas → Pet → Dueño: `Mascotas › Luka › Tomás`
+- Clientes → Cliente → Mascota: `Clientes › Tomás › Gorda`
+
+### 📁 Archivos Clave Modificados
+- `mob_apps/operador/src/ScreenHeader.tsx` — nuevo componente plantilla
+- `mob_apps/operador/src/navState.ts` — singleton de navegación
+- `mob_apps/operador/src/App.tsx` — clearNavCrumbs en NavLink
+- `mob_apps/operador/src/admin/` — GlobalAgenda, PetSearch, PetDetail, ClientDetail, ClientSearch, MobCitaDet, MobCobro, MobCitaNueva, MobPetJobs, MobUserConfig
+
+### 🔄 Pendientes para Próxima Sesión
+- **BL-007** — Transform Rules Cloudflare
+- **BL-019** — Apertura/corte de caja
+- **BL-021** — Migrar registros históricos
+
+---
+
 ## 📅 Sesión: 15/06/2026 - App Móvil Multi-modelo + Deploy mov.estetican.org
 
 ### ✅ Logros y Cambios
