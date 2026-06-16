@@ -1,15 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { ScreenHeader } from '../ScreenHeader';
 
 export function TeamPanel() {
   return (
-    <div className="bg-background text-on-background min-h-screen pb-20 md:pb-0 pt-14">
-      <header className="bg-surface dark:bg-on-primary-container text-on-surface dark:text-surface font-headline-md text-headline-md docked full-width top-0 border-b border-outline-variant flex items-center justify-between px-gutter w-full h-14 fixed z-50">
-        <div className="flex items-center gap-operational-gap">
-          <span className="font-headline-sm text-headline-sm font-bold text-primary dark:text-secondary-fixed-dim">Equipo</span>
-        </div>
-        <span className="text-[9px] font-mono text-on-surface-variant/30">MobTeam</span>
-      </header>
+    <div className="bg-background text-on-background min-h-screen pb-20 md:pb-0">
+      <ScreenHeader title="Equipo" screenTag="MobTeam" noCrumbs />
 
       <main className="container mx-auto px-gutter py-section-padding md:grid md:grid-cols-12 gap-container-margin">
         <div className="md:col-span-8 flex flex-col gap-operational-gap">
@@ -98,14 +94,6 @@ export function TeamPanel() {
         </div>
       </main>
 
-      <nav className="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center py-2 bg-surface-container-lowest dark:bg-primary-container border-t border-outline-variant dark:border-on-primary-fixed-variant z-50 h-16">
-        <Link to="/agenda-global" className="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1">
-          <span className="material-symbols-outlined">calendar_month</span>
-        </Link>
-        <Link to="/admin/team" className="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1">
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>groups</span>
-        </Link>
-      </nav>
     </div>
   );
 }

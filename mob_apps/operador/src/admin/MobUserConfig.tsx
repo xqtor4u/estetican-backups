@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useUserPrefs } from '../hooks/useUserPrefs';
-import { getNavCrumbs } from '../navState';
+import { setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 
 function Toggle({ value, onChange, label, description }: {
@@ -31,8 +31,6 @@ export function MobUserConfig() {
   const navigate = useNavigate();
   const { user }  = useAuth();
   const { prefs, update } = useUserPrefs();
-  const crumbs = getNavCrumbs();
-
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
 
@@ -40,9 +38,7 @@ export function MobUserConfig() {
         title="Configuración personal"
         screenTag="MobUserConf"
         onBack={() => navigate(-1)}
-        crumbs={crumbs}
-        showBreadcrumbs={prefs.showBreadcrumbs}
-        onCrumbClick={(to) => navigate(to)}
+        noCrumbs
       />
 
       {/* Perfil */}

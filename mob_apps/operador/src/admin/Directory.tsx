@@ -1,20 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { ScreenHeader } from '../ScreenHeader';
 
 export function Directory() {
   return (
-    <div className="bg-background text-on-surface min-h-screen">
-      <header className="fixed top-0 w-full z-50 flex items-center justify-between px-6 h-16 bg-surface-bright shadow-sm">
-        <div className="flex items-center gap-4">
-          <Link to="/agenda-global" className="hover:bg-surface-container-high transition-colors p-2 rounded-full flex items-center justify-center opacity-100 hover:opacity-80 active:scale-95 transition-all">
-            <span className="material-symbols-outlined text-primary">arrow_back</span>
-          </Link>
-          <h1 className="font-headline-sm text-headline-sm font-bold text-primary">BarkStyle Pro</h1>
-        </div>
-        <span className="text-[9px] font-mono text-on-surface-variant/30">MobDir</span>
-      </header>
+    <div className="bg-background text-on-surface min-h-screen pb-20">
+      <ScreenHeader title="Directorio" screenTag="MobDir" noCrumbs />
 
-      <main className="pt-20 pb-24 px-4 md:px-container-margin max-w-7xl mx-auto">
+      <main className="pb-24 px-4 md:px-container-margin max-w-7xl mx-auto">
         <section className="mb-gutter">
           <div className="bg-surface-container-lowest border border-outline-variant p-operational-gap flex flex-col md:flex-row gap-operational-gap shadow-sm rounded-lg">
             <div className="flex-grow flex items-center bg-surface-container-low px-3 py-2 rounded transition-all">
@@ -74,14 +67,6 @@ export function Directory() {
         </Link>
       </main>
 
-      <nav className="fixed bottom-0 w-full z-50 flex justify-around items-center h-20 px-4 pb-safe bg-surface-container-lowest shadow-lg rounded-t-xl md:hidden">
-        <Link to="/admin/team" className="flex flex-col items-center justify-center text-on-surface-variant px-5 py-1">
-          <span className="material-symbols-outlined">groups</span>
-        </Link>
-        <Link to="/admin/directory" className="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-5 py-1">
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
-        </Link>
-      </nav>
     </div>
   );
 }

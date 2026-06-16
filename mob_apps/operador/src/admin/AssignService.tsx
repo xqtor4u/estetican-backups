@@ -1,16 +1,12 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { ScreenHeader } from '../ScreenHeader';
 
 export function AssignService() {
+  const navigate = useNavigate();
   return (
     <div className="bg-background text-on-background font-body-md min-h-screen flex flex-col pb-[72px] md:pb-0">
-      <header className="flex items-center px-gutter w-full h-14 bg-surface text-on-surface border-b border-outline-variant font-headline-md text-headline-md sticky top-0 z-50">
-        <Link to="/admin/directory" className="mr-4 text-on-surface-variant flex items-center justify-center">
-          <span className="material-symbols-outlined">arrow_back</span>
-        </Link>
-        <span className="font-headline-sm text-headline-sm font-bold text-primary truncate flex-1">Nueva Cita</span>
-        <span className="text-[9px] font-mono text-on-surface-variant/30">MobSvcAsn</span>
-      </header>
+      <ScreenHeader title="Nueva cita" screenTag="MobSvcAsn" onBack={() => navigate(-1)} noCrumbs />
 
       <main className="flex-1 w-full max-w-4xl mx-auto px-gutter py-section-padding md:py-container-margin">
         <form className="space-y-container-margin">

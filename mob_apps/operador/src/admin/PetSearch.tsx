@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setNavCrumbs } from '../navState';
+import { ScreenHeader } from '../ScreenHeader';
 
 interface Pet {
   id: number;
@@ -38,29 +39,28 @@ export function PetSearch() {
   const filtered = pets;
 
   const goToPet = (id: number) => {
-    setNavCrumbs([{ label: 'Mascotas', to: '/mascotas' }]);
-    navigate(`/mascotas/${id}`);
+    const nc = [{ label: 'Mascotas', to: '/mascotas' }];
+    setNavCrumbs(nc);
+    navigate(`/mascotas/${id}`, { state: { _crumbs: nc } });
   };
 
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
-      {/* Header */}
-      <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 w-full h-14 sticky top-0 z-40">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
-        >
-          <span className="material-symbols-outlined text-on-surface">arrow_back</span>
-        </button>
-        <h1 className="font-bold text-lg text-on-surface flex-1">Mascotas <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal">MobPetSrch</span></h1>
-        <button
-          onClick={() => navigate('/clientes/seleccionar', { state: { returnTo: '/mascotas/nuevo' } })}
-          className="flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-sm font-semibold active:scale-95 transition-transform"
-        >
-          <span className="material-symbols-outlined text-lg">add</span>
-          Nueva
-        </button>
-      </header>
+      <ScreenHeader
+        title="Mascotas"
+        screenTag="MobPetSrch"
+        onBack={() => navigate(-1)}
+        noCrumbs
+        rightAction={
+          <button
+            onClick={() => navigate('/clientes/seleccionar', { state: { returnTo: '/mascotas/nuevo' } })}
+            className="flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-sm font-semibold active:scale-95 transition-transform"
+          >
+            <span className="material-symbols-outlined text-lg">add</span>
+            Nueva
+          </button>
+        }
+      />
 
       <div className="flex flex-col gap-3 px-4 pt-4">
         {/* Buscador */}

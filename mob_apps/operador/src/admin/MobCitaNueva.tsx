@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getNavCrumbs } from '../navState';
+import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
 
@@ -281,7 +281,7 @@ export function MobCitaNueva() {
         onBack={() => navigate(-1)}
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
-        onCrumbClick={(to) => navigate(to)}
+        onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); }}
         rightAction={
           <button
             onClick={save}

@@ -1,20 +1,22 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { ScreenHeader } from '../ScreenHeader';
 
 export function GroomerDashboard() {
   return (
-    <div className="bg-background text-on-surface">
-      <header className="fixed top-0 w-full z-50 flex items-center justify-between px-6 h-16 bg-surface-bright shadow-sm">
-        <div className="flex items-center gap-4">
-          <h1 className="font-headline-sm text-headline-sm font-bold text-primary">Groomer</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-[9px] font-mono text-on-surface-variant/30">MobGro</span>
-          <span className="material-symbols-outlined text-primary cursor-pointer active:scale-95 transition-transform">qr_code_scanner</span>
-        </div>
-      </header>
+    <div className="bg-background text-on-surface min-h-screen pb-20">
+      <ScreenHeader
+        title="Groomer"
+        screenTag="MobGro"
+        noCrumbs
+        rightAction={
+          <button className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+            <span className="material-symbols-outlined text-primary">qr_code_scanner</span>
+          </button>
+        }
+      />
 
-      <main className="pt-20 pb-24 px-4 max-w-5xl mx-auto space-y-4">
+      <main className="pb-24 px-4 max-w-5xl mx-auto space-y-4">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-surface-container-lowest p-4 rounded-xl border border-outline-variant">
           <div className="flex items-center gap-4">
             <div className="relative">
@@ -131,16 +133,6 @@ export function GroomerDashboard() {
         </div>
       </main>
 
-      <nav className="fixed bottom-0 w-full z-50 flex justify-around items-center h-20 px-4 pb-safe bg-surface-container-lowest shadow-lg rounded-t-xl border-t border-outline-variant md:hidden">
-        <Link to="/agenda-global" className="flex flex-col items-center justify-center text-on-surface-variant px-5 py-1">
-          <span className="material-symbols-outlined">calendar_today</span>
-          <span className="font-label-md text-label-md">Agenda</span>
-        </Link>
-        <Link to="/admin/directory" className="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-5 py-1">
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
-          <span className="font-label-md text-label-md">Clientes</span>
-        </Link>
-      </nav>
     </div>
   );
 }

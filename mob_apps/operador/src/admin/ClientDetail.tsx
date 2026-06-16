@@ -235,7 +235,8 @@ export function ClientDetail() {
 
   if (!client || !edits) return null;
 
-  const crumbs = (_stateCrumbs && _stateCrumbs.length > 0) ? _stateCrumbs : getNavCrumbs();
+  /* NUNCA usar módulo como fallback — si no hay state, sin crumbs (evita crumbs rancios) */
+  const crumbs = Array.isArray(_stateCrumbs) ? _stateCrumbs : [];
   const { showBreadcrumbs } = getUserPrefs();
 
   /* ── Render principal ─────────────────────────────────── */
@@ -249,7 +250,7 @@ export function ClientDetail() {
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
         noCrumbs={editing}
-        onCrumbClick={(to) => navigate(to)}
+        onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); }}
         rightAction={editing ? (
           <div className="flex items-center gap-2">
             <button onClick={cancelEdit} className="px-3 py-1.5 rounded-full text-sm text-on-surface-variant border border-outline-variant active:scale-95 transition-transform">
@@ -337,7 +338,7 @@ export function ClientDetail() {
                   Mascotas ({client.pets.length})
                 </p>
                 {client.pets.map(pet => (
-                  <button key={pet.id} onClick={() => { setNavCrumbs([...crumbs, { label: client.full_name, to: `/clientes/${client.id}` }]); navigate(`/mascotas/${pet.id}`); }}
+                  <button key={pet.id} onClick={() => { const nc = [...crumbs, { label: client.full_name, to: `/clientes/${client.id}` }]; setNavCrumbs(nc); navigate(`/mascotas/${pet.id}`, { state: { _crumbs: nc } }); }}
                     className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center gap-3 w-full text-left active:bg-surface-container transition-colors">
                     <div className="w-10 h-10 rounded-full bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
                       {pet.photo

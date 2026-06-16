@@ -170,7 +170,7 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
 
-  const go = (to: string) => { onClose(); navigate(to); };
+  const go = (to: string) => { clearNavCrumbs(); onClose(); navigate(to); };
 
   const handleLogout = async () => {
     onClose();

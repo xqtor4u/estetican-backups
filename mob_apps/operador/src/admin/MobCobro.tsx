@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getNavCrumbs } from '../navState';
+import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
 
@@ -320,7 +320,7 @@ export function MobCobro() {
         onBack={() => navigate(-1)}
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
-        onCrumbClick={(to) => navigate(to)}
+        onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); }}
       />
 
       <div className="flex flex-col gap-5 px-4 pt-5">

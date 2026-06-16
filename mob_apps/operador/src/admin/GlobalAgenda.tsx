@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setNavCrumbs } from '../navState';
+import { clearNavCrumbs, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
@@ -101,10 +101,10 @@ export function GlobalAgenda() {
         noCrumbs
         rightAction={
           <div className="flex items-center gap-1">
-            <button onClick={() => navigate('/mascotas')} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+            <button onClick={() => { clearNavCrumbs(); navigate('/mascotas'); }} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant text-xl">pets</span>
             </button>
-            <button onClick={() => navigate('/clientes/seleccionar')} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+            <button onClick={() => { clearNavCrumbs(); navigate('/clientes/seleccionar'); }} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant text-xl">person_search</span>
             </button>
           </div>

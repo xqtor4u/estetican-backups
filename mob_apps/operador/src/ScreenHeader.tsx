@@ -16,8 +16,8 @@ export interface ScreenHeaderProps {
   showBreadcrumbs?: boolean;
   /** Pasar true en modo edición para suprimir breadcrumbs */
   noCrumbs?: boolean;
-  /** Callback cuando el usuario toca un crumb */
-  onCrumbClick?: (to: string) => void;
+  /** Callback cuando el usuario toca un crumb; recibe la ruta y los crumbs previos al tocado */
+  onCrumbClick?: (to: string, prevCrumbs: Crumb[]) => void;
 }
 
 export function ScreenHeader({
@@ -52,7 +52,7 @@ export function ScreenHeader({
               <React.Fragment key={i}>
                 {i > 0 && <span className="text-xs text-on-surface-variant/50 shrink-0">›</span>}
                 <button
-                  onClick={() => onCrumbClick?.(c.to)}
+                  onClick={() => onCrumbClick?.(c.to, crumbs.slice(0, i))}
                   className="text-xs text-primary font-medium truncate active:opacity-70"
                 >
                   {c.label}
@@ -63,7 +63,7 @@ export function ScreenHeader({
             <span className="text-sm font-bold text-on-surface truncate">{title}</span>
           </div>
         ) : (
-          <p className="font-bold text-on-surface text-base leading-tight truncate">
+          <p className="font-bold text-on-surface text-lg leading-tight truncate">
             {title}
             {screenTag && (
               <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal ml-1">

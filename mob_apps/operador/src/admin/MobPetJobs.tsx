@@ -168,7 +168,7 @@ export function MobPetJobs() {
         onBack={() => navigate(`/mascotas/${id}`)}
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
-        onCrumbClick={(to) => navigate(to)}
+        onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); }}
         rightAction={
           <span className="text-xs text-on-surface-variant/50">
             {sorted.length} {sorted.length === 1 ? 'reg.' : 'regs.'}

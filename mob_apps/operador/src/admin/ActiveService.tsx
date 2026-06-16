@@ -1,20 +1,14 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { ScreenHeader } from '../ScreenHeader';
 
 export function ActiveService() {
+  const navigate = useNavigate();
   return (
     <div className="bg-background text-on-background min-h-screen pb-24">
-      <header className="fixed top-0 w-full z-50 flex items-center justify-between px-6 h-16 bg-surface-bright shadow-sm">
-        <div className="flex items-center gap-4">
-          <Link to="/agenda-global" className="p-2 hover:bg-surface-container-high transition-colors active:scale-95 duration-150 rounded-full">
-            <span className="material-symbols-outlined text-primary">arrow_back</span>
-          </Link>
-          <span className="font-headline-sm text-headline-sm font-bold text-primary">BarkStyle Pro</span>
-        </div>
-        <span className="text-[9px] font-mono text-on-surface-variant/30">MobSvcAct</span>
-      </header>
-      
-      <main className="pt-20 px-4 md:px-container-margin max-w-4xl mx-auto space-y-6">
+      <ScreenHeader title="Servicio activo" screenTag="MobSvcAct" onBack={() => navigate(-1)} noCrumbs />
+
+      <main className="px-4 md:px-container-margin max-w-4xl mx-auto space-y-6">
         <section className="bg-surface-container-lowest border border-outline-variant p-6 rounded-xl shadow-sm">
           <div className="flex flex-col items-center text-center">
             <span className="font-label-sm text-label-sm text-on-surface-variant mb-1 uppercase tracking-widest">TIEMPO TRANSCURRIDO</span>

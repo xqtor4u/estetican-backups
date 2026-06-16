@@ -65,7 +65,7 @@ export function ClientSearch() {
         screenTag={isSelecting ? 'MobCliSel' : 'MobCliSrch'}
         onBack={() => navigate(-1)}
         noCrumbs
-        onCrumbClick={(to) => navigate(to)}
+        onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); }}
         rightAction={
           <button
             onClick={goNuevoCliente}

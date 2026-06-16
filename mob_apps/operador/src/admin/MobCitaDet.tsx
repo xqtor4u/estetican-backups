@@ -405,7 +405,7 @@ export function MobCitaDet() {
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
         noCrumbs={editing}
-        onCrumbClick={(to) => navigate(to)}
+        onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); }}
         rightAction={editing ? (
           <button onClick={saveEdit} disabled={saving}
             className="flex items-center gap-1.5 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-all disabled:opacity-40">
@@ -450,7 +450,7 @@ export function MobCitaDet() {
 
         {/* ── Mascota y cliente ─────────────────────────── */}
         <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
-          <button onClick={() => { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/mascotas/${booking.pet.id}`); }}
+          <button onClick={() => { const nc = [{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]; setNavCrumbs(nc); navigate(`/mascotas/${booking.pet.id}`, { state: { _crumbs: nc } }); }}
             className="w-full flex items-center gap-3 px-4 py-3 active:bg-surface-container transition-colors">
             <div className="w-12 h-12 rounded-xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
               {booking.pet.photo

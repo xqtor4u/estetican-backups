@@ -304,7 +304,8 @@ export function PetDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const isNew = !id || id === 'nuevo';
-  const crumbs = getNavCrumbs();
+  const _stateCrumbs: import('../navState').NavCrumb[] | undefined = (location.state as any)?._crumbs;
+  const crumbs = Array.isArray(_stateCrumbs) ? _stateCrumbs : getNavCrumbs();
   const { showBreadcrumbs } = getUserPrefs();
   const selectedClient: { id: number; name: string } | undefined = (location.state as any)?.selectedClient;
 
@@ -406,7 +407,7 @@ export function PetDetail() {
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
         noCrumbs={editing}
-        onCrumbClick={(to) => navigate(to)}
+        onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); }}
         rightAction={editing ? (
           <div className="flex items-center gap-2">
             <button onClick={cancelEdit} className="px-3 py-1.5 rounded-full text-sm text-on-surface-variant border border-outline-variant active:scale-95 transition-transform">
