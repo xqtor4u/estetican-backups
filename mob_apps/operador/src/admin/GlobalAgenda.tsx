@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setNavCrumbs } from '../navState';
+import { ScreenHeader } from '../ScreenHeader';
 
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
 interface Branch   { id: number; name: string }
@@ -93,32 +94,22 @@ export function GlobalAgenda() {
 
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20 md:pb-0">
-      {/* Header */}
-      <header className="bg-surface border-b border-outline-variant flex items-center justify-between px-4 w-full h-14 sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <h1 className="font-bold text-lg text-primary">EstetiCAN</h1>
-          {branches.length === 1 && (
-            <span className="text-xs text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full border border-outline-variant">
-              {branches[0].name}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/mascotas')}
-            className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
-          >
-            <span className="material-symbols-outlined text-on-surface-variant text-xl">pets</span>
-          </button>
-          <button
-            onClick={() => navigate('/clientes/seleccionar')}
-            className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
-          >
-            <span className="material-symbols-outlined text-on-surface-variant text-xl">person_search</span>
-          </button>
-          <span className="text-[9px] font-mono text-on-surface-variant/30">MobAgGbl</span>
-        </div>
-      </header>
+      <ScreenHeader
+        title="EstetiCAN"
+        screenTag="MobAgGbl"
+        subtitle={branches.length === 1 ? branches[0].name : undefined}
+        noCrumbs
+        rightAction={
+          <div className="flex items-center gap-1">
+            <button onClick={() => navigate('/mascotas')} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+              <span className="material-symbols-outlined text-on-surface-variant text-xl">pets</span>
+            </button>
+            <button onClick={() => navigate('/clientes/seleccionar')} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+              <span className="material-symbols-outlined text-on-surface-variant text-xl">person_search</span>
+            </button>
+          </div>
+        }
+      />
 
       <main className="flex-1 flex flex-col">
 

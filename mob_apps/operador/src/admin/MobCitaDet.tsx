@@ -465,7 +465,7 @@ export function MobCitaDet() {
           </button>
 
           {booking.client && (
-            <button onClick={() => { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/clientes/${booking.client!.id}`); }}
+            <button onClick={() => { const nc = [{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]; setNavCrumbs(nc); navigate(`/clientes/${booking.client!.id}`, { state: { _crumbs: nc } }); }}
               className="w-full flex items-center gap-3 px-4 py-3 border-t border-outline-variant active:bg-surface-container transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
               <div className="flex-1 text-left min-w-0">

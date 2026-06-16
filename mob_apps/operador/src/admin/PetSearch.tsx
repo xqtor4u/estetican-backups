@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { setNavCrumbs } from '../navState';
 
 interface Pet {
   id: number;
@@ -36,7 +37,10 @@ export function PetSearch() {
 
   const filtered = pets;
 
-  const goToPet = (id: number) => navigate(`/mascotas/${id}`);
+  const goToPet = (id: number) => {
+    setNavCrumbs([{ label: 'Mascotas', to: '/mascotas' }]);
+    navigate(`/mascotas/${id}`);
+  };
 
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">

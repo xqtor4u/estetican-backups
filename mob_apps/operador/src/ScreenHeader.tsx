@@ -6,8 +6,8 @@ export interface ScreenHeaderProps {
   title: string;
   screenTag?: string;
   subtitle?: string;
-  /** Handler del botón de regreso */
-  onBack: () => void;
+  /** Omitir para ocultar el botón de regreso (pantallas raíz) */
+  onBack?: () => void;
   backIcon?: string;
   /** Acción opcional a la derecha (botones guardar, editar, etc.) */
   rightAction?: React.ReactNode;
@@ -36,12 +36,14 @@ export function ScreenHeader({
 
   return (
     <header className="bg-surface border-b border-outline-variant flex items-center gap-3 px-4 h-14 sticky top-0 z-40">
-      <button
-        onClick={onBack}
-        className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
-      >
-        <span className="material-symbols-outlined text-on-surface">{backIcon}</span>
-      </button>
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
+        >
+          <span className="material-symbols-outlined text-on-surface">{backIcon}</span>
+        </button>
+      )}
 
       <div className="flex-1 min-w-0">
         {showCrumbs ? (

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { getNavCrumbs } from '../navState';
+import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
 
@@ -181,6 +181,7 @@ export function ClientDetail() {
   const location = useLocation();
   const isNew = !id || id === 'nuevo';
   const returnTo: string | undefined = (location.state as any)?.returnTo;
+  const _stateCrumbs: import('../navState').NavCrumb[] | undefined = (location.state as any)?._crumbs;
 
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(!isNew);
@@ -234,7 +235,7 @@ export function ClientDetail() {
 
   if (!client || !edits) return null;
 
-  const crumbs = getNavCrumbs();
+  const crumbs = (_stateCrumbs && _stateCrumbs.length > 0) ? _stateCrumbs : getNavCrumbs();
   const { showBreadcrumbs } = getUserPrefs();
 
   /* ── Render principal ─────────────────────────────────── */
@@ -336,7 +337,7 @@ export function ClientDetail() {
                   Mascotas ({client.pets.length})
                 </p>
                 {client.pets.map(pet => (
-                  <button key={pet.id} onClick={() => navigate(`/mascotas/${pet.id}`)}
+                  <button key={pet.id} onClick={() => { setNavCrumbs([...crumbs, { label: client.full_name, to: `/clientes/${client.id}` }]); navigate(`/mascotas/${pet.id}`); }}
                     className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center gap-3 w-full text-left active:bg-surface-container transition-colors">
                     <div className="w-10 h-10 rounded-full bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
                       {pet.photo

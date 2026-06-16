@@ -24,6 +24,7 @@ export function ClientSearch() {
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+
   const fetchClients = useCallback(async (search: string) => {
     setLoading(true);
     try {
@@ -44,8 +45,9 @@ export function ClientSearch() {
     if (isSelecting) {
       navigate(returnTo, { state: { selectedClient: { id: client.id, name: client.name } } });
     } else {
-      setNavCrumbs([{ label: 'Clientes', to: '/clientes' }]);
-      navigate(`/clientes/${client.id}`);
+      const nc = [{ label: 'Clientes', to: '/clientes/seleccionar' }];
+      setNavCrumbs(nc);
+      navigate(`/clientes/${client.id}`, { state: { _crumbs: nc } });
     }
   };
 
@@ -62,8 +64,7 @@ export function ClientSearch() {
         title={isSelecting ? 'Seleccionar dueño' : 'Clientes'}
         screenTag={isSelecting ? 'MobCliSel' : 'MobCliSrch'}
         onBack={() => navigate(-1)}
-        crumbs={crumbs}
-        showBreadcrumbs={showBreadcrumbs}
+        noCrumbs
         onCrumbClick={(to) => navigate(to)}
         rightAction={
           <button

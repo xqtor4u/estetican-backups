@@ -17,6 +17,7 @@ import { MobCitaDet } from './admin/MobCitaDet';
 import { MobCobro }      from './admin/MobCobro';
 import { MobPetJobs }    from './admin/MobPetJobs';
 import { MobUserConfig } from './admin/MobUserConfig';
+import { clearNavCrumbs } from './navState';
 
 /* ═══════════════════════════════════════════════════════════
    FUENTE ÚNICA DEL MENÚ — agregar secciones aquí
@@ -293,6 +294,7 @@ function BottomNav() {
           <NavLink
             key={to}
             to={to}
+            onClick={clearNavCrumbs}
             className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2"
           >
             <span

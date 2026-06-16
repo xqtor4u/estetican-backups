@@ -469,7 +469,7 @@ export function PetDetail() {
 
             {/* Dueño */}
             {pet.owner && (
-              <button onClick={() => navigate(`/clientes/${pet.owner!.id}`)}
+              <button onClick={() => { const nc = [...crumbs, { label: pet.name, to: `/mascotas/${pet.id}` }]; setNavCrumbs(nc); navigate(`/clientes/${pet.owner!.id}`, { state: { _crumbs: nc } }); }}
                 className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center gap-3 w-full text-left active:bg-surface-container transition-colors">
                 <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
                   <span className="material-symbols-outlined text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
