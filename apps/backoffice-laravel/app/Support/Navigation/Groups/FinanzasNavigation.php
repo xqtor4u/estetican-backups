@@ -41,6 +41,14 @@ class FinanzasNavigation
                 'debug_id'    => 'FinCrInd',
                 'active'      => request()->routeIs('finances.cash-registers.*'),
             ];
+
+            $items[] = [
+                'label'       => 'Sesiones de caja',
+                'description' => 'Historial de aperturas y cortes de caja con diferencias y cobros.',
+                'route'       => route('finances.cash-sessions.index'),
+                'debug_id'    => 'FinCsInd',
+                'active'      => request()->routeIs('finances.cash-sessions.*'),
+            ];
         }
 
         return [

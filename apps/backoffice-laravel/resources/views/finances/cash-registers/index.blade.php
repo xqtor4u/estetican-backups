@@ -46,12 +46,23 @@
                             <td>{{ $register->branch?->name ?? '—' }}</td>
                             <td>
                                 @if($register->activeSession)
-                                    <span class="badge rounded-pill text-bg-success">Abierta</span>
-                                    <div class="text-body-secondary small mt-1">
-                                        por {{ $register->activeSession->openedBy?->name }}
+                                    <div class="d-flex flex-column gap-1">
+                                        <span class="badge rounded-pill text-bg-success">Abierta</span>
+                                        <div class="text-body-secondary small">por {{ $register->activeSession->openedBy?->name }}</div>
+                                        <div class="d-flex gap-1 flex-wrap mt-1">
+                                            <a href="{{ route('finances.cash-sessions.show', $register->activeSession) }}"
+                                               class="btn btn-sm btn-outline-primary">Ver sesión</a>
+                                            <a href="{{ route('finances.cash-sessions.close', $register->activeSession) }}"
+                                               class="btn btn-sm btn-warning">Hacer corte</a>
+                                        </div>
                                     </div>
+                                @elseif($register->is_active)
+                                    <a href="{{ route('finances.cash-sessions.open', $register) }}"
+                                       class="btn btn-sm btn-outline-success">
+                                        Abrir sesión
+                                    </a>
                                 @else
-                                    <span class="text-body-tertiary">Sin sesión activa</span>
+                                    <span class="text-body-tertiary">—</span>
                                 @endif
                             </td>
                             <td>

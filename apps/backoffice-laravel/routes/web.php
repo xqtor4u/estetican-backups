@@ -28,6 +28,8 @@ use App\Http\Controllers\Finances\AccountController;
 use App\Http\Controllers\Finances\PaymentMethodController;
 use App\Http\Controllers\Finances\DocumentSeriesController;
 use App\Http\Controllers\Finances\CashRegisterController;
+use App\Http\Controllers\Finances\CashSessionController;
+use App\Http\Controllers\Finances\CashMovementController;
 
 Route::get('/', function () {
     return auth()->check()
@@ -107,6 +109,14 @@ Route::middleware('auth')->group(function () {
             Route::resource('payment-methods', PaymentMethodController::class)->except(['show']);
             Route::resource('document-series', DocumentSeriesController::class)->except(['show']);
             Route::resource('cash-registers', CashRegisterController::class)->except(['show']);
+            Route::get('cash-sessions',                              [CashSessionController::class, 'index'])  ->name('cash-sessions.index');
+            Route::get('cash-registers/{cashRegister}/open',         [CashSessionController::class, 'open'])   ->name('cash-sessions.open');
+            Route::post('cash-registers/{cashRegister}/open',        [CashSessionController::class, 'store'])  ->name('cash-sessions.store');
+            Route::get('cash-sessions/{cashSession}',                [CashSessionController::class, 'show'])   ->name('cash-sessions.show');
+            Route::get('cash-sessions/{cashSession}/close',          [CashSessionController::class, 'close'])  ->name('cash-sessions.close');
+            Route::post('cash-sessions/{cashSession}/close',         [CashSessionController::class, 'doClose'])->name('cash-sessions.do-close');
+            Route::post('cash-sessions/{cashSession}/movements',                        [CashMovementController::class, 'store'])  ->name('cash-sessions.movements.store');
+            Route::delete('cash-sessions/{cashSession}/movements/{cashMovement}',       [CashMovementController::class, 'destroy'])->name('cash-sessions.movements.destroy');
         });
     });
 
