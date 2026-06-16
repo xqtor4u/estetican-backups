@@ -213,8 +213,9 @@ Extraer la expresión a una variable PHP antes del template. No siempre práctic
 ```
 
 **Lección:**
-- **Regla absoluta:** No usar `@php(expr)` en ninguna vista. Solo `@php ... @endphp`.
-- Si se instalan templates de terceros o se generan vistas automáticamente, revisar que cumplan esta regla.
+- **Regla absoluta:** No usar `@php(expr)` con paréntesis anidados. Solo expresiones simples sin funciones que contengan paréntesis.
+- Para todo lo demás: definir la variable en el controlador y pasarla con `compact()`.
+- **Ojo:** `@php ... @endphp` multilínea también tiene sus propios bugs dentro de loops y secciones — ver NT-008 y NT-010.
 - Las vistas compiladas en caché pueden ocultar el error hasta que la caché se limpie. Siempre limpiar vistas después de cambios en Blade.
 
 ---
@@ -313,6 +314,76 @@ return view('finances.payment-methods.index', compact('methods', 'typeLabels'));
 {{ $typeLabels[$method->type] ?? $method->type }}
 ```
 
+
+---
+
+## NT-010 — Blade: `@php ... @endphp` multilínea dentro de `@foreach`/`@forelse` causa ParseError
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-06-15 |
+| **Severidad** | P1 — Crítico (500 en producción) |
+| **Componente** | Compilador Blade — directivas dentro de loops |
+| **Impacto** | `ParseError: unexpected token 'else'` o `unexpected token 'endforeach'` en cualquier vista con loop |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+La vista arroja 500 con `ParseError: syntax error, unexpected token "else"` o `unexpected token "endforeach"`. El error apunta a una línea dentro de un `@forelse` o `@foreach`.
+
+**Causa raíz:**
+En la versión de Laravel/Blade del proyecto, el bloque `@php ... @endphp` multilínea dentro de un loop compila de forma inconsistente: algunas directivas que siguen dentro del mismo loop (`@else`, `@endif`, `@endforelse`) se compilan a PHP pero sin su correspondiente apertura, creando tokens huérfanos que rompen la sintaxis del archivo compilado.
+
+Ejemplo que falla:
+```blade
+@forelse($sessions as $session)
+    @php
+        $diff = $session->difference;
+    @endphp
+    @if($diff > 0)
+        ...
+    @else               {{-- 💥 este @else queda huérfano --}}
+        ...
+    @endif
+@empty
+@endforelse
+```
+
+**Workaround:**
+Ninguno en caliente — requiere corrección del template.
+
+**Solución definitiva:**
+1. **Opción preferida:** pasar la variable desde el controlador.
+2. **Si la variable debe calcularse en vista:** definirla ANTES del loop con `@php($var = expr)` de una sola línea (sin `@endphp`), y referenciarla dentro del loop sin reasignar.
+
+```blade
+{{-- ❌ MAL: @php multilínea dentro del loop --}}
+@forelse($sessions as $session)
+    @php
+        $diff = $session->difference;
+    @endphp
+    {{ $diff }}
+@empty
+@endforelse
+
+{{-- ✅ BIEN: usar directamente el valor, sin @php dentro del loop --}}
+@forelse($sessions as $session)
+    {{ $session->difference }}
+@empty
+@endforelse
+
+{{-- ✅ BIEN: si necesitas pre-calcular algo, hazlo FUERA del loop --}}
+@php($totals = $sessions->pluck('difference'))
+@forelse($sessions as $i => $session)
+    {{ $totals[$i] }}
+@empty
+@endforelse
+```
+
+**Lección:**
+- **Regla de proyecto:** NUNCA usar `@php ... @endphp` (forma de bloque, multilínea) dentro de `@foreach`, `@forelse` o cualquier loop Blade.
+- Dentro de loops: solo `@php($var = expr)` en una sola línea, y solo si no hay otra opción.
+- La forma más segura siempre es pasar todo desde el controlador con `compact()`.
+- Este bug es distinto de NT-005 (paréntesis anidados en `@php(expr)`) y de NT-008 (block dentro de section+slot). Son tres familias de bugs del compilador Blade.
 
 ---
 

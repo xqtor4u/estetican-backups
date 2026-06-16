@@ -1,5 +1,69 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 15/06/2026 — BL-019: Caja completa — sesiones, cobros y movimientos
+
+### ✅ Logros y Cambios
+
+**Módulo de sesiones de caja — flujo completo (BL-019):**
+- Apertura y corte de caja funcionando: vistas `open.blade.php`, `close.blade.php`, `show.blade.php`, `index.blade.php`.
+- Corte calcula diferencia (sobrante/faltante) incluyendo movimientos; vista `close.blade.php` muestra preview live en JS al escribir el monto.
+- Vista de detalle de sesión muestra dos bloques separados: **Efectivo** (fondo inicial, cobros en caja, entradas, salidas, monto esperado) y **Banco / Tarjeta** (total banco con estado Acreditado/En proceso según `cleared_at`).
+
+**Cobros históricos — triple fuente unificada:**
+- `CashSessionController::allPaymentsForPeriod()` fusiona `payments` (sistema nuevo), `cash_ledgers` y `bank_ledgers` (sistema legacy) en una colección normalizada de `stdClass`. Sin modificar las tablas subyacentes.
+- `periodStart()` devuelve `null` para la primera sesión (sin límite inferior) o el `closed_at` de la sesión anterior, evitando que cobros históricos queden huérfanos.
+
+**Movimientos de caja con doble entrada contable:**
+- Migración `2026_06_16_000001_create_cash_movements_table.php` — tabla `cash_movements` con `type` (enum), `direction`, `amount`, `concept`, `notes`, `counterpart_account_id`, `journal_entry_id`, `created_by_user_id`.
+- Modelo `CashMovement` con relaciones: `cashSession`, `counterpartAccount`, `journalEntry`, `createdBy`.
+- `CashMovementController::store()` — valida → crea `JournalEntry` → 2 líneas DR/CR → crea `CashMovement`. Salidas: DR contrapartida / CR Caja. Entradas: DR Caja / CR contrapartida.
+- `CashMovementController::destroy()` — elimina movimiento + líneas + póliza.
+- Tipos soportados: `retiro`, `deposito_banco`, `gasto`, `perdida` (salidas) / `entrada` (entrada).
+- Modal Bootstrap `#modalMovimiento` con selector dinámico de cuenta contable via JS inline (sin HTTP extra).
+
+**Fixes de Blade — bug crítico confirmado:**
+- `@php ... @endphp` multilínea dentro de `@forelse`/`@foreach` causa 500 (ParseError "unexpected token else/endforeach") porque `@if`/`@forelse` no se compilan pero sus `@else`/`@endforelse` sí. Regla: **solo `@php($var = expr)` de una línea, siempre fuera del loop.**
+- `index.blade.php`: removida asignación `@php $diff = ...` dentro de `@if` — reemplazada por uso directo de `$session->difference`.
+- `show.blade.php`: `@php($cobrosEfectivo = ...)` y `@php($cobrosBanco = ...)` movidos al inicio de la vista, fuera de cualquier loop.
+
+**Otros fixes:**
+- Bug de doble prefijo en nombres de ruta: rutas dentro de `Route::prefix('finances')->name('finances.')` no deben repetir `finances.` en el nombre. Corregidos 6 nombres.
+- Íconos Material Symbols eliminados de 4 vistas de caja (font no cargada en el proyecto — texto basura visible).
+- Botones en `cash-registers/index.blade.php` corregidos: `btn-xs` → `btn-sm` (Bootstrap 5 no tiene `xs`).
+- Navegación: "Sesiones de caja" agregada en `FinanzasNavigation.php`.
+
+### 📁 Archivos Clave Modificados/Creados
+- `database/migrations/2026_06_16_000001_create_cash_movements_table.php` — **nuevo**
+- `app/Models/CashMovement.php` — **nuevo**
+- `app/Http/Controllers/Finances/CashMovementController.php` — **nuevo**
+- `app/Http/Controllers/Finances/CashSessionController.php` — `allPaymentsForPeriod()`, `periodStart()`, totales por destino
+- `routes/web.php` — rutas `cash-sessions.movements.store/destroy`; fix de nombres con doble prefijo
+- `app/Support/Navigation/Groups/FinanzasNavigation.php` — ítem "Sesiones de caja"
+- `resources/views/finances/cash-sessions/show.blade.php` — bloques Efectivo/Banco, tabla de movimientos, modal
+- `resources/views/finances/cash-sessions/index.blade.php` — fix Blade ParseError
+- `resources/views/finances/cash-sessions/close.blade.php` — **nuevo**
+- `resources/views/finances/cash-sessions/open.blade.php` — íconos Material Symbols removidos
+- `resources/views/finances/cash-registers/index.blade.php` — botones de acción de sesión
+
+### 🐛 Bugs encontrados y resueltos
+
+| Problema | Causa | Fix |
+|---|---|---|
+| 500 en `cash-sessions/index` | `@php $diff = ...@endphp` multilínea dentro de `@if` — Blade bug | Uso directo de `$session->difference` |
+| 500 en `cash-sessions/show` | `@php $cats = [...]@endphp` multilínea dentro de `@forelse` | Variables movidas fuera del loop |
+| Cobros no aparecían | Filtro `opened_at` excluía cobros previos | `periodStart()` devuelve `null` si es primera sesión |
+| Solo 2 cobros visibles | `payments` solo tenía 2 registros; `cash_ledgers` y `bank_ledgers` ignorados | `allPaymentsForPeriod()` fusiona las 3 fuentes |
+| Total de efectivo incorrecto | Se sumaba todo sin filtrar por destino | `totalEfectivo` filtra `destination='caja'` |
+| Rutas 404 en módulo finanzas | Doble prefijo `finances.finances.*` | Removido `finances.` del nombre dentro del grupo |
+| Íconos como texto plano | Material Symbols font no cargada | Íconos reemplazados por texto o eliminados |
+
+### 🔄 Pendientes para Próxima Sesión
+- **BL-021** — Migrar registros históricos de `cash_ledgers`/`bank_ledgers` a `journal_entries`
+- **BL-007** — Verificar Transform Rules Cloudflare
+- **BL-001..004** — UI y configuración
+
+---
+
 ## 📅 Sesión: 15-16/06/2026 - Breadcrumbs en app móvil (todas las pantallas)
 
 ### ✅ Logros y Cambios

@@ -14,7 +14,7 @@
 | **Catálogo** | `services` |
 | **Agenda SPA** | `spa_bookings`, `spa_booking_services` |
 | **Presupuestos y cobro** | `quotes`, `quote_items`, `payments`, `cash_ledgers`, `bank_ledgers` |
-| **Módulo contable** | `accounts`, `payment_methods`, `document_series`, `documents`, `journal_entries`, `journal_entry_lines`, `cash_registers`, `cash_sessions` |
+| **Módulo contable** | `accounts`, `payment_methods`, `document_series`, `documents`, `journal_entries`, `journal_entry_lines`, `cash_registers`, `cash_sessions`, `cash_movements` |
 | **Ejecución** | `executed_services`, `executed_service_items` |
 | **Hotel** | `hotel_reservations`, `stays` |
 | **Recursos físicos** | `resources`, `resource_allocations`, `resource_photos`, `resource_events`, `resource_event_updates`, `resource_event_photos` |
@@ -875,6 +875,31 @@ Sesiones de apertura y corte de caja. Registra quién abrió, cuánto había, qu
 | `status` | enum | `abierta`, `cerrada` |
 | `notes` | text nullable | |
 | `timestamps` | | |
+
+---
+
+### `cash_movements`
+Movimientos manuales dentro de una sesión de caja (retiros, depósitos a banco, gastos, pérdidas, entradas de efectivo). Cada movimiento genera automáticamente un asiento contable de doble entrada.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `cash_session_id` | bigint FK → `cash_sessions` | Sesión a la que pertenece |
+| `type` | enum | `retiro`, `deposito_banco`, `gasto`, `perdida`, `entrada` |
+| `direction` | enum | `salida` (retiro/depósito/gasto/pérdida) o `entrada` |
+| `amount` | decimal(12,2) | Siempre positivo |
+| `concept` | string | Descripción breve del movimiento |
+| `notes` | text nullable | Notas adicionales |
+| `counterpart_account_id` | bigint FK → `accounts` | Cuenta contable contrapartida de Caja |
+| `journal_entry_id` | bigint FK → `journal_entries` | Póliza generada automáticamente |
+| `created_by_user_id` | bigint FK → `users` | Quién registró el movimiento |
+| `timestamps` | | |
+
+**Doble entrada automática:**
+- Salidas (retiro/deposito_banco/gasto/perdida): DR contrapartida / CR Caja (id=6, código 1100)
+- Entradas: DR Caja / CR contrapartida
+
+**`expected_amount` de sesión:** `opening_amount + cobros_efectivo + total_entradas - total_salidas`
 
 ---
 
