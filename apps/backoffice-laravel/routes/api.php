@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AgendaController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\CashController;
 use App\Http\Controllers\Api\CheckinController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ClientController;
@@ -46,6 +47,11 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/checkout',      [CheckinController::class, 'checkout']);
 
     Route::get('/settings/booking', [SettingController::class, 'booking']);
+
+    Route::get('/cash/session',                               [CashController::class, 'session']);
+    Route::get('/cash/movement-types',                        [CashController::class, 'movementTypes']);
+    Route::get('/cash/movements',                             [CashController::class, 'movements']);
+    Route::post('/cash/sessions/{cashSession}/movements',     [CashController::class, 'storeMovement']);
 
     // Tipos de orden activos — fuente de verdad desde DocumentSeries
     Route::get('/work-order-types', function () {

@@ -17,6 +17,8 @@ import { MobCitaDet } from './admin/MobCitaDet';
 import { MobCobro }      from './admin/MobCobro';
 import { MobPetJobs }    from './admin/MobPetJobs';
 import { MobUserConfig } from './admin/MobUserConfig';
+import { MobCaja }             from './admin/MobCaja';
+import { MobCajaMovimientos } from './admin/MobCajaMovimientos';
 import { clearNavCrumbs } from './navState';
 
 /* ═══════════════════════════════════════════════════════════
@@ -37,6 +39,12 @@ export const MENU_SECTIONS = [
     items: [
       { to: '/mascotas',             icon: 'pets',          label: 'Mascotas' },
       { to: '/clientes/seleccionar', icon: 'person_search', label: 'Clientes' },
+    ],
+  },
+  {
+    title: 'Finanzas',
+    items: [
+      { to: '/caja', icon: 'point_of_sale', label: 'Caja' },
     ],
   },
 ];
@@ -386,6 +394,8 @@ export default function App() {
             <Route path="/clientes/seleccionar" element={<AdminLayout><ClientSearch /></AdminLayout>} />
             <Route path="/clientes/nuevo"       element={<AdminLayout><ClientDetail /></AdminLayout>} />
             <Route path="/clientes/:id"         element={<AdminLayout><ClientDetail /></AdminLayout>} />
+            <Route path="/caja"                 element={<AdminLayout><MobCaja /></AdminLayout>} />
+            <Route path="/caja/movimientos"    element={<AdminLayout><MobCajaMovimientos /></AdminLayout>} />
             <Route path="/configuracion"        element={<AdminLayout><MobUserConfig /></AdminLayout>} />
           </Routes>
         </AuthGuard>
