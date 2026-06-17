@@ -414,3 +414,30 @@ Para agregar un hostname público a un tunnel existente:
 - "Hostname routes" = red privada (necesita WARP)
 - "Published application routes" = hostnames públicos accesibles desde cualquier browser
 - Al agregar la ruta, NO crear manualmente el registro DNS — Cloudflare lo crea solo con tipo "Tunnel"
+
+---
+
+## NT-011 — `spa_bookings` no tiene `branch_id`: cobros no filtrables por sucursal
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-06-16 |
+| **Severidad** | P4 — Bajo (limitación de modelo, no bug en producción) |
+| **Componente** | `CashController::movements()` — endpoint `GET /api/cash/movements` |
+| **Impacto** | El balance de movimientos de caja en la app móvil muestra cobros de todas las sucursales, no solo de la sucursal del checkin activo |
+
+**Síntoma:**
+Al intentar filtrar `payments`, `cash_ledgers` y `bank_ledgers` por sucursal del operador, cualquier query que use `spa_bookings.branch_id` falla con `Unknown column 'branch_id' in 'where clause'`.
+
+**Causa raíz:**
+La tabla `spa_bookings` no tiene columna `branch_id`. La sucursal de una cita SPA se infiere indirectamente (vía el operador asignado o el recurso asignado), pero no está desnormalizada en la tabla de citas. Las tablas de pagos (`payments`, `cash_ledgers`, `bank_ledgers`) son polimórficas apuntando a `spa_bookings` o `quotes`, por lo que no tienen branch directo tampoco.
+
+**Workaround aplicado:**
+Los movimientos manuales de caja (`CashMovement`) sí se filtran por sucursal vía `cash_sessions.branch_id`. Los cobros a clientes se muestran por período sin filtro de sucursal (aceptable porque el sistema actualmente opera en una sola sucursal).
+
+**Solución definitiva (futura):**
+Si se requiere filtrado multi-sucursal de cobros, agregar columna `branch_id` a `spa_bookings` (y potencialmente a `payments`). Crear migración y actualizar los servicios que crean bookings para poblar el campo.
+
+**Lección:**
+Antes de implementar filtros por sucursal en queries sobre `payments`/`cash_ledgers`/`bank_ledgers`, verificar que la cadena `payments → payable → branch_id` existe en el esquema. El modelo actual no lo soporta sin cambios de migración.
+

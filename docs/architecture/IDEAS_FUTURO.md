@@ -41,5 +41,10 @@
 - [ ] **Foto de la sesión desde app móvil** — subir foto `ingreso`/`resultado` directamente desde la cita activa (categorías del modelo `PetPhoto`).
 - [ ] **Nueva cita desde GlobalAgenda** — botón FAB en la agenda que pregunte mascota antes de abrir MobCitaNueva (hoy solo se puede crear desde ficha de mascota).
 
+## 💰 Caja y Finanzas — mejoras futuras (ideas surgidas 16/06/2026)
+- [ ] **`branch_id` en `spa_bookings` y `payments`** — actualmente `spa_bookings` no tiene columna `branch_id`, lo que impide filtrar cobros por sucursal en el balance de movimientos. Agregar la columna (migración) y poblarla al crear la cita; hacer lo mismo en `payments`. Esto permitiría que `GET /api/cash/movements` filtre cobros por sucursal del operador (ver NT-011).
+- [ ] **Saldo inicial en el balance de movimientos** — `MobCajaMovimientos` muestra neto del período (entradas − salidas) pero no el fondo inicial de la sesión de caja. Para un balance completo debería mostrar: fondo inicial + entradas − salidas = saldo esperado. Requiere ligar el período del balance a la sesión de caja correspondiente.
+- [ ] **Corte de caja desde app móvil** — MobCaja actualmente solo muestra la sesión activa; agregar botón de corte con captura del monto físico contado y cálculo del diferencial (sobrante/faltante).
+
 ---
 *Si una idea nace en la Bitácora pero no se puede ejecutar hoy, se mueve aquí.*

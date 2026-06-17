@@ -35,7 +35,7 @@
 
 | ID | Ítem | Tipo | Notas |
 |---|---|---|---|
-| BL-022 | App móvil: gestión de caja — ver sesión activa, registrar movimientos (retiro, depósito, gasto, entrada) | Feature | Consumir endpoints de `cash_sessions` y `cash_movements` desde la app operador |
+| ~~BL-022~~ | ~~App móvil: gestión de caja — sesión activa, registrar movimientos, balance de movimientos~~ **COMPLETADO** | Feature | Ver NT-011 sobre filtro sucursal en cobros |
 | BL-021 | Migrar registros históricos de `cash_ledgers`/`bank_ledgers` a asientos contables | Mantenimiento | Script de migración de datos históricos |
 
 ### Prioridad Baja — Nuevas Capacidades
@@ -68,6 +68,7 @@
 | BL-018 | Backoffice: pantallas Finanzas (accounts, payment_methods, document_series, cash_registers) | 14/06/2026 | — |
 | BL-020 | App móvil: cobro con métodos dinámicos desde API + Payment model + asiento contable | 14/06/2026 | — |
 | BL-019 | Backoffice: apertura/corte de caja + movimientos (retiro, depósito, gasto, pérdida, entrada) con póliza doble entrada automática | 15/06/2026 | — |
+| BL-022 | App móvil: gestión de caja — ver sesión activa + registrar movimientos con póliza automática | 16/06/2026 | — |
 
 ---
 

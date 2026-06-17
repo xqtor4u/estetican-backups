@@ -1,5 +1,35 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 16/06/2026 — BL-022 continuación: Balance de movimientos de caja
+
+### ✅ Logros y Cambios
+
+**Pantalla `MobCajaMovimientos` — rediseño completo:**
+- Eliminado el toggle Resumido/Detallado; reemplazado por vista combinada `BalanceDetailView`.
+- Vista nueva muestra: 3 cards de resumen (Entradas / Salidas / Neto) + sección ENTRADAS con grupos por tipo y filas individuales + sección SALIDAS con la misma estructura + card de Neto del período al final.
+- Título de pantalla cambiado a "Balance de movimientos".
+- Filtro por tipo y presets de fecha se mantienen funcionales.
+
+**Investigación — filtro por sucursal en cobros:**
+- `spa_bookings` NO tiene `branch_id` — el modelo no permite filtrar cobros (payments, cash_ledgers, bank_ledgers) por sucursal sin un join complejo de múltiples saltos.
+- Decisión: los movimientos manuales de caja (CashMovement) sí se filtran por sucursal vía `cash_sessions.branch_id`. Los cobros a clientes se muestran globales por período. Ver NT-011.
+
+### 📁 Archivos Clave Modificados/Creados
+- `app/Http/Controllers/Api/CashController.php` — **nuevo** (sesión anterior + endpoint `movements()`)
+- `routes/api.php` — 4 rutas cash
+- `mob_apps/operador/src/admin/MobCaja.tsx` — **nuevo**
+- `mob_apps/operador/src/admin/MobCajaMovimientos.tsx` — **nuevo** (rediseñado esta sesión)
+- `mob_apps/operador/src/App.tsx` — ruta `/caja/movimientos` + sección Finanzas en menú
+
+### ⚠️ Pendiente: commit de todo BL-022
+Los archivos están listos pero sin commitear.
+
+### 🔄 Pendientes para Próxima Sesión
+- **BL-021** — Migrar registros históricos de `cash_ledgers`/`bank_ledgers` a asientos contables
+- **BL-007** — Verificar Transform Rules Cloudflare
+
+---
+
 ## 📅 Sesión: 15/06/2026 — BL-019: Caja completa — sesiones, cobros y movimientos
 
 ### ✅ Logros y Cambios
