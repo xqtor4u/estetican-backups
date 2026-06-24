@@ -1,5 +1,27 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 23/06/2026 — BL-007: Cabeceras de seguridad HTTP
+
+### ✅ Logros y Cambios
+
+**Auditoría de cabeceras de seguridad — ambos dominios:**
+
+- `app.estetican.org` (backoffice): todas las cabeceras ya presentes vía `ContentSecurityPolicy` middleware de Laravel. No requirió cambio.
+- `mov.estetican.org` (app móvil): faltaban X-Frame-Options, Referrer-Policy y Permissions-Policy — se agregaron en `nginx.conf`.
+
+**Hallazgo clave:**
+- Las Transform Rules de Cloudflare no están configuradas explícitamente para estos headers; las cabeceras las pone el origen (Laravel o nginx). Cloudflare sí agrega HSTS y X-Content-Type-Options de forma independiente (defensa en profundidad — correcto).
+- Al editar un archivo montado como volumen `:ro` en Docker, el contenedor retiene el inode original hasta reinicio; `nginx -s reload` no es suficiente cuando cambia el inode del archivo en el host.
+
+### 📁 Archivos Modificados
+- `mob_apps/operador/nginx.conf` — 4 `add_header` de seguridad
+
+### 🔄 Pendientes para Próxima Sesión
+- **BL-021** — Migrar registros históricos de `cash_ledgers`/`bank_ledgers` a asientos contables
+- BL-001..004 — UI/Config (prioridad media)
+
+---
+
 ## 📅 Sesión: 16/06/2026 — BL-022 continuación: Balance de movimientos de caja
 
 ### ✅ Logros y Cambios

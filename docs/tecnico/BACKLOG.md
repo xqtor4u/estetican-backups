@@ -14,7 +14,7 @@
 | ID | Ítem | Tipo | Notas |
 |---|---|---|---|
 | BL-006 | ~~Bloquear endpoint `/up`~~ **COMPLETADO** — movido a sección Completados | Seguridad | |
-| BL-007 | Verificar Transform Rules Cloudflare: X-Frame-Options, Referrer-Policy, Permissions-Policy | Seguridad | Completar cabeceras HTTP de seguridad |
+| ~~BL-007~~ | ~~Verificar Transform Rules Cloudflare: X-Frame-Options, Referrer-Policy, Permissions-Policy~~ **COMPLETADO** | Seguridad | Headers en nginx de mob; backoffice ya los tenía vía middleware Laravel |
 
 ### Prioridad Alta — App Móvil (operador)
 
@@ -69,6 +69,7 @@
 | BL-020 | App móvil: cobro con métodos dinámicos desde API + Payment model + asiento contable | 14/06/2026 | — |
 | BL-019 | Backoffice: apertura/corte de caja + movimientos (retiro, depósito, gasto, pérdida, entrada) con póliza doble entrada automática | 15/06/2026 | — |
 | BL-022 | App móvil: gestión de caja — ver sesión activa + registrar movimientos con póliza automática | 16/06/2026 | — |
+| BL-007 | Cabeceras seguridad HTTP: X-Frame-Options, Referrer-Policy, Permissions-Policy en nginx de mob | 23/06/2026 | `1769893` |
 
 ---
 
