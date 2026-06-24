@@ -1,5 +1,26 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 23/06/2026 — BL-021 + BL-007: Ledgers históricos y cabeceras de seguridad
+
+### ✅ BL-021: Migración de registros históricos a asientos contables
+
+**Comando Artisan creado:** `finanzas:migrar-ledgers-historicos [--dry-run]`
+
+- Recorre todos los `cash_ledgers` y `bank_ledgers` sin JE correspondiente.
+- Por cada registro crea un `JournalEntry` (status=`aplicado`) con dos líneas: DR 4900 Otros ingresos / CR cuenta del método de pago.
+- Para `cash_ledgers` → CR 1100 Caja. Para `bank_ledgers` → resuelve la cuenta vía `PaymentMethod.name`, fallback 1210.
+- Idempotente: segunda ejecución solo muestra SKIP en los ya migrados.
+- Ejecutado en producción: 2 registros migrados (1 cash, 1 bank).
+
+**Notas:**
+- Convención DR/CR del sistema: pagos se registran como DR 4900 / CR Caja — coincide con JE existentes 1, 2, 9.
+- `created_by_user_id` = primer usuario admin encontrado.
+
+### 📁 Archivos Creados
+- `app/Console/Commands/MigraLedgersHistoricosCommand.php` — **nuevo**
+
+---
+
 ## 📅 Sesión: 23/06/2026 — BL-007: Cabeceras de seguridad HTTP
 
 ### ✅ Logros y Cambios

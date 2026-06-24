@@ -36,7 +36,7 @@
 | ID | Ítem | Tipo | Notas |
 |---|---|---|---|
 | ~~BL-022~~ | ~~App móvil: gestión de caja — sesión activa, registrar movimientos, balance de movimientos~~ **COMPLETADO** | Feature | Ver NT-011 sobre filtro sucursal en cobros |
-| BL-021 | Migrar registros históricos de `cash_ledgers`/`bank_ledgers` a asientos contables | Mantenimiento | Script de migración de datos históricos |
+| ~~BL-021~~ | ~~Migrar registros históricos de `cash_ledgers`/`bank_ledgers` a asientos contables~~ **COMPLETADO** | Mantenimiento | Comando `finanzas:migrar-ledgers-historicos`; idempotente; ejecutado en prod |
 
 ### Prioridad Baja — Nuevas Capacidades
 
@@ -70,6 +70,7 @@
 | BL-019 | Backoffice: apertura/corte de caja + movimientos (retiro, depósito, gasto, pérdida, entrada) con póliza doble entrada automática | 15/06/2026 | — |
 | BL-022 | App móvil: gestión de caja — ver sesión activa + registrar movimientos con póliza automática | 16/06/2026 | — |
 | BL-007 | Cabeceras seguridad HTTP: X-Frame-Options, Referrer-Policy, Permissions-Policy en nginx de mob | 23/06/2026 | `1769893` |
+| BL-021 | Comando `finanzas:migrar-ledgers-historicos` — JE para cash_ledgers y bank_ledgers históricos | 23/06/2026 | `d9097c0` |
 
 ---
 
