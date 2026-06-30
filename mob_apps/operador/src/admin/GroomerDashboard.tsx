@@ -6,8 +6,8 @@ export function GroomerDashboard() {
   return (
     <div className="bg-background text-on-surface min-h-screen pb-20">
       <ScreenHeader
-        title="Groomer"
-        screenTag="MobGro"
+        title="Operador"
+        screenTag="MobOp"
         noCrumbs
         rightAction={
           <button className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
@@ -117,7 +117,7 @@ export function GroomerDashboard() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="font-headline-sm text-headline-sm text-primary">Corte de Raza Full</p>
-                      <p className="font-label-sm text-label-sm text-on-surface-variant">15 Oct 2023 • Groomer: Roberto S.</p>
+                      <p className="font-label-sm text-label-sm text-on-surface-variant">15 Oct 2023 • Operador: Roberto S.</p>
                     </div>
                     <span className="bg-secondary-container text-on-secondary-container text-[11px] font-bold px-2 py-0.5 rounded-full">COMPLETADO</span>
                   </div>

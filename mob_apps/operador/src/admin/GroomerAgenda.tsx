@@ -81,9 +81,9 @@ export function GroomerAgenda() {
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
       <ScreenHeader
         title={operator?.name ?? '…'}
-        screenTag="MobGroAg"
+        screenTag="MobOpAg"
         subtitle={operator?.role ?? undefined}
-        crumbs={[{ label: 'Groomer', to: '/groomer' }]}
+        crumbs={[{ label: 'Operador', to: '/groomer' }]}
         onBack={() => navigate('/groomer')}
         rightAction={
           operator?.photo_url ? (
@@ -190,11 +190,11 @@ export function GroomerAgenda() {
                 event_busy
               </span>
               <p className="text-sm text-on-surface-variant">
-                Sin citas asignadas a {operator?.name ?? 'este groomer'}
+                Sin citas asignadas a {operator?.name ?? 'este operador'}
               </p>
               <button
                 onClick={() => {
-                  setNavCrumbs([{ label: 'Groomer', to: '/groomer' }]);
+                  setNavCrumbs([{ label: 'Operador', to: '/groomer' }]);
                   navigate('/mascotas');
                 }}
                 className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-transform"
@@ -210,7 +210,7 @@ export function GroomerAgenda() {
                 className="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
                 onClick={() => {
                   setNavCrumbs([
-                    { label: 'Groomer', to: '/groomer' },
+                    { label: 'Operador', to: '/groomer' },
                     { label: operator?.name ?? 'Agenda', to: `/groomer/${operatorId}` },
                   ]);
                   navigate(`/citas/${b.id}`);

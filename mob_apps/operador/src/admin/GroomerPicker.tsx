@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScreenHeader } from '../ScreenHeader';
-import { setNavCrumbs } from '../navState';
+import { getNavCrumbs, setNavCrumbs } from '../navState';
 
 interface Operator {
   id: number;
@@ -15,6 +15,7 @@ export function GroomerPicker() {
   const navigate = useNavigate();
   const [operators, setOperators] = useState<Operator[]>([]);
   const [loading, setLoading] = useState(true);
+  const [parentCrumbs] = useState(() => getNavCrumbs());
 
   useEffect(() => {
     fetch('/api/operators')
@@ -24,16 +25,18 @@ export function GroomerPicker() {
   }, []);
 
   const selectGroomer = (op: Operator) => {
-    setNavCrumbs([{ label: 'Groomer', to: '/groomer' }]);
+    setNavCrumbs([{ label: 'Operador', to: '/groomer' }]);
     navigate(`/groomer/${op.id}`);
   };
 
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
       <ScreenHeader
-        title="Groomer"
-        screenTag="MobGroPkr"
-        noCrumbs
+        title="Operador"
+        screenTag="MobOpPkr"
+        crumbs={parentCrumbs}
+        onBack={parentCrumbs.length > 0 ? () => navigate(-1) : undefined}
+        onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to); }}
       />
 
       <div className="flex flex-col gap-3 px-4 pt-4">
@@ -55,7 +58,7 @@ export function GroomerPicker() {
           <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
             <div className="px-4 py-2 bg-surface-container-low border-b border-outline-variant"
                  style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 0 }}>
-              <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Groomer</span>
+              <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Operador</span>
               <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Rol</span>
               <span />
             </div>

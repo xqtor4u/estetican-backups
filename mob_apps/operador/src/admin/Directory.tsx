@@ -1,8 +1,10 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ScreenHeader } from '../ScreenHeader';
+import { setNavCrumbs } from '../navState';
 
 export function Directory() {
+  const navigate = useNavigate();
   return (
     <div className="bg-background text-on-surface min-h-screen pb-20">
       <ScreenHeader title="Directorio" screenTag="MobDir" noCrumbs />
@@ -52,10 +54,13 @@ export function Directory() {
               <button className="flex items-center justify-center gap-1 py-2 border border-outline-variant hover:bg-surface-container transition-all active:scale-95">
                 <span className="material-symbols-outlined text-on-surface-variant">call</span>
               </button>
-              <Link to="/groomer" className="flex items-center justify-center gap-1 py-2 bg-primary text-on-primary hover:opacity-90 transition-all active:scale-95">
+              <button
+                onClick={() => { setNavCrumbs([{ label: 'Directorio', to: '/directorio' }]); navigate('/groomer'); }}
+                className="flex items-center justify-center gap-1 py-2 bg-primary text-on-primary hover:opacity-90 transition-all active:scale-95"
+              >
                 <span className="material-symbols-outlined">person_search</span>
                 <span className="font-label-sm text-label-sm">Perfil</span>
-              </Link>
+              </button>
             </div>
           </div>
         </div>

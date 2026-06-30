@@ -30,7 +30,7 @@ export const MENU_SECTIONS = [
     items: [
       { to: '/agenda',     icon: 'calendar_month', label: 'Agenda' },
       { to: '/equipo',     icon: 'group',          label: 'Equipo' },
-      { to: '/groomer',    icon: 'content_cut',    label: 'Groomer' },
+      { to: '/groomer',    icon: 'content_cut',    label: 'Operador' },
       { to: '/directorio', icon: 'contacts',       label: 'Directorio' },
     ],
   },
