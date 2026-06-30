@@ -6,8 +6,8 @@ import { PetSearch } from './admin/PetSearch';
 import { PetDetail } from './admin/PetDetail';
 import { ClientDetail } from './admin/ClientDetail';
 import { ClientSearch } from './admin/ClientSearch';
-import { GroomerDashboard } from './admin/GroomerDashboard';
-import { ActiveService } from './admin/ActiveService';
+import { GroomerPicker } from './admin/GroomerPicker';
+import { GroomerAgenda } from './admin/GroomerAgenda';
 import { Directory } from './admin/Directory';
 import { AssignService } from './admin/AssignService';
 import { TeamPanel } from './admin/TeamPanel';
@@ -380,8 +380,8 @@ export default function App() {
             <Route path="/" element={<Navigate to="/agenda" replace />} />
             <Route path="/agenda"               element={<AdminLayout><GlobalAgenda /></AdminLayout>} />
             <Route path="/equipo"               element={<AdminLayout><TeamPanel /></AdminLayout>} />
-            <Route path="/groomer"              element={<AdminLayout><GroomerDashboard /></AdminLayout>} />
-            <Route path="/groomer/active"       element={<AdminLayout><ActiveService /></AdminLayout>} />
+            <Route path="/groomer"              element={<AdminLayout><GroomerPicker /></AdminLayout>} />
+            <Route path="/groomer/:id"          element={<AdminLayout><GroomerAgenda /></AdminLayout>} />
             <Route path="/directorio"           element={<AdminLayout><Directory /></AdminLayout>} />
             <Route path="/directorio/asignar"   element={<AdminLayout><AssignService /></AdminLayout>} />
             <Route path="/mascotas"                    element={<AdminLayout><PetSearch /></AdminLayout>} />

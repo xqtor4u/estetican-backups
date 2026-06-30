@@ -1,5 +1,55 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 29/06/2026 — BL-023: Selector de groomer + fix de caché nginx 🔄 EN CURSO
+
+### 🔄 BL-023: Groomer Picker + Groomer Agenda (parcial)
+
+**Flujo implementado (sesión anterior):**
+- Pestaña "Groomer" del footer nav ahora abre `GroomerPicker` en lugar del prototipo hardcodeado (`GroomerDashboard`).
+- `GroomerPicker` lista todos los operadores activos (vía `/api/operators`) con foto, nombre y rol. Tap → navega a `/groomer/:id`.
+- `GroomerAgenda` muestra la agenda del groomer seleccionado:
+  - Header con nombre + foto del groomer como `rightAction`
+  - Breadcrumb: `Groomer › [Nombre]`
+  - Mismo selector de fechas que `GlobalAgenda` (±1 día, presets Hoy/Mañana, input de fecha)
+  - Lista de citas filtrada client-side (`operators.some(o => o.id === operatorId)`)
+  - Tap en cita → `/citas/:id` con breadcrumb de 2 niveles
+  - Estado vacío con mensaje personalizado + botón "Nueva cita"
+
+**Decisión de diseño:**
+- El filtrado se hace client-side (igual que `GlobalAgenda`) porque la API no acepta parámetro `operator_id` — no se modificó el backend.
+- `GroomerDashboard` se retiró de las rutas pero el archivo se conservó en disco.
+- Se eliminó el import huérfano de `ActiveService` de `App.tsx`.
+
+**Rediseño de GroomerPicker (esta sesión):**
+- Usuario pidió consistencia visual con `PetSearch`. Se aplicó la **plantilla de tabla** de PetSearch: `rounded-2xl overflow-hidden`, encabezado `bg-surface-container-low`, filas con `grid-cols-[1fr_1fr_auto]`, foto `w-8 h-8`, separadores entre filas, chevron a la derecha.
+- Estructura del contenedor cambiada de `<main max-w-lg>` a `<div className="flex flex-col gap-3 px-4 pt-4">` para coincidir exactamente con PetSearch.
+- Build genera: `index-DfrsPvdj.js` + `index-Tik_gQTq.css` (ambos hashes nuevos, confirmado en contenedor y vía curl).
+
+**Fix de caché nginx (esta sesión):**
+- `nginx.conf` del contenedor móvil: agregado `location = /index.html` con `Cache-Control: no-cache, no-store, must-revalidate` para que Cloudflare y el navegador siempre descarguen el HTML fresco.
+- Verificado: `cf-cache-status: DYNAMIC` + header `Cache-Control: no-cache` en respuesta de Cloudflare.
+- Contenedor reiniciado con `docker compose restart mob` para aplicar el nuevo nginx.conf.
+
+⚠️ **Pendiente confirmar:** Al cerrar la sesión el usuario aún no pudo confirmar visualmente que el diseño de tabla llegó correctamente. El código y los archivos servidos están correctos — verificar al inicio de la próxima sesión.
+
+### 📁 Archivos Creados/Modificados
+- `mob_apps/operador/src/admin/GroomerPicker.tsx` — rediseñado a plantilla de tabla de PetSearch
+- `mob_apps/operador/src/admin/GroomerAgenda.tsx` — nuevo (sin cambios esta sesión)
+- `mob_apps/operador/src/App.tsx` — rutas `/groomer` y `/groomer/:id`; sin cambios esta sesión
+- `mob_apps/operador/nginx.conf` — `Cache-Control: no-cache` para `index.html`
+- `mob_apps/operador/dist/` — build `index-DfrsPvdj.js` + `index-Tik_gQTq.css`
+
+### 🔄 Pendientes para Próxima Sesión
+1. **Verificar visualmente** que `GroomerPicker` muestra tabla igual a PetSearch en `mov.estetican.org/groomer`
+2. **BL-023** — Una vez confirmado el diseño, marcar como completado
+3. BL-001 — Tema de UI: persistencia y cambio reactivo de paleta de colores
+4. BL-002 — Favicon & datos generales del negocio
+5. BL-003 — Email avanzado: SMTP completo
+6. BL-004 — Zonas horarias: selector completo
+7. BL-008 — Reportes PDF
+
+---
+
 ## 📅 Sesión: 23/06/2026 — BL-021 + BL-007: Ledgers históricos y cabeceras de seguridad
 
 ### ✅ BL-021: Migración de registros históricos a asientos contables

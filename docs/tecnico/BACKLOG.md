@@ -21,6 +21,7 @@
 | ID | Ítem | Tipo | Notas |
 |---|---|---|---|
 | ~~BL-020~~ | ~~Breadcrumbs en todas las pantallas vía ScreenHeader~~ **COMPLETADO** | Feature | |
+| BL-023 | App móvil: Groomer — selector de operador + agenda individual **EN CURSO** | Feature | `GroomerPicker` rediseñado a tabla (igual que PetSearch); `GroomerAgenda` completo; pendiente confirmar visual en prod |
 
 ### Prioridad Media — Funcionalidad de UI y Configuración
 

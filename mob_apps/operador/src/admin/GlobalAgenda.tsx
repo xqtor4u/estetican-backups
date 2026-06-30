@@ -107,6 +107,13 @@ export function GlobalAgenda() {
             <button onClick={() => { clearNavCrumbs(); navigate('/clientes/seleccionar'); }} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant text-xl">person_search</span>
             </button>
+            <button
+              onClick={() => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate('/mascotas'); }}
+              className="flex items-center gap-1 bg-primary text-on-primary px-3 py-1.5 rounded-full text-xs font-semibold active:scale-95 transition-transform ml-1"
+            >
+              <span className="material-symbols-outlined text-base">add</span>
+              Cita
+            </button>
           </div>
         }
       />
@@ -265,7 +272,10 @@ export function GlobalAgenda() {
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
               <span className="material-symbols-outlined text-5xl text-on-surface-variant/30" style={{ fontVariationSettings: "'FILL' 1" }}>event_busy</span>
               <p className="text-sm text-on-surface-variant">Sin citas para este día</p>
-              <button className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-transform">
+              <button
+                onClick={() => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate('/mascotas'); }}
+                className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-transform"
+              >
                 <span className="material-symbols-outlined text-base">add</span>
                 Nueva cita
               </button>
