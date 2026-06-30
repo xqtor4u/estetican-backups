@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use App\Models\Operator;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -35,6 +36,7 @@ use Spatie\Permission\Traits\HasRoles;
     'is_operator',
     'operator_code',
     'operator_role_id',
+    'operator_id',
     'notes',
 ])]
 #[Hidden(['password', 'remember_token'])]
@@ -78,6 +80,11 @@ class User extends Authenticatable
     public function operatorRole()
     {
         return $this->belongsTo(OperatorRole::class, 'operator_role_id');
+    }
+
+    public function operator()
+    {
+        return $this->belongsTo(Operator::class, 'operator_id');
     }
 
     // Determina si el usuario es super admin (Híbrido Spatie + Campo legacy)

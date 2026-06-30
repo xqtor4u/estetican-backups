@@ -202,7 +202,7 @@
                         <input type="text" class="form-control font-monospace" id="operator_code" name="operator_code" value="{{ old('operator_code', $user->operator_code) }}" placeholder="Ej: GRO-001">
                     </div>
 
-                    <div class="mb-0">
+                    <div class="mb-3">
                         <label for="operator_role_id" class="form-label">Tipo de Operador</label>
                         <select class="form-select" id="operator_role_id" name="operator_role_id">
                             <option value="">Sin asignar</option>
@@ -213,6 +213,17 @@
                             @endforeach
                         </select>
                     </div>
+
+                    @if($user->operator_id)
+                        <div class="alert alert-success py-2 px-3 mb-0 small">
+                            Vinculado al operador <strong>#{{ $user->operator_id }}</strong>
+                            — los cambios aquí se sincronizan automáticamente.
+                        </div>
+                    @elseif($user->is_operator)
+                        <div class="alert alert-warning py-2 px-3 mb-0 small">
+                            Sin registro de operador aún. Se creará al guardar.
+                        </div>
+                    @endif
                 </div>
             </div>
 

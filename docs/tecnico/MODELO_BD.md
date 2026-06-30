@@ -71,7 +71,7 @@ Catálogo legado de operadores (pre-fusión). Sigue siendo la FK usada en `spa_b
 | `name` | string | |
 | `full_name` | string | Nombre completo |
 | `role` | string nullable | Rol legacy |
-| `operator_role_id` | FK → `operator_roles` nullable | |
+| `operator_role_id` | FK → `operator_roles` nullable | Agregado 30/06/2026 |
 | `branch_id` | FK → `branches` nullable | Sucursal base |
 | `ine_number` | string nullable | |
 | `imss_number` | string nullable | |

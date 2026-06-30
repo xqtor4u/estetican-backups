@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Operator;
 use App\Models\User;
 use App\Models\OperatorRole;
 use App\Support\UserPhotoImageManager;
@@ -105,6 +106,7 @@ class UserController extends Controller
         
         $user->password = Hash::make($validated['password']);
         $user->save();
+        $this->syncOperatorRecord($user);
 
         // Sincronizar Permisos Granulares
         if ($request->has('permissions')) {
@@ -206,7 +208,8 @@ class UserController extends Controller
         }
         
         $user->save();
-        
+        $this->syncOperatorRecord($user);
+
         // Sincronizar Permisos Granulares
         if ($request->has('permissions')) {
             $user->syncPermissions($request->permissions);
@@ -223,6 +226,43 @@ class UserController extends Controller
 
         return redirect()->route('users.show', $user->id)
             ->with('success', 'Usuario actualizado correctamente.');
+    }
+
+    private function syncOperatorRecord(User $user): void
+    {
+        if (!$user->is_operator) {
+            if ($user->operator_id) {
+                Operator::where('id', $user->operator_id)->update(['is_active' => false]);
+            }
+            return;
+        }
+
+        $fullName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+
+        $data = [
+            'code'                    => $user->operator_code ?: strtoupper(substr($user->name, 0, 8)),
+            'name'                    => $user->name,
+            'full_name'               => $fullName ?: $user->name,
+            'operator_role_id'        => $user->operator_role_id,
+            'ine_number'              => $user->ine_number,
+            'imss_number'             => $user->imss_number,
+            'address'                 => $user->address,
+            'phone'                   => $user->phone,
+            'profile_photo_path'      => $user->profile_photo_path,
+            'emergency_contact_name'  => $user->emergency_contact_name,
+            'emergency_contact_phone' => $user->emergency_contact_phone,
+            'hire_date'               => $user->hire_date,
+            'is_active'               => $user->is_active,
+            'notes'                   => $user->notes,
+        ];
+
+        if ($user->operator_id) {
+            Operator::where('id', $user->operator_id)->update($data);
+        } else {
+            $operator = Operator::create($data);
+            $user->operator_id = $operator->id;
+            $user->saveQuietly();
+        }
     }
 
     // Eliminar usuario

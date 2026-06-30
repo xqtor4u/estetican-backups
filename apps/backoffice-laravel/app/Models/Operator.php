@@ -15,6 +15,7 @@ use Illuminate\Support\Collection;
     'code',
     'full_name',
     'name',
+    'operator_role_id',
     'ine_number',
     'imss_number',
     'address',
