@@ -91,6 +91,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:admin|super-admin')->group(function () {
         Route::get('system-settings', [SystemSettingController::class, 'index'])->name('system-settings.index');
         Route::put('system-settings/{section}', [SystemSettingController::class, 'update'])->name('system-settings.update');
+        Route::patch('system-settings/{section}/field', [SystemSettingController::class, 'patchField'])->name('system-settings.patch-field');
         Route::post('system-settings/smtp-test', [SystemSettingController::class, 'testSmtp'])->name('system-settings.smtp-test');
 
         Route::get('users', [UserController::class, 'index'])->name('users.index');

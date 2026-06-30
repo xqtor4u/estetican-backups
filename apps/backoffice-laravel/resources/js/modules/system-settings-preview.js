@@ -21,11 +21,9 @@ const updateActiveCards = (inputs) => {
     });
 };
 
-const updatePreviewCopy = (form, state, originalState) => {
+const updatePreviewCopy = (form, state) => {
     const summaryLabel = document.querySelector('[data-active-palette-label]');
     const summaryDensity = document.querySelector('[data-active-density-label]');
-    const statusNode = form.querySelector('[data-palette-preview-status]');
-    const isDirty = state.palette !== originalState.palette || state.density !== originalState.density;
 
     if (summaryLabel && state.paletteLabel) {
         summaryLabel.textContent = state.paletteLabel;
@@ -34,18 +32,49 @@ const updatePreviewCopy = (form, state, originalState) => {
     if (summaryDensity) {
         summaryDensity.textContent = state.density === 'compact' ? 'compacta' : 'cómoda';
     }
+};
 
-    if (statusNode) {
-        statusNode.textContent = isDirty
-            ? `Vista previa activa: ${state.paletteLabel} · densidad ${state.density === 'compact' ? 'compacta' : 'cómoda'}. Se guarda al enviar esta sección.`
-            : 'Vista previa en vivo. Solo se guarda cuando envías esta sección.';
+const showSaveStatus = (form, message, isError = false) => {
+    const statusNode = form.querySelector('[data-palette-preview-status]');
+    if (!statusNode) return;
+    statusNode.textContent = message;
+    statusNode.style.color = isError ? 'var(--bs-danger, #dc3545)' : 'var(--app-accent, #c9703c)';
+    statusNode.style.fontWeight = '600';
+    setTimeout(() => {
+        statusNode.style.color = '';
+        statusNode.style.fontWeight = '';
+        statusNode.textContent = 'Vista previa en vivo. Los cambios se guardan automáticamente.';
+    }, 2500);
+};
+
+const autoSaveField = async (form, fieldName, value) => {
+    const patchUrl = form.action.split('#')[0] + '/field';
+    const token = form.querySelector('input[name="_token"]')?.value;
+
+    if (!token) return;
+
+    const body = new FormData();
+    body.append('_token', token);
+    body.append(fieldName, value);
+
+    try {
+        const res = await fetch(patchUrl, { method: 'PATCH', body });
+        const data = await res.json().catch(() => null);
+
+        if (res.ok && data?.ok) {
+            showSaveStatus(form, 'Guardado ✓');
+        } else {
+            showSaveStatus(form, 'No se pudo guardar', true);
+        }
+    } catch {
+        showSaveStatus(form, 'Sin conexión — cambio no guardado', true);
     }
 };
 
-const applyVisualizationPreview = (state, form, originalState) => {
+const applyVisualizationPreview = (state, form) => {
     document.body.dataset.themePalette = state.palette;
     setBodyDensity(state.density);
-    updatePreviewCopy(form, state, originalState);
+    updatePreviewCopy(form, state);
 };
 
 const initPalettePreview = () => {
@@ -85,7 +114,13 @@ const initPalettePreview = () => {
         };
     };
 
-    updatePreviewCopy(form, getState(), originalState);
+    updatePreviewCopy(form, getState());
+
+    // Actualizar el texto de estado inicial
+    const statusNode = form.querySelector('[data-palette-preview-status]');
+    if (statusNode) {
+        statusNode.textContent = 'Vista previa en vivo. Los cambios se guardan automáticamente.';
+    }
 
     form.addEventListener('change', (event) => {
         const paletteInput = event.target.closest(PALETTE_INPUT_SELECTOR);
@@ -95,14 +130,21 @@ const initPalettePreview = () => {
             return;
         }
 
+        const state = getState();
         updateActiveCards(inputs);
-        applyVisualizationPreview(getState(), form, originalState);
+        applyVisualizationPreview(state, form);
+
+        if (paletteInput) {
+            autoSaveField(form, 'ui_color_palette', state.palette);
+        } else if (isDensityChange) {
+            autoSaveField(form, 'ui_density', state.density);
+        }
     });
 
     form.addEventListener('reset', () => {
         window.requestAnimationFrame(() => {
             updateActiveCards(inputs);
-            applyVisualizationPreview(originalState, form, originalState);
+            applyVisualizationPreview(originalState, form);
         });
     });
 };

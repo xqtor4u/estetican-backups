@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\Pages\SystemSettingsPage;
 use App\Support\SystemSettings\SystemSettings;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -86,5 +87,33 @@ class SystemSettingController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Error de conexión SMTP: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Guarda un subconjunto de campos de una sección (llamada AJAX).
+     * Solo persiste los campos presentes en el request; los demás no se tocan.
+     */
+    public function patchField(Request $request, string $section, SystemSettings $systemSettings): JsonResponse
+    {
+        abort_unless($systemSettings->hasSection($section), 404);
+
+        $allRules = $systemSettings->rulesFor($section);
+        $presentKeys = array_keys(array_intersect_key($allRules, $request->all()));
+
+        if (empty($presentKeys)) {
+            return response()->json(['ok' => false, 'error' => 'No se recibió ningún campo válido.'], 422);
+        }
+
+        $rules = array_intersect_key($allRules, array_flip($presentKeys));
+
+        try {
+            $validated = $request->validate($rules);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['ok' => false, 'errors' => $e->errors()], 422);
+        }
+
+        $systemSettings->saveFields($section, $validated);
+
+        return response()->json(['ok' => true]);
     }
 }

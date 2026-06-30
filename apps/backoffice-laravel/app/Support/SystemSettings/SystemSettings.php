@@ -166,6 +166,46 @@ class SystemSettings
         static::flushCache();
     }
 
+    /**
+     * Guarda solo los campos indicados (actualización parcial de una sección).
+     * Los campos no incluidos en $validated no se tocan.
+     *
+     * @param array<string, mixed> $validated
+     */
+    public function saveFields(string $section, array $validated): void
+    {
+        $sectionDefinition = $this->definitions()[$section] ?? null;
+
+        if (!$sectionDefinition || !$this->hasSettingsTable()) {
+            return;
+        }
+
+        $timestamp = now();
+        $payload   = [];
+
+        foreach ($validated as $fieldKey => $value) {
+            $fieldDefinition = $sectionDefinition['fields'][$fieldKey] ?? null;
+
+            if (!$fieldDefinition) {
+                continue;
+            }
+
+            $payload[] = [
+                'section'    => $section,
+                'key'        => $fieldKey,
+                'type'       => $fieldDefinition['type'],
+                'value'      => $this->serializeValue($fieldDefinition, $value),
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ];
+        }
+
+        if (!empty($payload)) {
+            SystemSetting::query()->upsert($payload, ['key'], ['section', 'type', 'value', 'updated_at']);
+            static::flushCache();
+        }
+    }
+
     public static function flushCache(): void
     {
         Cache::forget(self::CACHE_KEY);
