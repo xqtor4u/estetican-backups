@@ -159,8 +159,9 @@ class OperatorRoleController extends Controller
     private function rules(?OperatorRole $operatorRole = null): array
     {
         return [
-            'code' => ['required', 'string', 'max:255', Rule::unique('operator_roles', 'code')->ignore($operatorRole?->id)],
-            'name' => ['required', 'string', 'max:255', Rule::unique('operator_roles', 'name')->ignore($operatorRole?->id)],
+            'code'     => ['required', 'string', 'max:255', Rule::unique('operator_roles', 'code')->ignore($operatorRole?->id)],
+            'acronym'  => ['nullable', 'string', 'size:3', 'regex:/^[A-Z0-9]{3}$/', Rule::unique('operator_roles', 'acronym')->ignore($operatorRole?->id)],
+            'name'     => ['required', 'string', 'max:255', Rule::unique('operator_roles', 'name')->ignore($operatorRole?->id)],
             'description' => 'nullable|string',
             'default_hourly_rate' => 'nullable|numeric|min:0',
             'is_active' => 'nullable|boolean',
@@ -171,7 +172,10 @@ class OperatorRoleController extends Controller
     private function preparePayload(array $validated): array
     {
         return [
-            'code' => strtoupper(trim($validated['code'])),
+            'code'    => strtoupper(trim($validated['code'])),
+            'acronym' => isset($validated['acronym']) && $validated['acronym'] !== ''
+                ? strtoupper(trim($validated['acronym']))
+                : null,
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'notes' => $validated['description'] ?? null,

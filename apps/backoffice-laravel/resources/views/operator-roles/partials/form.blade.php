@@ -12,6 +12,15 @@
         <input id="code" type="text" name="code" class="form-control" value="{{ old('code', $operatorRole->code ?? '') }}" required>
     </div>
 
+    <div class="col-md-2">
+        <label for="acronym" class="form-label">Acrónimo <span class="text-muted fw-normal">(3 car.)</span></label>
+        <input id="acronym" type="text" name="acronym" class="form-control font-monospace text-uppercase"
+               maxlength="3" pattern="[A-Z0-9]{1,3}"
+               placeholder="GRP"
+               value="{{ old('acronym', $operatorRole->acronym ?? '') }}">
+        <div class="form-text">Para tablas y reportes compactos.</div>
+    </div>
+
     <div class="col-md-5">
         <label for="name" class="form-label">Nombre</label>
         <input id="name" type="text" name="name" class="form-control" value="{{ old('name', $operatorRole->name ?? '') }}" required>
