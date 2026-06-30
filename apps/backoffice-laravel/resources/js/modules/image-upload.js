@@ -75,8 +75,8 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
             if (!this.cropper) return;
 
             const canvas = this.cropper.getCroppedCanvas({
-                maxWidth: 1600,
-                maxHeight: 1600,
+                maxWidth: 1200,
+                maxHeight: 1200,
                 imageSmoothingQuality: 'high',
             });
 
@@ -102,7 +102,7 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
                 ctx.fillText(fullText, boxX + padding, boxY + padding);
             }
 
-            this.imageUrl = canvas.toDataURL('image/jpeg', 0.9);
+            this.imageUrl = canvas.toDataURL('image/jpeg', 0.82);
 
             canvas.toBlob((blob) => {
                 const croppedFile = new File(
@@ -132,7 +132,7 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
                 this.modalInstance.hide();
                 this.cropper.destroy();
                 this.cropper = null;
-            }, 'image/jpeg', 0.9);
+            }, 'image/jpeg', 0.82);
         },
         cancelCrop() {
             if (this.modalInstance) this.modalInstance.hide();

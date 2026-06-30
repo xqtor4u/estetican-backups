@@ -88,30 +88,30 @@ return [
 
     'images' => [
         'pets' => [
-            'main_max_size' => env('BACKOFFICE_PET_IMAGE_MAX_SIZE', 1600),
-            'main_quality' => env('BACKOFFICE_PET_IMAGE_QUALITY', 82),
+            'main_max_size' => env('BACKOFFICE_PET_IMAGE_MAX_SIZE', 1200),
+            'main_quality' => env('BACKOFFICE_PET_IMAGE_QUALITY', 80),
             'thumbnail_width' => env('BACKOFFICE_PET_THUMB_WIDTH', 160),
             'thumbnail_height' => env('BACKOFFICE_PET_THUMB_HEIGHT', 120),
-            'thumbnail_quality' => env('BACKOFFICE_PET_THUMB_QUALITY', 68),
+            'thumbnail_quality' => env('BACKOFFICE_PET_THUMB_QUALITY', 65),
         ],
         'operators' => [
-            'main_max_size' => env('BACKOFFICE_OPERATOR_IMAGE_MAX_SIZE', 1200),
-            'main_quality' => env('BACKOFFICE_OPERATOR_IMAGE_QUALITY', 82),
+            'main_max_size' => env('BACKOFFICE_OPERATOR_IMAGE_MAX_SIZE', 800),
+            'main_quality' => env('BACKOFFICE_OPERATOR_IMAGE_QUALITY', 80),
             'thumbnail_size' => env('BACKOFFICE_OPERATOR_THUMB_SIZE', 160),
-            'thumbnail_quality' => env('BACKOFFICE_OPERATOR_THUMB_QUALITY', 70),
+            'thumbnail_quality' => env('BACKOFFICE_OPERATOR_THUMB_QUALITY', 65),
         ],
         'resources' => [
-            'main_max_size' => env('BACKOFFICE_RESOURCE_IMAGE_MAX_SIZE', 1600),
-            'main_quality' => env('BACKOFFICE_RESOURCE_IMAGE_QUALITY', 82),
+            'main_max_size' => env('BACKOFFICE_RESOURCE_IMAGE_MAX_SIZE', 1200),
+            'main_quality' => env('BACKOFFICE_RESOURCE_IMAGE_QUALITY', 80),
             'thumbnail_width' => env('BACKOFFICE_RESOURCE_THUMB_WIDTH', 160),
             'thumbnail_height' => env('BACKOFFICE_RESOURCE_THUMB_HEIGHT', 120),
-            'thumbnail_quality' => env('BACKOFFICE_RESOURCE_THUMB_QUALITY', 68),
+            'thumbnail_quality' => env('BACKOFFICE_RESOURCE_THUMB_QUALITY', 65),
         ],
         'users' => [
-            'main_max_size' => env('BACKOFFICE_USER_IMAGE_MAX_SIZE', 1200),
-            'main_quality' => env('BACKOFFICE_USER_IMAGE_QUALITY', 82),
+            'main_max_size' => env('BACKOFFICE_USER_IMAGE_MAX_SIZE', 800),
+            'main_quality' => env('BACKOFFICE_USER_IMAGE_QUALITY', 80),
             'thumbnail_size' => env('BACKOFFICE_USER_THUMB_SIZE', 160),
-            'thumbnail_quality' => env('BACKOFFICE_USER_THUMB_QUALITY', 70),
+            'thumbnail_quality' => env('BACKOFFICE_USER_THUMB_QUALITY', 65),
         ],
     ],
 ];
