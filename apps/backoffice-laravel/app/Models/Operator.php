@@ -6,6 +6,7 @@ use Database\Factories\OperatorFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
@@ -42,6 +43,11 @@ class Operator extends Model
             'is_active' => 'boolean',
             'hire_date' => 'date',
         ];
+    }
+
+    public function operatorRole(): BelongsTo
+    {
+        return $this->belongsTo(OperatorRole::class, 'operator_role_id');
     }
 
     public function executedServices(): HasMany

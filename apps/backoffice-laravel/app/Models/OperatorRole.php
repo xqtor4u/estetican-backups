@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['code', 'name', 'description', 'notes', 'default_hourly_rate', 'is_active', 'can_login'])]
+#[Fillable(['code', 'acronym', 'name', 'description', 'notes', 'default_hourly_rate', 'is_active', 'can_login'])]
 class OperatorRole extends Model
 {
     protected static function booted(): void
@@ -29,6 +29,12 @@ class OperatorRole extends Model
             'is_active' => 'boolean',
             'can_login' => 'boolean',
         ];
+    }
+
+    /** Devuelve el acrónimo si existe, o los primeros 3 chars del code como fallback. */
+    public function getShortLabelAttribute(): string
+    {
+        return $this->acronym ?? strtoupper(substr($this->code, 0, 3));
     }
 
     public function assignments(): HasMany

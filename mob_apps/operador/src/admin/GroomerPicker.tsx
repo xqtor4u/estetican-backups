@@ -7,6 +7,7 @@ interface Operator {
   id: number;
   name: string;
   role: string | null;
+  role_acronym: string | null;
   photo_url: string | null;
 }
 
@@ -52,7 +53,8 @@ export function GroomerPicker() {
 
         {!loading && operators.length > 0 && (
           <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
-            <div className="grid grid-cols-[1fr_1fr_auto] bg-surface-container-low border-b border-outline-variant px-4 py-2">
+            <div className="px-4 py-2 bg-surface-container-low border-b border-outline-variant"
+                 style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 0 }}>
               <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Groomer</span>
               <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Rol</span>
               <span />
@@ -61,11 +63,12 @@ export function GroomerPicker() {
               <button
                 key={op.id}
                 onClick={() => selectGroomer(op)}
-                className={`w-full grid grid-cols-[1fr_1fr_auto] items-center px-4 py-3 active:bg-surface-container transition-colors text-left ${
+                className={`w-full items-center px-4 py-3 active:bg-surface-container transition-colors text-left ${
                   i < operators.length - 1 ? 'border-b border-outline-variant' : ''
                 }`}
+                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', alignItems: 'center' }}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
                     {op.photo_url
                       ? <img src={op.photo_url} alt={op.name} className="w-full h-full object-cover" />
@@ -76,8 +79,13 @@ export function GroomerPicker() {
                     <p className="text-sm font-semibold text-on-surface truncate">{op.name}</p>
                   </div>
                 </div>
-                <p className="text-xs text-on-surface truncate pr-2">{op.role ?? '—'}</p>
-                <span className="material-symbols-outlined text-on-surface-variant text-base">chevron_right</span>
+                <div className="min-w-0 pr-2">
+                  {op.role_acronym
+                    ? <span className="inline-block text-[10px] font-bold font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded">{op.role_acronym}</span>
+                    : <p className="text-xs text-on-surface-variant truncate">{op.role ?? '—'}</p>
+                  }
+                </div>
+                <span className="material-symbols-outlined text-on-surface-variant text-base shrink-0">chevron_right</span>
               </button>
             ))}
           </div>
