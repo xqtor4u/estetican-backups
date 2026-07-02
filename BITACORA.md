@@ -1,5 +1,63 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 01/07/2026 — BL-024 Fase 1: Recordatorios WhatsApp ✅ + fix infra de testing
+
+### ✅ BL-024 Fase 1 — Bandeja diaria de recordatorios WhatsApp
+
+Se descartó reconstruir el viejo script externo (CSV + WhatsApp Web automatizado con delays aleatorios, corría en shell de Windows 11, no vive en este repo y no se recuperó) — no se automatiza el envío para evitar riesgo de baneo de cuenta. En su lugar: bandeja diaria con selección manual + link `wa.me` que el operador confirma.
+
+**Alcance:** solo citas SPA (`SpaBooking`). Hotel es otra unidad de negocio y manejará sus mensajes con su propia lógica más adelante — decisión explícita del usuario, sin forzar tabla/lógica genérica compartida.
+
+**Datos nuevos:**
+- `whatsapp_templates` — plantillas de mensaje con variables `{cliente} {mascota} {servicio} {fecha} {hora}`.
+- `booking_messages` — log de cada recordatorio enviado (teléfono normalizado, mensaje resuelto, wa_link, quién y cuándo).
+
+**Lógica (`app/Support/WhatsApp/`):**
+- `PhoneNormalizer` — el teléfono se guarda sin lada país (10 dígitos MX). Solo números de exactamente 10 dígitos se prefijan con `52`; cualquier otra longitud se considera no-MX y la fila queda deshabilitada (no seleccionable) en la bandeja.
+- `TemplateResolver` — reemplaza placeholders usando datos reales del booking (`pet.client.full_name`, `pet.name`, servicios, fecha/hora con el formato configurado en `SystemSetting`).
+
+**UI:**
+- `/whatsapp/bandeja` — citas del día con checkboxes (deshabilitados si el teléfono no es válido), selector de plantilla, envío secuencial vía modal Alpine (abre `wa.me` en pestaña nueva por cada seleccionado — los navegadores bloquean múltiples `window.open` sin gesto directo, y el volumen esperado es bajo).
+- `/whatsapp/plantillas` — CRUD de plantillas con chips de variables clicables que insertan `{variable}` en el textarea.
+- Nuevo grupo de navegación "WhatsApp" + permiso Spatie `ver whatsapp` (agregado a `BaseRolesSeeder`).
+
+### 🐛 Bugs encontrados por los tests (antes de llegar a producción)
+- `WhatsAppTemplate` sin `$table` explícito → Eloquent infería `whats_app_templates` en vez de `whatsapp_templates`.
+- Relación `WhatsAppTemplate::messages()` sin FK explícito → buscaba `whats_app_template_id` en vez de `whatsapp_template_id`.
+- Ambos solo se detectaron al escribir Feature tests reales contra MySQL (no aparecían en revisión de código).
+
+### 🔧 Infraestructura — hallazgos importantes de esta sesión
+- **Esta OPi no tiene un entorno Sail/dev separado.** `estetican_app` (producción) monta `.:/var/www/html` — el mismo código que se edita aquí. Intentar `./vendor/bin/sail up -d` choca de puerto 8000 con el contenedor de prod (expuesto en loopback para diagnóstico, ver `compose.prod.yaml:22`). El flujo real es `docker exec estetican_app php artisan ...`, ya documentado en `docs/OPI_PRODUCCION.md`.
+- **La base `testing` de MySQL nunca existió** — el usuario `estetican` no tenía permiso. Se creó (`CREATE DATABASE testing` + `GRANT ALL ... TO 'estetican'@'%'`), desbloqueando `artisan test` para esta y futuras sesiones.
+- **Migración huérfana detectada:** `users.operator_role_id` se usaba en `App\Models\User::operatorRole()` y existía en producción, pero ninguna migración la creaba (parche manual histórico). `2026_06_30_000001_add_operator_id_to_users_table.php` asumía la columna vía `->after('operator_role_id')`, rompiendo cualquier `migrate` desde cero. Se agregó `2026_06_30_000000_add_operator_role_id_to_users_table.php` (idempotente, no-op en prod donde ya existía).
+- **El resto de la suite de tests (37 de 43) sigue fallando** por causas no relacionadas (rutas que redirigen a `/login`, probablemente tests nunca adaptados a este entorno). Fuera de alcance de esta sesión — pendiente para revisión futura.
+
+### 📁 Archivos Clave Creados/Modificados
+- `database/migrations/2026_06_30_000000_add_operator_role_id_to_users_table.php` — **nuevo** (fix de deuda técnica preexistente)
+- `database/migrations/2026_07_01_000001_create_whatsapp_templates_table.php` — **nuevo**
+- `database/migrations/2026_07_01_000002_create_booking_messages_table.php` — **nuevo**
+- `app/Models/WhatsAppTemplate.php`, `app/Models/BookingMessage.php` — **nuevos**
+- `app/Support/WhatsApp/PhoneNormalizer.php`, `app/Support/WhatsApp/TemplateResolver.php` — **nuevos**
+- `app/Http/Controllers/WhatsAppTemplateController.php`, `app/Http/Controllers/BookingMessageController.php` — **nuevos**
+- `app/Support/Pages/WhatsAppPage.php`, `app/Support/Navigation/Groups/WhatsAppNavigation.php` — **nuevos**
+- `resources/views/whatsapp/` — **nuevo** (bandeja + plantillas)
+- `resources/js/modules/whatsapp-bandeja.js` — **nuevo**
+- `database/seeders/BaseRolesSeeder.php` — módulo `whatsapp` agregado
+- `routes/web.php`, `app/Support/Navigation/MainNavigation.php`, `app/Models/SpaBooking.php` — rutas + relación `messages()`
+- `tests/Feature/WhatsApp/` — **nuevo** (8 tests, todos verdes)
+- `docs/tecnico/MODELO_BD.md` — nueva sección `## Comunicaciones`
+
+### 🔄 Pendientes para Próxima Sesión
+- **BL-024b** — Fase 2 de WhatsApp: confirmación de cliente, historial conversacional, CRM completo.
+- Investigar y arreglar el resto de la suite de tests (37 fallos preexistentes, no relacionados a esta sesión).
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta de colores
+- BL-002 — Favicon & datos generales del negocio
+- BL-003 — Email avanzado: SMTP completo
+- BL-004 — Zonas horarias: selector completo
+- BL-008 — Reportes PDF
+
+---
+
 ## 📅 Sesión: 30/06/2026 — BL-023 ✅ + Sync usuarios↔operadores + Operador mobile + Compresión de fotos
 
 ### ✅ BL-023: GroomerPicker — COMPLETADO

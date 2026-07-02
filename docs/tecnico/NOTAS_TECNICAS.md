@@ -417,6 +417,46 @@ Para agregar un hostname público a un tunnel existente:
 
 ---
 
+## NT-013 — `migrate` desde cero falla: `users.operator_role_id` sin migración propia
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-01 |
+| **Severidad** | P2 — Bloquea `artisan migrate` en cualquier base de datos nueva (ej. `testing`) |
+| **Componente** | `database/migrations/2026_06_30_000001_add_operator_id_to_users_table.php` |
+| **Impacto** | `Schema::table('users', ...)->after('operator_role_id')` falla con `Unknown column 'operator_role_id'` en una base nueva |
+| **Estado** | ✅ RESUELTO |
+
+**Causa raíz:**
+`users.operator_role_id` existe en producción y se usa activamente en `App\Models\User::operatorRole()`, pero ninguna migración del repo la crea — se agregó en algún momento fuera del flujo de migraciones (parche manual histórico, posible edición de un archivo de migración después de haber corrido en prod). La migración `2026_06_30_000001_add_operator_id_to_users_table.php` asume la columna presente vía `->after('operator_role_id')`, lo cual solo es cierto en producción, no en una base nueva.
+
+**Cómo se detectó:** al habilitar por primera vez la base `testing` (ver más abajo) para correr `artisan test`.
+
+**Solución:** migración nueva `2026_06_30_000000_add_operator_role_id_to_users_table.php` (timestamp anterior a la 000001) que crea la columna solo si falta (`Schema::hasColumn` guard) — no-op en producción, corrige el flujo en bases nuevas.
+
+**Lección:** cuando una migración usa `->after('columna_de_otra_migracion')`, verificar que esa columna tenga su propia migración rastreable en el repo, no solo que exista en producción.
+
+---
+
+## NT-014 — No existe entorno Sail/dev separado en esta OPi; usar `docker exec estetican_app`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-01 |
+| **Severidad** | P3 — Bloquea trabajo si se intenta seguir el flujo documentado de WSL2+Sail al pie de la letra |
+| **Componente** | Todo el repo — expectativa de entorno de desarrollo |
+| **Estado** | ✅ RESUELTO (documentado) |
+
+**Síntoma:** `./vendor/bin/sail up -d` falla con `Error starting userland proxy: ... bind: address already in use` en el puerto 8000.
+
+**Causa raíz:** El contenedor de producción `estetican_app` (`compose.prod.yaml`) expone `127.0.0.1:${APP_PORT:-8000}:80` a propósito, para diagnóstico local — y monta `.:/var/www/html`, es decir, sirve exactamente el mismo código fuente de `apps/backoffice-laravel` que se edita en esta OPi. No hay una base de datos ni contenedor de desarrollo separados; todo el trabajo (migraciones, tinker, tests) corre directo contra el contenedor de producción vía `docker exec estetican_app ...`, como ya documentaba `docs/OPI_PRODUCCION.md` y `docs/tecnico/ESTRATEGIA_DESARROLLO.md`.
+
+**Solución:** no usar Sail en este proyecto. Comandos: `docker exec estetican_app php artisan migrate --force`, `docker exec -it estetican_app php artisan tinker`, `docker exec estetican_app npm run build` (node/npm sí están instalados dentro de esa imagen).
+
+**Lección:** la sección "Development Environment" de `CLAUDE.md` (WSL2 + Sail) describe un flujo que no aplica a esta instancia de la OPi — es el flujo genérico/aspiracional del template del proyecto, no el real. El real está en `docs/OPI_PRODUCCION.md`.
+
+---
+
 ## NT-012 — Docker bind mount pierde enlace cuando se elimina y recrea el directorio fuente
 
 | Campo | Valor |

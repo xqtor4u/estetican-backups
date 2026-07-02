@@ -1,10 +1,20 @@
 <?php
+
 // Last standard standardization refresh: 2026-04-21
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\BookingMessageController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\ClientController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Finances\AccountController;
+use App\Http\Controllers\Finances\CashMovementController;
+use App\Http\Controllers\Finances\CashRegisterController;
+use App\Http\Controllers\Finances\CashSessionController;
+use App\Http\Controllers\Finances\DocumentSeriesController;
+use App\Http\Controllers\Finances\PaymentMethodController;
 use App\Http\Controllers\HotelReservationController;
+use App\Http\Controllers\LoginController;
 use App\Http\Controllers\OperatorController;
 use App\Http\Controllers\OperatorRoleController;
 use App\Http\Controllers\PetController;
@@ -19,24 +29,16 @@ use App\Http\Controllers\ResourcePhotoController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SpaBookingController;
 use App\Http\Controllers\SystemSettingController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\LoginController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\UserSettingsController;
-use App\Http\Controllers\Finances\AccountController;
-use App\Http\Controllers\Finances\PaymentMethodController;
-use App\Http\Controllers\Finances\DocumentSeriesController;
-use App\Http\Controllers\Finances\CashRegisterController;
-use App\Http\Controllers\Finances\CashSessionController;
-use App\Http\Controllers\Finances\CashMovementController;
+use App\Http\Controllers\WhatsAppTemplateController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return auth()->check()
         ? redirect()->route('dashboard.index')
         : redirect()->route('login');
 })->name('home');
-
 
 Route::get('login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('login', [LoginController::class, 'login']);
@@ -58,18 +60,18 @@ Route::middleware('auth')->group(function () {
     Route::resource('operators', OperatorController::class);
     Route::post('operators/{operator}/duplicate', [OperatorController::class, 'duplicate'])->name('operators.duplicate');
     Route::resource('branches', BranchController::class);
-    
+
     // RESOURCES CRUD & Shortcuts
     Route::resource('resources', ResourceController::class);
     Route::post('resources/{resource}/profile-photo', [ResourceController::class, 'updateProfilePhoto'])->name('resources.profile-photo.update');
-    
+
     Route::resource('operator-roles', OperatorRoleController::class);
     Route::post('operator-roles/{operatorRole}/duplicate', [OperatorRoleController::class, 'duplicate'])->name('operator-roles.duplicate');
     Route::post('resources/{resource}/duplicate', [ResourceController::class, 'duplicate'])->name('resources.duplicate');
     Route::post('resources/{resource}/photos', [ResourcePhotoController::class, 'store'])->name('resources.photos.store');
     Route::put('resources/{resource}/photos/{photo}', [ResourcePhotoController::class, 'update'])->name('resources.photos.update');
     Route::delete('resources/{resource}/photos/{photo}', [ResourcePhotoController::class, 'destroy'])->name('resources.photos.destroy');
-    
+
     Route::get('agenda/create', [SpaBookingController::class, 'globalCreate'])->name('agenda.create');
     Route::get('agenda', [SpaBookingController::class, 'index'])->name('agenda.index');
     Route::get('agenda/{booking}', [SpaBookingController::class, 'show'])->name('agenda.show');
@@ -83,9 +85,16 @@ Route::middleware('auth')->group(function () {
     Route::post('agenda/{booking}/no-show', [SpaBookingController::class, 'markNoShow'])->name('agenda.no-show');
     Route::post('services/{service}/duplicate', [ServiceController::class, 'duplicate'])->name('services.duplicate');
     Route::post('hotel-reservations/{hotelReservation}/cancel', [HotelReservationController::class, 'cancel'])->name('hotel-reservations.cancel');
-    
+
     Route::get('pets/{pet}/bookings/create', [SpaBookingController::class, 'createForPet'])->name('pets.bookings.create');
     Route::post('pets/{pet}/bookings', [SpaBookingController::class, 'storeForPet'])->name('pets.bookings.store');
+
+    // Recordatorios WhatsApp (BL-024 Fase 1)
+    Route::get('whatsapp/bandeja', [BookingMessageController::class, 'index'])->name('whatsapp.bandeja');
+    Route::post('whatsapp/bandeja/{booking}/enviar', [BookingMessageController::class, 'store'])->name('whatsapp.bandeja.enviar');
+    Route::resource('whatsapp/plantillas', WhatsAppTemplateController::class)
+        ->parameters(['plantillas' => 'template'])
+        ->names('whatsapp.plantillas');
 
     // Rutas protegidas para administradores
     Route::middleware('role:admin|super-admin')->group(function () {
@@ -110,14 +119,14 @@ Route::middleware('auth')->group(function () {
             Route::resource('payment-methods', PaymentMethodController::class)->except(['show']);
             Route::resource('document-series', DocumentSeriesController::class)->except(['show']);
             Route::resource('cash-registers', CashRegisterController::class)->except(['show']);
-            Route::get('cash-sessions',                              [CashSessionController::class, 'index'])  ->name('cash-sessions.index');
-            Route::get('cash-registers/{cashRegister}/open',         [CashSessionController::class, 'open'])   ->name('cash-sessions.open');
-            Route::post('cash-registers/{cashRegister}/open',        [CashSessionController::class, 'store'])  ->name('cash-sessions.store');
-            Route::get('cash-sessions/{cashSession}',                [CashSessionController::class, 'show'])   ->name('cash-sessions.show');
-            Route::get('cash-sessions/{cashSession}/close',          [CashSessionController::class, 'close'])  ->name('cash-sessions.close');
-            Route::post('cash-sessions/{cashSession}/close',         [CashSessionController::class, 'doClose'])->name('cash-sessions.do-close');
-            Route::post('cash-sessions/{cashSession}/movements',                        [CashMovementController::class, 'store'])  ->name('cash-sessions.movements.store');
-            Route::delete('cash-sessions/{cashSession}/movements/{cashMovement}',       [CashMovementController::class, 'destroy'])->name('cash-sessions.movements.destroy');
+            Route::get('cash-sessions', [CashSessionController::class, 'index'])->name('cash-sessions.index');
+            Route::get('cash-registers/{cashRegister}/open', [CashSessionController::class, 'open'])->name('cash-sessions.open');
+            Route::post('cash-registers/{cashRegister}/open', [CashSessionController::class, 'store'])->name('cash-sessions.store');
+            Route::get('cash-sessions/{cashSession}', [CashSessionController::class, 'show'])->name('cash-sessions.show');
+            Route::get('cash-sessions/{cashSession}/close', [CashSessionController::class, 'close'])->name('cash-sessions.close');
+            Route::post('cash-sessions/{cashSession}/close', [CashSessionController::class, 'doClose'])->name('cash-sessions.do-close');
+            Route::post('cash-sessions/{cashSession}/movements', [CashMovementController::class, 'store'])->name('cash-sessions.movements.store');
+            Route::delete('cash-sessions/{cashSession}/movements/{cashMovement}', [CashMovementController::class, 'destroy'])->name('cash-sessions.movements.destroy');
         });
     });
 
@@ -127,7 +136,7 @@ Route::middleware('auth')->group(function () {
         Route::put('user/settings', 'update')->name('user.settings.update');
         Route::put('user/settings/password', 'updatePassword')->name('user.settings.password');
     });
-    
+
     // Reportes de Impresión
     Route::get('reports/quote/{quote}', [ReportController::class, 'quote'])->name('reports.quote');
     Route::get('reports/work-order/{booking}', [ReportController::class, 'workOrder'])->name('reports.work-order');

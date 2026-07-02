@@ -1,0 +1,73 @@
+@extends('layouts.app')
+
+@section('content')
+<x-page-header
+    :eyebrow="$page['header']['eyebrow']"
+    :title="$page['header']['title']"
+    :subtitle="$page['header']['subtitle']"
+>
+    <x-slot:actions>
+        <a href="{{ route('whatsapp.bandeja') }}" class="btn btn-outline-secondary">Bandeja diaria</a>
+        <a href="{{ route('whatsapp.plantillas.create') }}" class="btn btn-primary">Nueva plantilla</a>
+    </x-slot:actions>
+</x-page-header>
+
+<div class="catalog-content-wide">
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Mensaje</th>
+                        <th style="width:100px">Usos</th>
+                        <th style="width:100px">Estado</th>
+                        <th class="text-end" style="width:160px">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($templates as $template)
+                        <tr>
+                            <td class="fw-semibold">{{ $template->name }}</td>
+                            <td class="small text-muted">{{ \Illuminate\Support\Str::limit($template->body, 80) }}</td>
+                            <td>{{ $template->messages_count }}</td>
+                            <td>
+                                @if($template->is_active)
+                                    <span class="badge bg-success-subtle text-success-emphasis">Activa</span>
+                                @else
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis">Inactiva</span>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                <a href="{{ route('whatsapp.plantillas.edit', $template) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                                <form action="{{ route('whatsapp.plantillas.destroy', $template) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar esta plantilla?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">Aún no hay plantillas de mensaje.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@endsection

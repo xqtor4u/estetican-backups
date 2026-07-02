@@ -673,6 +673,39 @@ Registro de entradas y salidas de operadores por sucursal (app móvil).
 
 ---
 
+## Comunicaciones
+
+### `whatsapp_templates`
+Mensajes predefinidos con variables, reutilizables desde la bandeja diaria (BL-024 Fase 1).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `name` | string | |
+| `body` | text | Placeholders: `{cliente}`, `{mascota}`, `{servicio}`, `{fecha}`, `{hora}` — ver `App\Support\WhatsApp\TemplateResolver::availableVariables()` |
+| `is_active` | boolean default true | Solo activas aparecen en la bandeja diaria |
+| `created_by_user_id` | FK → `users` nullable | |
+| `timestamps` | | |
+
+### `booking_messages`
+Log de recordatorios de WhatsApp enviados manualmente (vía `wa.me`) desde la bandeja diaria. Solo cubre `spa_bookings` — Hotel maneja sus mensajes con su propia lógica (unidades de negocio distintas, decisión explícita).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `spa_booking_id` | FK → `spa_bookings` cascadeOnDelete | |
+| `whatsapp_template_id` | FK → `whatsapp_templates` nullOnDelete | Nulo si la plantilla se borra; conserva el log |
+| `phone_number` | string | Número ya normalizado para wa.me (ej. `525512345678`) |
+| `message_body` | text | Snapshot del mensaje ya resuelto (placeholders reemplazados) |
+| `wa_link` | text | URL `https://wa.me/...` generada |
+| `sent_by_user_id` | FK → `users` nullOnDelete | |
+| `sent_at` | datetime | |
+| `timestamps` | | |
+
+**Nota técnica:** El teléfono se guarda en `phones.number` sin lada país (10 dígitos MX asumidos). `App\Support\WhatsApp\PhoneNormalizer::toWhatsAppNumber()` prefija `52` solo si son exactamente 10 dígitos; cualquier otra longitud se considera no reconocible como MX y la fila queda deshabilitada en la bandeja (no se envía). No hay automatización de envío — el operador confirma manualmente en WhatsApp Web/App vía `wa.me`.
+
+---
+
 ## Sistema
 
 ### `system_settings`

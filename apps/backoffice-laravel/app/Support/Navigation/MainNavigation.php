@@ -6,7 +6,7 @@ use App\Support\Navigation\Groups\CatalogsNavigation;
 use App\Support\Navigation\Groups\ClientsNavigation;
 use App\Support\Navigation\Groups\FinanzasNavigation;
 use App\Support\Navigation\Groups\OperationsNavigation;
-
+use App\Support\Navigation\Groups\WhatsAppNavigation;
 
 class MainNavigation
 {
@@ -19,6 +19,7 @@ class MainNavigation
             ClientsNavigation::group(),
             OperationsNavigation::group(),
             CatalogsNavigation::group(),
+            WhatsAppNavigation::group(),
             FinanzasNavigation::group(),
         ];
     }
@@ -32,8 +33,9 @@ class MainNavigation
         // Filtra items nulos (usuarios si no es super admin)
         foreach ($structure as &$group) {
             $group['items'] = array_values(array_filter($group['items']));
-            $group['active'] = collect($group['items'])->contains(fn($item) => $item['active']);
+            $group['active'] = collect($group['items'])->contains(fn ($item) => $item['active']);
         }
+
         return $structure;
     }
 
@@ -54,6 +56,7 @@ class MainNavigation
                 ];
             }
         }
+
         return $links;
     }
 }

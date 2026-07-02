@@ -2,9 +2,11 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
 use App\Models\User;
+use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class BaseRolesSeeder extends Seeder
 {
@@ -14,7 +16,7 @@ class BaseRolesSeeder extends Seeder
     public function run(): void
     {
         // Reset cached roles and permissions
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         // 1. Definir Módulos y sus permisos CRUD
         $modules = [
@@ -27,6 +29,7 @@ class BaseRolesSeeder extends Seeder
             'operadores',
             'sucursales',
             'usuarios',
+            'whatsapp',
         ];
 
         $actions = ['ver', 'crear', 'editar', 'eliminar'];
@@ -50,9 +53,9 @@ class BaseRolesSeeder extends Seeder
 
         // 2. Crear/Asegurar Permisos
         foreach ($permissions as $permission) {
-            \Spatie\Permission\Models\Permission::firstOrCreate([
+            Permission::firstOrCreate([
                 'name' => $permission,
-                'guard_name' => 'web'
+                'guard_name' => 'web',
             ]);
         }
 
@@ -64,7 +67,7 @@ class BaseRolesSeeder extends Seeder
         $legacyAdmins = User::where('role', 'admin')->get();
 
         foreach ($legacyAdmins as $user) {
-            if (!$user->hasRole('admin')) {
+            if (! $user->hasRole('admin')) {
                 $user->assignRole($adminRole);
             }
         }
