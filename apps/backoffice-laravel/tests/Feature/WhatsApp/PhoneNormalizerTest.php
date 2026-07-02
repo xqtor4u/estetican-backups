@@ -17,10 +17,23 @@ class PhoneNormalizerTest extends TestCase
         $this->assertSame('525512345678', PhoneNormalizer::toWhatsAppNumber('5512345678'));
     }
 
-    public function test_non_ten_digit_numbers_are_not_recognized(): void
+    public function test_numbers_already_prefixed_with_country_code_are_kept_as_is(): void
+    {
+        $this->assertSame('524491868912', PhoneNormalizer::toWhatsAppNumber('+52 449 186 8912'));
+        $this->assertSame('524491868912', PhoneNormalizer::toWhatsAppNumber('524491868912'));
+    }
+
+    public function test_old_whatsapp_mx_mobile_prefix_521_drops_the_extra_one(): void
+    {
+        $this->assertSame('524491868912', PhoneNormalizer::toWhatsAppNumber('5214491868912'));
+    }
+
+    public function test_malformed_or_non_mx_numbers_are_not_recognized(): void
     {
         $this->assertNull(PhoneNormalizer::toWhatsAppNumber('123'));
         $this->assertNull(PhoneNormalizer::toWhatsAppNumber('+1 415 555 0132'));
+        $this->assertNull(PhoneNormalizer::toWhatsAppNumber('555689622')); // 9 dígitos, dato incompleto
+        $this->assertNull(PhoneNormalizer::toWhatsAppNumber('449123456789')); // 12 dígitos, no inicia con 52
         $this->assertNull(PhoneNormalizer::toWhatsAppNumber(null));
     }
 
