@@ -33,6 +33,12 @@
 - [ ] **Módulo de Veterinaria** — historial clínico, consultas, recetas, vacunas avanzadas, cirugías. Con asignación de médicos y especialistas. **La arquitectura ya lo soporta:** agregar `orden_vet` en `document_series` (is_active=true) + modelo `VetAppointment` + una línea en `/api/pets/{pet}/bookings` → los chips de tipo en MobPetJobs aparecen automáticamente.
 - [ ] **Módulo de RRHH y Nómina** — control de asistencia, cálculo de nómina, pagos a destajo ligados a servicios ejecutados.
 
+## 🖼️ Imágenes — Optimización futura (ideas surgidas 30/06/2026)
+
+- [ ] **Recompresión retroactiva de fotos existentes** — artisan command `media:recompress` que itere sobre `media` (MediaLibrary) y regeneare conversiones con los nuevos parámetros de calidad (config `backoffice.images.*`). Solo afectaría archivos en storage; las URLs ya registradas seguirían siendo válidas porque MediaLibrary sobreescribiría los archivos en su lugar.
+- [ ] **Servir thumbnails en MobOpPkr y PetSearch** — el endpoint `/api/operators` y `/api/pets` actualmente devuelven la URL de la imagen principal (tamaño completo). Si MediaLibrary genera una conversión `thumbnail` (160×160), se puede servir en listas y selectores para reducir el payload de la primera carga de ~250KB/foto a ~8–15KB/foto.
+- [ ] **Límite de tamaño configurable por SystemSetting** — actualmente el límite de 10MB está hardcodeado en `image-upload.js`. Moverlo a `SystemSetting` (`max_upload_size_mb`) para que se configure desde el backoffice sin tocar código.
+
 ## 📱 App Móvil — Operador (ideas surgidas 13/06/2026)
 - [ ] **Notificaciones push al operador** cuando se le asigna una nueva cita.
 - [ ] **Historial de check-ins** visible en el perfil — últimas entradas/salidas con transgresiones.

@@ -21,7 +21,8 @@
 | ID | Ítem | Tipo | Notas |
 |---|---|---|---|
 | ~~BL-020~~ | ~~Breadcrumbs en todas las pantallas vía ScreenHeader~~ **COMPLETADO** | Feature | |
-| BL-023 | App móvil: Groomer — selector de operador + agenda individual **EN CURSO** | Feature | `GroomerPicker` rediseñado a tabla (igual que PetSearch); `GroomerAgenda` completo; pendiente confirmar visual en prod |
+| ~~BL-023~~ | ~~App móvil: Selector de operador + agenda individual + renombrar Groomer→Operador~~ **COMPLETADO** | Feature | screenTags MobOpPkr/MobOpAg; breadcrumb dinámico; compresión de fotos |
+| BL-024 | WhatsApp: botón wa.me en cita + tabla `booking_messages` + bandeja diaria apertura/cierre | Feature/CRM | Fase 1: link wa.me + tabla + vista bandeja. Fase 2 futura: confirmación cliente, plantillas, CRM completo |
 
 ### Prioridad Media — Funcionalidad de UI y Configuración
 
@@ -72,6 +73,7 @@
 | BL-022 | App móvil: gestión de caja — ver sesión activa + registrar movimientos con póliza automática | 16/06/2026 | — |
 | BL-007 | Cabeceras seguridad HTTP: X-Frame-Options, Referrer-Policy, Permissions-Policy en nginx de mob | 23/06/2026 | `1769893` |
 | BL-021 | Comando `finanzas:migrar-ledgers-historicos` — JE para cash_ledgers y bank_ledgers históricos | 23/06/2026 | `d9097c0` |
+| BL-023 | App móvil: Groomer→Operador + breadcrumb MobOpPkr + compresión imágenes + sync users↔operators | 30/06/2026 | `9c5c050` `58e92e4` |
 
 ---
 

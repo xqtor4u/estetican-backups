@@ -417,6 +417,46 @@ Para agregar un hostname público a un tunnel existente:
 
 ---
 
+## NT-012 — Docker bind mount pierde enlace cuando se elimina y recrea el directorio fuente
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-06-30 |
+| **Severidad** | P1 — Crítico (nginx 500, app móvil inaccesible) |
+| **Componente** | Contenedor `estetican_mob` — bind mount `mob_apps/operador/dist/` → `/usr/share/nginx/html/` |
+| **Impacto** | nginx sirve directorio vacío → `index.html` no existe → bucle de redirección interna → HTTP 500 en toda la app |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+Después de ejecutar `rm -rf dist && npm run build` para un rebuild limpio, `mov.estetican.org` devuelve HTTP 500. El log de nginx muestra:
+```
+rewrite or internal redirection cycle while internally redirecting to "/index.html"
+```
+`docker exec estetican_mob ls /usr/share/nginx/html/` devuelve vacío.
+
+**Causa raíz:**
+Docker bind mounts con propagación `rprivate` (el default en Docker Compose) almacenan una referencia al **inodo** del directorio, no a la ruta. Al ejecutar `rm -rf dist`, el directorio se elimina y su inodo desaparece. `npm run build` crea un **nuevo** directorio `dist/` con un **inodo diferente**. El contenedor `estetican_mob` sigue apuntando al inodo anterior (ya borrado), por lo que ve el directorio montado como vacío aunque en el host existan los archivos nuevos.
+
+**Workaround:**
+```bash
+docker restart estetican_mob
+```
+El restart re-establece el bind mount apuntando al nuevo inodo de `dist/`.
+
+**Solución definitiva:**
+**Nunca usar `rm -rf dist`** en directorios que son bind mounts de contenedores Docker. Para forzar un rebuild limpio, ejecutar directamente:
+```bash
+npm run build
+```
+Vite sobreescribe los archivos existentes sin eliminar el directorio raíz, preservando el inodo.
+
+**Lección:**
+- `rm -rf <directorio>` + `mkdir <directorio>` = nuevo inodo = bind mount huérfano en todos los contenedores que montan ese directorio.
+- Para invalidar caché de build: usar flags de Vite (`--force`) o borrar solo el contenido interno (`rm -rf dist/*`), nunca el directorio en sí.
+- Verificar bind mount vacío: `docker exec <container> ls /ruta/montada/` inmediatamente si nginx devuelve 500.
+
+---
+
 ## NT-011 — `spa_bookings` no tiene `branch_id`: cobros no filtrables por sucursal
 
 | Campo | Valor |

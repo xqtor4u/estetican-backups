@@ -1,5 +1,114 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 30/06/2026 — BL-023 ✅ + Sync usuarios↔operadores + Operador mobile + Compresión de fotos
+
+### ✅ BL-023: GroomerPicker — COMPLETADO
+
+Diseño de tabla confirmado funcionando en `mov.estetican.org/groomer`. Columnas: foto + nombre / rol (badge acrónimo) / chevron.
+
+---
+
+### ✅ Auto-sincronización usuarios ↔ operadores
+
+**Problema:** `users` (backoffice auth) y `operators` (catálogo legacy FK en spa_bookings/quotes) eran dos tablas independientes. Al marcar un usuario como `is_operator`, no se creaba su registro de operador automáticamente.
+
+**Solución implementada (sin romper FKs existentes):**
+- Migración: `operator_id` nullable FK en `users` → `operators` (nullOnDelete)
+- Migración: `operator_role_id` nullable FK en `operators` → `operator_roles` (columna faltaba aunque MODELO_BD la listaba)
+- Migración: `acronym char(3) nullable unique` en `operator_roles`
+- `UserController::syncOperatorRecord()` — al guardar usuario: si `is_operator=true` crea/actualiza registro en `operators`; si `is_operator=false` marca `operators.is_active=false` (datos históricos preservados). Usa `saveQuietly()` para no disparar activity log loop.
+- `User::operator()` BelongsTo; `Operator::operatorRole()` BelongsTo
+- `OperatorRole::getShortLabelAttribute()` — retorna `acronym ?? strtoupper(substr(code, 0, 3))`
+- Formulario de Tipo de Operador: campo acrónimo 3 caracteres mayúsculas
+- Vista `user/edit.blade.php`: badge de vinculación al operador #ID
+
+**Fix de datos existentes:** Jose Mendez (Operator#1) tenía `operator_role_id=null` porque fue vinculado manualmente antes de que el sync existiera. Corregido via Tinker con `operator_role_id=1` (GRO-BAS).
+
+---
+
+### ✅ App móvil: renombrar "Groomer" → "Operador"
+
+Todos los textos visibles al usuario (títulos, breadcrumbs, columnas, mensajes vacíos) renombrados a "Operador". Screen tags actualizados: `MobGroPkr` → `MobOpPkr`, `MobGroAg` → `MobOpAg`, `MobGro` → `MobOp`. Nombres de archivos y rutas URL (`/groomer`) sin cambiar para no romper historial y navegación interna.
+
+---
+
+### ✅ Breadcrumb en MobOpPkr
+
+- `GroomerPicker` ahora lee `parentCrumbs` con `useState(() => getNavCrumbs())` al montar (captura el valor en mount, no re-evalúa en cada re-render).
+- Si hay crumbs → muestra flecha de regreso + trail. Si no (acceso desde nav inferior) → sin breadcrumb.
+- `Directory.tsx`: botón "Perfil" llama `setNavCrumbs([{ label: 'Directorio' }])` antes de `navigate('/groomer')`.
+- `onCrumbClick` pasado a ScreenHeader para que los crumbs sean navegables.
+
+---
+
+### 🐛 Fix: 500 nginx en `mov.estetican.org/groomer`
+
+**Causa:** `rm -rf dist` (usado para forzar rebuild limpio) eliminó el inodo del directorio. El bind mount `rprivate` del contenedor `estetican_mob` quedó huérfano apuntando al inodo borrado — `/usr/share/nginx/html/` aparecía vacío. Nginx no encontraba `index.html` → bucle de redirección interna → HTTP 500.
+
+**Fix:** `docker restart estetican_mob` re-establece el bind mount al nuevo inodo de `dist/`.
+
+**Lección → NT-012:** Nunca usar `rm -rf` en directorios montados como bind mount en Docker. Para rebuild: ejecutar `npm run build` directamente (Vite sobreescribe archivos en su lugar).
+
+---
+
+### ✅ Compresión de fotos subidas
+
+**Frontend (`image-upload.js`):**
+- `getCroppedCanvas`: `maxWidth/maxHeight` 1600 → 1200px
+- `toDataURL` y `toBlob`: quality 0.9 → 0.82
+- Reduce el blob enviado al servidor de ~500KB–1MB a ~150–350KB
+
+**Backend (`config/backoffice.php`):**
+- Perfiles operador/usuario: `main_max_size` 1200 → 800px, quality 82 → 80
+- Fotos mascota/recurso: `main_max_size` 1600 → 1200px, quality 82 → 80
+- Thumbnails: quality 68–70 → 65 en todos los managers
+
+Solo afecta fotos nuevas; las existentes en storage no cambian.
+
+---
+
+### 📁 Archivos Modificados Esta Sesión
+
+**Backend (backoffice-laravel):**
+- `database/migrations/2026_06_30_000001_add_operator_id_to_users_table.php` — nuevo
+- `database/migrations/2026_06_30_000002_add_operator_role_id_to_operators_table.php` — nuevo
+- `database/migrations/2026_06_30_000003_add_acronym_to_operator_roles_table.php` — nuevo
+- `app/Models/User.php` — `operator_id` fillable + relación `operator()`
+- `app/Models/Operator.php` — `operator_role_id` fillable + relación `operatorRole()`
+- `app/Models/OperatorRole.php` — `acronym` fillable + accessor `short_label`
+- `app/Http/Controllers/UserController.php` — `syncOperatorRecord()`
+- `app/Http/Controllers/Api/OperatorController.php` — eager load `operatorRole`, `role_acronym`
+- `app/Http/Controllers/OperatorRoleController.php` — validación y guardado de `acronym`
+- `resources/views/user/edit.blade.php` — badge de vinculación
+- `resources/views/operator-roles/partials/form.blade.php` — campo acrónimo
+- `config/backoffice.php` — tamaños y calidades de imagen reducidos
+- `resources/js/modules/image-upload.js` — canvas 1200px, quality 0.82
+- `public/build/` — bundle `app-D34HXRKX.js`
+
+**App móvil (mob_apps/operador):**
+- `src/App.tsx` — label "Groomer" → "Operador"
+- `src/admin/GroomerPicker.tsx` — textos "Operador", screenTag MobOpPkr, breadcrumb dinámico
+- `src/admin/GroomerAgenda.tsx` — textos "Operador", screenTag MobOpAg
+- `src/admin/GroomerDashboard.tsx` — textos "Operador", screenTag MobOp
+- `src/admin/Directory.tsx` — setNavCrumbs al navegar a /groomer
+
+### 🔄 Commits
+
+- `beced54` — sesión anterior: GroomerPicker tabla + GroomerAgenda
+- `1c15b41` + `cac8b3c` — sync usuarios↔operadores + acronym + fix operatorRole
+- `9c5c050` — Groomer→Operador UI + breadcrumb MobOpPkr
+- `58e92e4` — compresión de fotos (imagen-upload.js + config)
+
+### 🔄 Pendientes para Próxima Sesión
+- **BL-024** — WhatsApp: botón wa.me en vista de cita + tabla `booking_messages` + bandeja diaria apertura/cierre. Diseño: tabla con `booking_id`, `type`, `channel`, `wa_link`, `sent_at`, `send_window`. Es la Fase 1 del módulo CRM de comunicaciones.
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta de colores
+- BL-002 — Favicon & datos generales del negocio
+- BL-003 — Email avanzado: SMTP completo
+- BL-004 — Zonas horarias: selector completo
+- BL-008 — Reportes PDF
+
+---
+
 ## 📅 Sesión: 29/06/2026 — BL-023: Selector de groomer + fix de caché nginx 🔄 EN CURSO
 
 ### 🔄 BL-023: Groomer Picker + Groomer Agenda (parcial)
