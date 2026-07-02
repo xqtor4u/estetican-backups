@@ -723,6 +723,10 @@ Toda la configuración del negocio (branding, SMTP, reglas, etc.). Sin config en
 
 > Acceder siempre via `SystemSettings` service, nunca directamente. Ver `app/Support/SystemSettings/`.
 
+**Horario de operación (sección `clinical`):** `booking_opening_time` / `booking_closing_time` (default `09:00`/`19:00`, formato `HH:MM`, un solo horario fijo para todos los días — no varía por día de la semana). Consumido vía `App\Support\SystemSettings\BusinessHours::isWithin()` para validar que las citas SPA se agenden dentro de horario, tanto en backoffice web (`SpaBookingController`) como en la API móvil (`Api\BookingController`) y expuesto a la app móvil vía `GET /api/settings/booking`.
+
+**Traslape de horario por operador:** `App\Domain\Planning\Services\OperatorAvailabilityChecker::hasConflict()` — consulta directa sobre `spa_bookings.operator_id` + `scheduled_at` + `duration_minutes` (excluye `cancelled`/`no_show`). Alcance intencional: solo SPA, `operator_id` no existe en `hotel_reservations`. A partir de esta validación, elegir operador es **obligatorio** para agendar una cita SPA (antes era opcional/inexistente en el flujo web).
+
 ---
 
 ### `api_tokens`

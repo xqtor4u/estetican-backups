@@ -74,7 +74,8 @@
 | BL-007 | Cabeceras seguridad HTTP: X-Frame-Options, Referrer-Policy, Permissions-Policy en nginx de mob | 23/06/2026 | `1769893` |
 | BL-021 | Comando `finanzas:migrar-ledgers-historicos` — JE para cash_ledgers y bank_ledgers históricos | 23/06/2026 | `d9097c0` |
 | BL-023 | App móvil: Groomer→Operador + breadcrumb MobOpPkr + compresión imágenes + sync users↔operators | 30/06/2026 | `9c5c050` `58e92e4` |
-| BL-024 | Backoffice: recordatorios WhatsApp Fase 1 — bandeja diaria con selección por checkbox, plantillas con variables, envío manual vía wa.me (sin automatización) | 01/07/2026 | — |
+| BL-024 | Backoffice: recordatorios WhatsApp Fase 1 — bandeja diaria con selección por checkbox, plantillas con variables, envío manual vía wa.me (sin automatización) | 01/07/2026 | `44084ae` `e754d27` |
+| BL-025 | Programar servicio (AgSpaCre, web y móvil): redondeo de hora a 5 min, fix de hora manual, horario operativo configurable, operador obligatorio + validación de traslape por operador | 02/07/2026 | — |
 
 ---
 

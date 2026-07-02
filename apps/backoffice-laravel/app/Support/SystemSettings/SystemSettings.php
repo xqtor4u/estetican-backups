@@ -28,7 +28,7 @@ class SystemSettings
             foreach ($sectionDefinition['fields'] as $fieldKey => $fieldDefinition) {
                 $selectedOption = null;
 
-                if (!empty($fieldDefinition['options'])) {
+                if (! empty($fieldDefinition['options'])) {
                     foreach ($fieldDefinition['options'] as $option) {
                         if ((string) $option['value'] === (string) $values[$fieldKey]) {
                             $selectedOption = $option;
@@ -76,7 +76,7 @@ class SystemSettings
 
     public function paletteLabel(string $palette): string
     {
-        return data_get($this->paletteDefinitions(), $palette . '.label', $palette);
+        return data_get($this->paletteDefinitions(), $palette.'.label', $palette);
     }
 
     /**
@@ -86,7 +86,7 @@ class SystemSettings
     {
         $sectionDefinition = $this->definitions()[$section] ?? null;
 
-        if (!$sectionDefinition) {
+        if (! $sectionDefinition) {
             return [];
         }
 
@@ -128,7 +128,7 @@ class SystemSettings
 
         foreach ($this->definitions() as $sectionDefinition) {
             foreach ($sectionDefinition['fields'] as $fieldKey => $fieldDefinition) {
-                if (!isset($fieldDefinition['config'])) {
+                if (! isset($fieldDefinition['config'])) {
                     continue;
                 }
 
@@ -143,7 +143,7 @@ class SystemSettings
     {
         $sectionDefinition = $this->definitions()[$section] ?? null;
 
-        if (!$sectionDefinition || !$this->hasSettingsTable()) {
+        if (! $sectionDefinition || ! $this->hasSettingsTable()) {
             return;
         }
 
@@ -170,37 +170,37 @@ class SystemSettings
      * Guarda solo los campos indicados (actualización parcial de una sección).
      * Los campos no incluidos en $validated no se tocan.
      *
-     * @param array<string, mixed> $validated
+     * @param  array<string, mixed>  $validated
      */
     public function saveFields(string $section, array $validated): void
     {
         $sectionDefinition = $this->definitions()[$section] ?? null;
 
-        if (!$sectionDefinition || !$this->hasSettingsTable()) {
+        if (! $sectionDefinition || ! $this->hasSettingsTable()) {
             return;
         }
 
         $timestamp = now();
-        $payload   = [];
+        $payload = [];
 
         foreach ($validated as $fieldKey => $value) {
             $fieldDefinition = $sectionDefinition['fields'][$fieldKey] ?? null;
 
-            if (!$fieldDefinition) {
+            if (! $fieldDefinition) {
                 continue;
             }
 
             $payload[] = [
-                'section'    => $section,
-                'key'        => $fieldKey,
-                'type'       => $fieldDefinition['type'],
-                'value'      => $this->serializeValue($fieldDefinition, $value),
+                'section' => $section,
+                'key' => $fieldKey,
+                'type' => $fieldDefinition['type'],
+                'value' => $this->serializeValue($fieldDefinition, $value),
                 'created_at' => $timestamp,
                 'updated_at' => $timestamp,
             ];
         }
 
-        if (!empty($payload)) {
+        if (! empty($payload)) {
             SystemSetting::query()->upsert($payload, ['key'], ['section', 'type', 'value', 'updated_at']);
             static::flushCache();
         }
@@ -216,7 +216,7 @@ class SystemSettings
      */
     private function storedValues(): array
     {
-        if (!$this->hasSettingsTable()) {
+        if (! $this->hasSettingsTable()) {
             return [];
         }
 
@@ -377,6 +377,19 @@ class SystemSettings
                         'input' => ['min' => 0, 'max' => 120, 'step' => 5],
                         'help' => 'Margen permitido antes o después de la hora programada. Si el operador inicia fuera de este rango, la app móvil pedirá confirmación.',
                     ],
+                    'booking_opening_time' => [
+                        'label' => 'Hora de apertura',
+                        'type' => 'text',
+                        'default' => '09:00',
+                        'rules' => ['required', 'regex:/^([01]\d|2[0-3]):[0-5]\d$/'],
+                        'help' => 'Formato 24h HH:MM. Aplica todos los días. Usado para validar que las citas se agenden dentro del horario operativo.',
+                    ],
+                    'booking_closing_time' => [
+                        'label' => 'Hora de cierre',
+                        'type' => 'text',
+                        'default' => '19:00',
+                        'rules' => ['required', 'regex:/^([01]\d|2[0-3]):[0-5]\d$/', 'after:booking_opening_time'],
+                    ],
                 ],
             ],
             'fiscal' => [
@@ -455,7 +468,7 @@ class SystemSettings
                         'type' => 'select',
                         'default' => '12h',
                         'config' => 'backoffice.system.time_format',
-                        'rules' => ['required', \Illuminate\Validation\Rule::in(['12h', '24h'])],
+                        'rules' => ['required', Rule::in(['12h', '24h'])],
                         'options' => [
                             ['value' => '12h', 'label' => '12 horas (AM/PM)'],
                             ['value' => '24h', 'label' => '24 horas'],
@@ -468,24 +481,24 @@ class SystemSettings
                 'description' => 'Configuración del módulo contable, caja y documentos.',
                 'fields' => [
                     'finanzas_requiere_apertura_caja' => [
-                        'label'   => 'Requerir apertura de caja para cobrar',
-                        'type'    => 'boolean',
+                        'label' => 'Requerir apertura de caja para cobrar',
+                        'type' => 'boolean',
                         'default' => false,
-                        'help'    => 'Si está activo, el operador debe abrir una sesión de caja antes de registrar cobros.',
-                        'rules'   => ['nullable', 'boolean'],
+                        'help' => 'Si está activo, el operador debe abrir una sesión de caja antes de registrar cobros.',
+                        'rules' => ['nullable', 'boolean'],
                     ],
                     'finanzas_asientos_auto_aplicar' => [
-                        'label'   => 'Aplicar asientos automáticamente',
-                        'type'    => 'boolean',
+                        'label' => 'Aplicar asientos automáticamente',
+                        'type' => 'boolean',
                         'default' => true,
-                        'help'    => 'Si está activo, los asientos se aplican al confirmar el cobro sin requerir aprobación adicional.',
-                        'rules'   => ['nullable', 'boolean'],
+                        'help' => 'Si está activo, los asientos se aplican al confirmar el cobro sin requerir aprobación adicional.',
+                        'rules' => ['nullable', 'boolean'],
                     ],
                     'finanzas_moneda' => [
-                        'label'   => 'Moneda de operación',
-                        'type'    => 'text',
+                        'label' => 'Moneda de operación',
+                        'type' => 'text',
                         'default' => 'MXN',
-                        'rules'   => ['required', 'string', 'size:3'],
+                        'rules' => ['required', 'string', 'size:3'],
                     ],
                 ],
             ],
@@ -500,18 +513,20 @@ class SystemSettings
         if ($fieldDefinition['type'] === 'number') {
             return (int) $value;
         }
+
         return is_string($value) ? trim($value) : $value;
     }
 
     private function serializeValue(array $fieldDefinition, mixed $value): ?string
     {
         if ($fieldDefinition['type'] === 'boolean') {
-            return !empty($value) ? '1' : '0';
+            return ! empty($value) ? '1' : '0';
         }
         if ($fieldDefinition['type'] === 'number') {
             return (string) ((int) $value);
         }
         $normalized = is_string($value) ? trim($value) : $value;
+
         return $normalized === '' ? null : (string) $normalized;
     }
 
@@ -526,6 +541,7 @@ class SystemSettings
                 'colors' => (array) ($palette['colors'] ?? []),
             ];
         }
+
         return $options;
     }
 }

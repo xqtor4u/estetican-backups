@@ -3,7 +3,14 @@
     $breadcrumbs = $page['breadcrumbs'];
 @endphp
 @extends('layouts.app')
-@php($defaultScheduledAt = old('scheduled_at', now()->addHour()->format('Y-m-d\TH:i')))
+@php
+    $suggested = now()->addHour()->second(0);
+    $remainder = $suggested->minute % 5;
+    if ($remainder !== 0) {
+        $suggested->addMinutes(5 - $remainder);
+    }
+    $defaultScheduledAt = old('scheduled_at', $suggested->format('Y-m-d\TH:i'));
+@endphp
 
 @section('content')
 <x-page-header
@@ -16,6 +23,13 @@
         <a href="{{ $isRootView ? route('pets.show', ['pet' => $pet, 'view' => $returnViewMode]) : route('clients.pets.show', [$client, $pet]) }}" class="btn btn-outline-secondary">Volver a mascota</a>
     </x-slot:actions>
 </x-page-header>
+
+@if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
 
 <div class="catalog-content-wide">
     <section class="catalog-overview mb-4">
@@ -57,9 +71,32 @@
 
                 <div class="row g-3 mb-4">
                     <div class="col-lg-4 col-md-6">
+                        <label for="operator_id" class="form-label">Operador</label>
+                        <select id="operator_id" name="operator_id" class="form-select" required>
+                            <option value="">Selecciona un operador…</option>
+                            @foreach($operators as $operator)
+                                <option value="{{ $operator->id }}" @selected((string) old('operator_id') === (string) $operator->id)>
+                                    {{ $operator->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Debes elegir operador antes de poder fijar la hora — se usa para validar disponibilidad.</div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
                         <label for="scheduled_at" class="form-label">Fecha y hora</label>
-                        <input id="scheduled_at" type="datetime-local" name="scheduled_at" value="{{ $defaultScheduledAt }}" class="form-control" required>
-                        <div class="form-text">Se programa sobre el horario operativo deseado para la sesión.</div>
+                        <input
+                            id="scheduled_at"
+                            type="datetime-local"
+                            name="scheduled_at"
+                            value="{{ $defaultScheduledAt }}"
+                            class="form-control"
+                            required
+                            data-force-24h="1"
+                            data-min-time="{{ $openingTime }}"
+                            data-max-time="{{ $closingTime }}"
+                            @disabled(!old('operator_id'))
+                        >
+                        <div class="form-text">Horario operativo: {{ $openingTime }}–{{ $closingTime }}.</div>
                     </div>
                     <div class="col-lg-4 col-md-6">
                         <label for="resource_id" class="form-label">Jaula / recurso físico</label>
@@ -196,6 +233,29 @@
         background-color: rgba(0,0,0,0.02);
     }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var operatorSelect = document.getElementById('operator_id');
+        var scheduledAtInput = document.getElementById('scheduled_at');
+        if (!operatorSelect || !scheduledAtInput) return;
+
+        function syncScheduledAtState() {
+            var hasOperator = !!operatorSelect.value;
+            scheduledAtInput.disabled = !hasOperator;
+            // Flatpickr con altInput:true inserta el input visible justo después del original.
+            var altInput = scheduledAtInput.nextElementSibling;
+            if (altInput && altInput !== scheduledAtInput) {
+                altInput.disabled = !hasOperator;
+            }
+        }
+
+        operatorSelect.addEventListener('change', syncScheduledAtState);
+        syncScheduledAtState();
+    });
+</script>
 @endpush
 
 @endsection

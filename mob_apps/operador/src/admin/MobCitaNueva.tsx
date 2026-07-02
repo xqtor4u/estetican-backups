@@ -11,14 +11,19 @@ interface Operator { id: number; name: string; role: string | null; photo_url: s
 interface OccBooking { time: string }
 
 /* ── Constantes de horario ───────────────────────────────── */
-const START_H = 9;
-const END_H   = 19;
-const STEP    = 30; // minutos por slot
+const STEP = 30; // minutos por slot
+const DEFAULT_OPEN_MIN  = 9 * 60;
+const DEFAULT_CLOSE_MIN = 19 * 60;
 
-function buildSlots(): string[] {
+function hhmmToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+function buildSlots(startMin: number, endMin: number): string[] {
   const slots: string[] = [];
-  let mins = START_H * 60;
-  while (mins < END_H * 60) {
+  let mins = startMin;
+  while (mins < endMin) {
     const h = String(Math.floor(mins / 60)).padStart(2, '0');
     const m = String(mins % 60).padStart(2, '0');
     slots.push(`${h}:${m}`);
@@ -26,7 +31,6 @@ function buildSlots(): string[] {
   }
   return slots;
 }
-const ALL_SLOTS = buildSlots();
 
 /* ── Helpers de fecha ────────────────────────────────────── */
 function localDateStr(d: Date): string {
@@ -78,6 +82,7 @@ export function MobCitaNueva() {
   );
   const [occupied,  setOccupied]  = useState<Set<string>>(new Set());
   const [loadSlots, setLoadSlots] = useState(false);
+  const [businessHours, setBusinessHours] = useState({ start: DEFAULT_OPEN_MIN, end: DEFAULT_CLOSE_MIN });
   const [selSlot,      setSelSlot]      = useState<string | null>(null);
   const [selSvcs,      setSelSvcs]      = useState<number[]>([]);
   const [selOp,        setSelOp]        = useState<number | null>(null);
@@ -93,6 +98,7 @@ export function MobCitaNueva() {
   /* Refs para scroll a campos con error */
   const svcSectionRef  = useRef<HTMLElement>(null);
   const slotSectionRef = useRef<HTMLElement>(null);
+  const opSectionRef   = useRef<HTMLElement>(null);
 
   /* Carga inicial: mascota, servicios, operadores */
   useEffect(() => {
@@ -103,13 +109,31 @@ export function MobCitaNueva() {
       .catch(() => {});
     fetch('/api/services').then(r => r.json()).then(setServices).catch(() => {});
     fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
+    fetch('/api/settings/booking')
+      .then(r => r.json())
+      .then((d: { opening_time?: string; closing_time?: string }) => {
+        if (d.opening_time && d.closing_time) {
+          setBusinessHours({ start: hhmmToMinutes(d.opening_time), end: hhmmToMinutes(d.closing_time) });
+        }
+      })
+      .catch(() => {});
   }, [id]);
 
-  /* Carga citas ocupadas al cambiar fecha */
-  const loadOccupied = useCallback((date: Date) => {
+  const ALL_SLOTS = useMemo(
+    () => buildSlots(businessHours.start, businessHours.end),
+    [businessHours]
+  );
+
+  /* Carga citas ocupadas al cambiar fecha u operador — requiere operador elegido */
+  const loadOccupied = useCallback((date: Date, operatorId: number | null) => {
+    if (!operatorId) {
+      setOccupied(new Set());
+      setLoadSlots(false);
+      return;
+    }
     setLoadSlots(true);
     setSelSlot(null);
-    fetch(`/api/agenda?date=${localDateStr(date)}`)
+    fetch(`/api/agenda?date=${localDateStr(date)}&operator_id=${operatorId}`)
       .then(r => r.json())
       .then((bookings: OccBooking[]) =>
         setOccupied(new Set(bookings.map(b => b.time.slice(0, 5))))
@@ -118,7 +142,7 @@ export function MobCitaNueva() {
       .finally(() => setLoadSlots(false));
   }, []);
 
-  useEffect(() => { loadOccupied(selDate); }, [selDate, loadOccupied]);
+  useEffect(() => { loadOccupied(selDate, selOp); }, [selDate, selOp, loadOccupied]);
 
   /* Duración base del catálogo según servicios elegidos */
   const catalogDuration = useMemo(() =>
@@ -138,6 +162,12 @@ export function MobCitaNueva() {
   useEffect(() => {
     if (selSlot) setFieldErrors(prev => { const n = { ...prev }; delete n.slot; return n; });
   }, [selSlot]);
+
+  /* Al elegir operador, limpiar error y resetear el horario ya elegido (puede ya no ser válido) */
+  useEffect(() => {
+    if (selOp !== null) setFieldErrors(prev => { const n = { ...prev }; delete n.operator; return n; });
+    setSelSlot(null);
+  }, [selOp]);
 
   /* Duración efectiva: la del usuario si la ajustó, sino la del catálogo (mínimo 15 min) */
   const effectiveDuration = customDur ?? (catalogDuration > 0 ? catalogDuration : STEP);
@@ -187,7 +217,7 @@ export function MobCitaNueva() {
   const endTime = selSlot ? slotAddMins(selSlot, effectiveDuration) : null;
 
   /* ── Guardar ───────────────────────────────────────────── */
-  const canSave = selSlot !== null && !isSlotInvalid(selSlot) && pet !== null;
+  const canSave = selOp !== null && selSlot !== null && !isSlotInvalid(selSlot) && pet !== null;
 
   const save = async () => {
     if (saving) return;
@@ -195,6 +225,7 @@ export function MobCitaNueva() {
     // Validación client-side con feedback por campo
     const errs: Record<string, string> = {};
     if (selSvcs.length === 0) errs.services = 'Selecciona al menos un servicio para continuar';
+    if (selOp === null)        errs.operator = 'Selecciona un operador antes de elegir horario';
     if (!selSlot)              errs.slot     = 'Selecciona un horario';
     else if (isSlotInvalid(selSlot)) errs.slot = 'Este horario tiene conflicto con otra cita';
 
@@ -202,6 +233,7 @@ export function MobCitaNueva() {
       setFieldErrors(errs);
       setTimeout(() => {
         if (errs.services) svcSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        else if (errs.operator) opSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         else if (errs.slot) slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 50);
       return;
@@ -476,24 +508,18 @@ export function MobCitaNueva() {
           </div>
         </section>
 
-        {/* ── 4. Operador (opcional) ───────────────────── */}
-        <section>
-          <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">
-            Operador asignado
-            <span className="font-normal normal-case ml-1 text-on-surface-variant/50">(opcional)</span>
+        {/* ── 4. Operador (obligatorio) ────────────────── */}
+        <section ref={opSectionRef}>
+          <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${fieldErrors.operator ? 'text-error' : 'text-on-surface-variant'}`}>
+            Operador {fieldErrors.operator ? '· requerido' : ''}
           </p>
+          {fieldErrors.operator && (
+            <p className="text-xs text-error flex items-center gap-1 mb-2">
+              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+              {fieldErrors.operator}
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelOp(null)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm border transition-colors ${
-                selOp === null
-                  ? 'bg-surface-container-high border-outline text-on-surface font-semibold'
-                  : 'bg-surface-container border-outline-variant text-on-surface-variant'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">person_off</span>
-              Sin asignar
-            </button>
             {operators.map(op => {
               const sel = selOp === op.id;
               return (
@@ -538,7 +564,12 @@ export function MobCitaNueva() {
               {fieldErrors.slot}
             </p>
           )}
-          {loadSlots ? (
+          {selOp === null ? (
+            <div className="flex items-center gap-2 py-6 text-on-surface-variant text-sm bg-surface-container border border-outline-variant rounded-2xl px-4">
+              <span className="material-symbols-outlined text-xl">person_off</span>
+              Selecciona un operador primero para ver su disponibilidad.
+            </div>
+          ) : loadSlots ? (
             <div className="flex items-center gap-2 py-6 text-on-surface-variant text-sm">
               <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
               Verificando disponibilidad…

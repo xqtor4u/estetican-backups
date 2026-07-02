@@ -457,6 +457,38 @@ Para agregar un hostname público a un tunnel existente:
 
 ---
 
+## NT-015 — Otra columna sin migración propia: `users.can_login`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-02 |
+| **Severidad** | P3 — Bloquea `migrate` desde cero en base nueva; sin impacto en producción |
+| **Componente** | `users.can_login` |
+| **Estado** | ✅ RESUELTO |
+
+Mismo patrón que NT-013: `users.can_login` existe en producción (usado por `App\Http\Middleware\ApiAuthenticate` para bloquear login de usuarios desactivados) pero ninguna migración del repo la crea. Se agregó `2026_07_02_000000_add_can_login_to_users_table.php` con guard `Schema::hasColumn()` — no-op en producción, corrige el flujo en bases nuevas. Detectado al escribir tests contra la base `testing` recién habilitada (ver NT-014).
+
+**Lección:** cada vez que se habilite `artisan test` desde cero en este proyecto, es probable que aparezcan más columnas de `users`/`operators` parcheadas manualmente sin migración rastreable (patrón recurrente de deuda técnica histórica). Solo se corrigen bajo demanda, cuando bloquean trabajo activo — no se persigue la lista completa preventivamente.
+
+---
+
+## NT-016 — `Api\BookingController`: `total_estimated_price` quedaba `null` con total en $0
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-02 |
+| **Severidad** | P2 — Cualquier cita creada vía API móvil sin `services` (o con servicios de precio $0) fallaba con `Column 'total_estimated_price' cannot be null` |
+| **Componente** | `app/Http/Controllers/Api/BookingController.php` (`store`, `update`) |
+| **Estado** | ✅ RESUELTO |
+
+**Causa raíz:** `'total_estimated_price' => $estimatedTotal ?: null` — el operador `?:` trata `0` como falsy, así que un total exactamente en `$0` (sin servicios, o servicios gratuitos) se guardaba como `null`, violando la columna `NOT NULL`. Detectado por un test nuevo (`BookingSchedulingValidationTest::test_accepts_a_valid_booking`) que no incluía `services` en el payload — no era un caso hipotético, cualquier llamada real a la API sin ese campo ya fallaba en producción.
+
+**Solución:** guardar siempre `$estimatedTotal` (o `$prices->sum()`) directo, sin el atajo `?: null` — `0` es un total válido, no equivalente a "sin dato".
+
+**Lección:** `?:` (operador Elvis) es peligroso con valores numéricos donde `0` es un resultado legítimo — usar `??` (null coalescing) o ninguno de los dos si el valor nunca debería convertirse a `null`.
+
+---
+
 ## NT-012 — Docker bind mount pierde enlace cuando se elimina y recrea el directorio fuente
 
 | Campo | Valor |

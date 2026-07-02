@@ -5,9 +5,9 @@ namespace App\Domain\Planning\Services;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Planning\Contracts\SpaBookingRepositoryInterface;
 use App\Models\SpaBooking;
+use Exception;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
-use Exception;
 
 class BookingService implements BookingServiceInterface
 {
@@ -15,7 +15,7 @@ class BookingService implements BookingServiceInterface
         private SpaBookingRepositoryInterface $spaBookingRepository
     ) {}
 
-    public function scheduleSpaSession(int $petId, string $scheduledAt, array $services, ?string $notes = null): SpaBooking
+    public function scheduleSpaSession(int $petId, string $scheduledAt, array $services, ?string $notes = null, ?int $operatorId = null): SpaBooking
     {
         DB::beginTransaction();
         try {
@@ -27,6 +27,7 @@ class BookingService implements BookingServiceInterface
 
             $booking = $this->spaBookingRepository->create([
                 'pet_id' => $petId,
+                'operator_id' => $operatorId,
                 'scheduled_at' => $scheduledAt,
                 'total_estimated_price' => $totalPrice,
                 'status' => 'scheduled',
@@ -34,8 +35,9 @@ class BookingService implements BookingServiceInterface
             ]);
 
             $this->spaBookingRepository->attachServices($booking->id, $services);
-            
+
             DB::commit();
+
             return $booking;
         } catch (Exception $e) {
             DB::rollBack();
@@ -43,30 +45,36 @@ class BookingService implements BookingServiceInterface
         }
     }
 
-    public function rescheduleBooking(int $bookingId, string $scheduledAt, ?string $notes = null): bool
+    public function rescheduleBooking(int $bookingId, string $scheduledAt, ?string $notes = null, ?int $operatorId = null): bool
     {
         $booking = $this->spaBookingRepository->findById($bookingId);
 
-        if (!$booking || $booking->status !== 'scheduled') {
+        if (! $booking || $booking->status !== 'scheduled') {
             return false;
         }
 
-        return $this->spaBookingRepository->update($bookingId, [
+        $data = [
             'scheduled_at' => $scheduledAt,
             'notes' => $notes,
-        ]);
+        ];
+
+        if ($operatorId !== null) {
+            $data['operator_id'] = $operatorId;
+        }
+
+        return $this->spaBookingRepository->update($bookingId, $data);
     }
 
     public function cancelBooking(int $bookingId, string $reason): bool
     {
         $booking = $this->spaBookingRepository->findById($bookingId);
-        if (!$booking || $booking->status !== 'scheduled') {
+        if (! $booking || $booking->status !== 'scheduled') {
             return false;
         }
 
         return $this->spaBookingRepository->update($bookingId, [
             'status' => 'cancelled',
-            'cancellation_reason' => $reason
+            'cancellation_reason' => $reason,
         ]);
     }
 
@@ -74,7 +82,7 @@ class BookingService implements BookingServiceInterface
     {
         $booking = $this->spaBookingRepository->findById($bookingId);
 
-        if (!$booking || $booking->status !== 'scheduled') {
+        if (! $booking || $booking->status !== 'scheduled') {
             return false;
         }
 

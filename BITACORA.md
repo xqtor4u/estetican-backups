@@ -1,5 +1,75 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 02/07/2026 — BL-025: fix hora de cita (web+móvil) + fix teléfonos WhatsApp + cambiar dueño de mascota
+
+### ✅ Fix: normalizador de teléfono WhatsApp con datos reales de producción
+
+`PhoneNormalizer::toWhatsAppNumber()` (BL-024) solo aceptaba exactamente 10 dígitos — con datos reales de producción (números ya con `+52`, o con el viejo prefijo `521` de WhatsApp para móviles MX) casi ninguna fila de la bandeja quedaba seleccionable. Se agregó reconocimiento de 12 dígitos que empiezan con `52` (se usan tal cual) y 13 dígitos que empiezan con `521` (se les quita el `1` extra). Los números genuinamente mal capturados (9 dígitos, u otros que no calzan ningún patrón MX) siguen quedando deshabilitados correctamente. 10 tests, todos verdes. Commit `e754d27`.
+
+### ✅ Feature: cambiar dueño de cualquier mascota
+
+Modal "Cambiar dueño" en `pets/show.blade.php` (botón junto a "Editar cliente"). Con solo 8 clientes en el sistema, el selector precarga todos los clientes y filtra en memoria con Alpine (sin necesitar endpoint de búsqueda). Nuevo endpoint `PUT pets/{pet}/owner` → `PetController::updateOwner`. Decisiones de diseño explícitas:
+- `SpaBooking`/`HotelReservation`/`Quote` no tienen `client_id` propio (derivan el dueño vía `pet_id`) — su historial "cambia de dueño" retroactivamente en reportes, es intencional, no se reescribe nada.
+- `ResourceEvent` sí tiene `client_id` propio (snapshot histórico) — **no se actualiza** al reasignar, para preservar quién era el dueño cuando ocurrió cada incidente.
+- Auditado automáticamente vía Activitylog (`client_id` ya estaba en `logOnly` de `Pet`).
+
+4 tests, todos verdes. Commit `1e2713e`.
+
+### ✅ BL-025 — Fix hora de la cita en "Programar servicio" (AgSpaCre), web y móvil
+
+Usuario reportó 5 problemas relacionados en el mismo flujo:
+1. Hora sugerida al abrir no redondeada a 5 min (ej. sugería 10:02 en vez de 10:00).
+2. No se podía escribir la hora a mano en el datetime picker.
+3. No validaba horario operativo de la estética.
+4. No validaba traslape de horario con otra cita del mismo operador.
+5. Debería ser imposible fijar hora sin haber elegido operador primero.
+
+**Causas raíz encontradas (2 agentes Explore, backoffice + móvil):**
+- Bug 1: `now()->addHour()->format(...)` sin redondear en `agenda/create.blade.php` (y `edit.blade.php`).
+- Bug 2: Flatpickr reparsea el `altInput` contra `altFormat` en `blur` de forma estricta; con `system_time_format=12h` (default), el formato AM/PM en español fallaba a reparsear y Flatpickr revertía el valor en silencio.
+- Bug 3: **no existía ninguna configuración de horario de apertura/cierre en todo el proyecto.**
+- Bug 4: la colisión de horario solo existía para jaulas/recursos físicos (`ResourceAllocationService`); nada para operadores, ni en web ni en la API móvil.
+- Bug 5: **en backoffice web no existía ningún selector de "operador de la cita"** al crear el servicio — el operador se asigna después, por servicio individual, ya con presupuesto aceptado. En móvil sí había un operador único desde el inicio (`spa_bookings.operator_id`) pero era opcional y no bloqueaba nada.
+
+**Decisiones confirmadas con el usuario:** se agrega selector de operador al crear en web (coexiste con la asignación fina por servicio); horario de operación es un solo horario fijo diario (no varía por día de semana); operador pasa a ser **obligatorio** en ambos lados (antes opcional en móvil).
+
+**Implementación:**
+- `SystemSettings.php` — `booking_opening_time`/`booking_closing_time` (default `09:00`/`19:00`) en sección `clinical`.
+- `App\Support\SystemSettings\BusinessHours` (nuevo) — `isWithin()`.
+- `App\Domain\Planning\Services\OperatorAvailabilityChecker` (nuevo) — `hasConflict()`, query directa sobre `spa_bookings.operator_id`+`scheduled_at`+`duration_minutes` (excluye cancelled/no_show). Alcance solo SPA.
+- `BookingService::scheduleSpaSession()`/`rescheduleBooking()` — nuevo parámetro `?int $operatorId`.
+- `SpaBookingController` (web) y `Api\BookingController` (móvil) — `operator_id` ahora `required`, validan `BusinessHours` + `OperatorAvailabilityChecker` antes de crear/reprogramar.
+- `agenda/create.blade.php`/`edit.blade.php` — selector de operador, hora redondeada a 5 min, input de hora nace `disabled` hasta elegir operador (JS inline), `data-force-24h`/`data-min-time`/`data-max-time`.
+- `datetime-picker.js` — `minuteIncrement:5` explícito, `minTime`/`maxTime` desde data-attrs, `time_24hr` forzado solo en campos con `data-force-24h` (elimina la ambigüedad AM/PM que causaba el bug 2, sin afectar otros datetime-local del sistema).
+- `MobCitaNueva.tsx` — quitado "Sin asignar" (operador obligatorio), grid de horarios deshabilitado hasta elegir operador, `loadOccupied` ahora filtra por `operator_id` y se refresca al cambiarlo, `START_H`/`END_H` hardcodeados reemplazados por `/api/settings/booking` (`opening_time`/`closing_time`).
+- `Api\AgendaController::index` — filtro opcional `operator_id`.
+- `Api\SettingController::booking()` — expone `opening_time`/`closing_time`.
+
+**Bugs preexistentes encontrados y corregidos de paso (no causados por este cambio, pero bloqueaban las pruebas o eran fallas reales en producción):**
+- NT-015: `users.can_login` sin migración propia (mismo patrón que NT-013).
+- NT-016: `Api\BookingController` guardaba `total_estimated_price = null` cuando el total era exactamente `$0` (operador `?:` trata `0` como falsy) — cualquier cita API sin `services` ya fallaba en producción con violación de `NOT NULL`.
+
+**Tests:** 16 nuevos (BusinessHours, OperatorAvailabilityChecker, SpaBookingController, Api\BookingController) + toda la suite de WhatsApp/PetOwner re-verificada — 30 tests, todos verdes.
+
+### 📁 Archivos Clave Modificados/Creados
+- `app/Support/SystemSettings/BusinessHours.php`, `app/Domain/Planning/Services/OperatorAvailabilityChecker.php` — **nuevos**
+- `database/migrations/2026_07_02_000000_add_can_login_to_users_table.php` — **nuevo** (NT-015)
+- `app/Support/SystemSettings/SystemSettings.php`, `app/Domain/Planning/Services/BookingService.php` + interfaz, `app/Http/Controllers/SpaBookingController.php`, `app/Http/Controllers/Api/BookingController.php`, `app/Http/Controllers/Api/AgendaController.php`, `app/Http/Controllers/Api/SettingController.php`
+- `resources/views/agenda/create.blade.php`, `edit.blade.php`, `resources/js/modules/datetime-picker.js`
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx`
+- `tests/Feature/Planning/`, `tests/Feature/SpaBookingSchedulingValidationTest.php`, `tests/Feature/Api/BookingSchedulingValidationTest.php` — **nuevos**
+
+### 🔄 Pendientes para Próxima Sesión
+- **BL-024b** — Fase 2 de WhatsApp: confirmación de cliente, historial conversacional, CRM completo.
+- Investigar y arreglar el resto de la suite de tests preexistente (fallos no relacionados a las sesiones recientes).
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta de colores
+- BL-002 — Favicon & datos generales del negocio
+- BL-003 — Email avanzado: SMTP completo
+- BL-004 — Zonas horarias: selector completo
+- BL-008 — Reportes PDF
+
+---
+
 ## 📅 Sesión: 01/07/2026 — BL-024 Fase 1: Recordatorios WhatsApp ✅ + fix infra de testing
 
 ### ✅ BL-024 Fase 1 — Bandeja diaria de recordatorios WhatsApp

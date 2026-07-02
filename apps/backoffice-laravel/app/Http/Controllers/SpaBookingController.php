@@ -3,32 +3,39 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
+use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
+use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
+use App\Mail\ServiceSummaryMail;
 use App\Models\Client;
-use App\Models\Pet;
 use App\Models\HotelReservation;
+use App\Models\Operator;
+use App\Models\Pet;
+use App\Models\Quote;
+use App\Models\QuoteItem;
 use App\Models\Resource;
 use App\Models\Service;
 use App\Models\SpaBooking;
-use App\Models\Operator;
-use App\Models\QuoteItem;
 use App\Support\Pages\AgendaPage;
+use App\Support\SystemSettings\BusinessHours;
+use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
-use RuntimeException;
 
 class SpaBookingController extends Controller
 {
     public function __construct(
         private BookingServiceInterface $bookingService,
         private ResourceAllocationServiceInterface $resourceAllocationService,
-        private \App\Domain\Commercial\Contracts\QuoteServiceInterface $quoteService
-    ) {
-    }
+        private QuoteServiceInterface $quoteService,
+        private BusinessHours $businessHours,
+        private OperatorAvailabilityChecker $operatorAvailabilityChecker
+    ) {}
 
     public function index(Request $request): View
     {
@@ -37,11 +44,11 @@ class SpaBookingController extends Controller
         $status = (string) $request->query('status', 'active');
         $dateScope = (string) $request->query('date_scope', 'today');
 
-        if (!in_array($status, ['active', 'scheduled', 'work_order', 'completed', 'cancelled', 'no_show', 'unfulfillable', 'all'], true)) {
+        if (! in_array($status, ['active', 'scheduled', 'work_order', 'completed', 'cancelled', 'no_show', 'unfulfillable', 'all'], true)) {
             $status = 'active';
         }
 
-        if (!in_array($dateScope, ['today', 'tomorrow', 'custom', 'all', 'full'], true)) {
+        if (! in_array($dateScope, ['today', 'tomorrow', 'custom', 'all', 'full'], true)) {
             $dateScope = 'today';
         }
 
@@ -53,7 +60,7 @@ class SpaBookingController extends Controller
             ->with([
                 'pet.client',
                 'services.service',
-                'quotes' => fn($q) => $q->where('status', 'accepted')
+                'quotes' => fn ($q) => $q->where('status', 'accepted')
                     ->with(['cashLedgers', 'bankLedgers']),
             ]);
 
@@ -71,7 +78,7 @@ class SpaBookingController extends Controller
             $bookingsQuery->whereDate('scheduled_at', $selectedDate);
         }
 
-        if (!empty($search)) {
+        if (! empty($search)) {
             $bookingsQuery->whereHas('pet', function ($query) use ($search) {
                 $query->where('name', 'like', "%{$search}%")
                     ->orWhereHas('client', function ($q) use ($search) {
@@ -103,16 +110,17 @@ class SpaBookingController extends Controller
             $bookingsQuery->orderBy('spa_bookings.scheduled_at', $direction);
         }
 
-        $bookings = $bookingsQuery->paginate(15)->appends($request->query())->through(fn($b) => $this->decorateBooking($b));
+        $bookings = $bookingsQuery->paginate(15)->appends($request->query())->through(fn ($b) => $this->decorateBooking($b));
 
         // 2. Fetch Unifed Timeline (SPA + Hotel)
         $spaForTimeline = SpaBooking::whereDate('scheduled_at', $selectedDate)
             ->whereIn('status', ['scheduled', 'work_order'])
             ->with(['pet.client', 'services.service'])
             ->get()
-            ->map(function($b) {
+            ->map(function ($b) {
                 $b = $this->decorateBooking($b);
                 $b->agenda_type = 'spa';
+
                 return $b;
             });
 
@@ -121,9 +129,10 @@ class SpaBookingController extends Controller
             ->where('status', 'active')
             ->with('pet.client')
             ->get()
-            ->map(function($h) {
+            ->map(function ($h) {
                 $h->agenda_type = 'hotel';
                 $h->scheduled_at = $h->start_at;
+
                 return $h;
             });
 
@@ -134,14 +143,14 @@ class SpaBookingController extends Controller
         $scheduledCount = $spaForTimeline->count();
         $estimatedRevenue = $spaForTimeline->sum('total_estimated_price');
         $petsWithAgenda = $timelineBookings->pluck('pet_id')->unique()->count();
-        
+
         $firstScheduledAt = $timelineBookings->min('scheduled_at');
         $lastScheduledEndAt = $timelineBookings->where('agenda_type', 'spa')->max('estimated_end_at');
 
         $operationalDateLabel = $this->formatOperationalDateLabel($selectedDate, $dateScope);
 
         return view('agenda.index', compact(
-            'page', 'bookings', 'timelineBookings', 'status', 'dateScope', 
+            'page', 'bookings', 'timelineBookings', 'status', 'dateScope',
             'selectedDate', 'selectedDateInput', 'operationalDateLabel', 'search',
             'totalEstimatedMinutes', 'scheduledCount', 'estimatedRevenue', 'petsWithAgenda',
             'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction'
@@ -168,13 +177,13 @@ class SpaBookingController extends Controller
         $pets = Pet::with('client')
             ->orderBy('name')
             ->get()
-            ->map(fn($pet) => [
-                'id'      => $pet->id,
-                'name'    => $pet->name,
+            ->map(fn ($pet) => [
+                'id' => $pet->id,
+                'name' => $pet->name,
                 'species' => $pet->species ?? '',
-                'client'  => [
-                    'id'        => $pet->client?->id,
-                    'first_name'=> $pet->client?->first_name ?? '',
+                'client' => [
+                    'id' => $pet->client?->id,
+                    'first_name' => $pet->client?->first_name ?? '',
                     'last_name' => $pet->client?->last_name ?? '',
                 ],
             ]);
@@ -192,8 +201,11 @@ class SpaBookingController extends Controller
         $services = Service::where('is_active', true)->orderBy('name')->get();
         $resources = Resource::whereIn('administrative_status', ['active', 'inactive'])->orderBy('code')->get();
         $assignedResourceId = $booking->resourceAllocations->firstWhere('allocation_type', 'reserved')?->resource_id;
+        $operators = Operator::where('is_active', true)->orderBy('name')->get();
+        $openingTime = $this->businessHours->openingTime();
+        $closingTime = $this->businessHours->closingTime();
 
-        return view('agenda.edit', compact('page', 'booking', 'services', 'resources', 'assignedResourceId', 'pet', 'client'));
+        return view('agenda.edit', compact('page', 'booking', 'services', 'resources', 'assignedResourceId', 'pet', 'client', 'operators', 'openingTime', 'closingTime'));
     }
 
     public function update(Request $request, SpaBooking $booking): RedirectResponse
@@ -201,15 +213,15 @@ class SpaBookingController extends Controller
         // Handle simple status updates (e.g. from Work Order)
         if ($request->has('status') && $request->input('status') === 'completed') {
             $booking->update(['status' => 'completed']);
-            
+
             // SMTP Automated Messaging
-            $settings = app(\App\Support\SystemSettings\SystemSettings::class)->all();
+            $settings = app(SystemSettings::class)->all();
             if (($settings['operational_auto_email_report'] ?? false) && $booking->pet->client->email) {
                 try {
-                    \Illuminate\Support\Facades\Mail::to($booking->pet->client->email)
-                        ->send(new \App\Mail\ServiceSummaryMail($booking));
+                    Mail::to($booking->pet->client->email)
+                        ->send(new ServiceSummaryMail($booking));
                 } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error('Error sending service report email: ' . $e->getMessage());
+                    Log::error('Error sending service report email: '.$e->getMessage());
                 }
             }
 
@@ -218,22 +230,35 @@ class SpaBookingController extends Controller
 
         $validated = $request->validate([
             'scheduled_at' => 'required|date',
-            'resource_id'  => 'nullable|exists:resources,id',
-            'notes'        => 'nullable|string',
-            'services'     => 'nullable|array',
-            'services.*'   => 'exists:services,id',
+            'operator_id' => 'required|exists:operators,id',
+            'resource_id' => 'nullable|exists:resources,id',
+            'notes' => 'nullable|string',
+            'services' => 'nullable|array',
+            'services.*' => 'exists:services,id',
         ]);
 
-        $this->bookingService->rescheduleBooking($booking->id, $validated['scheduled_at'], $validated['notes'] ?? null);
+        $scheduledAt = Carbon::parse($validated['scheduled_at']);
+        $durationMinutes = (int) $booking->services()->with('service')->get()
+            ->sum(fn ($s) => $s->service?->suggested_duration_minutes ?? $s->service?->duration_minutes ?? 0);
+
+        if (! $this->businessHours->isWithin($scheduledAt)) {
+            return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$this->businessHours->openingTime()}–{$this->businessHours->closingTime()}).");
+        }
+
+        if ($this->operatorAvailabilityChecker->hasConflict((int) $validated['operator_id'], $scheduledAt, $durationMinutes, $booking->id)) {
+            return redirect()->back()->withInput()->with('error', 'El operador seleccionado ya tiene una cita en ese horario.');
+        }
+
+        $this->bookingService->rescheduleBooking($booking->id, $validated['scheduled_at'], $validated['notes'] ?? null, (int) $validated['operator_id']);
 
         // Sync services only when still in scheduled state (not yet a work order)
         if ($booking->status === 'scheduled' && $request->has('services')) {
             $serviceIds = array_filter((array) ($validated['services'] ?? []));
-            $prices = \App\Models\Service::whereIn('id', $serviceIds)->pluck('price', 'id');
+            $prices = Service::whereIn('id', $serviceIds)->pluck('price', 'id');
             $booking->services()->delete();
             foreach ($serviceIds as $serviceId) {
                 $booking->services()->create([
-                    'service_id'    => $serviceId,
+                    'service_id' => $serviceId,
                     'current_price' => $prices[$serviceId] ?? 0,
                 ]);
             }
@@ -243,9 +268,9 @@ class SpaBookingController extends Controller
             if (empty($validated['resource_id'])) {
                 $this->resourceAllocationService->releaseSourceAllocations($booking);
             } else {
-                $durationMinutes = (int) $booking->services->sum(fn($s) => $s->service?->suggested_duration_minutes ?? $s->service?->duration_minutes ?? 0);
+                $durationMinutes = (int) $booking->services->sum(fn ($s) => $s->service?->suggested_duration_minutes ?? $s->service?->duration_minutes ?? 0);
                 $cleanupBuffer = (int) config('backoffice.resources.cleaning_buffer_minutes', 30);
-                
+
                 $this->resourceAllocationService->syncResourceToSource(
                     (int) $validated['resource_id'],
                     $booking,
@@ -311,15 +336,18 @@ class SpaBookingController extends Controller
             ->get();
 
         $resourceCleaningBufferMinutes = (int) config('backoffice.resources.cleaning_buffer_minutes', 30);
+        $operators = Operator::where('is_active', true)->orderBy('name')->get();
+        $openingTime = $this->businessHours->openingTime();
+        $closingTime = $this->businessHours->closingTime();
 
         // isRootView = true si viene de /pets/{pet}/... sin cliente en la URL
-        $isRootView = !request()->route('client');
+        $isRootView = ! request()->route('client');
         $returnViewMode = 'bookings';
 
         return view('agenda.create', compact(
             'page', 'pet', 'client', 'services', 'resources',
             'upcomingBookings', 'resourceCleaningBufferMinutes',
-            'isRootView', 'returnViewMode'
+            'isRootView', 'returnViewMode', 'operators', 'openingTime', 'closingTime'
         ));
     }
 
@@ -327,6 +355,7 @@ class SpaBookingController extends Controller
     {
         $validated = $request->validate([
             'scheduled_at' => 'required|date',
+            'operator_id' => 'required|exists:operators,id',
             'resource_id' => 'nullable|exists:resources,id',
             'notes' => 'nullable|string',
             'services' => 'required|array',
@@ -334,22 +363,34 @@ class SpaBookingController extends Controller
         ]);
 
         $servicesWithPrices = [];
-        $servicesData = \App\Models\Service::whereIn('id', $validated['services'])->get();
+        $servicesData = Service::whereIn('id', $validated['services'])->get();
         foreach ($servicesData as $service) {
             $servicesWithPrices[$service->id] = $service->suggested_price ?? $service->price ?? 0;
         }
 
+        $scheduledAt = Carbon::parse($validated['scheduled_at']);
+        $durationMinutes = (int) $servicesData->sum(fn ($s) => $s->suggested_duration_minutes ?? $s->duration_minutes ?? 0);
+
+        if (! $this->businessHours->isWithin($scheduledAt)) {
+            return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$this->businessHours->openingTime()}–{$this->businessHours->closingTime()}).");
+        }
+
+        if ($this->operatorAvailabilityChecker->hasConflict((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
+            return redirect()->back()->withInput()->with('error', 'El operador seleccionado ya tiene una cita en ese horario.');
+        }
+
         $booking = $this->bookingService->scheduleSpaSession(
-            $pet->id, 
-            $validated['scheduled_at'], 
-            $servicesWithPrices, 
-            $validated['notes'] ?? null
+            $pet->id,
+            $validated['scheduled_at'],
+            $servicesWithPrices,
+            $validated['notes'] ?? null,
+            (int) $validated['operator_id']
         );
 
-        if (!empty($validated['resource_id'])) {
-            $durationMinutes = (int) $servicesData->sum(fn($s) => $s->suggested_duration_minutes ?? $s->duration_minutes ?? 0);
+        if (! empty($validated['resource_id'])) {
+            $durationMinutes = (int) $servicesData->sum(fn ($s) => $s->suggested_duration_minutes ?? $s->duration_minutes ?? 0);
             $cleanupBuffer = (int) config('backoffice.resources.cleaning_buffer_minutes', 30);
-            
+
             $this->resourceAllocationService->assignResourceToSource(
                 (int) $validated['resource_id'],
                 $booking,
@@ -365,10 +406,18 @@ class SpaBookingController extends Controller
 
     private function resolveOperationalDate(string $dateParam, string $dateScope): Carbon
     {
-        if ($dateScope === 'today') return now()->startOfDay();
-        if ($dateScope === 'tomorrow') return now()->addDay()->startOfDay();
-        if ($dateScope === 'all') return now()->startOfDay();
-        if ($dateScope === 'full') return now()->subYears(10)->startOfDay(); // Far past
+        if ($dateScope === 'today') {
+            return now()->startOfDay();
+        }
+        if ($dateScope === 'tomorrow') {
+            return now()->addDay()->startOfDay();
+        }
+        if ($dateScope === 'all') {
+            return now()->startOfDay();
+        }
+        if ($dateScope === 'full') {
+            return now()->subYears(10)->startOfDay();
+        } // Far past
 
         return $this->parseDateOrToday($dateParam);
     }
@@ -397,7 +446,7 @@ class SpaBookingController extends Controller
         $booking->setAttribute(
             'time_window_label',
             $booking->scheduled_at
-                ? $booking->scheduled_at->format('H:i') . ($estimatedEndAt ? ' - ' . $estimatedEndAt->format('H:i') : '')
+                ? $booking->scheduled_at->format('H:i').($estimatedEndAt ? ' - '.$estimatedEndAt->format('H:i') : '')
                 : null
         );
 
@@ -407,11 +456,11 @@ class SpaBookingController extends Controller
     private function formatOperationalDateLabel(Carbon $selectedDate, string $dateScope): string
     {
         return match ($dateScope) {
-            'today' => 'Hoy · ' . $selectedDate->translatedFormat('d M Y'),
-            'tomorrow' => 'Mañana · ' . $selectedDate->translatedFormat('d M Y'),
+            'today' => 'Hoy · '.$selectedDate->translatedFormat('d M Y'),
+            'tomorrow' => 'Mañana · '.$selectedDate->translatedFormat('d M Y'),
             'all' => 'Próximas sesiones vigentes',
             'full' => 'Todo el historial operativo',
-            default => 'Fecha elegida · ' . $selectedDate->translatedFormat('d M Y'),
+            default => 'Fecha elegida · '.$selectedDate->translatedFormat('d M Y'),
         };
     }
 
@@ -472,7 +521,7 @@ class SpaBookingController extends Controller
         return redirect()->route('agenda.show', $booking)->with('success', 'Nueva opción de presupuesto guardada.');
     }
 
-    public function acceptQuote(Request $request, SpaBooking $booking, \App\Models\Quote $quote): RedirectResponse
+    public function acceptQuote(Request $request, SpaBooking $booking, Quote $quote): RedirectResponse
     {
         abort_unless($quote->spa_booking_id === $booking->id, 404);
 
@@ -507,7 +556,7 @@ class SpaBookingController extends Controller
         return redirect()->back()->with('success', 'Profesional asignado correctamente.');
     }
 
-    public function registerPayment(Request $request, SpaBooking $booking, \App\Models\Quote $quote): RedirectResponse
+    public function registerPayment(Request $request, SpaBooking $booking, Quote $quote): RedirectResponse
     {
         abort_unless($quote->spa_booking_id === $booking->id, 404);
 
@@ -520,7 +569,7 @@ class SpaBookingController extends Controller
         ]);
 
         $this->quoteService->registerPayment($booking->pet->client_id, $validated['amount'], [
-            'payable_type' => \App\Models\Quote::class,
+            'payable_type' => Quote::class,
             'payable_id' => $quote->id,
             'payment_method' => $validated['payment_method'],
             'destination' => $validated['destination'],
