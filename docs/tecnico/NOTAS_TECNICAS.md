@@ -489,6 +489,23 @@ Mismo patrón que NT-013: `users.can_login` existe en producción (usado por `Ap
 
 ---
 
+## NT-017 — No usar `disabled` nativo para bloquear campos con Flatpickr (`altInput`)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-02 |
+| **Severidad** | P3 — El campo de hora en "Programar servicio" no se habilitaba al elegir operador |
+| **Componente** | `resources/views/agenda/create.blade.php`/`edit.blade.php` + Flatpickr (`altInput: true`) |
+| **Estado** | ✅ RESUELTO |
+
+**Causa raíz (fragilidad, no un bug puntual):** con `altInput: true`, Flatpickr crea un input visible nuevo (`self.altInput`) y copia `disabled` del input original **solo una vez, en su inicialización** (`self.altInput.disabled = self.input.disabled` en `flatpickr.js`). Alternar `disabled` en el input original *después* de que Flatpickr ya inicializó no garantiza que el campo visible (`altInput`) refleje el cambio de forma confiable, y localizarlo vía `nextElementSibling` para sincronizarlo a mano es frágil frente al timing de carga de módulos.
+
+**Solución:** para gatear la interactividad de un campo con Flatpickr, envolverlo en un `<div>` contenedor y alternar una clase CSS (`opacity` + `pointer-events: none`) en el wrapper, en vez de tocar `disabled` en el input. No depende de cómo Flatpickr arma su DOM interno.
+
+**Lección:** con cualquier librería que clona/envuelve un `<input>` (Flatpickr, Select2, etc.), evitar alternar atributos nativos (`disabled`, `readonly`) después de la inicialización — preferir gatear la interacción a nivel de un contenedor CSS.
+
+---
+
 ## NT-012 — Docker bind mount pierde enlace cuando se elimina y recrea el directorio fuente
 
 | Campo | Valor |

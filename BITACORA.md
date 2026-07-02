@@ -51,6 +51,14 @@ Usuario reportó 5 problemas relacionados en el mismo flujo:
 
 **Tests:** 16 nuevos (BusinessHours, OperatorAvailabilityChecker, SpaBookingController, Api\BookingController) + toda la suite de WhatsApp/PetOwner re-verificada — 30 tests, todos verdes.
 
+### 🐛 Fix de seguimiento: el campo de hora no se habilitaba al elegir operador
+
+Usuario reportó tras el despliegue que, en web, seleccionar operador no habilitaba el campo de hora. El gating original alternaba el atributo `disabled` nativo del `<input>` y adivinaba cuál era el `altInput` que crea Flatpickr (`nextElementSibling`) para replicar el estado — frágil frente al timing/estado interno de la librería (Flatpickr copia `disabled` del input original al `altInput` solo una vez, en su inicialización).
+
+**Fix:** se abandonó el enfoque basado en `disabled`. Ahora el campo vive dentro de un `<div id="scheduled_at_wrapper">` que se bloquea visual e interactivamente con una clase CSS `is-locked` (`opacity:.5; pointer-events:none`) controlada por JS al cambiar el select de operador — no depende en absoluto de cómo Flatpickr gestiona su propio DOM interno. Verificado renderizando la vista directamente vía Tinker (bypass de HTTP/auth) para confirmar el HTML real generado antes y después del fix. Commit `3888b3c`.
+
+**Pendiente de confirmación del usuario:** el fix se desplegó y se verificó el render server-side, pero falta que el usuario confirme visualmente en el navegador que el campo ya se habilita correctamente.
+
 ### 📁 Archivos Clave Modificados/Creados
 - `app/Support/SystemSettings/BusinessHours.php`, `app/Domain/Planning/Services/OperatorAvailabilityChecker.php` — **nuevos**
 - `database/migrations/2026_07_02_000000_add_can_login_to_users_table.php` — **nuevo** (NT-015)
@@ -60,6 +68,7 @@ Usuario reportó 5 problemas relacionados en el mismo flujo:
 - `tests/Feature/Planning/`, `tests/Feature/SpaBookingSchedulingValidationTest.php`, `tests/Feature/Api/BookingSchedulingValidationTest.php` — **nuevos**
 
 ### 🔄 Pendientes para Próxima Sesión
+- **Confirmar en navegador** que el campo de hora ya se habilita al elegir operador en `/pets/{id}/bookings/create` (fix de seguimiento arriba, verificado solo server-side).
 - **BL-024b** — Fase 2 de WhatsApp: confirmación de cliente, historial conversacional, CRM completo.
 - Investigar y arreglar el resto de la suite de tests preexistente (fallos no relacionados a las sesiones recientes).
 - BL-001 — Tema de UI: persistencia y cambio reactivo de paleta de colores
