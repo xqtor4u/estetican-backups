@@ -51,6 +51,7 @@ Route::middleware('auth')->group(function () {
     Route::get('pets', [PetController::class, 'index'])->name('pets.index');
     Route::get('pets/{pet}', [PetController::class, 'catalogShow'])->name('pets.show');
     Route::put('pets/{pet}', [PetController::class, 'update'])->name('pets.update');
+    Route::put('pets/{pet}/owner', [PetController::class, 'updateOwner'])->name('pets.owner.update');
     Route::post('pets/{pet}/profile-photo', [PetController::class, 'updateProfilePhoto'])->name('pets.profile-photo.update');
     Route::delete('pets/{pet}', [PetController::class, 'destroy'])->name('pets.destroy');
 

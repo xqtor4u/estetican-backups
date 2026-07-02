@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\HotelReservation;
 use App\Models\Pet;
+use App\Models\SpaBooking;
 use App\Support\CatalogCache\PetCatalogCache;
+use App\Support\PetPhotoImageManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class PetController extends Controller
 {
@@ -18,11 +22,11 @@ class PetController extends Controller
         $sort = $request->query('sort');
         $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
 
-        if (!in_array($status, ['all', 'active', 'deceased'], true)) {
+        if (! in_array($status, ['all', 'active', 'deceased'], true)) {
             $status = 'all';
         }
 
-        if (!in_array($sort, ['name', 'client', 'species', 'status'], true)) {
+        if (! in_array($sort, ['name', 'client', 'species', 'status'], true)) {
             $sort = null;
         }
 
@@ -39,12 +43,12 @@ class PetController extends Controller
                 'pets.notes',
             ])
             ->addSelect([
-                'last_spa_at' => \App\Models\SpaBooking::select('scheduled_at')
+                'last_spa_at' => SpaBooking::select('scheduled_at')
                     ->whereColumn('pet_id', 'pets.id')
                     ->where('scheduled_at', '<=', now())
                     ->latest('scheduled_at')
                     ->limit(1),
-                'last_hotel_at' => \App\Models\HotelReservation::select('start_at')
+                'last_hotel_at' => HotelReservation::select('start_at')
                     ->whereColumn('pet_id', 'pets.id')
                     ->where('start_at', '<=', now())
                     ->latest('start_at')
@@ -156,6 +160,23 @@ class PetController extends Controller
             ->withFragment('core-profile');
     }
 
+    public function updateOwner(Request $request, Pet $pet)
+    {
+        $validated = $request->validate([
+            'client_id' => ['required', 'exists:clients,id'],
+        ]);
+
+        if ((int) $validated['client_id'] === $pet->client_id) {
+            return redirect()->route('pets.show', $pet)->with('success', 'El dueño ya era ese cliente.');
+        }
+
+        $pet->update(['client_id' => $validated['client_id']]);
+
+        return redirect()
+            ->route('pets.show', $pet)
+            ->with('success', 'Dueño de la mascota actualizado.');
+    }
+
     private function renderPetShow(Client $client, Pet $pet, bool $isRootView, string $returnViewMode)
     {
         $client->load([
@@ -182,7 +203,9 @@ class PetController extends Controller
                 ->limit(5),
         ]);
 
-        return view('pets.show', compact('client', 'pet', 'isRootView', 'returnViewMode'));
+        $allClients = Client::orderBy('first_name')->orderBy('last_name')->get(['id', 'first_name', 'last_name', 'email']);
+
+        return view('pets.show', compact('client', 'pet', 'isRootView', 'returnViewMode', 'allClients'));
     }
 
     public function destroy(Request $request, Pet $pet)
@@ -208,7 +231,7 @@ class PetController extends Controller
     public function updateProfilePhoto(Request $request, Pet $pet, ?string $redirectRoute = null)
     {
         try {
-            \Illuminate\Support\Facades\Log::info('Attempting to update profile photo', [
+            Log::info('Attempting to update profile photo', [
                 'pet_id' => $pet->id,
                 'has_file' => $request->hasFile('photo'),
                 'file_size' => $request->hasFile('photo') ? $request->file('photo')->getSize() : 0,
@@ -218,7 +241,7 @@ class PetController extends Controller
                 'photo' => 'required|image|max:15360',
             ]);
 
-            $imageManager = app(\App\Support\PetPhotoImageManager::class);
+            $imageManager = app(PetPhotoImageManager::class);
             $newPhotoPath = $imageManager->store($request->file('photo'));
 
             // Update the pet profile column
@@ -241,11 +264,12 @@ class PetController extends Controller
 
             return redirect()->route('pets.show', $pet)->with('success', 'Foto de perfil actualizada correctamente.');
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('FAILED to update profile photo', [
+            Log::error('FAILED to update profile photo', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            return back()->withErrors(['photo' => 'Error interno al procesar la imagen: ' . $e->getMessage()]);
+
+            return back()->withErrors(['photo' => 'Error interno al procesar la imagen: '.$e->getMessage()]);
         }
     }
 

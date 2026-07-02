@@ -217,6 +217,8 @@ Entidad operativa principal. Separa **identidad** (esta tabla) de **trazabilidad
 
 > `profile_photo_path` se sincroniza automáticamente cuando se marca una foto de `pet_photos` como `perfil`.
 
+> **Cambiar dueño:** `PUT pets/{pet}/owner` (`pets.owner.update`, `PetController::updateOwner`) reasigna `client_id` desde un modal en `pets/show.blade.php` ("Cambiar dueño"). Auditado automáticamente vía Activitylog (`client_id` está en `logOnly`). `SpaBooking`/`HotelReservation`/`Quote` no tienen `client_id` propio (derivan el dueño vía `pet_id`), así que su historial "cambia de dueño" retroactivamente en cualquier vista — decisión intencional, no se reescribe nada. `ResourceEvent` sí tiene `client_id` propio como snapshot histórico y **no se actualiza** al reasignar (decisión explícita: preserva quién era el dueño cuando ocurrió cada incidente).
+
 ---
 
 ### `pet_medical_alerts`

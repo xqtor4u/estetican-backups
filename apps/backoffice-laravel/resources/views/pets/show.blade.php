@@ -21,6 +21,7 @@
         <a href="{{ $isRootView ? route('pets.bookings.create', ['pet' => $pet, 'return_view_mode' => $returnViewMode]) : route('clients.pets.bookings.create', [$client, $pet]) }}" class="btn btn-outline-dark catalog-action-upcoming">Programar servicio</a>
         <a href="{{ route('clients.show', $client) }}" class="btn btn-outline-secondary">Ver cliente</a>
         <a href="{{ route('clients.edit', $client) }}" class="btn btn-secondary">Editar cliente</a>
+        <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#modalChangeOwner">Cambiar dueño</button>
         <form action="{{ $isRootView ? route('pets.destroy', $pet) : route('clients.pets.destroy', [$client, $pet]) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar permanentemente a esta mascota? Esta acción no se puede deshacer.')">
             @csrf
             @method('DELETE')
@@ -529,4 +530,52 @@
         </div>
     </div>
 </section>
+
+{{-- Modal: Cambiar dueño --}}
+<div class="modal fade" id="modalChangeOwner" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div
+            class="modal-content border-0 shadow-lg"
+            x-data="{
+                search: '',
+                selected: {{ $client->id }},
+                clients: {{ \Illuminate\Support\Js::from($allClients->map(fn ($c) => [
+                    'id' => $c->id,
+                    'label' => trim($c->first_name . ' ' . $c->last_name) . ($c->email ? ' — ' . $c->email : ''),
+                ])) }},
+                get filtered() {
+                    const q = this.search.trim().toLowerCase();
+                    if (!q) return this.clients;
+                    return this.clients.filter(c => c.label.toLowerCase().includes(q));
+                }
+            }"
+        >
+            <form action="{{ route('pets.owner.update', $pet) }}" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">Cambiar dueño de {{ $pet->name }}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small">Dueño actual: <strong>{{ $client->first_name }} {{ $client->last_name }}</strong>. El historial de citas y presupuestos pasados no cambia — solo se reasigna la mascota hacia adelante.</p>
+                    <input type="text" class="form-control mb-3" placeholder="Buscar cliente…" x-model="search">
+                    <div class="list-group" style="max-height:280px; overflow-y:auto">
+                        <template x-for="c in filtered" :key="c.id">
+                            <label class="list-group-item d-flex align-items-center gap-2" :class="{ 'active': selected === c.id }">
+                                <input type="radio" name="client_id" class="form-check-input mt-0" :value="c.id" x-model.number="selected">
+                                <span x-text="c.label"></span>
+                            </label>
+                        </template>
+                        <p class="text-muted small mb-0 mt-2" x-show="filtered.length === 0">Sin resultados.</p>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-dark" :disabled="selected === {{ $client->id }}">Guardar nuevo dueño</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
