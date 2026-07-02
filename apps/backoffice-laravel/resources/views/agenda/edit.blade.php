@@ -53,12 +53,13 @@
                             </div>
                             <div class="col-md-4">
                                 <label for="scheduled_at" class="form-label fw-semibold">Fecha y hora</label>
-                                <input id="scheduled_at" type="datetime-local" name="scheduled_at"
-                                       value="{{ $defaultScheduledAt }}" class="form-control" required
-                                       data-force-24h="1"
-                                       data-min-time="{{ $openingTime }}"
-                                       data-max-time="{{ $closingTime }}"
-                                       @disabled(!old('operator_id', $booking->operator_id))>
+                                <div id="scheduled_at_wrapper" class="{{ old('operator_id', $booking->operator_id) ? '' : 'is-locked' }}" style="position:relative;">
+                                    <input id="scheduled_at" type="datetime-local" name="scheduled_at"
+                                           value="{{ $defaultScheduledAt }}" class="form-control" required
+                                           data-force-24h="1"
+                                           data-min-time="{{ $openingTime }}"
+                                           data-max-time="{{ $closingTime }}">
+                                </div>
                                 <div class="form-text">Horario operativo: {{ $openingTime }}–{{ $closingTime }}.</div>
                             </div>
                             <div class="col-md-4">
@@ -152,20 +153,24 @@
     </div>
 </div>
 
+@push('styles')
+<style>
+    #scheduled_at_wrapper.is-locked {
+        opacity: .5;
+        pointer-events: none;
+    }
+</style>
+@endpush
+
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         var operatorSelect = document.getElementById('operator_id');
-        var scheduledAtInput = document.getElementById('scheduled_at');
-        if (!operatorSelect || !scheduledAtInput) return;
+        var wrapper = document.getElementById('scheduled_at_wrapper');
+        if (!operatorSelect || !wrapper) return;
 
         function syncScheduledAtState() {
-            var hasOperator = !!operatorSelect.value;
-            scheduledAtInput.disabled = !hasOperator;
-            var altInput = scheduledAtInput.nextElementSibling;
-            if (altInput && altInput !== scheduledAtInput) {
-                altInput.disabled = !hasOperator;
-            }
+            wrapper.classList.toggle('is-locked', !operatorSelect.value);
         }
 
         operatorSelect.addEventListener('change', syncScheduledAtState);
