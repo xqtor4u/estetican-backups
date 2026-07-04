@@ -8,7 +8,7 @@ import { ScreenHeader } from '../ScreenHeader';
 interface PetMin   { id: number; name: string; species: string | null; photo: string | null }
 interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null }
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
-interface OccBooking { time: string }
+interface OccBooking { time: string; end_time: string | null; duration_minutes: number | null }
 
 /* ── Constantes de horario ───────────────────────────────── */
 const STEP = 30; // minutos por slot
@@ -135,9 +135,16 @@ export function MobCitaNueva() {
     setSelSlot(null);
     fetch(`/api/agenda?date=${localDateStr(date)}&operator_id=${operatorId}`)
       .then(r => r.json())
-      .then((bookings: OccBooking[]) =>
-        setOccupied(new Set(bookings.map(b => b.time.slice(0, 5))))
-      )
+      .then((bookings: OccBooking[]) => {
+        const occ = new Set<string>();
+        bookings.forEach(b => {
+          const startMin = hhmmToMinutes(b.time.slice(0, 5));
+          const durMin = b.duration_minutes ?? STEP;
+          const endMin = b.end_time ? hhmmToMinutes(b.end_time.slice(0, 5)) : startMin + durMin;
+          buildSlots(startMin, Math.max(endMin, startMin + STEP)).forEach(s => occ.add(s));
+        });
+        setOccupied(occ);
+      })
       .catch(() => setOccupied(new Set()))
       .finally(() => setLoadSlots(false));
   }, []);
