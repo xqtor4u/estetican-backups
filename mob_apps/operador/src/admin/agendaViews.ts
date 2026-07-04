@@ -14,10 +14,31 @@ export function fmtDate(d: Date) {
   return d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-function startOfWeekMonday(d: Date): Date {
+export function startOfWeekMonday(d: Date): Date {
   const day = d.getDay(); // 0=domingo..6=sábado
   const diff = (day === 0 ? -6 : 1) - day;
   return addDays(d, diff);
+}
+
+/** Los 7 días (lunes a domingo) de la semana que contiene `anchor`. */
+export function weekDays(anchor: Date): Date[] {
+  const start = startOfWeekMonday(anchor);
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+/** Grid completo de semanas (lunes a domingo) que cubre el mes de `anchor`, incluyendo días de meses vecinos para completar la última semana. */
+export function monthGridDays(anchor: Date): { date: Date; outside: boolean }[] {
+  const month = anchor.getMonth();
+  const firstOfMonth = new Date(anchor.getFullYear(), month, 1);
+  const lastOfMonth = new Date(anchor.getFullYear(), month + 1, 0);
+  const start = startOfWeekMonday(firstOfMonth);
+  const end = addDays(startOfWeekMonday(lastOfMonth), 6);
+
+  const days: { date: Date; outside: boolean }[] = [];
+  for (let cur = start; cur <= end; cur = addDays(cur, 1)) {
+    days.push({ date: cur, outside: cur.getMonth() !== month });
+  }
+  return days;
 }
 
 export function rangeForView(calView: CalView, anchor: Date): { start: Date; end: Date } {
@@ -57,21 +78,12 @@ export function rangeLabel(calView: CalView, anchor: Date): string {
   return '';
 }
 
-export function groupByDate<T extends { date: string }>(items: T[]): { date: string; items: T[] }[] {
+/** Agrupa por fecha (`YYYY-MM-DD`) para lookup O(1) por día, usado por los grids de semana/mes. */
+export function groupByDateMap<T extends { date: string }>(items: T[]): Map<string, T[]> {
   const map = new Map<string, T[]>();
   for (const item of items) {
     if (!map.has(item.date)) map.set(item.date, []);
     map.get(item.date)!.push(item);
   }
-  return Array.from(map.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, dayItems]) => ({ date, items: dayItems }));
-}
-
-export function dayHeaderLabel(dateStr: string, today: Date): string {
-  const d = new Date(dateStr + 'T12:00:00');
-  if (toDateStr(d) === toDateStr(today)) return 'Hoy';
-  if (toDateStr(d) === toDateStr(addDays(today, 1))) return 'Mañana';
-  const label = d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
-  return label.charAt(0).toUpperCase() + label.slice(1);
+  return map;
 }

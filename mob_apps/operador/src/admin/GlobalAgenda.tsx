@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { clearNavCrumbs, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
-  CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, groupByDate, dayHeaderLabel,
+  CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap,
 } from './agendaViews';
+import { WeekGrid, MonthGrid } from './AgendaCalendarGrid';
 
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
 interface Branch   { id: number; name: string }
@@ -87,7 +88,6 @@ export function GlobalAgenda() {
   const isToday    = isSameDay(selectedDate, today);
   const isTomorrow = isSameDay(selectedDate, addDays(today, 1));
 
-  const groupedBookings = calView === 'day' ? null : groupByDate(visibleBookings);
 
   const renderBookingCard = (b: Booking) => (
     <div
@@ -373,19 +373,17 @@ export function GlobalAgenda() {
           </div>
         )}
 
-        {/* Lista de citas */}
+        {/* Lista de citas (Día) / Grid tipo calendario (Semana/Mes) */}
         <div className="flex-1 px-4 pb-4 flex flex-col gap-3">
 
           {loadingAg ? (
             <div className="flex items-center justify-center py-16">
               <span className="material-symbols-outlined text-4xl text-on-surface-variant/40 animate-spin">progress_activity</span>
             </div>
-          ) : visibleBookings.length === 0 ? (
+          ) : calView === 'day' && visibleBookings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
               <span className="material-symbols-outlined text-5xl text-on-surface-variant/30" style={{ fontVariationSettings: "'FILL' 1" }}>event_busy</span>
-              <p className="text-sm text-on-surface-variant">
-                Sin citas para {calView === 'day' ? 'este día' : calView === 'week' ? 'esta semana' : 'este mes'}
-              </p>
+              <p className="text-sm text-on-surface-variant">Sin citas para este día</p>
               <button
                 onClick={() => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate('/mascotas'); }}
                 className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-transform"
@@ -396,17 +394,21 @@ export function GlobalAgenda() {
             </div>
           ) : calView === 'day' ? (
             visibleBookings.map(renderBookingCard)
+          ) : calView === 'week' ? (
+            <WeekGrid
+              days={weekDays(selectedDate)}
+              bookingsByDate={groupByDateMap(visibleBookings)}
+              today={today}
+              onSelectBooking={id => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate(`/citas/${id}`); }}
+              onSelectDay={date => { setSelectedDate(date); setCalView('day'); }}
+            />
           ) : (
-            groupedBookings!.map(group => (
-              <div key={group.date} className="flex flex-col gap-2">
-                <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mt-1">
-                  {dayHeaderLabel(group.date, today)}
-                </h3>
-                <div className="flex flex-col gap-3">
-                  {group.items.map(renderBookingCard)}
-                </div>
-              </div>
-            ))
+            <MonthGrid
+              days={monthGridDays(selectedDate)}
+              bookingsByDate={groupByDateMap(visibleBookings)}
+              today={today}
+              onSelectDay={date => { setSelectedDate(date); setCalView('day'); }}
+            />
           )}
         </div>
 

@@ -3,8 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
-  CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, groupByDate, dayHeaderLabel,
+  CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap,
 } from './agendaViews';
+import { WeekGrid, MonthGrid } from './AgendaCalendarGrid';
 
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
 interface Booking {
@@ -76,7 +77,6 @@ export function GroomerAgenda() {
   const isToday    = isSameDay(selectedDate, today);
   const isTomorrow = isSameDay(selectedDate, addDays(today, 1));
 
-  const groupedBookings = calView === 'day' ? null : groupByDate(bookings);
 
   const renderBookingCard = (b: Booking) => (
     <div
@@ -294,7 +294,7 @@ export function GroomerAgenda() {
           )}
         </div>
 
-        {/* Lista de citas */}
+        {/* Lista de citas (Día) / Grid tipo calendario (Semana/Mes) */}
         <div className="flex-1 px-4 pb-4 flex flex-col gap-3 mt-2">
           {loadingAg ? (
             <div className="flex items-center justify-center py-16">
@@ -302,7 +302,7 @@ export function GroomerAgenda() {
                 progress_activity
               </span>
             </div>
-          ) : bookings.length === 0 ? (
+          ) : calView === 'day' && bookings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
               <span
                 className="material-symbols-outlined text-5xl text-on-surface-variant/30"
@@ -311,7 +311,7 @@ export function GroomerAgenda() {
                 event_busy
               </span>
               <p className="text-sm text-on-surface-variant">
-                Sin citas asignadas a {operator?.name ?? 'este operador'} para {calView === 'day' ? 'este día' : calView === 'week' ? 'esta semana' : 'este mes'}
+                Sin citas asignadas a {operator?.name ?? 'este operador'} para este día
               </p>
               <button
                 onClick={() => {
@@ -326,17 +326,27 @@ export function GroomerAgenda() {
             </div>
           ) : calView === 'day' ? (
             bookings.map(renderBookingCard)
+          ) : calView === 'week' ? (
+            <WeekGrid
+              days={weekDays(selectedDate)}
+              bookingsByDate={groupByDateMap(bookings)}
+              today={today}
+              onSelectBooking={id => {
+                setNavCrumbs([
+                  { label: 'Operador', to: '/groomer' },
+                  { label: operator?.name ?? 'Agenda', to: `/groomer/${operatorId}` },
+                ]);
+                navigate(`/citas/${id}`);
+              }}
+              onSelectDay={date => { setSelectedDate(date); setCalView('day'); }}
+            />
           ) : (
-            groupedBookings!.map(group => (
-              <div key={group.date} className="flex flex-col gap-2">
-                <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mt-1">
-                  {dayHeaderLabel(group.date, today)}
-                </h3>
-                <div className="flex flex-col gap-3">
-                  {group.items.map(renderBookingCard)}
-                </div>
-              </div>
-            ))
+            <MonthGrid
+              days={monthGridDays(selectedDate)}
+              bookingsByDate={groupByDateMap(bookings)}
+              today={today}
+              onSelectDay={date => { setSelectedDate(date); setCalView('day'); }}
+            />
           )}
         </div>
 
