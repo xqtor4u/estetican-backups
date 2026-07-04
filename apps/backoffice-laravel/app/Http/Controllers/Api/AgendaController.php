@@ -5,16 +5,33 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\SpaBooking;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 class AgendaController extends Controller
 {
     public function index(Request $request)
     {
-        $date = $request->query('date', now()->toDateString());
+        $view = $request->query('view', 'day');
+        if (! in_array($view, ['day', 'week', 'month'], true)) {
+            $view = 'day';
+        }
+
+        $anchor = Carbon::parse($request->query('date', now()->toDateString()));
         $operatorId = $request->query('operator_id');
 
-        $bookings = SpaBooking::whereDate('scheduled_at', $date)
+        if ($view === 'week') {
+            $rangeStart = $anchor->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
+            $rangeEnd = $rangeStart->copy()->addDays(6)->endOfDay();
+        } elseif ($view === 'month') {
+            $rangeStart = $anchor->copy()->startOfMonth();
+            $rangeEnd = $anchor->copy()->endOfMonth()->endOfDay();
+        } else {
+            $rangeStart = $anchor->copy()->startOfDay();
+            $rangeEnd = $anchor->copy()->endOfDay();
+        }
+
+        $bookings = SpaBooking::whereBetween('scheduled_at', [$rangeStart, $rangeEnd])
             ->whereNotIn('status', ['cancelled'])
             ->when($operatorId, fn ($q) => $q->where('operator_id', $operatorId))
             ->with([
@@ -50,6 +67,7 @@ class AgendaController extends Controller
             return [
                 'id' => $b->id,
                 'scheduled_at' => $b->scheduled_at,
+                'date' => $b->scheduled_at->format('Y-m-d'),
                 'time' => $b->scheduled_at->format('H:i'),
                 'end_time' => $endTime,
                 'duration_minutes' => $b->duration_minutes,
