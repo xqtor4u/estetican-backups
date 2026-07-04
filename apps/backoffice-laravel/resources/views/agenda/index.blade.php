@@ -21,7 +21,7 @@
         <div class="catalog-overview__grid">
             <article class="catalog-overview-card catalog-overview-card--primary">
                 <span class="catalog-overview-card__eyebrow">Agenda Operativa</span>
-                <div class="catalog-overview-card__value">{{ $bookings->total() + $timelineBookings->where('agenda_type', 'hotel')->count() }}</div>
+                <div class="catalog-overview-card__value">{{ $agendaOverviewCount }}</div>
                 <p class="catalog-overview-card__text">{{ $operationalDateLabel }} con visión unificada de SPA y Hotel para coordinación centralizada.</p>
             </article>
             <article class="catalog-overview-card">
@@ -43,6 +43,7 @@
         </div>
     </section>
 
+    @if($calView === 'day')
     <section class="agenda-scope-switch mb-3" aria-label="Ventana operativa de agenda">
         <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'today'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'today' ? 'agenda-scope-switch__item--active' : '' }}">Hoy</a>
         <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'tomorrow'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'tomorrow' ? 'agenda-scope-switch__item--active' : '' }}">Mañana</a>
@@ -50,8 +51,17 @@
         <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'full'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'full' ? 'agenda-scope-switch__item--active' : '' }}">Todas</a>
         <span class="agenda-scope-switch__hint">Agenda unificada: SPA y Hotel integrados para lectura rápida.</span>
     </section>
+    @endif
+
+    <section class="agenda-scope-switch mb-3" aria-label="Vista de calendario">
+        <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'cal_view', 'date_scope']), ['cal_view' => 'day', 'date_scope' => 'custom', 'date' => $selectedDateInput])) }}" class="agenda-scope-switch__item {{ $calView === 'day' ? 'agenda-scope-switch__item--active' : '' }}">Día</a>
+        <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'cal_view']), ['cal_view' => 'week', 'date' => $selectedDateInput])) }}" class="agenda-scope-switch__item {{ $calView === 'week' ? 'agenda-scope-switch__item--active' : '' }}">Semana</a>
+        <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'cal_view']), ['cal_view' => 'month', 'date' => $selectedDateInput])) }}" class="agenda-scope-switch__item {{ $calView === 'month' ? 'agenda-scope-switch__item--active' : '' }}">Mes</a>
+        <span class="agenda-scope-switch__hint">Presentación estilo calendario — día, semana o mes.</span>
+    </section>
 
     <x-list-filters :action="route('agenda.index')" :reset-url="route('agenda.index')">
+        <input type="hidden" name="cal_view" value="{{ $calView }}">
         <div class="col-lg-2 col-md-6">
             <label class="form-label">Buscar</label>
             <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Mascota, cliente o servicio">
@@ -69,6 +79,7 @@
                 <option value="unfulfillable" @selected($status === 'unfulfillable')>No realizables</option>
             </select>
         </div>
+        @if($calView === 'day')
         <div class="col-lg-2 col-md-6">
             <label class="form-label">Ventana</label>
             <select name="date_scope" class="form-select">
@@ -78,10 +89,11 @@
                 <option value="all" @selected($dateScope === 'all')>Próximas</option>
             </select>
         </div>
+        @endif
         <div class="col-lg-2 col-md-6">
             <label class="form-label">Fecha operativa</label>
             <input type="date" name="date" value="{{ $selectedDateInput }}" class="form-control">
-            <div class="form-text">Se usa cuando la ventana es `Fecha elegida`.</div>
+            <div class="form-text">{{ $calView === 'day' ? 'Se usa cuando la ventana es `Fecha elegida`.' : 'Salta a la semana o mes que contiene esta fecha.' }}</div>
         </div>
         <div class="col-lg-2 col-md-12">
             <div class="catalog-filter-note">
@@ -91,6 +103,7 @@
         </div>
     </x-list-filters>
 
+    @if($calView === 'day')
     <section class="card shadow-sm border-0 mb-4">
         <div class="card-body p-4">
             <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-3">
@@ -263,6 +276,11 @@
             @endforelse
         </tbody>
     </x-list-table>
+    @elseif($calView === 'week')
+        @include('agenda.partials._calendar_week')
+    @elseif($calView === 'month')
+        @include('agenda.partials._calendar_month')
+    @endif
 </div>
 
 <style>

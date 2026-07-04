@@ -784,6 +784,141 @@ body.catalog-resize-active {
     align-items: flex-end;
 }
 
+.agenda-calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.agenda-calendar-nav__label {
+    margin-left: auto;
+    color: var(--app-muted);
+    font-weight: 700;
+}
+
+.agenda-calendar-week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.agenda-calendar-week__day {
+    border: 1px solid var(--app-line);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 8px 22px rgba(35, 43, 53, 0.05);
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+}
+
+.agenda-calendar-week__day--today {
+    border-color: rgb(var(--app-primary-rgb) / 0.45);
+    background: rgb(var(--app-primary-rgb) / 0.06);
+}
+
+.agenda-calendar-week__day-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--app-line);
+    color: var(--app-ink);
+    font-weight: 700;
+}
+
+.agenda-calendar-week__day-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.5rem;
+    flex: 1;
+}
+
+.agenda-calendar-empty-link {
+    display: block;
+    flex: 1;
+    min-height: 2rem;
+}
+
+.agenda-calendar-month {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.agenda-calendar-month__dow {
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--app-muted);
+    padding-bottom: 0.35rem;
+}
+
+.agenda-calendar-month__cell {
+    display: block;
+    min-height: 110px;
+    padding: 0.5rem;
+    border: 1px solid var(--app-line);
+    border-radius: 0.85rem;
+    background: rgba(255, 255, 255, 0.82);
+    text-decoration: none;
+    color: var(--app-ink);
+}
+
+.agenda-calendar-month__cell--muted {
+    background: rgba(108, 117, 125, 0.03);
+    color: var(--app-muted);
+}
+
+.agenda-calendar-month__cell--today {
+    border-color: rgb(var(--app-primary-rgb) / 0.45);
+    background: rgb(var(--app-primary-rgb) / 0.06);
+}
+
+.agenda-calendar-month__cell-number {
+    font-weight: 800;
+    font-size: 0.9rem;
+}
+
+.agenda-calendar-month__chips {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-top: 0.3rem;
+}
+
+.agenda-calendar-month__more {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--app-muted);
+}
+
+.agenda-calendar-event-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 1px solid var(--app-line);
+}
+
+.agenda-calendar-event-chip--spa {
+    background: rgb(var(--app-primary-rgb) / 0.12);
+    color: var(--app-primary);
+    border-color: rgb(var(--app-primary-rgb) / 0.25);
+}
+
+.agenda-calendar-event-chip--hotel {
+    background: rgba(13, 202, 240, 0.12);
+    color: #0dcaf0;
+    border-color: rgba(13, 202, 240, 0.3);
+}
+
 .catalog-row--muted {
     background: rgba(108, 117, 125, 0.03);
 }
@@ -836,5 +971,32 @@ body.catalog-resize-active {
 
     .agenda-timeline-item__meta {
         align-items: flex-start;
+    }
+
+    .agenda-calendar-week {
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(220px, 1fr);
+        grid-template-columns: none;
+        overflow-x: auto;
+        padding-bottom: 0.4rem;
+        scroll-snap-type: x mandatory;
+    }
+
+    .agenda-calendar-week__day {
+        scroll-snap-align: start;
+    }
+
+    .agenda-calendar-month {
+        grid-template-columns: repeat(7, minmax(38px, 1fr));
+    }
+
+    .agenda-calendar-month__cell {
+        min-height: 70px;
+        padding: 0.35rem;
+    }
+
+    .agenda-calendar-month__more,
+    .agenda-calendar-event-chip__label {
+        display: none;
     }
 }

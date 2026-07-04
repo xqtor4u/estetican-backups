@@ -23,6 +23,7 @@ use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
@@ -43,6 +44,7 @@ class SpaBookingController extends Controller
         $search = trim((string) $request->query('search', ''));
         $status = (string) $request->query('status', 'active');
         $dateScope = (string) $request->query('date_scope', 'today');
+        $calView = (string) $request->query('cal_view', 'day');
 
         if (! in_array($status, ['active', 'scheduled', 'work_order', 'completed', 'cancelled', 'no_show', 'unfulfillable', 'all'], true)) {
             $status = 'active';
@@ -50,6 +52,17 @@ class SpaBookingController extends Controller
 
         if (! in_array($dateScope, ['today', 'tomorrow', 'custom', 'all', 'full'], true)) {
             $dateScope = 'today';
+        }
+
+        if (! in_array($calView, ['day', 'week', 'month'], true)) {
+            $calView = 'day';
+        }
+
+        $sort = $request->query('sort', 'date');
+        $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
+
+        if ($calView !== 'day') {
+            return $this->indexCalendarRange($request, $calView, $status, $search, $sort, $direction);
         }
 
         $selectedDate = $this->resolveOperationalDate((string) $request->query('date', ''), $dateScope);
@@ -64,11 +77,7 @@ class SpaBookingController extends Controller
                     ->with(['cashLedgers', 'bankLedgers']),
             ]);
 
-        if ($status === 'active') {
-            $bookingsQuery->whereIn('status', ['scheduled', 'work_order']);
-        } elseif ($status !== 'all') {
-            $bookingsQuery->where('status', $status);
-        }
+        $this->applyBookingFilters($bookingsQuery, $status, $search);
 
         if ($dateScope === 'all') {
             if (in_array($status, ['active', 'scheduled'])) {
@@ -77,20 +86,6 @@ class SpaBookingController extends Controller
         } elseif ($dateScope === 'custom') {
             $bookingsQuery->whereDate('scheduled_at', $selectedDate);
         }
-
-        if (! empty($search)) {
-            $bookingsQuery->whereHas('pet', function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhereHas('client', function ($q) use ($search) {
-                        $q->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('last_name', 'like', "%{$search}%")
-                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
-                    });
-            });
-        }
-
-        $sort = $request->query('sort', 'date');
-        $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
 
         $bookingsQuery->select('spa_bookings.*');
 
@@ -148,13 +143,164 @@ class SpaBookingController extends Controller
         $lastScheduledEndAt = $timelineBookings->where('agenda_type', 'spa')->max('estimated_end_at');
 
         $operationalDateLabel = $this->formatOperationalDateLabel($selectedDate, $dateScope);
+        $agendaOverviewCount = $bookings->total() + $timelineBookings->where('agenda_type', 'hotel')->count();
 
         return view('agenda.index', compact(
-            'page', 'bookings', 'timelineBookings', 'status', 'dateScope',
+            'page', 'bookings', 'timelineBookings', 'status', 'dateScope', 'calView',
             'selectedDate', 'selectedDateInput', 'operationalDateLabel', 'search',
             'totalEstimatedMinutes', 'scheduledCount', 'estimatedRevenue', 'petsWithAgenda',
-            'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction'
+            'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction', 'agendaOverviewCount'
         ));
+    }
+
+    private function applyBookingFilters($query, string $status, string $search): void
+    {
+        if ($status === 'active') {
+            $query->whereIn('status', ['scheduled', 'work_order']);
+        } elseif ($status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        if ($search !== '') {
+            $query->whereHas('pet', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhereHas('client', function ($q2) use ($search) {
+                        $q2->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
+                    });
+            });
+        }
+    }
+
+    private function indexCalendarRange(Request $request, string $calView, string $status, string $search, string $sort, string $direction): View
+    {
+        $page = AgendaPage::index();
+        $anchorDate = $this->parseDateOrToday((string) $request->query('date', ''));
+        $monthAnchor = null;
+
+        if ($calView === 'week') {
+            $rangeStart = $anchorDate->copy()->startOfWeek(Carbon::MONDAY);
+            $rangeEnd = $rangeStart->copy()->addDays(6)->endOfDay();
+        } else {
+            $monthAnchor = $anchorDate->copy()->startOfMonth();
+            $rangeStart = $monthAnchor->copy()->startOfWeek(Carbon::MONDAY);
+            $rangeEnd = $monthAnchor->copy()->endOfMonth()->endOfWeek(Carbon::SUNDAY)->endOfDay();
+        }
+
+        [$calendarDays, $rangeStats] = $this->buildCalendarRange($rangeStart, $rangeEnd, $status, $search, $monthAnchor);
+
+        $selectedDate = $anchorDate;
+        $selectedDateInput = $anchorDate->format('Y-m-d');
+        $operationalDateLabel = $calView === 'week'
+            ? 'Semana del '.$rangeStart->translatedFormat('d M').' al '.$rangeEnd->translatedFormat('d M Y')
+            : $anchorDate->translatedFormat('F Y');
+
+        $bookings = null;
+        $timelineBookings = collect();
+        $agendaOverviewCount = $rangeStats['scheduledCount'] + $rangeStats['hotelCount'];
+
+        return view('agenda.index', [
+            'page' => $page, 'calView' => $calView, 'status' => $status, 'dateScope' => 'custom',
+            'search' => $search, 'selectedDate' => $selectedDate, 'selectedDateInput' => $selectedDateInput,
+            'operationalDateLabel' => $operationalDateLabel,
+            'calendarDays' => $calendarDays, 'rangeStart' => $rangeStart, 'rangeEnd' => $rangeEnd,
+            'bookings' => $bookings, 'timelineBookings' => $timelineBookings,
+            'totalEstimatedMinutes' => $rangeStats['totalEstimatedMinutes'],
+            'scheduledCount' => $rangeStats['scheduledCount'],
+            'estimatedRevenue' => $rangeStats['estimatedRevenue'],
+            'petsWithAgenda' => $rangeStats['petsWithAgenda'],
+            'firstScheduledAt' => $rangeStats['firstScheduledAt'],
+            'lastScheduledEndAt' => $rangeStats['lastScheduledEndAt'],
+            'agendaOverviewCount' => $agendaOverviewCount,
+            'sort' => $sort, 'direction' => $direction,
+        ]);
+    }
+
+    /**
+     * @return array{0: array<int, array{date: Carbon, items: Collection, is_today: bool, is_outside_month: bool}>, 1: array<string, mixed>}
+     */
+    private function buildCalendarRange(Carbon $rangeStart, Carbon $rangeEnd, string $status, string $search, ?Carbon $monthAnchor): array
+    {
+        $spaQuery = SpaBooking::query()
+            ->whereBetween('scheduled_at', [$rangeStart, $rangeEnd])
+            ->with(['pet.client', 'services.service']);
+        $this->applyBookingFilters($spaQuery, $status, $search);
+
+        $spaBookings = $spaQuery->get()->map(function ($b) {
+            $b = $this->decorateBooking($b);
+            $b->agenda_type = 'spa';
+
+            return $b;
+        });
+
+        $hotelQuery = HotelReservation::query()
+            ->whereDate('start_at', '<=', $rangeEnd)
+            ->whereDate('end_at', '>=', $rangeStart)
+            ->where('status', 'active')
+            ->with('pet.client');
+
+        if ($search !== '') {
+            $hotelQuery->whereHas('pet', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhereHas('client', function ($q2) use ($search) {
+                        $q2->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
+                    });
+            });
+        }
+
+        $hotelReservations = $hotelQuery->get()->map(function ($h) {
+            $h->agenda_type = 'hotel';
+            $h->scheduled_at = $h->start_at;
+
+            return $h;
+        });
+
+        $itemsByDate = [];
+        foreach ($spaBookings as $b) {
+            $itemsByDate[$b->scheduled_at->format('Y-m-d')][] = $b;
+        }
+        foreach ($hotelReservations as $h) {
+            $cursor = $h->start_at->copy()->startOfDay()->max($rangeStart->copy()->startOfDay());
+            $stop = $h->end_at->copy()->startOfDay()->min($rangeEnd->copy()->startOfDay());
+            while ($cursor->lte($stop)) {
+                $itemsByDate[$cursor->format('Y-m-d')][] = $h;
+                $cursor->addDay();
+            }
+        }
+        foreach ($itemsByDate as $key => $items) {
+            usort($items, fn ($a, $b) => $a->scheduled_at <=> $b->scheduled_at);
+            $itemsByDate[$key] = collect($items);
+        }
+
+        $calendarDays = [];
+        $cursor = $rangeStart->copy()->startOfDay();
+        $stop = $rangeEnd->copy()->startOfDay();
+        while ($cursor->lte($stop)) {
+            $key = $cursor->format('Y-m-d');
+            $calendarDays[] = [
+                'date' => $cursor->copy(),
+                'items' => $itemsByDate[$key] ?? collect(),
+                'is_today' => $cursor->isToday(),
+                'is_outside_month' => $monthAnchor ? ! $cursor->isSameMonth($monthAnchor) : false,
+            ];
+            $cursor->addDay();
+        }
+
+        $allItems = $spaBookings->concat($hotelReservations);
+        $stats = [
+            'totalEstimatedMinutes' => $spaBookings->sum('estimated_duration_minutes'),
+            'scheduledCount' => $spaBookings->count(),
+            'hotelCount' => $hotelReservations->count(),
+            'estimatedRevenue' => $spaBookings->sum('total_estimated_price'),
+            'petsWithAgenda' => $allItems->pluck('pet_id')->unique()->count(),
+            'firstScheduledAt' => $allItems->min('scheduled_at'),
+            'lastScheduledEndAt' => $spaBookings->max('estimated_end_at'),
+        ];
+
+        return [$calendarDays, $stats];
     }
 
     public function show(SpaBooking $booking): View
