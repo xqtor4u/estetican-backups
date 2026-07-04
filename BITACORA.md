@@ -1,5 +1,44 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 03/07/2026 (cont.) — BL-027: vista Día/Semana/Mes en Agenda móvil
+
+Usuario confirmó que BL-026 (web) funciona bien y pidió el mismo Día/Semana/Mes en la app móvil (`mob_apps/operador`).
+
+**Decisiones confirmadas con el usuario:**
+- Alcance: ambas pantallas de agenda móvil — Agenda Universal (`GlobalAgenda.tsx`, screenTag `MobAgGbl`) y Agenda por operador (`GroomerAgenda.tsx`, screenTag `MobOpAg`).
+- Patrón de UI: **no** se replicó el grid tipo Google Calendar de web — en ~360px de ancho es ilegible. En su lugar, semana y mes se muestran como **lista vertical agrupada por día** (encabezado de fecha + tarjetas de cita ya existentes), patrón nativo de agenda móvil.
+
+**Implementación:**
+- `Api\AgendaController::index()` — nuevo query param `view` (`day|week|month`, default `day`, con fallback silencioso si llega un valor inválido). Semana = lunes a domingo; mes = 1º al último día del mes del `date` ancla. Se agregó campo `date` (`Y-m-d`) a la respuesta para agrupar sin ambigüedad de zona horaria. El comportamiento de `view=day` (default) es idéntico al anterior — verificado con test dedicado.
+- `mob_apps/operador/src/admin/agendaViews.ts` (nuevo) — helpers puros compartidos: `rangeForView`, `shiftAnchor` (navegación ±1 semana/mes, evita desborde de día en meses cortos), `rangeLabel`, `groupByDate`, `dayHeaderLabel` (Hoy/Mañana/nombre de día).
+- `GlobalAgenda.tsx` y `GroomerAgenda.tsx` — toggle Día/Semana/Mes; en Día se conserva el selector de fecha original sin cambios; en Semana/Mes aparece un navegador `< [rango] >` con flechas y botón central para volver a hoy. Tarjeta de cita extraída a función local reutilizada entre ambas vistas.
+- `GroomerAgenda.tsx` mantiene el filtro de operador **client-side** contra `b.operators` (operadores de las líneas del presupuesto aceptado) tal como ya funcionaba — no se cambió a filtrar por `spa_bookings.operator_id` en el backend para no alterar qué citas se consideran "del operador" en día/semana/mes.
+
+**Verificación:**
+- Backend: 4 tests nuevos (`AgendaRangeTest`) — semana, mes, día sin cambios, fallback ante `view` inválido. Suite completa corrida antes/después vía `git stash`: 37 fallos preexistentes sin relación (ya documentados como pendiente de sesiones previas) tanto con como sin este cambio — cero regresiones nuevas.
+- Datos reales: vía Tinker (bypass HTTP/auth) contra datos de producción — semana y mes del 2-4 de julio devuelven las 6 citas SPA esperadas, agrupadas por `date` correctamente.
+- `tsc --noEmit`: sin errores nuevos (los 7 errores existentes son de archivos no tocados en esta sesión). `npm run build` exitoso; `dist/` está montado directo en `estetican_mob`, sin necesidad de reiniciar contenedor.
+- **No se confirmó visualmente en navegador real** — no hay herramienta de automatización de navegador disponible en este entorno. Pendiente que el usuario confirme visualmente el toggle y la navegación de rango en ambas pantallas.
+
+### 📁 Archivos Modificados/Creados
+- `apps/backoffice-laravel/app/Http/Controllers/Api/AgendaController.php` — `view=day|week|month`, campo `date`
+- `apps/backoffice-laravel/tests/Feature/Api/AgendaRangeTest.php` — nuevo
+- `mob_apps/operador/src/admin/agendaViews.ts` — nuevo
+- `mob_apps/operador/src/admin/GlobalAgenda.tsx`, `GroomerAgenda.tsx`
+- `docs/tecnico/BACKLOG.md` — BL-027
+
+### 🛑 Pendientes activos
+- **Confirmar visualmente en navegador/celular** el toggle Día/Semana/Mes en Agenda Universal y Agenda por operador (móvil) — BL-026 (web) ya fue confirmado por el usuario como funcionando.
+- BL-024b — Fase 2 de WhatsApp.
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta.
+- BL-002 — Favicon & datos generales del negocio.
+- BL-003 — Email avanzado: SMTP completo.
+- BL-004 — Zonas horarias: selector completo.
+- BL-008 — Reportes PDF.
+- Investigar y arreglar el resto de la suite de tests preexistente (37 fallos, no relacionados a esta ni a sesiones recientes).
+
+---
+
 ## 📅 Sesión: 03/07/2026 — Fix bloqueo de horarios en móvil + BL-026: vista Día/Semana/Mes en Agenda Universal
 
 ### ✅ Fix urgente: app móvil no bloqueaba el rango completo de una cita ya agendada
