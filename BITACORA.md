@@ -1,5 +1,34 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 03/07/2026 (cont. 2) — Corrección BL-027: grid tipo Google Calendar en Agenda móvil
+
+Usuario probó la vista Semana/Mes de la sesión anterior (lista vertical agrupada por día) y pidió explícitamente que fuera "como la de Google Calendar según se seleccione por día, semana o mes" — revirtiendo la decisión de diseño tomada en esa sesión (grid ilegible a ~360px de ancho).
+
+**Implementación:**
+- `mob_apps/operador/src/admin/agendaViews.ts` — se agregó `weekDays()` (7 fechas lunes-domingo), `monthGridDays()` (grid completo de semanas cubriendo el mes, con `outside` para días de meses vecinos) y `groupByDateMap()` (lookup O(1) por fecha). Se eliminaron `groupByDate()`/`dayHeaderLabel()` (quedaron sin uso).
+- `mob_apps/operador/src/admin/AgendaCalendarGrid.tsx` (nuevo) — `WeekGrid` (7 columnas con scroll horizontal, cada una con sus citas del día: hora + mascota + punto de color por estado) y `MonthGrid` (cuadrícula 7×5/6, número de día + hasta 3 puntos de color +"N más"). Tocar un día (vacío, encabezado o celda de mes) navega a la vista Día de esa fecha con el detalle completo — se optó por puntos en vez de texto en el mes porque a ~50px de celda el texto completo es ilegible (mismo patrón que Google Calendar/Apple Calendar mobile).
+- `GlobalAgenda.tsx` y `GroomerAgenda.tsx` — Semana/Mes ahora renderizan `WeekGrid`/`MonthGrid` en vez de la lista agrupada. Vista Día no cambió (ya era lista cronológica, equivalente al timeline de web).
+
+**Verificación:** `tsc --noEmit` sin errores nuevos (solo los 7 preexistentes de archivos no tocados); `npm run build` exitoso; desplegado en `estetican_mob` vía bind mount de `dist/`, sin reiniciar contenedor. **No se confirmó visualmente en dispositivo real** — pendiente que el usuario lo pruebe en su celular.
+
+### 📁 Archivos Modificados/Creados
+- `mob_apps/operador/src/admin/agendaViews.ts`
+- `mob_apps/operador/src/admin/AgendaCalendarGrid.tsx` — nuevo
+- `mob_apps/operador/src/admin/GlobalAgenda.tsx`, `GroomerAgenda.tsx`
+- `docs/tecnico/BACKLOG.md` — nota en BL-027
+
+### 🛑 Pendientes activos
+- **Confirmar visualmente en celular real** el nuevo grid Semana/Mes (Universal y por operador).
+- BL-024b — Fase 2 de WhatsApp.
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta.
+- BL-002 — Favicon & datos generales del negocio.
+- BL-003 — Email avanzado: SMTP completo.
+- BL-004 — Zonas horarias: selector completo.
+- BL-008 — Reportes PDF.
+- Investigar y arreglar el resto de la suite de tests preexistente (37 fallos, no relacionados a esta ni a sesiones recientes).
+
+---
+
 ## 📅 Sesión: 03/07/2026 (cont.) — BL-027: vista Día/Semana/Mes en Agenda móvil
 
 Usuario confirmó que BL-026 (web) funciona bien y pidió el mismo Día/Semana/Mes en la app móvil (`mob_apps/operador`).
