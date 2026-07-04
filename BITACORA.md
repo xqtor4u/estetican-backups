@@ -1,5 +1,51 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 03/07/2026 — Fix bloqueo de horarios en móvil + BL-026: vista Día/Semana/Mes en Agenda Universal
+
+### ✅ Fix urgente: app móvil no bloqueaba el rango completo de una cita ya agendada
+
+Usuaria reportó (WhatsApp, en vivo) que al agendar con un operador que ya tenía una cita de 1.5h, el grid de horarios solo mostraba bloqueado el slot de inicio (ej. 10:30) y dejaba libres los siguientes (11:00, 11:30) que esa cita ya ocupaba — permitiendo doble-agendar al mismo operador.
+
+**Causa raíz:** `MobCitaNueva.tsx:139` (`loadOccupied`) armaba el `Set` de horarios ocupados con un solo elemento por cita existente (`b.time.slice(0,5)`), ignorando `duration_minutes`/`end_time` que el backend ya devuelve correctamente. No es un bug nuevo de BL-025 — ya existía, solo se volvió más visible al hacerse el operador obligatorio. Ver NT-018.
+
+**Fix:** `loadOccupied` ahora expande cada cita existente a todos los slots de 30 min que cubre (reusando `buildSlots`) antes de agregarlos al `Set`. Verificado con `tsc --noEmit` (sin errores nuevos) y build de producción (`npm run build` en `mob_apps/operador/`, servido directo desde `dist/` montado en `estetican_mob`, sin necesidad de reiniciar contenedor).
+
+### ✅ BL-026 — Agenda Universal (web): vista Día/Semana/Mes estilo Google Calendar
+
+Usuario pidió poder ver la Agenda Universal (`agenda.index`, screen `AgUniInd`) por día (como ya estaba), semana o mes, en vez de solo un día a la vez. Decisiones confirmadas con el usuario: semana inicia en **lunes**; celdas de mes muestran hasta **3 citas** + "+N más"; sin librería de calendario nueva (no había FullCalendar ni similar instalado) — todo construido con Blade + CSS grid + enlaces, siguiendo el patrón 100% server-driven del proyecto (como ya hace `agenda-scope-switch`), sin JS/Alpine nuevo.
+
+**Implementación:**
+- `SpaBookingController::index()` — nuevo query param `cal_view` (`day|week|month`, default `day`). El bloque de lógica existente para `day` quedó envuelto sin tocarse (cero regresión, verificado con render idéntico antes/después). Nuevo helper `applyBookingFilters()` (extraído, reusado por la query diaria y la nueva de rango). Nuevos métodos `indexCalendarRange()` y `buildCalendarRange()` — 2 queries SQL únicas (SPA + Hotel) sin importar si el rango es de 7 o 42 días; agrupamiento por día en memoria; Hotel se replica en cada día de su estancia dentro del rango.
+- `agenda/index.blade.php` — toggle Día/Semana/Mes; secciones exclusivas de día (scope switch Hoy/Mañana/Próximas/Todas, timeline, tabla paginada) envueltas en `@if($calView === 'day')`; nuevas partials incluidas para semana/mes.
+- `agenda/partials/_calendar_chip.blade.php`, `_calendar_week.blade.php`, `_calendar_month.blade.php` — nuevos.
+- `backoffice-blueprints.css` — nuevas clases `.agenda-calendar-*` (semana, mes, chips, responsive con scroll horizontal en semana y grid compacto en mes para móvil `<768px`).
+
+**Verificación:** renderizado vía Tinker (bypass HTTP/auth) con datos reales (6 citas SPA del 2-4 jul 2026) — día idéntico a antes (0 clases de calendario nuevas presentes), semana muestra lunes-domingo con los 6 chips correctos, mes muestra 35 celdas (5 semanas) con 4 días fuera de mes marcados y el día 2 de julio (exactamente 3 citas) confirma el límite del "+N más" sin desbordar. Pint aplicado sin issues nuevos.
+
+**Nota operativa:** `node_modules/` y `public/build/` de `backoffice-laravel` habían quedado con dueño `root` de una ejecución previa, bloqueando `npm run build`. Corregido con `sudo chown -R tomas:tomas` en ambos. Ver NT-019.
+
+### 📁 Archivos Modificados/Creados
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx` — fix `loadOccupied`
+- `apps/backoffice-laravel/app/Http/Controllers/SpaBookingController.php` — `cal_view`, `applyBookingFilters`, `indexCalendarRange`, `buildCalendarRange`
+- `apps/backoffice-laravel/resources/views/agenda/index.blade.php` — toggle + envoltura condicional
+- `apps/backoffice-laravel/resources/views/agenda/partials/_calendar_chip.blade.php`, `_calendar_week.blade.php`, `_calendar_month.blade.php` — nuevos
+- `apps/backoffice-laravel/resources/css/backoffice-blueprints.css` — clases `.agenda-calendar-*`
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-018, NT-019
+- `docs/tecnico/BACKLOG.md` — BL-026 + fix móvil movidos a Completados
+
+### 🛑 Pendientes activos
+- **Push a GitHub** (todo lo de esta sesión sigue solo en local/OPi, sin commit).
+- Confirmar visualmente en navegador la vista Semana/Mes (esta sesión solo verificó vía Tinker, sin navegador real).
+- BL-024b — Fase 2 de WhatsApp.
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta.
+- BL-002 — Favicon & datos generales del negocio.
+- BL-003 — Email avanzado: SMTP completo.
+- BL-004 — Zonas horarias: selector completo.
+- BL-008 — Reportes PDF.
+- Evaluar si conectar Agenda a Google Calendar (sync unidireccional, calendario compartido en modo solo-lectura) — quedó como idea discutida con el usuario, no agregada aún al backlog formalmente.
+
+---
+
 ## 📅 Sesión: 02/07/2026 — BL-025: fix hora de cita (web+móvil) + fix teléfonos WhatsApp + cambiar dueño de mascota
 
 ### ✅ Fix: normalizador de teléfono WhatsApp con datos reales de producción

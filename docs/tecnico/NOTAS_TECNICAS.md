@@ -489,6 +489,49 @@ Mismo patrón que NT-013: `users.can_login` existe en producción (usado por `Ap
 
 ---
 
+## NT-019 — `node_modules`/`public/build` quedan `root` tras alguna ejecución previa y bloquean `npm run build` en la OPi
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-03 |
+| **Severidad** | P3 — Bloquea compilación de assets hasta corregir permisos manualmente |
+| **Componente** | `apps/backoffice-laravel/node_modules/`, `apps/backoffice-laravel/public/build/` |
+| **Estado** | ✅ RESUELTO (workaround conocido) |
+
+**Síntoma:** `npm run build` falla con `EACCES: permission denied` al escribir en `node_modules/.vite-temp/` o al intentar borrar `public/build/assets/*` antes de generar los nuevos archivos.
+
+**Causa raíz:** en algún momento esos directorios se crearon/escribieron con el usuario `root` (probablemente una ejecución anterior de un proceso dentro de un contenedor Docker, o un `npm install`/build corrido con `sudo` por error) en vez de con el usuario `tomas`. `tomas` no tiene permiso de escritura sobre el árbol, así que Vite no puede crear su archivo temporal de config ni limpiar el directorio de salida.
+
+**Solución:**
+```bash
+sudo chown -R tomas:tomas apps/backoffice-laravel/node_modules
+sudo chown -R tomas:tomas apps/backoffice-laravel/public/build
+npm run build
+```
+
+**Lección:** si `npm run build` falla con `EACCES` en la OPi, revisar primero el dueño de `node_modules/` y `public/build/` (`stat -c "%U:%G" <ruta>`) antes de investigar nada del código — es casi siempre este problema de permisos, no un error de Vite.
+
+---
+
+## NT-018 — App móvil: `loadOccupied` no expandía el rango ocupado según `duration_minutes`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-03 |
+| **Severidad** | P2 — Alto (permite doble-agendar al mismo operador desde la app móvil) |
+| **Componente** | `mob_apps/operador/src/admin/MobCitaNueva.tsx` — función `loadOccupied` |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:** al agendar una cita para un operador que ya tenía otra cita de 1.5h, el grid de horarios solo mostraba bloqueado el slot exacto de inicio de la cita existente (ej. 10:30), dejando los siguientes slots que esa cita ya ocupa (11:00, 11:30) como disponibles para agendar.
+
+**Causa raíz:** `loadOccupied` (línea ~139) construía el `Set` de horarios ocupados con `bookings.map(b => b.time.slice(0, 5))` — un solo elemento por cita existente, ignorando por completo `duration_minutes`/`end_time` que el backend (`Api\AgendaController::index`) ya devuelve correctamente. `isSlotInvalid` sí expande correctamente la duración de la cita **nueva** que se está creando, pero consultaba contra un `Set` que nunca contenía el rango completo de las citas **ya agendadas**. No es un bug introducido por BL-025 — ya existía; se hizo más visible al volverse el operador obligatorio en ese sprint.
+
+**Solución:** `loadOccupied` ahora expande cada cita existente a todos los slots de 30 min que cubre (`buildSlots(startMin, endMin)`, usando `duration_minutes`/`end_time` de la respuesta) antes de agregarlos al `Set`.
+
+**Lección:** cuando un grid de disponibilidad consulta "¿está ocupado este slot?", verificar que el cálculo de "ocupado" considere la duración completa de cada evento existente, no solo su hora de inicio — es un patrón fácil de omitir y el bug pasa desapercibido hasta que dos citas se solapan en horarios no evidentes a simple vista.
+
+---
+
 ## NT-017 — No usar `disabled` nativo para bloquear campos con Flatpickr (`altInput`)
 
 | Campo | Valor |

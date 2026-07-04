@@ -77,6 +77,8 @@
 | BL-024 | Backoffice: recordatorios WhatsApp Fase 1 — bandeja diaria con selección por checkbox, plantillas con variables, envío manual vía wa.me (sin automatización) | 01/07/2026 | `44084ae` `e754d27` |
 | — | Backoffice: cambiar dueño de cualquier mascota (modal en `pets/show.blade.php`) | 02/07/2026 | `1e2713e` |
 | BL-025 | Programar servicio (AgSpaCre, web y móvil): redondeo de hora a 5 min, fix de hora manual, horario operativo configurable, operador obligatorio + validación de traslape por operador | 02/07/2026 | `9161146` `3888b3c` |
+| — | App móvil: fix `loadOccupied` no expandía slots ocupados por `duration_minutes` — permitía doble-agendar al mismo operador (ver NT-018) | 03/07/2026 | pendiente commit |
+| BL-026 | Agenda Universal (web): vista Día/Semana/Mes estilo Google Calendar — toggle server-driven, grid semana (lunes-domingo) y mes (5-6 semanas, +3 chips y "+N más"), sin librería JS nueva | 03/07/2026 | pendiente commit |
 
 ---
 
