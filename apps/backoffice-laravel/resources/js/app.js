@@ -3,6 +3,7 @@ import Alpine from 'alpinejs';
 import Cropper from 'cropperjs';
 import imageUploadFactory from './modules/image-upload';
 import whatsappBandejaFactory from './modules/whatsapp-bandeja';
+import mapaZonasFactory from './modules/mapa-zonas';
 import './modules/address-editor';
 import './modules/client-form';
 import './modules/confirm-actions';
@@ -18,6 +19,7 @@ window.Cropper = Cropper;
 // Register Alpine components before Alpine.start() — guaranteed order
 Alpine.data('imageUpload', imageUploadFactory);
 Alpine.data('whatsappBandeja', whatsappBandejaFactory);
+Alpine.data('mapaZonas', mapaZonasFactory);
 
 window.Alpine = Alpine;
 Alpine.start();

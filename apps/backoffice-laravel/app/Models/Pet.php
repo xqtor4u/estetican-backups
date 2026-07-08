@@ -55,6 +55,8 @@ class Pet extends Model
         'is_sterilized',
         'flagged_for_deletion',
         'notes',
+        'lat',
+        'lng',
     ];
 
     protected $casts = [
@@ -62,6 +64,8 @@ class Pet extends Model
         'death_date'           => 'date',
         'flagged_for_deletion' => 'boolean',
         'is_sterilized' => 'boolean',
+        'lat' => 'decimal:8',
+        'lng' => 'decimal:8',
     ];
 
     public function client()

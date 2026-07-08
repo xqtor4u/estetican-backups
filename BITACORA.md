@@ -1,5 +1,62 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 07/07/2026 (cont. 3) — Mapa y Cobertura Espacial, versión mínima (BL-032, AX-MAPZN) + fix CSP
+
+Usuario planteó una idea grande (entidad espacial genérica ligada muchos-a-muchos a personas/objetos/documentos — quedó documentada como BL-031, todavía sin acotar por el propio usuario) pero pidió explícitamente una versión mínima ya: "por ahora necesito esos campos en esa ventana para navegar y pensar en ideas". Se armó plan formal (`EnterPlanMode`/`ExitPlanMode`, con exploración de código y un agente de diseño) y se construyó una pantalla real, simple, sin la arquitectura genérica.
+
+**Nota sobre el proceso:** un agente de diseño reportó durante la exploración haber encontrado un intento de inyección de prompt en un resultado de herramienta. Al pedirle la cita textual y el archivo exacto, se retractó — confirmó que fue una alucinación propia, sin ninguna evidencia real en el repo ni en las herramientas. Se descartó como falsa alarma, documentado aquí por transparencia.
+
+**Implementación (BL-032):**
+- Nueva pantalla `AX-MAPZN` ("Mapa y cobertura", menú Operación) con mapa real vía **Leaflet + OpenStreetMap** (gratis, sin API key) — primera vez que este repo usa una librería de mapas.
+- Migraciones nuevas: `pets.lat`/`lng` (nullable) y tabla `vehicles` (name/lat/lng/notes/is_active) — deliberadamente columnas directas simples, **no** la entidad polimórfica de BL-031.
+- `MapaZonasController` — `index()` sirve 4 datasets (sucursales y direcciones de clientes, de solo lectura, ya tenían lat/lng; mascotas y vehículos, editables desde el mapa) + lista de mascotas sin ubicar. Endpoints para ubicar una mascota y CRUD-lite de vehículos.
+- Vista con checkboxes no excluyentes por tipo (mismo patrón ya establecido para WhatsApp/Agenda esta sesión) y clic en el mapa abre un modal para ubicar una mascota existente o crear un vehículo nuevo, sin recargar la página.
+- Permiso reutilizado: `ver sucursales` (se evitó crear un permiso nuevo y tocar el seeder de roles — simplificación deliberada para esta pasada exploratoria).
+
+**Fix — el mapa no cargaba (NT-022):** al probar en el navegador, las teselas de OpenStreetMap no se veían (fondo gris). Causa raíz: la política CSP (`ContentSecurityPolicy.php`, NT-006) tiene `img-src 'self' data: blob:` — bloquea sin ningún error visible las imágenes de `tile.openstreetmap.org`. Se agregó el dominio a `img-src`. De paso se detectó y corrigió que `connect-src 'self'` también bloqueaba, desde que existe la CSP, el `fetch()` que ya hacía `address-editor.js` hacia Nominatim para "Geocodificación automática" — esa función llevaba tiempo silenciosamente rota sin que nadie lo hubiera reportado.
+
+**Verificación:**
+- `npm install leaflet` + `npm run build` sin errores; `artisan migrate` aplicó limpio.
+- 8 tests nuevos (`tests/Feature/MapaZonas/*`) — todos pasan.
+- Suite completa: mismas 37 fallas preexistentes ya documentadas, cero nuevas (antes y después del fix de CSP).
+- Verificado con `artisan tinker` (transacción explícita, sin dejar datos de prueba) que los 4 tipos de marcador aparecen en `/mapa-zonas` y que el header CSP ya incluye los dominios necesarios.
+- **Usuario probará visualmente mañana** — pendiente confirmar en navegador real que el mapa carga y el flujo de clic-para-ubicar funciona (no hay herramienta de automatización de navegador en este entorno).
+
+### 📁 Archivos Modificados/Creados
+- `apps/backoffice-laravel/database/migrations/2026_07_07_100001_add_lat_lng_to_pets_table.php`, `2026_07_07_100002_create_vehicles_table.php` — nuevos
+- `apps/backoffice-laravel/app/Models/Vehicle.php` — nuevo
+- `apps/backoffice-laravel/app/Models/Pet.php` — `lat`/`lng` en fillable/casts
+- `apps/backoffice-laravel/app/Http/Controllers/MapaZonasController.php` — nuevo
+- `apps/backoffice-laravel/app/Support/Pages/MapaZonasPage.php` — nuevo (debug_id `AX-MAPZN`)
+- `apps/backoffice-laravel/app/Support/Navigation/Groups/OperationsNavigation.php` — ítem "Mapa y cobertura"
+- `apps/backoffice-laravel/resources/views/mapa-zonas/index.blade.php` — nuevo
+- `apps/backoffice-laravel/resources/js/modules/mapa-zonas.js` — nuevo
+- `apps/backoffice-laravel/resources/js/app.js`, `resources/css/app.css` — registro del módulo + CSS de Leaflet
+- `apps/backoffice-laravel/app/Http/Middleware/ContentSecurityPolicy.php` — fix NT-022
+- `apps/backoffice-laravel/routes/web.php` — rutas `mapa-zonas.*`
+- `apps/backoffice-laravel/package.json` — `leaflet` como dependencia
+- `apps/backoffice-laravel/tests/Feature/MapaZonas/*` — 3 archivos nuevos (8 tests)
+- `docs/tecnico/MODELO_BD.md` — `pets.lat/lng`, sección nueva "Mapa y cobertura espacial" (`vehicles`)
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-022
+- `docs/tecnico/BACKLOG.md` — BL-032, fix CSP en Completados, BL-031 actualizado
+- `docs/architecture/IDEAS_FUTURO.md` — marcada versión mínima como construida, BL-031 sigue abierta
+
+### 🛑 Pendientes activos
+- **Confirmar visualmente en navegador** — el usuario probará mañana: ¿carga el mapa?, ¿el clic para ubicar mascota/vehículo funciona?, ¿la geocodificación de Sucursales/Clientes ya funciona con el fix de CSP?
+- **Push a GitHub** — todo el trabajo de esta sesión (BL-029 ampliado, BL-030, BL-032, NT-021, NT-022) sigue sin commitear.
+- BL-031 — entidad espacial genérica, sigue sin acotar por el usuario; no planear hasta que decida si hace falta.
+- Decidir si vale la pena cablear `ExecutedServiceService::convertFromBooking()` (ver NT-020).
+- BL-028 — estrategia firewall (ufw) para la OPi.
+- BL-024b — Fase 2 de WhatsApp.
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta.
+- BL-002 — Favicon & datos generales del negocio.
+- BL-003 — Email avanzado: SMTP completo.
+- BL-004 — Zonas horarias: selector completo.
+- BL-008 — Reportes PDF.
+- Investigar y arreglar el resto de la suite de tests preexistente (37 fallos, no relacionados a esta ni a sesiones recientes).
+
+---
+
 ## 📅 Sesión: 07/07/2026 (cont. 2) — WhatsApp: crear plantilla + calendario de Bandeja + checkboxes en Agenda + fix filtro de operador móvil (BL-030)
 
 Continuación de la sesión de BL-029. El usuario pidió, sobre el selector de plantilla, poder crear una nueva sin salir de la pantalla y ver una vista previa antes de guardar. De ahí salieron varios pedidos encadenados: marcar recordatorios ya enviados sin bloquear el reenvío manual, un calendario mensual para ver la operación completa de un vistazo con filtros no excluyentes, el mismo patrón de filtros para Agenda Universal, y — al mencionar un bug de agenda móvil de paso — un fix real de filtro por operador.

@@ -19,6 +19,8 @@
 | **Hotel** | `hotel_reservations`, `stays` |
 | **Recursos físicos** | `resources`, `resource_allocations`, `resource_photos`, `resource_events`, `resource_event_updates`, `resource_event_photos` |
 | **Operadores — estructura** | `operator_role_assignments`, `operator_branch_assignments`, `operator_compensation_profiles`, `operator_checkins` |
+| **Comunicaciones** | `whatsapp_templates`, `booking_messages`, `recurrence_messages` |
+| **Mapa y cobertura espacial** | `vehicles` |
 | **Sistema** | `system_settings`, `api_tokens`, `activity_log` |
 | **Spatie (permisos)** | `roles`, `permissions`, `model_has_roles`, `model_has_permissions`, `role_has_permissions` |
 | **Framework** | `cache`, `jobs`, `sessions`, `password_reset_tokens`, `media` |
@@ -198,6 +200,8 @@ Entidad operativa principal. Separa **identidad** (esta tabla) de **trazabilidad
 |---|---|---|
 | `id` | bigint PK | |
 | `client_id` | FK → `clients` | |
+| `lat` | decimal(10,8) nullable | Ubicación propia opcional (Mapa y cobertura, `AX-MAPZN`) — puede diferir de la dirección del cliente, ej. recolección en otro punto |
+| `lng` | decimal(11,8) nullable | |
 | `profile_photo_path` | string nullable | Foto de identidad (círculo de perfil) |
 | `name` | string | |
 | `species` | string nullable | Perro, gato, etc. |
@@ -725,6 +729,29 @@ Log de recordatorios de WhatsApp enviados manualmente desde la pantalla **Recurr
 | `timestamps` | | |
 
 **Nota técnica:** El teléfono se guarda en `phones.number` sin lada país (10 dígitos MX asumidos). `App\Support\WhatsApp\PhoneNormalizer::toWhatsAppNumber()` prefija `52` solo si son exactamente 10 dígitos; cualquier otra longitud se considera no reconocible como MX y la fila queda deshabilitada en la bandeja (no se envía). No hay automatización de envío — el operador confirma manualmente en WhatsApp Web/App vía `wa.me`. El barrido de Recurrencias se calcula bajo demanda al abrir la pantalla (no hay cron/scheduler de Laravel configurado en la OPi).
+
+---
+
+## Mapa y cobertura espacial
+
+Pantalla `AX-MAPZN` (`mapa-zonas.index`, `App\Http\Controllers\MapaZonasController`, nav en "Operación"). Visualiza en un mapa (Leaflet + OpenStreetMap, sin API key) sucursales, direcciones de clientes, mascotas y vehículos de reparto.
+
+**Decisión de alcance (07/07/2026):** esta es una versión mínima exploratoria — el usuario pidió expresamente "necesito esos campos... para navegar y pensar en ideas", no la arquitectura final. `pets.lat`/`lng` y la tabla `vehicles` son columnas/tabla directas simples, **no** la entidad espacial genérica polimórfica (ligada muchos-a-muchos a personas/objetos/documentos) que el usuario describió y quedó documentada como BL-031 en `docs/tecnico/BACKLOG.md` y `docs/architecture/IDEAS_FUTURO.md`. No dar por hecho que este modelo es el definitivo — puede reemplazarse o convivir con esa entidad genérica el día que se decida construirla.
+
+Sucursales (`branches.lat/lng`) y direcciones de clientes (`addresses.lat/lng`) ya existían y solo se leen aquí (de solo lectura en esta pantalla — se siguen editando desde sus propias pantallas). Mascotas y vehículos son de escritura desde el mapa mismo (clic en el mapa → ubicar mascota existente o crear vehículo).
+
+### `vehicles`
+Vehículos de reparto — modelo deliberadamente mínimo, sin placa/capacidad/conductor (no definidos todavía, ver BL-031).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `name` | string | |
+| `lat` | decimal(10,8) nullable | |
+| `lng` | decimal(11,8) nullable | |
+| `notes` | text nullable | |
+| `is_active` | boolean default true | |
+| `timestamps` | | |
 
 ---
 

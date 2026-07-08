@@ -15,6 +15,7 @@ use App\Http\Controllers\Finances\DocumentSeriesController;
 use App\Http\Controllers\Finances\PaymentMethodController;
 use App\Http\Controllers\HotelReservationController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\MapaZonasController;
 use App\Http\Controllers\OperatorController;
 use App\Http\Controllers\OperatorRoleController;
 use App\Http\Controllers\PetController;
@@ -62,6 +63,12 @@ Route::middleware('auth')->group(function () {
     Route::resource('operators', OperatorController::class);
     Route::post('operators/{operator}/duplicate', [OperatorController::class, 'duplicate'])->name('operators.duplicate');
     Route::resource('branches', BranchController::class);
+
+    Route::get('mapa-zonas', [MapaZonasController::class, 'index'])->name('mapa-zonas.index');
+    Route::patch('mapa-zonas/mascotas/{pet}/ubicacion', [MapaZonasController::class, 'updatePetLocation'])->name('mapa-zonas.pets.ubicacion');
+    Route::post('mapa-zonas/vehiculos', [MapaZonasController::class, 'storeVehicle'])->name('mapa-zonas.vehiculos.store');
+    Route::patch('mapa-zonas/vehiculos/{vehicle}', [MapaZonasController::class, 'updateVehicle'])->name('mapa-zonas.vehiculos.update');
+    Route::delete('mapa-zonas/vehiculos/{vehicle}', [MapaZonasController::class, 'destroyVehicle'])->name('mapa-zonas.vehiculos.destroy');
 
     // RESOURCES CRUD & Shortcuts
     Route::resource('resources', ResourceController::class);

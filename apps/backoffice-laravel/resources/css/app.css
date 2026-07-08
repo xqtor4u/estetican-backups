@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import 'flatpickr/dist/flatpickr.min.css';
+@import 'leaflet/dist/leaflet.css';
 @import 'bootstrap/dist/css/bootstrap.min.css';
 @import './vendor-cropper.css';
 @import './backoffice-theme.css';

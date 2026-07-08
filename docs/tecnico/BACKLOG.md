@@ -47,6 +47,7 @@
 |---|---|---|---|
 | BL-008 | Reportes PDF: diseño e impresión de presupuestos, órdenes de trabajo y facturas | Feature | Evaluar `barryvdh/laravel-dompdf` o Browsershot |
 | BL-012 | App clientes (futura): autoregistro de clientes — app pública separada | Feature | No es `mob_apps/operador` |
+| BL-031 | Mapa y Cobertura Espacial (`AX-MAPZN`) — entidad espacial genérica (dirección/punto) ligada muchos-a-muchos a personas/objetos/documentos | Feature | Sigue sin acotar (ver `docs/architecture/IDEAS_FUTURO.md`). La pantalla `AX-MAPZN` ya existe en versión mínima (ver BL-032 en Completados, 07/07/2026) con columnas directas simples — esta arquitectura genérica queda como evolución futura si el usuario decide que hace falta |
 
 ---
 
@@ -84,6 +85,8 @@
 | — | App móvil: fix filtro por operador en Agenda (`MobAgGbl`/`MobOpAg`) — `/api/agenda` no incluía el operador asignado directamente (`operator_id`) cuando la cita no tenía presupuesto aceptado, y desaparecía del filtro (ver NT-021) | 07/07/2026 | — (pendiente commit) |
 | BL-029 | Recordatorios de recurrencia: `services.recurrence_days` (ej. Baño cada 30 días) + pantalla WhatsApp > Recurrencias que calcula bajo demanda (sin cron) mascotas vencidas desde su última ejecución (`spa_bookings`/`spa_booking_services`, no `executed_services` — ver NT-020). Plantillas con `context` (cita/recurrencia) y variables propias. Preview del mensaje resuelto antes de abrir WhatsApp, compartido con Bandeja Diaria. Ampliado 07/07/2026: opción "Crear nueva plantilla" en el selector (modal, sin salir de la pantalla) en Bandeja y Recurrencias; botón "Previsualizar" con datos de ejemplo también en el modal y en el formulario completo de plantillas (crear/editar, `WspPlEdi`); "seleccionar todos" ya no incluye recordatorios ya enviados hoy (pero se pueden marcar a mano para reenviar) | 07/07/2026 | — (pendiente commit) |
 | BL-030 | Calendario mensual en WhatsApp > Bandeja diaria (puntos de color por día: completadas / recordatorio pendiente / en riesgo de no asistir —incluye días pasados sin resolver—, checkboxes no excluyentes, clic en un día navega a esa fecha) + filtro "Estado" de Agenda Universal convertido de `<select>` único a checkboxes no excluyentes (mismo criterio: ninguno marcado = ver todos) | 07/07/2026 | — (pendiente commit) |
+| BL-032 | Mapa y Cobertura Espacial — versión mínima (`AX-MAPZN`): Leaflet + OpenStreetMap (sin API key) en nueva pantalla dentro de "Operación". Muestra sucursales y direcciones de clientes (ya tenían lat/lng), permite ubicar mascotas y crear vehículos de reparto con clic en el mapa (`pets.lat/lng` nuevas, tabla `vehicles` nueva — mínima, sin placa/capacidad). Checkboxes no excluyentes por tipo. Deliberadamente **no** es la arquitectura genérica de BL-031, que sigue abierta | 07/07/2026 | — (pendiente commit) |
+| — | Fix CSP bloqueaba silenciosamente las teselas de OpenStreetMap en `AX-MAPZN` (mapa en blanco) — de paso se corrigió que también bloqueaba la geocodificación (Nominatim) del editor de direcciones desde que existe la CSP (ver NT-022) | 07/07/2026 | — (pendiente commit) |
 
 ---
 

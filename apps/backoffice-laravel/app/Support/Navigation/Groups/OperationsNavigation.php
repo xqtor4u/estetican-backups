@@ -28,6 +28,13 @@ class OperationsNavigation
                 'route' => route('resources.index'),
                 'active' => request()->routeIs('resources.*'),
             ];
+
+            $items[] = [
+                'label' => 'Mapa y cobertura',
+                'description' => 'Sucursales, clientes, mascotas y vehículos de reparto en un mapa.',
+                'route' => route('mapa-zonas.index'),
+                'active' => request()->routeIs('mapa-zonas.*'),
+            ];
         }
 
         if ($user?->can('ver configuracion_sistema') || $user?->is_super_admin) {
@@ -39,7 +46,7 @@ class OperationsNavigation
             ];
         }
 
-        $isOperationsActive = request()->routeIs('agenda.*') || request()->routeIs('resources.*') || request()->routeIs('branches.*') || request()->routeIs('system-settings.*');
+        $isOperationsActive = request()->routeIs('agenda.*') || request()->routeIs('resources.*') || request()->routeIs('branches.*') || request()->routeIs('system-settings.*') || request()->routeIs('mapa-zonas.*');
 
         return [
             'label' => 'Operación',
@@ -63,6 +70,11 @@ class OperationsNavigation
                 'label' => 'Recursos y activos',
                 'route' => route('resources.index'),
                 'active' => request()->routeIs('resources.*'),
+            ],
+            [
+                'label' => 'Mapa y cobertura',
+                'route' => route('mapa-zonas.index'),
+                'active' => request()->routeIs('mapa-zonas.*'),
             ],
             [
                 'label' => 'Configuración del sistema',

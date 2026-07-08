@@ -656,3 +656,24 @@ Antes de construir cualquier feature nueva sobre `ExecutedService`/`ExecutedServ
 
 **Lección:** cuando un mismo concepto ("operador de esta cita") tiene dos fuentes posibles en el modelo de datos (columna directa vs. derivado de otra entidad relacionada), cualquier endpoint que exponga ese concepto debe unir ambas fuentes explícitamente — no asumir que una sola cubre todos los casos del ciclo de vida (una cita pasa por "sin presupuesto" antes de llegar a "con presupuesto aceptado").
 
+## NT-022 — CSP bloqueaba silenciosamente las teselas de OpenStreetMap (mapa en blanco en `AX-MAPZN`)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-07 |
+| **Severidad** | P2 — Alto (pantalla nueva inutilizable, sin error visible en la UI) |
+| **Componente** | `App\Http\Middleware\ContentSecurityPolicy.php` |
+| **Impacto** | Pantalla `AX-MAPZN` (Mapa y cobertura espacial) — el mapa de Leaflet cargaba pero las teselas de OpenStreetMap nunca se veían (fondo gris/blanco permanente) |
+
+**Síntoma:** usuario reporta "no carga el mapa" al probar `/mapa-zonas` por primera vez.
+
+**Causa raíz:** la directiva CSP `img-src 'self' data: blob:` (ver NT-006, agregada 2026-05-25 junto con el resto de la política) solo permite imágenes del propio origen — bloquea sin aviso visible las peticiones de `<img>` que hace Leaflet hacia `https://{a,b,c}.tile.openstreetmap.org/...`. El navegador descarta la petición silenciosamente (violación de CSP, no un error de red), así que el mapa se ve simplemente vacío/gris sin ningún mensaje de error en consola visible para un usuario no técnico. De paso se detectó que `connect-src 'self'` también bloqueaba (desde que existe la CSP) el `fetch()` que ya hacía `address-editor.js` hacia `https://nominatim.openstreetmap.org` para la "Geocodificación automática" — esa función llevaba tiempo silenciosamente rota sin que nadie lo hubiera reportado.
+
+**Solución aplicada:**
+```php
+"img-src 'self' data: blob: https://*.tile.openstreetmap.org",
+"connect-src 'self' https://nominatim.openstreetmap.org",
+```
+
+**Lección:** cualquier integración nueva con un servicio externo (tiles, geocodificación, APIs de terceros) debe agregarse explícitamente a la CSP — no basta con que el código JS esté bien escrito, el navegador la bloquea de forma completamente silenciosa (sin excepción JS, sin respuesta HTTP fallida visible) si el dominio no está en la whitelist. Al agregar cualquier `fetch()`/`<img>`/`<script>` hacia un dominio externo nuevo, verificar primero `app/Http/Middleware/ContentSecurityPolicy.php`.
+

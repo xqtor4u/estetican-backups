@@ -55,5 +55,11 @@
 - [ ] **Saldo inicial en el balance de movimientos** — `MobCajaMovimientos` muestra neto del período (entradas − salidas) pero no el fondo inicial de la sesión de caja. Para un balance completo debería mostrar: fondo inicial + entradas − salidas = saldo esperado. Requiere ligar el período del balance a la sesión de caja correspondiente.
 - [ ] **Corte de caja desde app móvil** — MobCaja actualmente solo muestra la sesión activa; agregar botón de corte con captura del monto físico contado y cálculo del diferencial (sobrante/faltante).
 
+## 🗺️ Mapa y Cobertura Espacial — AX-MAPZN (idea surgida 07/07/2026)
+- [x] **Versión mínima construida (BL-032, 07/07/2026).** Pantalla `AX-MAPZN` real ya existe (`mapa-zonas.index`, menú Operación → "Mapa y cobertura"): Leaflet + OpenStreetMap mostrando sucursales/clientes (de solo lectura, ya tenían lat/lng) y permitiendo ubicar mascotas (`pets.lat/lng`, columnas nuevas) o crear vehículos (`vehicles`, tabla nueva) con clic en el mapa. Ver `docs/tecnico/MODELO_BD.md` sección "Mapa y cobertura espacial".
+- [ ] **Ver BL-031 — pendiente, NO construida todavía.** Entidad espacial genérica ("Ubicación": dirección + lat/lng como entidad propia, no atada a un solo dueño) ligada muchos-a-muchos vía tabla pivote polimórfica a lo que sea: personas (Cliente, Operador), objetos (Mascota, Vehículo), documentos (`Document`, ya existe para facturación), etc. La versión mínima de arriba usa columnas directas simples (`pets.lat/lng`, `vehicles`) — **no** esta arquitectura genérica; evaluar si algún día hace falta migrar a ella o si las columnas directas bastan para siempre.
+- **Pendiente de definir (el propio usuario no lo tiene claro todavía):** qué hay físicamente "en ese punto" (edificio, casa, solar, etc.) — recomendación: no forzar un enum ahora, usar un campo libre (`label`/`kind`) y convertir a catálogo más adelante si hace falta reportar por tipo. Evitar diseñar la taxonomía completa antes de tener un caso de uso real que la necesite.
+- **Alcance real todavía sin acotar:** ¿reemplaza el `lat`/`lng` directo que ya tienen `branches`/`addresses`, o convive con ellos? ¿Vehículos de reparto es un modelo nuevo completo (con placa, capacidad, etc.) o solo un punto en el mapa? Definir antes de planear implementación.
+
 ---
 *Si una idea nace en la Bitácora pero no se puede ejecutar hoy, se mueve aquí.*
