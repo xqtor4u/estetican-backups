@@ -66,18 +66,36 @@
             <label class="form-label">Buscar</label>
             <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Mascota, cliente o servicio">
         </div>
-        <div class="col-lg-2 col-md-6">
-            <label class="form-label">Estado</label>
-            <select name="status" class="form-select">
-                <option value="active" @selected($status === 'active')>Activos (todos)</option>
-                <option value="scheduled" @selected($status === 'scheduled')>Solo programados</option>
-                <option value="work_order" @selected($status === 'work_order')>Solo en proceso</option>
-                <option value="completed" @selected($status === 'completed')>Completados</option>
-                <option value="all" @selected($status === 'all')>Todos</option>
-                <option value="cancelled" @selected($status === 'cancelled')>Cancelados</option>
-                <option value="no_show" @selected($status === 'no_show')>No show</option>
-                <option value="unfulfillable" @selected($status === 'unfulfillable')>No realizables</option>
-            </select>
+        <div class="col-lg-3 col-md-6">
+            <label class="form-label d-block">Estado</label>
+            <input type="hidden" name="status_touched" value="1">
+            <div class="d-flex flex-wrap gap-2">
+                <div class="form-check form-check-inline mb-0">
+                    <input type="checkbox" class="form-check-input" name="status[]" value="scheduled" id="status-scheduled" @checked(in_array('scheduled', $statuses, true))>
+                    <label class="form-check-label" for="status-scheduled">Programados</label>
+                </div>
+                <div class="form-check form-check-inline mb-0">
+                    <input type="checkbox" class="form-check-input" name="status[]" value="work_order" id="status-work_order" @checked(in_array('work_order', $statuses, true))>
+                    <label class="form-check-label" for="status-work_order">En proceso</label>
+                </div>
+                <div class="form-check form-check-inline mb-0">
+                    <input type="checkbox" class="form-check-input" name="status[]" value="completed" id="status-completed" @checked(in_array('completed', $statuses, true))>
+                    <label class="form-check-label" for="status-completed">Completados</label>
+                </div>
+                <div class="form-check form-check-inline mb-0">
+                    <input type="checkbox" class="form-check-input" name="status[]" value="cancelled" id="status-cancelled" @checked(in_array('cancelled', $statuses, true))>
+                    <label class="form-check-label" for="status-cancelled">Cancelados</label>
+                </div>
+                <div class="form-check form-check-inline mb-0">
+                    <input type="checkbox" class="form-check-input" name="status[]" value="no_show" id="status-no_show" @checked(in_array('no_show', $statuses, true))>
+                    <label class="form-check-label" for="status-no_show">No show</label>
+                </div>
+                <div class="form-check form-check-inline mb-0">
+                    <input type="checkbox" class="form-check-input" name="status[]" value="unfulfillable" id="status-unfulfillable" @checked(in_array('unfulfillable', $statuses, true))>
+                    <label class="form-check-label" for="status-unfulfillable">No realizables</label>
+                </div>
+            </div>
+            <div class="form-text">Ninguno marcado = mostrar todos.</div>
         </div>
         @if($calView === 'day')
         <div class="col-lg-2 col-md-6">

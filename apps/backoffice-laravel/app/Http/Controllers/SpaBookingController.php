@@ -42,13 +42,14 @@ class SpaBookingController extends Controller
     {
         $page = AgendaPage::index();
         $search = trim((string) $request->query('search', ''));
-        $status = (string) $request->query('status', 'active');
+        $statusTouched = $request->has('status_touched');
+        $rawStatuses = (array) $request->query('status', []);
+        $validStatuses = ['scheduled', 'work_order', 'completed', 'cancelled', 'no_show', 'unfulfillable'];
+        $statuses = ! $statusTouched
+            ? ['scheduled', 'work_order']
+            : array_values(array_intersect($rawStatuses, $validStatuses));
         $dateScope = (string) $request->query('date_scope', 'today');
         $calView = (string) $request->query('cal_view', 'day');
-
-        if (! in_array($status, ['active', 'scheduled', 'work_order', 'completed', 'cancelled', 'no_show', 'unfulfillable', 'all'], true)) {
-            $status = 'active';
-        }
 
         if (! in_array($dateScope, ['today', 'tomorrow', 'custom', 'all', 'full'], true)) {
             $dateScope = 'today';
@@ -62,7 +63,7 @@ class SpaBookingController extends Controller
         $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
 
         if ($calView !== 'day') {
-            return $this->indexCalendarRange($request, $calView, $status, $search, $sort, $direction);
+            return $this->indexCalendarRange($request, $calView, $statuses, $statusTouched, $search, $sort, $direction);
         }
 
         $selectedDate = $this->resolveOperationalDate((string) $request->query('date', ''), $dateScope);
@@ -77,10 +78,10 @@ class SpaBookingController extends Controller
                     ->with(['cashLedgers', 'bankLedgers']),
             ]);
 
-        $this->applyBookingFilters($bookingsQuery, $status, $search);
+        $this->applyBookingFilters($bookingsQuery, $statuses, $search);
 
         if ($dateScope === 'all') {
-            if (in_array($status, ['active', 'scheduled'])) {
+            if ($statuses !== [] && array_intersect($statuses, ['scheduled', 'work_order']) !== []) {
                 $bookingsQuery->where('scheduled_at', '>=', now()->startOfDay());
             }
         } elseif ($dateScope === 'custom') {
@@ -146,19 +147,17 @@ class SpaBookingController extends Controller
         $agendaOverviewCount = $bookings->total() + $timelineBookings->where('agenda_type', 'hotel')->count();
 
         return view('agenda.index', compact(
-            'page', 'bookings', 'timelineBookings', 'status', 'dateScope', 'calView',
+            'page', 'bookings', 'timelineBookings', 'statuses', 'statusTouched', 'dateScope', 'calView',
             'selectedDate', 'selectedDateInput', 'operationalDateLabel', 'search',
             'totalEstimatedMinutes', 'scheduledCount', 'estimatedRevenue', 'petsWithAgenda',
             'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction', 'agendaOverviewCount'
         ));
     }
 
-    private function applyBookingFilters($query, string $status, string $search): void
+    private function applyBookingFilters($query, array $statuses, string $search): void
     {
-        if ($status === 'active') {
-            $query->whereIn('status', ['scheduled', 'work_order']);
-        } elseif ($status !== 'all') {
-            $query->where('status', $status);
+        if ($statuses !== []) {
+            $query->whereIn('status', $statuses);
         }
 
         if ($search !== '') {
@@ -173,7 +172,7 @@ class SpaBookingController extends Controller
         }
     }
 
-    private function indexCalendarRange(Request $request, string $calView, string $status, string $search, string $sort, string $direction): View
+    private function indexCalendarRange(Request $request, string $calView, array $statuses, bool $statusTouched, string $search, string $sort, string $direction): View
     {
         $page = AgendaPage::index();
         $anchorDate = $this->parseDateOrToday((string) $request->query('date', ''));
@@ -188,7 +187,7 @@ class SpaBookingController extends Controller
             $rangeEnd = $monthAnchor->copy()->endOfMonth()->endOfWeek(Carbon::SUNDAY)->endOfDay();
         }
 
-        [$calendarDays, $rangeStats] = $this->buildCalendarRange($rangeStart, $rangeEnd, $status, $search, $monthAnchor);
+        [$calendarDays, $rangeStats] = $this->buildCalendarRange($rangeStart, $rangeEnd, $statuses, $search, $monthAnchor);
 
         $selectedDate = $anchorDate;
         $selectedDateInput = $anchorDate->format('Y-m-d');
@@ -201,7 +200,7 @@ class SpaBookingController extends Controller
         $agendaOverviewCount = $rangeStats['scheduledCount'] + $rangeStats['hotelCount'];
 
         return view('agenda.index', [
-            'page' => $page, 'calView' => $calView, 'status' => $status, 'dateScope' => 'custom',
+            'page' => $page, 'calView' => $calView, 'statuses' => $statuses, 'statusTouched' => $statusTouched, 'dateScope' => 'custom',
             'search' => $search, 'selectedDate' => $selectedDate, 'selectedDateInput' => $selectedDateInput,
             'operationalDateLabel' => $operationalDateLabel,
             'calendarDays' => $calendarDays, 'rangeStart' => $rangeStart, 'rangeEnd' => $rangeEnd,
@@ -220,12 +219,12 @@ class SpaBookingController extends Controller
     /**
      * @return array{0: array<int, array{date: Carbon, items: Collection, is_today: bool, is_outside_month: bool}>, 1: array<string, mixed>}
      */
-    private function buildCalendarRange(Carbon $rangeStart, Carbon $rangeEnd, string $status, string $search, ?Carbon $monthAnchor): array
+    private function buildCalendarRange(Carbon $rangeStart, Carbon $rangeEnd, array $statuses, string $search, ?Carbon $monthAnchor): array
     {
         $spaQuery = SpaBooking::query()
             ->whereBetween('scheduled_at', [$rangeStart, $rangeEnd])
             ->with(['pet.client', 'services.service']);
-        $this->applyBookingFilters($spaQuery, $status, $search);
+        $this->applyBookingFilters($spaQuery, $statuses, $search);
 
         $spaBookings = $spaQuery->get()->map(function ($b) {
             $b = $this->decorateBooking($b);

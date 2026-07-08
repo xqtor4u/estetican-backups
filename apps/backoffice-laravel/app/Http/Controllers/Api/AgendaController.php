@@ -38,6 +38,7 @@ class AgendaController extends Controller
                 'pet:id,name,species,breed,profile_photo_path,client_id',
                 'pet.client:id,first_name,last_name',
                 'services.service:id,name,type',
+                'operator:id,full_name,profile_photo_path',
                 'quotes' => fn ($q) => $q->where('status', 'accepted')
                     ->with(['items.operator:id,full_name,profile_photo_path']),
             ])
@@ -45,7 +46,9 @@ class AgendaController extends Controller
             ->get();
 
         return response()->json($bookings->map(function (SpaBooking $b) {
-            // Operadores únicos del presupuesto aceptado
+            // Operadores del presupuesto aceptado, más el operador asignado directamente
+            // a la cita (spa_bookings.operator_id) por si aún no hay presupuesto aceptado —
+            // sin esta unión, una cita recién creada desaparece del filtro por operador.
             $operators = collect();
             $accepted = $b->quotes->first();
             if ($accepted) {
@@ -56,9 +59,18 @@ class AgendaController extends Controller
                         'name' => $i->operator->full_name,
                         'photo_url' => $this->operatorPhoto($i->operator),
                     ])
-                    ->unique('id')
-                    ->values();
+                    ->unique('id');
             }
+
+            if ($b->operator) {
+                $operators = $operators->push([
+                    'id' => $b->operator->id,
+                    'name' => $b->operator->full_name,
+                    'photo_url' => $this->operatorPhoto($b->operator),
+                ]);
+            }
+
+            $operators = $operators->unique('id')->values();
 
             $endTime = $b->duration_minutes
                 ? $b->scheduled_at->copy()->addMinutes($b->duration_minutes)->format('H:i')

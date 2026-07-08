@@ -290,6 +290,7 @@ Catálogo de servicios ofrecidos.
 | `suggested_duration_minutes` | int nullable | |
 | `is_active` | boolean | |
 | `account_id` | bigint FK nullable | Cuenta de ingreso contable para este servicio (módulo contable) |
+| `recurrence_days` | unsigned smallint nullable | Días de recurrencia esperada (ej. 30 en "Baño"). Null = no aplica recordatorio periódico. Usado por la pantalla Recurrencias (BL-029) para detectar mascotas vencidas |
 | `timestamps` | | |
 
 ---
@@ -427,6 +428,8 @@ Ingresos a banco (tarjeta, transferencia). Fuente de verdad para contabilidad ba
 ---
 
 ## Ejecución
+
+**⚠️ Huérfanas (ver NT-020):** `executed_services`/`executed_service_items` y `App\Domain\Execution\Services\ExecutedServiceService::convertFromBooking()` existen pero ningún flujo real las llena — 0 filas en producción pese a haber citas `completed`. El historial real de qué servicio recibió cada mascota y cuándo vive en `spa_bookings` (`status = 'completed'`) + `spa_booking_services`. No construir features nuevas sobre estas tablas sin antes verificar que tienen datos.
 
 ### `executed_services`
 Cabecera del trabajo ejecutado sobre una mascota.
@@ -678,14 +681,15 @@ Registro de entradas y salidas de operadores por sucursal (app móvil).
 ## Comunicaciones
 
 ### `whatsapp_templates`
-Mensajes predefinidos con variables, reutilizables desde la bandeja diaria (BL-024 Fase 1).
+Mensajes predefinidos con variables, reutilizables desde la bandeja diaria (BL-024 Fase 1) y desde Recurrencias (BL-029).
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
 | `name` | string | |
-| `body` | text | Placeholders: `{cliente}`, `{mascota}`, `{servicio}`, `{fecha}`, `{hora}` — ver `App\Support\WhatsApp\TemplateResolver::availableVariables()` |
-| `is_active` | boolean default true | Solo activas aparecen en la bandeja diaria |
+| `body` | text | Placeholders dependen de `context` — ver `App\Support\WhatsApp\TemplateResolver::availableVariables()` |
+| `context` | string default `cita` | `cita` (bandeja diaria, placeholders `{cliente}`,`{mascota}`,`{servicio}`,`{fecha}`,`{hora}`) o `recurrencia` (placeholders `{cliente}`,`{mascota}`,`{servicio}`,`{ultima_fecha}`,`{dias_vencido}`) |
+| `is_active` | boolean default true | Solo activas aparecen en su bandeja correspondiente |
 | `created_by_user_id` | FK → `users` nullable | |
 | `timestamps` | | |
 
@@ -704,7 +708,23 @@ Log de recordatorios de WhatsApp enviados manualmente (vía `wa.me`) desde la ba
 | `sent_at` | datetime | |
 | `timestamps` | | |
 
-**Nota técnica:** El teléfono se guarda en `phones.number` sin lada país (10 dígitos MX asumidos). `App\Support\WhatsApp\PhoneNormalizer::toWhatsAppNumber()` prefija `52` solo si son exactamente 10 dígitos; cualquier otra longitud se considera no reconocible como MX y la fila queda deshabilitada en la bandeja (no se envía). No hay automatización de envío — el operador confirma manualmente en WhatsApp Web/App vía `wa.me`.
+### `recurrence_messages`
+Log de recordatorios de WhatsApp enviados manualmente desde la pantalla **Recurrencias** (BL-029) — mascotas cuyo servicio periódico (`services.recurrence_days`) ya se cumplió desde su última ejecución. La "última ejecución" se calcula de `spa_bookings.scheduled_at` (`status = 'completed'`) vía `spa_booking_services.service_id`, **no** de `executed_services`/`executed_service_items` — esas tablas están huérfanas, ningún flujo real las llena (ver NT-020). Mismo patrón que `booking_messages` pero sin `spa_booking_id` (no hay cita asociada, es proactivo).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `pet_id` | FK → `pets` cascadeOnDelete | |
+| `service_id` | FK → `services` cascadeOnDelete | |
+| `whatsapp_template_id` | FK → `whatsapp_templates` nullOnDelete | |
+| `phone_number` | string | Normalizado para wa.me |
+| `message_body` | text | Snapshot ya resuelto |
+| `wa_link` | text | |
+| `sent_by_user_id` | FK → `users` nullOnDelete | |
+| `sent_at` | datetime | Se usa para marcar "ya enviado hoy" en la UI y evitar doble envío el mismo día; no suprime el recordatorio en días siguientes si la mascota sigue sin recibir el servicio |
+| `timestamps` | | |
+
+**Nota técnica:** El teléfono se guarda en `phones.number` sin lada país (10 dígitos MX asumidos). `App\Support\WhatsApp\PhoneNormalizer::toWhatsAppNumber()` prefija `52` solo si son exactamente 10 dígitos; cualquier otra longitud se considera no reconocible como MX y la fila queda deshabilitada en la bandeja (no se envía). No hay automatización de envío — el operador confirma manualmente en WhatsApp Web/App vía `wa.me`. El barrido de Recurrencias se calcula bajo demanda al abrir la pantalla (no hay cron/scheduler de Laravel configurado en la OPi).
 
 ---
 

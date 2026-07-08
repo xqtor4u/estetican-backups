@@ -919,6 +919,42 @@ body.catalog-resize-active {
     border-color: rgba(13, 202, 240, 0.3);
 }
 
+.bandeja-calendar-dots {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-top: 0.25rem;
+}
+
+.bandeja-calendar-dot-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--app-muted);
+}
+
+.bandeja-calendar-dot {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.bandeja-calendar-dot--completadas {
+    background: #198754;
+}
+
+.bandeja-calendar-dot--recordatorio {
+    background: #ffc107;
+}
+
+.bandeja-calendar-dot--riesgo {
+    background: #dc3545;
+}
+
 .catalog-row--muted {
     background: rgba(108, 117, 125, 0.03);
 }

@@ -613,3 +613,46 @@ Si se requiere filtrado multi-sucursal de cobros, agregar columna `branch_id` a 
 **Lección:**
 Antes de implementar filtros por sucursal en queries sobre `payments`/`cash_ledgers`/`bank_ledgers`, verificar que la cadena `payments → payable → branch_id` existe en el esquema. El modelo actual no lo soporta sin cambios de migración.
 
+---
+
+## NT-020 — `ExecutedService`/`ExecutedServiceItem` existen en el esquema pero están huérfanas — ningún flujo real las llena
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-07 |
+| **Severidad** | P3 — Medio (feature nueva construida sobre datos inexistentes) |
+| **Componente** | `App\Domain\Execution\Services\ExecutedServiceService` / tablas `executed_services`, `executed_service_items` |
+| **Impacto** | La pantalla WhatsApp > Recurrencias (BL-029) se implementó leyendo de `executed_service_items` y no mostraba resultados aun después de cargar `services.recurrence_days`, pese a haber citas SPA completadas en producción |
+
+**Síntoma:**
+`App\Models\ExecutedServiceItem::count()` devuelve `0` en producción a pesar de que `spa_bookings` tiene registros con `status = 'completed'`.
+
+**Causa raíz:**
+`ExecutedServiceService::convertFromBooking()` (pensado para congelar un snapshot histórico de servicios ejecutados al completar una cita) nunca se conectó a ningún flujo real: no está bindeado en ningún `ServiceProvider`, ningún controlador la invoca, y las tres rutas reales que marcan una cita como `completed` (`SpaBookingController.php` — acción "Finalizar sesión", `Api/PaymentController.php` — cobro con `mark_completed`, `Api/BookingController.php` — update de estado desde la app móvil) solo hacen `$booking->update(['status' => 'completed'])` sin tocar `ExecutedService`. El modelo y las tablas quedaron como scaffolding de una funcionalidad que nunca se terminó de cablear.
+
+**Dónde vive el historial real:**
+`spa_bookings` (con `status = 'completed'`, usando `scheduled_at` como fecha) + `spa_booking_services` (qué servicios incluyó esa cita). Es la única fuente poblada hoy, aunque con una limitación: `spa_booking_services` refleja el set *actual* de servicios de la cita (se borra y recrea si se edita después de completada — ver `SpaBookingController::update`), por lo que un cambio posterior a la finalización podría perder el detalle histórico exacto.
+
+**Solución aplicada:**
+`RecurrenceMessageController::lastServiceDatesByPet()` se corrigió para leer de `spa_booking_services` JOIN `spa_bookings WHERE status = 'completed'` en vez de `executed_service_items`.
+
+**Lección:**
+Antes de construir cualquier feature nueva sobre `ExecutedService`/`ExecutedServiceItem`/`App\Domain\Execution`, verificar primero si tienen filas reales en producción (`ExecutedServiceItem::count()`). Si se requiere un snapshot histórico inmutable (que no cambie si se edita una cita ya completada), la solución de fondo es cablear `ExecutedServiceService::convertFromBooking()` en los tres puntos de transición a `completed` — pendiente, no resuelto en esta sesión.
+
+## NT-021 — `Api\AgendaController`: campo `operators` ignoraba `spa_bookings.operator_id`, citas sin presupuesto aceptado desaparecían al filtrar por operador
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-07 |
+| **Severidad** | P2 — Alto (citas reales invisibles al filtrar, sin error visible) |
+| **Componente** | `App\Http\Controllers\Api\AgendaController::index()` — endpoint `/api/agenda` |
+| **Impacto** | App móvil, pantallas Agenda Universal (`MobAgGbl`) y Agenda por operador (`MobOpAg`): al seleccionar un operador en el filtro, citas recién creadas (sin presupuesto aceptado todavía) desaparecían de la lista aunque tuvieran ese operador asignado |
+
+**Síntoma:** usuario reporta que al filtrar por operador en `MobAgGbl` no salen todas las citas de ese operador.
+
+**Causa raíz:** el campo `operators` que devuelve `/api/agenda` (usado por el filtro client-side en `GlobalAgenda.tsx` y `GroomerAgenda.tsx` vía `b.operators.some(o => o.id === filterOp)`) se calculaba **únicamente** a partir de las líneas del presupuesto aceptado (`quotes.items.operator`), ignorando `spa_bookings.operator_id` — la columna que sí se asigna directamente al crear la cita (`MobCitaNueva.tsx`). Si la cita todavía no tenía presupuesto aceptado, `operators` quedaba `[]` y el filtro la excluía siempre, sin importar el operador asignado.
+
+**Solución aplicada:** `AgendaController::index()` ahora arma `operators` como la unión de (a) los operadores del presupuesto aceptado y (b) el operador asignado directamente vía `operator_id` (relación `SpaBooking::operator()`), deduplicados por id. El filtro client-side en la app móvil no cambió — solo recibía datos incompletos.
+
+**Lección:** cuando un mismo concepto ("operador de esta cita") tiene dos fuentes posibles en el modelo de datos (columna directa vs. derivado de otra entidad relacionada), cualquier endpoint que exponga ese concepto debe unir ambas fuentes explícitamente — no asumir que una sola cubre todos los casos del ciclo de vida (una cita pasa por "sin presupuesto" antes de llegar a "con presupuesto aceptado").
+

@@ -15,6 +15,7 @@
 |---|---|---|---|
 | BL-006 | ~~Bloquear endpoint `/up`~~ **COMPLETADO** — movido a sección Completados | Seguridad | |
 | ~~BL-007~~ | ~~Verificar Transform Rules Cloudflare: X-Frame-Options, Referrer-Policy, Permissions-Policy~~ **COMPLETADO** | Seguridad | Headers en nginx de mob; backoffice ya los tenía vía middleware Laravel |
+| BL-028 | Diseñar estrategia de defensa por firewall (ufw) para el servidor OPi | Seguridad | Estado actual verificado 03/07/2026: ufw y fail2ban activos/habilitados (jail sshd: maxretry=4, findtime=10min, bantime=1h); SSH permite password además de pubkey (`PasswordAuthentication yes`); puerto 22 y SMB (139/445) escuchan en `0.0.0.0` en ambas LAN; Portainer/NPM admin ya restringidos a `192.168.100.250`. Definir reglas ufw explícitas por servicio/red y evaluar desactivar auth por password en SSH |
 
 ### Prioridad Alta — App Móvil (operador)
 
@@ -80,6 +81,9 @@
 | — | App móvil: fix `loadOccupied` no expandía slots ocupados por `duration_minutes` — permitía doble-agendar al mismo operador (ver NT-018) | 03/07/2026 | `71eae72` |
 | BL-026 | Agenda Universal (web): vista Día/Semana/Mes estilo Google Calendar — toggle server-driven, grid semana (lunes-domingo) y mes (5-6 semanas, +3 chips y "+N más"), sin librería JS nueva | 03/07/2026 | `300148e` |
 | BL-027 | Agenda móvil (Universal MobAgGbl y por operador MobOpAg): vista Día/Semana/Mes — `/api/agenda` acepta `view=day\|week\|month`. Semana/Mes corregidas a grid tipo Google Calendar (7 columnas/celdas con puntos de color) a pedido del usuario, reemplazando la lista agrupada inicial | 03/07/2026 | `c3cd3d0` `8fb7c99` `8682040` |
+| — | App móvil: fix filtro por operador en Agenda (`MobAgGbl`/`MobOpAg`) — `/api/agenda` no incluía el operador asignado directamente (`operator_id`) cuando la cita no tenía presupuesto aceptado, y desaparecía del filtro (ver NT-021) | 07/07/2026 | — (pendiente commit) |
+| BL-029 | Recordatorios de recurrencia: `services.recurrence_days` (ej. Baño cada 30 días) + pantalla WhatsApp > Recurrencias que calcula bajo demanda (sin cron) mascotas vencidas desde su última ejecución (`spa_bookings`/`spa_booking_services`, no `executed_services` — ver NT-020). Plantillas con `context` (cita/recurrencia) y variables propias. Preview del mensaje resuelto antes de abrir WhatsApp, compartido con Bandeja Diaria. Ampliado 07/07/2026: opción "Crear nueva plantilla" en el selector (modal, sin salir de la pantalla) en Bandeja y Recurrencias; botón "Previsualizar" con datos de ejemplo también en el modal y en el formulario completo de plantillas (crear/editar, `WspPlEdi`); "seleccionar todos" ya no incluye recordatorios ya enviados hoy (pero se pueden marcar a mano para reenviar) | 07/07/2026 | — (pendiente commit) |
+| BL-030 | Calendario mensual en WhatsApp > Bandeja diaria (puntos de color por día: completadas / recordatorio pendiente / en riesgo de no asistir —incluye días pasados sin resolver—, checkboxes no excluyentes, clic en un día navega a esa fecha) + filtro "Estado" de Agenda Universal convertido de `<select>` único a checkboxes no excluyentes (mismo criterio: ninguno marcado = ver todos) | 07/07/2026 | — (pendiente commit) |
 
 ---
 

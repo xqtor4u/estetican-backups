@@ -61,7 +61,13 @@
         <input id="suggested_duration_minutes" type="number" name="suggested_duration_minutes" class="form-control" min="0" step="1" value="{{ old('suggested_duration_minutes', $service->suggested_duration_minutes ?? '') }}" required>
     </div>
 
-    <div class="col-md-4 d-flex align-items-end">
+    <div class="col-md-4">
+        <label for="recurrence_days" class="form-label">Recurrencia (días)</label>
+        <input id="recurrence_days" type="number" name="recurrence_days" class="form-control" min="1" step="1" placeholder="Ej. 20" value="{{ old('recurrence_days', $service->recurrence_days ?? '') }}">
+        <div class="form-text">Deja vacío si este servicio no requiere recordatorio periódico.</div>
+    </div>
+
+    <div class="col-md-8 d-flex align-items-end">
         <div class="form-check form-switch mb-2">
             <input type="hidden" name="is_active" value="0">
             <input id="is_active" class="form-check-input" type="checkbox" name="is_active" value="1" @checked((bool) old('is_active', $service->is_active ?? true))>

@@ -1,5 +1,169 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 07/07/2026 (cont. 2) — WhatsApp: crear plantilla + calendario de Bandeja + checkboxes en Agenda + fix filtro de operador móvil (BL-030)
+
+Continuación de la sesión de BL-029. El usuario pidió, sobre el selector de plantilla, poder crear una nueva sin salir de la pantalla y ver una vista previa antes de guardar. De ahí salieron varios pedidos encadenados: marcar recordatorios ya enviados sin bloquear el reenvío manual, un calendario mensual para ver la operación completa de un vistazo con filtros no excluyentes, el mismo patrón de filtros para Agenda Universal, y — al mencionar un bug de agenda móvil de paso — un fix real de filtro por operador.
+
+**1. Crear plantilla desde el selector (Bandeja y Recurrencias):**
+- Nueva opción "+ Crear nueva plantilla…" en el `<select>` de plantilla de ambas pantallas; abre un modal (`whatsapp/_create-template-modal.blade.php`) con nombre, botones de variables por contexto y mensaje. Se crea vía AJAX — `WhatsAppTemplateController::store()` ahora responde JSON (`{template: {id, name}}`) si la petición lo pide, sin romper el flujo de formulario completo (que sigue redirigiendo igual) — y la plantilla nueva queda seleccionada automáticamente, sin perder la selección de citas ya marcada en la tabla.
+- Botón "Previsualizar" (datos de ejemplo, cálculo 100% client-side vía Alpine, sin llamada al servidor) agregado tanto en ese modal como en el formulario completo de crear/editar plantilla (`whatsapp/plantillas/_form.blade.php`, pantalla `WspPlEdi`) — el textarea del mensaje tuvo que volverse reactivo (`x-model="body"` en vez de manipulación directa del DOM) para poder calcular la vista previa en vivo.
+
+**2. "Seleccionar todos" ya no reenvía recordatorios ya enviados por accidente:**
+- El checkbox de encabezado en Bandeja y Recurrencias excluye ahora las filas con `already_sent_today`, pero el checkbox individual de cada fila sigue habilitado (con tooltip explicativo) para que el usuario reenvíe a mano si lo decide.
+
+**3. Calendario mensual en Bandeja diaria (BL-030):**
+- `BookingMessageController::buildMonthCalendar()` — una sola consulta por mes (rango con relleno de semana completa, mismo patrón que Agenda), clasifica cada cita en 0-2 categorías simultáneas (no excluyentes): **completadas**, **recordatorio pendiente** (nunca se envió un `BookingMessage`, sin importar el día — más amplio que el `already_sent_today` de la tabla del día, que no se tocó), **en riesgo de no asistir** (sigue `scheduled`/`work_order` y ya pasó `scheduled_at + booking_grace_minutes` — incluye días **pasados** sin resolver, a pedido explícito del usuario: "esos son los que más urgen resolver"). Se descartó cancelado/no-show como categoría — decisión del usuario: no es accionable, es solo un hueco libre.
+- Nuevo partial `whatsapp/bandeja/_month_calendar.blade.php`, reutilizando el patrón visual del grid de mes de Agenda (`agenda-calendar-month__*`) pero con lógica y CSS propios (`bandeja-calendar-dot--completadas/recordatorio/riesgo`, puntos de color en vez de chips de texto — más legibles con 3 categorías simultáneas en una celda de ~110px). Checkboxes no excluyentes filtran client-side sobre los datos ya cargados del mes (sin round-trip al servidor); clic en un día navega con recarga completa de página.
+- De paso, se investigó el reporte inicial de "la lista no se actualiza al cambiar de fecha" — se confirmó con datos reales que el backend siempre filtró bien por fecha; no se pudo reproducir el bug, probablemente era percepción o caché del navegador. La navegación de página completa del calendario nuevo descarta cualquier duda de caché hacia adelante.
+
+**4. Agenda Universal: filtro "Estado" de `<select>` único a checkboxes no excluyentes (BL-030):**
+- `SpaBookingController` — de `string $status` a `array $statuses` en `index()`, `applyBookingFilters()`, `indexCalendarRange()` y `buildCalendarRange()` (un solo punto de aplicación real, `applyBookingFilters()`, ya compartido por la vista de día y la de semana/mes). Contrato vía `status_touched`: formulario nunca tocado → default actual (`scheduled`+`work_order`, igual que antes `active`); tocado y sin nada marcado → mostrar todos los estados; tocado con valores → esos exactos. El filtro de `HotelReservation` (columna de estado de hotel, no relacionada) no se tocó.
+
+**5. Fix — filtro por operador en agenda móvil no mostraba todas las citas (NT-021):**
+- Causa raíz: `Api\AgendaController::index()` armaba el campo `operators` (usado por el filtro client-side en `GlobalAgenda.tsx`/`MobAgGbl` y `GroomerAgenda.tsx`/`MobOpAg` vía `b.operators.some(o => o.id === filterOp)`) **solo** desde las líneas del presupuesto aceptado, ignorando `spa_bookings.operator_id` — la columna que sí se asigna directamente al crear la cita. Una cita recién creada (sin presupuesto aceptado todavía) tenía `operators: []` y desaparecía del filtro aunque tuviera ese operador asignado.
+- Fix: `operators` ahora es la unión de (a) operadores del presupuesto aceptado y (b) el operador asignado directamente vía `operator_id`, deduplicada por id. No requirió cambios en el frontend móvil — el filtro ya funcionaba bien, solo recibía datos incompletos.
+
+**Verificación:**
+- `npm run build` sin errores en cada iteración.
+- Suite completa filtrada `WhatsApp|Agenda|Api|SpaBooking`: 24 tests nuevos de esta sesión (7 calendario de Bandeja, 6 checkboxes de Agenda, 1 fix de `operators`, 3 creación de plantilla vía JSON, más ajustes a tests existentes de preview/reenvío) — todos pasan. Se corrió también la suite completa del proyecto: coincide exactamente con las mismas 37 fallas preexistentes ya documentadas (ninguna nueva, ninguna en los módulos tocados esta sesión).
+- Verificado con `artisan tinker` usando transacciones explícitas con rollback real (`DB::beginTransaction()`/`DB::rollBack()`) — en esta sesión se detectó que tinker **no** abre transacción automática por sí solo; un primer intento sin `beginTransaction()` explícito dejó datos de prueba persistidos en producción, que se limpiaron a mano de inmediato.
+- El calendario de Bandeja y los checkboxes de Agenda pasaron por planificación formal (`EnterPlanMode`/`ExitPlanMode`, con exploración de código vía subagentes y un agente de diseño) dado que eran dos features relacionadas de tamaño real.
+- **No se confirmó visualmente en navegador/celular real** — sigue sin haber herramienta de automatización de navegador en este entorno (mismo pendiente arrastrado de sesiones anteriores).
+
+### 📁 Archivos Modificados/Creados
+- `apps/backoffice-laravel/app/Http/Controllers/WhatsAppTemplateController.php` — `store()` responde JSON si se pide
+- `apps/backoffice-laravel/app/Http/Controllers/BookingMessageController.php` — `buildMonthCalendar()`, `templateVariables`
+- `apps/backoffice-laravel/app/Http/Controllers/RecurrenceMessageController.php` — `templateVariables` para el modal de creación
+- `apps/backoffice-laravel/app/Http/Controllers/SpaBookingController.php` — filtro de estado a array + `status_touched`
+- `apps/backoffice-laravel/app/Http/Controllers/Api/AgendaController.php` — fix `operators` (NT-021)
+- `apps/backoffice-laravel/resources/js/modules/whatsapp-bandeja.js` — plantillas reactivas, `openCreateTemplate()`/`submitNewTemplate()`/`insertVariableInNewTemplate()`, preview de nueva plantilla
+- `apps/backoffice-laravel/resources/views/whatsapp/_create-template-modal.blade.php` — nuevo
+- `apps/backoffice-laravel/resources/views/whatsapp/bandeja/_month_calendar.blade.php` — nuevo
+- `apps/backoffice-laravel/resources/views/whatsapp/bandeja/index.blade.php`, `recurrencias/index.blade.php` — select reactivo + "Crear nueva", exclusión de enviados en "seleccionar todos", include del calendario
+- `apps/backoffice-laravel/resources/views/whatsapp/plantillas/_form.blade.php` — botón "Previsualizar", `body` reactivo
+- `apps/backoffice-laravel/resources/views/agenda/index.blade.php` — checkboxes de Estado
+- `apps/backoffice-laravel/resources/css/backoffice-blueprints.css` — `.bandeja-calendar-dot*`
+- `apps/backoffice-laravel/tests/Feature/WhatsApp/WhatsAppTemplateFlowTest.php` — nuevo
+- `apps/backoffice-laravel/tests/Feature/WhatsApp/BookingMessageCalendarTest.php` — nuevo
+- `apps/backoffice-laravel/tests/Feature/Agenda/AgendaStatusFilterTest.php` — nuevo (namespace nuevo)
+- `apps/backoffice-laravel/tests/Feature/WhatsApp/BookingMessageFlowTest.php`, `RecurrenceMessageFlowTest.php` — tests de exclusión "enviado hoy" en seleccionar todos
+- `apps/backoffice-laravel/tests/Feature/Api/AgendaRangeTest.php` — test de `operators` sin presupuesto aceptado
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-021
+- `docs/tecnico/BACKLOG.md` — BL-030, ampliación de BL-029
+
+### 🛑 Pendientes activos
+- **Confirmar visualmente en navegador/celular real** todo lo de esta sesión y de las dos anteriores (preview de plantillas, calendario de Bandeja, checkboxes de Agenda y Recurrencias, fix de filtro por operador en `MobAgGbl`/`MobOpAg`).
+- **Push a GitHub** — todo el trabajo de esta sesión y las dos anteriores (BL-029, BL-030, fix NT-021) sigue sin commitear.
+- Decidir si vale la pena cablear `ExecutedServiceService::convertFromBooking()` a los tres flujos de completado (ver NT-020) o aceptar `spa_booking_services` como fuente permanente.
+- BL-028 — estrategia firewall (ufw) para la OPi.
+- BL-024b — Fase 2 de WhatsApp.
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta.
+- BL-002 — Favicon & datos generales del negocio.
+- BL-003 — Email avanzado: SMTP completo.
+- BL-004 — Zonas horarias: selector completo.
+- BL-008 — Reportes PDF.
+- Investigar y arreglar el resto de la suite de tests preexistente (37 fallos, no relacionados a esta ni a sesiones recientes).
+
+---
+
+## 📅 Sesión: 07/07/2026 — BL-029 (cont.): fix fuente de datos + preview de mensaje antes de enviar
+
+Usuario cargó `recurrence_days` en los servicios reales (Baño chico/mediano/grande = 30 días) y reportó que la pantalla Recurrencias no mostraba nada. Al investigar, se detectó un bug de raíz más profundo que el esperado.
+
+**Bug encontrado — fuente de datos huérfana (ver NT-020):** `executed_services`/`executed_service_items` (de donde Recurrencias leía el historial) tienen **0 filas en producción** pese a haber citas SPA completadas. Investigación (agente explorador) confirmó que `App\Domain\Execution\Services\ExecutedServiceService::convertFromBooking()` nunca se conectó a ningún flujo real — no está bindeado en ningún ServiceProvider ni se llama desde ningún controlador. Las tres rutas reales que marcan una cita `completed` (`SpaBookingController`, `Api/PaymentController`, `Api/BookingController`) solo hacen `$booking->update(['status' => 'completed'])`. El historial real vive en `spa_bookings` (status completed) + `spa_booking_services`.
+
+**Fix:** `RecurrenceMessageController::lastServiceDatesByPet()` corregido para leer de `spa_booking_services` JOIN `spa_bookings WHERE status = 'completed'`. Verificado con datos reales de producción: ahora detecta correctamente a "Firulais" vencido en Baño hace ~10-11 días. Tests actualizados para usar `SpaBooking`/`SpaBookingService` en vez de `ExecutedService`/`ExecutedServiceItem` como fixtures.
+
+**Feature nueva — preview del mensaje antes de enviar:** usuario pidió poder ver una vista previa del mensaje resuelto (con la plantilla ya elegida) antes de abrir WhatsApp, igual en Bandeja Diaria y en Recurrencias (comparten el mismo componente Alpine `whatsappBandeja`).
+- `BookingMessageController::preview()` y `RecurrenceMessageController::preview()` — nuevos endpoints que resuelven el mensaje (mismo `TemplateResolver` que ya se usaba) y devuelven `{message}` **sin persistir** ningún log (a diferencia de `store()`, que sí crea el registro y el link final). Lógica compartida extraída a helpers privados (`resolveMessage()` en ambos controladores) para no duplicar entre preview y envío real.
+- `whatsapp-bandeja.js` — el componente Alpine ahora llama a `loadPreview()` al abrir la cola y en cada `advance()`, mostrando el texto resuelto en el modal antes de habilitar "Abrir WhatsApp" (deshabilitado si `previewError` — mismo motivo por el que fallaría el envío real, ej. teléfono inválido).
+- Modal de envío extraído a partial compartido `whatsapp/_send-queue-modal.blade.php` (antes duplicado idéntico en bandeja y recurrencias) — ahora más ancho (`modal-lg`) para el bloque de preview.
+- Nuevas rutas `whatsapp.bandeja.preview` y `whatsapp.recurrencias.preview`.
+
+**Verificación:**
+- `npm run build` — assets compilados sin errores, `public/build/` actualizado (se commitea, no hay pipeline de build separado en producción).
+- Suite completa filtrada `WhatsApp|Service|Agenda`: 22 tests pasan (incluye 2 nuevos de preview + los 7 anteriores de Recurrencias ajustados a la fuente de datos correcta), mismos 4 fallos preexistentes de `ServiceOperatorRoleLinkTest` sin relación.
+- Verificado con datos reales vía `artisan tinker` invocando los controladores directamente (bypass de sesión/CSRF que no aplica en ese contexto): `preview()` de Recurrencias devuelve el mensaje resuelto completo para Firulais/Baño; `preview()` de Bandeja Diaria resuelve correctamente para una cita real. **No se confirmó visualmente en navegador real** — sigue sin haber herramienta de automatización de navegador en este entorno.
+
+### 📁 Archivos Modificados/Creados
+- `apps/backoffice-laravel/app/Http/Controllers/RecurrenceMessageController.php` — fix fuente de datos (`spa_booking_services`/`spa_bookings`), método `preview()`, helpers `loadRecipient()`/`resolveMessage()`
+- `apps/backoffice-laravel/app/Http/Controllers/BookingMessageController.php` — método `preview()`, helper `resolveMessage()`
+- `apps/backoffice-laravel/resources/js/modules/whatsapp-bandeja.js` — `loadPreview()`, estado `previewMessage`/`previewLoading`/`previewError`
+- `apps/backoffice-laravel/resources/views/whatsapp/_send-queue-modal.blade.php` — nuevo (partial compartido)
+- `apps/backoffice-laravel/resources/views/whatsapp/bandeja/index.blade.php`, `recurrencias/index.blade.php` — usan el partial + `previewUrlTemplate`
+- `apps/backoffice-laravel/routes/web.php` — rutas `whatsapp.bandeja.preview`, `whatsapp.recurrencias.preview`
+- `apps/backoffice-laravel/tests/Feature/WhatsApp/RecurrenceMessageFlowTest.php` — fixtures migradas a `SpaBooking`, test de preview
+- `apps/backoffice-laravel/tests/Feature/WhatsApp/BookingMessageFlowTest.php` — test de preview
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-020
+- `docs/tecnico/MODELO_BD.md` — corrección de fuente de datos en `recurrence_messages`, advertencia en sección `Ejecución`
+
+### 🛑 Pendientes activos
+- **Confirmar visualmente en navegador** ambas pantallas con el nuevo preview.
+- **Push a GitHub** — este trabajo (y el de la sesión anterior BL-029) sigue sin commitear.
+- Decidir si vale la pena cablear `ExecutedServiceService::convertFromBooking()` a los tres flujos de completado (para tener snapshot histórico inmutable) o aceptar `spa_booking_services` como fuente permanente pese a su limitación (se sobreescribe si se edita una cita ya completada).
+- BL-028 — estrategia firewall (ufw) para la OPi.
+- BL-024b — Fase 2 de WhatsApp.
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta.
+- BL-002 — Favicon & datos generales del negocio.
+- BL-003 — Email avanzado: SMTP completo.
+- BL-004 — Zonas horarias: selector completo.
+- BL-008 — Reportes PDF.
+- Investigar y arreglar el resto de la suite de tests preexistente (37 fallos, no relacionados a esta ni a sesiones recientes).
+
+---
+
+## 📅 Sesión: 06/07/2026 — BL-029: Recordatorios de recurrencia (WhatsApp > Recurrencias)
+
+Usuario notó que casi todos los servicios son recurrentes (ej. baño cada 20 días) y quiere que el sistema detecte automáticamente qué mascotas ya cumplieron su ciclo para poder mandarles recordatorio. Preguntó si se podía hacer un "barrido" a la apertura del día.
+
+**Decisión de diseño (confirmada con el usuario vía pregunta):** no hay cron/scheduler de Laravel configurado en la OPi (`routes/console.php` solo tiene el comando `inspire` de ejemplo; no hay entrada de cron para `schedule:run`). En vez de agregar infraestructura nueva, el barrido se calcula **bajo demanda** al abrir la pantalla — mismo patrón que la Bandeja Diaria (BL-024), a la que el usuario pidió parecerse, llamándola "Recurrencias".
+
+**Implementación:**
+- `services.recurrence_days` (unsigned smallint nullable) — nueva columna; `null` = servicio no recurrente. Editable desde el catálogo de servicios (`services/partials/form.blade.php`, `show.blade.php`).
+- `App\Http\Controllers\RecurrenceMessageController` — `index()` calcula, por cada servicio activo con `recurrence_days`, la última fecha de ejecución por mascota (`executed_service_items.service_id` + `executed_services.executed_at`, `MAX` agrupado) y filtra las que ya cumplieron `última_fecha + recurrence_days <= hoy`. Solo se consideran mascotas con al menos una ejecución previa del servicio (sin baseline no hay recurrencia que calcular). `store($key)` recibe una clave compuesta `"petId:serviceId"` (ruta con constraint regex `[0-9]+:[0-9]+`), resuelve teléfono y plantilla, y genera el link `wa.me` igual que la bandeja diaria.
+- Nueva tabla `recurrence_messages` (log de envíos, mismo patrón que `booking_messages` pero sin `spa_booking_id`) — sirve para marcar "ya enviado hoy" sin suprimir el recordatorio en días siguientes si la mascota sigue sin recibir el servicio.
+- `whatsapp_templates.context` (`cita`|`recurrencia`, default `cita`) — las plantillas ahora se filtran por contexto en cada bandeja; `TemplateResolver::availableVariables()`/`resolveForRecurrence()` exponen variables propias para recurrencia (`{ultima_fecha}`, `{dias_vencido}`) vs. las de cita (`{fecha}`, `{hora}`). El formulario de plantilla (`_form.blade.php`) cambia el set de variables disponibles según el contexto seleccionado (Alpine.js, sin recargar).
+- Nueva pantalla `whatsapp/recurrencias` — reutiliza el mismo componente Alpine `whatsappBandeja` (sin tocar el JS) pasando como `id` la clave compuesta `petId:serviceId`. Nuevo item de navegación "Recurrencias" en el menú WhatsApp.
+
+**Verificación:**
+- Migraciones aplicadas en producción (`docker exec estetican_app php artisan migrate --force`) + `view:clear`/`config:clear`/`route:clear`/`cache:clear`.
+- Producción aún no tiene historial de `executed_services` (sistema joven, 0 registros) — no se pudo verificar con datos reales. Se creó `tests/Feature/WhatsApp/RecurrenceMessageFlowTest.php` (6 tests) cubriendo: render de la página, mascota vencida aparece, mascota no vencida no aparece, servicio sin recurrencia se ignora, envío exitoso crea `recurrence_message` y retorna `wa_link`, y falla controladamente sin teléfono válido. Los 6 pasan.
+- Se corrió la suite completa filtrada por `WhatsApp|Service`: los mismos 4 fallos preexistentes de `ServiceOperatorRoleLinkTest` (confirmados vía `git stash` que ya fallaban en `main` antes de este cambio, no relacionados) — cero regresiones nuevas.
+- Verificación funcional del stack completo (controller + vista Blade + rutas) vía `artisan tinker` disparando el request internamente con usuario autenticado — `GET /whatsapp/recurrencias` responde 200 y contiene el header esperado. **No se confirmó visualmente en navegador real** — no hay herramienta de automatización de navegador disponible en este entorno (mismo pendiente que sesiones anteriores).
+
+### 📁 Archivos Modificados/Creados
+- `apps/backoffice-laravel/database/migrations/2026_07_06_000001_add_recurrence_days_to_services_table.php` — nuevo
+- `apps/backoffice-laravel/database/migrations/2026_07_06_000002_add_context_to_whatsapp_templates_table.php` — nuevo
+- `apps/backoffice-laravel/database/migrations/2026_07_06_000003_create_recurrence_messages_table.php` — nuevo
+- `apps/backoffice-laravel/app/Models/Service.php`, `WhatsAppTemplate.php` — `recurrence_days`, `context`, relación `recurrenceMessages()`
+- `apps/backoffice-laravel/app/Models/RecurrenceMessage.php` — nuevo
+- `apps/backoffice-laravel/app/Http/Controllers/RecurrenceMessageController.php` — nuevo
+- `apps/backoffice-laravel/app/Http/Controllers/ServiceController.php`, `WhatsAppTemplateController.php`, `BookingMessageController.php` — validación/payload `recurrence_days` y `context`
+- `apps/backoffice-laravel/app/Support/WhatsApp/TemplateResolver.php` — `availableVariables($context)`, `resolveForRecurrence()`
+- `apps/backoffice-laravel/app/Support/Navigation/Groups/WhatsAppNavigation.php`, `app/Support/Pages/WhatsAppPage.php` — item y breadcrumbs de Recurrencias
+- `apps/backoffice-laravel/resources/views/whatsapp/recurrencias/index.blade.php` — nuevo
+- `apps/backoffice-laravel/resources/views/services/partials/form.blade.php`, `show.blade.php` — campo/display de recurrencia
+- `apps/backoffice-laravel/resources/views/whatsapp/plantillas/_form.blade.php`, `index.blade.php` — selector de contexto, badge, conteo combinado
+- `apps/backoffice-laravel/routes/web.php` — rutas `whatsapp.recurrencias`, `whatsapp.recurrencias.enviar`
+- `apps/backoffice-laravel/tests/Feature/WhatsApp/RecurrenceMessageFlowTest.php` — nuevo
+- `docs/tecnico/MODELO_BD.md` — `services.recurrence_days`, tabla `recurrence_messages`, `whatsapp_templates.context`
+- `docs/tecnico/BACKLOG.md` — BL-029
+
+### 🛑 Pendientes activos
+- **Confirmar visualmente en navegador** la pantalla Recurrencias y el selector de contexto en Plantillas.
+- **Push a GitHub** — este trabajo no se ha commiteado todavía.
+- Cargar `recurrence_days` en los servicios reales del catálogo (hoy todos quedaron en `null` tras la migración) para que la pantalla empiece a mostrar resultados.
+- BL-028 — estrategia firewall (ufw) para la OPi.
+- BL-024b — Fase 2 de WhatsApp.
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta.
+- BL-002 — Favicon & datos generales del negocio.
+- BL-003 — Email avanzado: SMTP completo.
+- BL-004 — Zonas horarias: selector completo.
+- BL-008 — Reportes PDF.
+- Investigar y arreglar el resto de la suite de tests preexistente (37 fallos, no relacionados a esta ni a sesiones recientes).
+
+---
+
 ## 📅 Sesión: 03/07/2026 (cont. 2) — Corrección BL-027: grid tipo Google Calendar en Agenda móvil
 
 Usuario probó la vista Semana/Mes de la sesión anterior (lista vertical agrupada por día) y pidió explícitamente que fuera "como la de Google Calendar según se seleccione por día, semana o mes" — revirtiendo la decisión de diseño tomada en esa sesión (grid ilegible a ~360px de ancho).

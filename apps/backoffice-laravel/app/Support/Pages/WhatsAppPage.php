@@ -15,6 +15,15 @@ class WhatsAppPage extends BasePage
         );
     }
 
+    public static function recurrencias(): array
+    {
+        return static::page(
+            [static::home(), ['label' => 'Recurrencias', 'current' => true]],
+            static::header('Comunicaciones', 'Recordatorios de recurrencia', 'Mascotas cuyo servicio periódico (ej. baño cada 20 días) ya se cumplió — envía el recordatorio de WhatsApp con la plantilla elegida.'),
+            'WspRec',
+        );
+    }
+
     public static function plantillasIndex(): array
     {
         return static::page(

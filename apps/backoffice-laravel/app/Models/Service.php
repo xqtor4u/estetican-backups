@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'duration_minutes',
     'suggested_duration_minutes',
     'lead_time_hours',
+    'recurrence_days',
     'is_active',
 ])]
 class Service extends Model
@@ -34,6 +35,7 @@ class Service extends Model
             'duration_minutes' => 'integer',
             'suggested_duration_minutes' => 'integer',
             'lead_time_hours' => 'integer',
+            'recurrence_days' => 'integer',
             'is_active' => 'boolean',
             'requires_advance' => 'boolean',
         ];

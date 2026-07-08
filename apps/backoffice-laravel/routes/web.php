@@ -20,6 +20,7 @@ use App\Http\Controllers\OperatorRoleController;
 use App\Http\Controllers\PetController;
 use App\Http\Controllers\PetMedicalAlertController;
 use App\Http\Controllers\PetPhotoController;
+use App\Http\Controllers\RecurrenceMessageController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ResourceController;
 use App\Http\Controllers\ResourceEventController;
@@ -92,7 +93,15 @@ Route::middleware('auth')->group(function () {
 
     // Recordatorios WhatsApp (BL-024 Fase 1)
     Route::get('whatsapp/bandeja', [BookingMessageController::class, 'index'])->name('whatsapp.bandeja');
+    Route::post('whatsapp/bandeja/{booking}/preview', [BookingMessageController::class, 'preview'])->name('whatsapp.bandeja.preview');
     Route::post('whatsapp/bandeja/{booking}/enviar', [BookingMessageController::class, 'store'])->name('whatsapp.bandeja.enviar');
+    Route::get('whatsapp/recurrencias', [RecurrenceMessageController::class, 'index'])->name('whatsapp.recurrencias');
+    Route::post('whatsapp/recurrencias/{key}/preview', [RecurrenceMessageController::class, 'preview'])
+        ->where('key', '[0-9]+:[0-9]+')
+        ->name('whatsapp.recurrencias.preview');
+    Route::post('whatsapp/recurrencias/{key}/enviar', [RecurrenceMessageController::class, 'store'])
+        ->where('key', '[0-9]+:[0-9]+')
+        ->name('whatsapp.recurrencias.enviar');
     Route::resource('whatsapp/plantillas', WhatsAppTemplateController::class)
         ->parameters(['plantillas' => 'template'])
         ->names('whatsapp.plantillas');

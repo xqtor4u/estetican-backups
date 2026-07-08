@@ -157,6 +157,7 @@ class ServiceController extends Controller
             'description' => 'nullable|string',
             'suggested_price' => 'required|numeric|min:0',
             'suggested_duration_minutes' => 'required|integer|min:0',
+            'recurrence_days' => 'nullable|integer|min:1',
             'is_active' => 'nullable|boolean',
         ];
     }
@@ -185,6 +186,7 @@ class ServiceController extends Controller
             'suggested_price' => $suggestedPrice,
             'duration_minutes' => $suggestedDuration,
             'suggested_duration_minutes' => $suggestedDuration,
+            'recurrence_days' => $validated['recurrence_days'] ?? null,
             'is_active' => !empty($validated['is_active']),
         ];
     }

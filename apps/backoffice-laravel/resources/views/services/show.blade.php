@@ -51,6 +51,9 @@
                     <dt class="col-sm-4">Duración sugerida</dt>
                     <dd class="col-sm-8">{{ $service->suggested_duration_minutes }} minutos</dd>
 
+                    <dt class="col-sm-4">Recurrencia</dt>
+                    <dd class="col-sm-8">{{ $service->recurrence_days ? 'Cada ' . $service->recurrence_days . ' días' : 'No aplica' }}</dd>
+
                     <dt class="col-sm-4">Estado</dt>
                     <dd class="col-sm-8">{{ $service->is_active ? 'Activo' : 'Inactivo' }}</dd>
                 </dl>

@@ -47,6 +47,9 @@
 - [ ] **Foto de la sesión desde app móvil** — subir foto `ingreso`/`resultado` directamente desde la cita activa (categorías del modelo `PetPhoto`).
 - [ ] **Nueva cita desde GlobalAgenda** — botón FAB en la agenda que pregunte mascota antes de abrir MobCitaNueva (hoy solo se puede crear desde ficha de mascota).
 
+## 🧾 Historial de Servicios Ejecutados (idea surgida 07/07/2026, ver NT-020)
+- [ ] **Cablear `ExecutedServiceService::convertFromBooking()`** a los tres flujos reales que marcan una cita `completed` (`SpaBookingController`, `Api/PaymentController`, `Api/BookingController`) para que `executed_services`/`executed_service_items` empiecen a poblarse con un snapshot histórico inmutable. Hoy WhatsApp > Recurrencias (BL-029) lee de `spa_bookings`/`spa_booking_services` como workaround, que tiene una limitación real: si se edita una cita ya completada, `spa_booking_services` se borra y recrea, perdiendo el detalle histórico exacto de qué se hizo y cuándo. Evaluar si vale la pena vs. aceptar la limitación actual (el sistema opera con pocas ediciones post-completado).
+
 ## 💰 Caja y Finanzas — mejoras futuras (ideas surgidas 16/06/2026)
 - [ ] **`branch_id` en `spa_bookings` y `payments`** — actualmente `spa_bookings` no tiene columna `branch_id`, lo que impide filtrar cobros por sucursal en el balance de movimientos. Agregar la columna (migración) y poblarla al crear la cita; hacer lo mismo en `payments`. Esto permitiría que `GET /api/cash/movements` filtre cobros por sucursal del operador (ver NT-011).
 - [ ] **Saldo inicial en el balance de movimientos** — `MobCajaMovimientos` muestra neto del período (entradas − salidas) pero no el fondo inicial de la sesión de caja. Para un balance completo debería mostrar: fondo inicial + entradas − salidas = saldo esperado. Requiere ligar el período del balance a la sesión de caja correspondiente.

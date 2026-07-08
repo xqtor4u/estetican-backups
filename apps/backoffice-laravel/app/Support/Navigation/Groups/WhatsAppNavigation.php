@@ -19,6 +19,14 @@ class WhatsAppNavigation
             ];
 
             $items[] = [
+                'label' => 'Recurrencias',
+                'description' => 'Mascotas con servicio recurrente vencido (ej. baño cada 20 días) listas para recordatorio.',
+                'route' => route('whatsapp.recurrencias'),
+                'debug_id' => 'WspRec',
+                'active' => request()->routeIs('whatsapp.recurrencias'),
+            ];
+
+            $items[] = [
                 'label' => 'Plantillas de mensaje',
                 'description' => 'Mensajes predefinidos con variables ({cliente}, {mascota}, {servicio}...).',
                 'route' => route('whatsapp.plantillas.index'),

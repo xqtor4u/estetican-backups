@@ -13,6 +13,7 @@ class WhatsAppTemplate extends Model
     protected $fillable = [
         'name',
         'body',
+        'context',
         'is_active',
         'created_by_user_id',
     ];
@@ -27,6 +28,11 @@ class WhatsAppTemplate extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(BookingMessage::class, 'whatsapp_template_id');
+    }
+
+    public function recurrenceMessages(): HasMany
+    {
+        return $this->hasMany(RecurrenceMessage::class, 'whatsapp_template_id');
     }
 
     public function createdBy(): BelongsTo

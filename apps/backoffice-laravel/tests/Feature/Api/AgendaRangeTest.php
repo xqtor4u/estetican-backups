@@ -105,4 +105,18 @@ class AgendaRangeTest extends TestCase
         $response->assertOk();
         $this->assertCount(1, $response->json());
     }
+
+    public function test_operators_field_includes_directly_assigned_operator_without_an_accepted_quote(): void
+    {
+        $booking = $this->booking('2026-07-06 09:00:00');
+
+        $response = $this->withHeaders($this->authHeader())
+            ->getJson('/api/agenda?date=2026-07-06');
+
+        $response->assertOk();
+        $operators = $response->json()[0]['operators'];
+
+        $this->assertCount(1, $operators);
+        $this->assertSame($booking->operator_id, $operators[0]['id']);
+    }
 }

@@ -8,6 +8,7 @@
 >
     <x-slot:actions>
         <a href="{{ route('whatsapp.bandeja') }}" class="btn btn-outline-secondary">Bandeja diaria</a>
+        <a href="{{ route('whatsapp.recurrencias') }}" class="btn btn-outline-secondary">Recurrencias</a>
         <a href="{{ route('whatsapp.plantillas.create') }}" class="btn btn-primary">Nueva plantilla</a>
     </x-slot:actions>
 </x-page-header>
@@ -32,6 +33,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>Nombre</th>
+                        <th style="width:130px">Contexto</th>
                         <th>Mensaje</th>
                         <th style="width:100px">Usos</th>
                         <th style="width:100px">Estado</th>
@@ -42,8 +44,15 @@
                     @forelse($templates as $template)
                         <tr>
                             <td class="fw-semibold">{{ $template->name }}</td>
+                            <td>
+                                @if($template->context === 'recurrencia')
+                                    <span class="badge bg-info-subtle text-info-emphasis">Recurrencias</span>
+                                @else
+                                    <span class="badge bg-primary-subtle text-primary-emphasis">Bandeja diaria</span>
+                                @endif
+                            </td>
                             <td class="small text-muted">{{ \Illuminate\Support\Str::limit($template->body, 80) }}</td>
-                            <td>{{ $template->messages_count }}</td>
+                            <td>{{ $template->messages_count + $template->recurrence_messages_count }}</td>
                             <td>
                                 @if($template->is_active)
                                     <span class="badge bg-success-subtle text-success-emphasis">Activa</span>
@@ -62,7 +71,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">Aún no hay plantillas de mensaje.</td>
+                            <td colspan="6" class="text-center text-muted py-4">Aún no hay plantillas de mensaje.</td>
                         </tr>
                     @endforelse
                 </tbody>
