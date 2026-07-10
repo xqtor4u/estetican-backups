@@ -28,17 +28,10 @@ export const MENU_SECTIONS = [
   {
     title: 'Principal',
     items: [
-      { to: '/agenda',     icon: 'calendar_month', label: 'Agenda' },
-      { to: '/equipo',     icon: 'group',          label: 'Equipo' },
-      { to: '/groomer',    icon: 'content_cut',    label: 'Operador' },
-      { to: '/directorio', icon: 'contacts',       label: 'Directorio' },
-    ],
-  },
-  {
-    title: 'Mascotas y clientes',
-    items: [
-      { to: '/mascotas',             icon: 'pets',          label: 'Mascotas' },
-      { to: '/clientes/seleccionar', icon: 'person_search', label: 'Clientes' },
+      { to: '/agenda',               icon: 'calendar_month', label: 'Agenda' },
+      { to: '/mascotas',             icon: 'pets',           label: 'Mascotas' },
+      { to: '/clientes/seleccionar', icon: 'person_search',  label: 'Clientes' },
+      { to: '/groomer',              icon: 'content_cut',    label: 'Operador' },
     ],
   },
   {

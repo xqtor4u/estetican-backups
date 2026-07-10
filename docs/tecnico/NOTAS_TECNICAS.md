@@ -677,3 +677,22 @@ Antes de construir cualquier feature nueva sobre `ExecutedService`/`ExecutedServ
 
 **Lección:** cualquier integración nueva con un servicio externo (tiles, geocodificación, APIs de terceros) debe agregarse explícitamente a la CSP — no basta con que el código JS esté bien escrito, el navegador la bloquea de forma completamente silenciosa (sin excepción JS, sin respuesta HTTP fallida visible) si el dominio no está en la whitelist. Al agregar cualquier `fetch()`/`<img>`/`<script>` hacia un dominio externo nuevo, verificar primero `app/Http/Middleware/ContentSecurityPolicy.php`.
 
+---
+
+## NT-023 — `users.is_operator`/`operator_code` existían en producción sin migración que los creara (schema drift)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-10 |
+| **Severidad** | P2 — Alto (rompe tests y cualquier entorno nuevo/`migrate:fresh`, sin afectar producción ya migrada) |
+| **Componente** | `app/Models/User.php`, tabla `users` |
+| **Impacto** | Base de datos `testing` (usada por PHPUnit) y cualquier instalación nueva — `INSERT`/`Schema` fallan con `Unknown column 'is_operator'` |
+
+**Síntoma:** al escribir tests para el endpoint `/api/team` (BL-033), crear un `User` con `is_operator`/`operator_id` fallaba con `SQLSTATE[42S22]: Column not found: 1054 Unknown column 'is_operator'` contra la base `testing`, pese a que el modelo `User` las declara en `$fillable` y se usan activamente en producción (`Api\CheckinController`, filtros de operador).
+
+**Causa raíz:** la base de datos de producción (`estetican`) sí tiene las columnas `is_operator` (`tinyint(1) not null default 0`) y `operator_code` (`varchar(255) unique nullable`), pero **ninguna migración del repositorio las crea** — `grep -rl "is_operator" database/migrations/` no devuelve nada. Se agregaron en algún momento directo contra producción (probablemente vía `Schema::` ad-hoc en `tinker`, ver patrón de riesgo ya documentado en la sesión de BITACORA del 07/07/2026 sobre `tinker` sin transacción explícita) sin dejar el migration file correspondiente commiteado. La base `testing` nunca las tuvo porque solo corre las migraciones versionadas.
+
+**Solución aplicada:** migración nueva `2026_07_10_000001_add_is_operator_and_operator_code_to_users_table.php`, idempotente (`Schema::hasColumn` guard, mismo patrón que `2026_03_28_000001_add_operator_fields_to_users_table.php`) — no-op confirmado en producción (`php artisan migrate --force` no alteró nada), aplicó limpio en `testing`.
+
+**Lección:** cualquier cambio de esquema debe pasar por una migración commiteada, nunca por `Schema::`/`DB::statement` suelto en `tinker` contra producción — si se hace por urgencia, hay que escribir el migration file (con guard `hasColumn`) en la misma sesión, o el drift queda invisible hasta que algo (como un test nuevo) lo destapa. Si un test falla con `Unknown column` en un campo que sí existe en producción, sospechar de esto antes que de un bug de test.
+

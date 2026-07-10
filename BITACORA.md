@@ -1,5 +1,51 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 10/07/2026 — App móvil: `MobTeam` conectado a datos reales (BL-033) + fix schema drift (NT-023)
+
+Usuario pidió proponer el desarrollo de `MobTeam` (pantalla "Equipo" de la app móvil operador). Antes de proponer, se investigó con un agente explorador qué datos reales existían detrás — resultó ser un mockup 100% estático (nombres "María G."/"Carlos M.", fotos de placeholder, "Turno 08:00-16:00" y contadores todos hardcodeados en el componente). Tras compararlo con la pantalla "Operador" (`/groomer`, agenda individual de una persona) para aclarar que "Equipo" es un panel de estado en vivo de todos a la vez —propósito distinto—, el usuario pidió implementar directamente ("ya hazlo").
+
+**Implementación (BL-033):**
+- Nuevo endpoint `GET /api/team` → `Api\OperatorController::team()`. Por cada operador activo agrega: estado de check-in real (`OperatorCheckin` sin `checked_out_at`, vía `User.operator_id`), pendientes/completadas de **hoy** (`SpaBooking.status`/`scheduled_at`), y "trabajo actual" si tiene una `SpaBooking` con `status = work_order` hoy (mascota + servicio + hora).
+- `mob_apps/operador/src/admin/TeamPanel.tsx` reescrito para consumir `/api/team` (poll cada 30s). Badge de estado derivado (no inventado): **En Servicio** (con `work_order` abierto) / **Disponible** (check-in sin trabajo activo) / **Fuera de turno** (sin check-in). Se eliminó el "Turno 08:00-16:00" — no existe ese dato en el esquema, no se inventó nada nuevo para reemplazarlo, solo se muestra la hora real de check-in. "Resumen Operativo" (completadas hoy, en curso, % del equipo con check-in) ahora agrega datos reales en vez de números fijos.
+- 3 tests nuevos (`tests/Feature/Api/TeamPanelTest.php`) — sin checkin, con checkin+trabajo activo, checkout no cuenta como activo.
+
+**Bug encontrado de paso (NT-023) — schema drift:** al escribir los tests, crear un `User` con `is_operator`/`operator_id` fallaba en la base `testing` con `Unknown column 'is_operator'`. Investigación: esa columna (y `operator_code`) existen en producción pero **ninguna migración del repo las crea** — se agregaron alguna vez directo contra producción sin dejar migration commiteada. Fix: migración nueva idempotente (`Schema::hasColumn` guard); confirmado no-op real en producción (`migrate --force` no alteró nada), aplicó limpio en `testing`.
+
+**Verificación:**
+- `php artisan test --filter TeamPanelTest`: 3/3 pasan.
+- Suite completa: 37 fallidas (exactamente las mismas preexistentes documentadas), 73 pasan — nada nuevo roto.
+- `npx tsc --noEmit` y `npm run build`: sin errores nuevos en `TeamPanel.tsx` (los errores preexistentes de `ActiveService.tsx`/`AssignService.tsx`/`MobCajaMovimientos.tsx` no se tocaron, no son de esta sesión).
+- Verificado contra datos reales de producción invocando el controlador directo vía `tinker` (solo lectura, sin persistir nada): devuelve forma correcta para los 2 operadores reales existentes.
+- **No se confirmó visualmente en el celular/navegador real** — sigue sin haber herramienta de automatización de navegador en este entorno.
+
+### 📁 Archivos Modificados/Creados
+- `apps/backoffice-laravel/app/Http/Controllers/Api/OperatorController.php` — método `team()`
+- `apps/backoffice-laravel/routes/api.php` — ruta `GET /api/team`
+- `apps/backoffice-laravel/database/migrations/2026_07_10_000001_add_is_operator_and_operator_code_to_users_table.php` — nuevo (fix NT-023)
+- `apps/backoffice-laravel/tests/Feature/Api/TeamPanelTest.php` — nuevo
+- `mob_apps/operador/src/admin/TeamPanel.tsx` — reescrito completo, datos reales
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-023
+- `docs/tecnico/BACKLOG.md` — BL-033, fix schema drift en Completados
+
+### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
+1. **Confirmar visualmente `/equipo` en el celular/navegador real**: ¿se ven los operadores reales?, ¿el badge de estado (Disponible/En Servicio/Fuera de turno) tiene sentido?, ¿el check-in real desde la app se refleja ahí?
+2. **Sigue pendiente de la sesión anterior (07/07/2026): probar `/mapa-zonas` en el navegador** — no se confirmó en esta sesión, el usuario cambió de tema hacia `MobTeam`. Ver detalle en la entrada de sesión de abajo.
+3. **Si ambos se confirman → hacer `git push`** — sigue sin pushearse, ahora son 2 commits pendientes adelante de `origin/main` (el de `AX-MAPZN` + el de `MobTeam`/NT-023 de hoy).
+
+### Otros pendientes (no urgentes)
+- BL-031 — entidad espacial genérica, sigue sin acotar por el usuario; no planear hasta que decida si hace falta.
+- Decidir si vale la pena cablear `ExecutedServiceService::convertFromBooking()` (ver NT-020).
+- BL-028 — estrategia firewall (ufw) para la OPi.
+- BL-024b — Fase 2 de WhatsApp.
+- BL-001 — Tema de UI: persistencia y cambio reactivo de paleta.
+- BL-002 — Favicon & datos generales del negocio.
+- BL-003 — Email avanzado: SMTP completo.
+- BL-004 — Zonas horarias: selector completo.
+- BL-008 — Reportes PDF.
+- Investigar y arreglar el resto de la suite de tests preexistente (37 fallos, no relacionados a esta ni a sesiones recientes).
+
+---
+
 ## 📅 Sesión: 07/07/2026 (cont. 3) — Mapa y Cobertura Espacial, versión mínima (BL-032, AX-MAPZN) + fix CSP
 
 Usuario planteó una idea grande (entidad espacial genérica ligada muchos-a-muchos a personas/objetos/documentos — quedó documentada como BL-031, todavía sin acotar por el propio usuario) pero pidió explícitamente una versión mínima ya: "por ahora necesito esos campos en esa ventana para navegar y pensar en ideas". Se armó plan formal (`EnterPlanMode`/`ExitPlanMode`, con exploración de código y un agente de diseño) y se construyó una pantalla real, simple, sin la arquitectura genérica.
@@ -41,9 +87,12 @@ Usuario planteó una idea grande (entidad espacial genérica ligada muchos-a-muc
 - `docs/tecnico/BACKLOG.md` — BL-032, fix CSP en Completados, BL-031 actualizado
 - `docs/architecture/IDEAS_FUTURO.md` — marcada versión mínima como construida, BL-031 sigue abierta
 
-### 🛑 Pendientes activos
-- **Confirmar visualmente en navegador** — el usuario probará mañana: ¿carga el mapa?, ¿el clic para ubicar mascota/vehículo funciona?, ¿la geocodificación de Sucursales/Clientes ya funciona con el fix de CSP?
-- **Push a GitHub** — todo el trabajo de esta sesión (BL-029 ampliado, BL-030, BL-032, NT-021, NT-022) sigue sin commitear.
+### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
+1. **Usuario va a probar `/mapa-zonas` en el navegador** (quedó pendiente de una sesión anterior, no de hoy): ¿carga el mapa (tiles de OpenStreetMap, ya no debería verse gris)?, ¿el clic para ubicar mascota/vehículo funciona?, ¿la geocodificación automática / importar coordenadas de Sucursales y Clientes ya funciona con el fix de CSP (NT-022)? Preguntar directo antes de proponer nada nuevo.
+2. **Si todo lo anterior funcionó → hacer `git push`** (ya está comiteado: commit `84c40b0`, rama 1 commit adelante de `origin/main` — falta el push, se dejó pendiente a propósito hasta la confirmación visual).
+3. Si algo falló, diagnosticar antes de seguir con cualquier otro pendiente de la lista de abajo.
+
+### Otros pendientes (no urgentes)
 - BL-031 — entidad espacial genérica, sigue sin acotar por el usuario; no planear hasta que decida si hace falta.
 - Decidir si vale la pena cablear `ExecutedServiceService::convertFromBooking()` (ver NT-020).
 - BL-028 — estrategia firewall (ufw) para la OPi.
