@@ -1,5 +1,23 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/07/2026 — Fix tamaño `LockScreen` (NT-026) + commit/push del batch pendiente (BL-034..BL-038)
+
+Continuación de la sesión del 10/07. El usuario probó `LockScreen` en su celular real (producción, `mov.estetican.org`) y reportó el campo de contraseña y el botón "Desbloquear" demasiado chicos y no centrados. Dos rondas de ajuste de clases Tailwind (`w-full`, `flex items-center justify-center`, `max-w-xs`→`max-w-sm`) no cambiaron nada visualmente — se confirmó primero que el deploy sí estaba actualizado (esta sesión corre directo en la OPi de producción; `npm run build` en `mob_apps/operador` despliega de inmediato vía bind mount al contenedor `estetican_mob`, ver `project_opi_workflow` en memoria).
+
+**Causa raíz encontrada (NT-026):** inspeccionando el CSS compilado se encontró que `.max-w-sm{max-width:var(--spacing-sm)}` — el tema Tailwind (`index.css`, bloque `@theme`) define tokens custom `--spacing-xs`/`--spacing-sm`/etc. (4px/8px/...) pensados para utilidades como `gap-md`, pero esos nombres cortos colisionan con la escala nombrada que usan `max-w-xs`/`max-w-sm` en Tailwind v4 (comparten namespace de resolución). El contenedor de la contraseña y el botón terminaban con `max-width: 8px` real. Fix: reemplazar por valores arbitrarios explícitos (`max-w-[24rem]`, `max-w-[20rem]`) que no pasan por el lookup de tema. Confirmado por el usuario tras rebuild.
+
+**Commit/push del batch acumulado:** a pedido explícito del usuario ("antes de que se pierda"), se commiteó y pusheó todo lo que quedaba pendiente desde el 10/07 (BL-034 a BL-038, NT-023/024/025) junto con el fix de hoy (NT-026) — commit `8322bea`. `BACKLOG.md` actualizado reemplazando los "pendiente commit" por el hash real.
+
+### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
+1. Confirmar visualmente el resto de lo del 10/07 que seguía sin probar: `MobUserConfig` completo (foto, datos, contraseña, 3 modos de tema), editor de recorte/rotar/marca de agua en las 3 pantallas, fix de Mascotas (título + foto editable), candado de sesión completo (biometría, timeout de 5 min, cambio de app, "Bloquear ahora").
+2. Activar la marca de agua en Backoffice → Configuración del sistema → Fotografías si se quiere ver el efecto real (sigue apagada por default).
+3. Sigue pendiente de sesiones anteriores: probar `/mapa-zonas` (07/07/2026) — nunca se confirmó.
+4. GMT/zona horaria — sigue sin decidir (ver nota en BL-034).
+5. Decidir destino de los 4 archivos huérfanos (`ActiveService.tsx`, `GroomerDashboard.tsx`, `client/Booking.tsx`, `client/Dashboard.tsx`).
+6. **Riesgo latente (NT-026):** los tokens `--spacing-xs/sm/md/lg/xl` en `index.css` siguen colisionando con cualquier uso futuro de `max-w-{xs,sm,md,lg,xl}` (y potencialmente otras utilidades de la misma familia) en `mob_apps/operador`. No se renombraron los tokens en esta sesión — si se agregan más pantallas con ese patrón, usar valores arbitrarios (`max-w-[...]`) o renombrar los tokens custom.
+
+---
+
 ## 📅 Sesión: 10/07/2026 (cont.) — Reordenar navegación + `MobUserConfig` con cuenta real (BL-034)
 
 Continuación de la sesión de `MobTeam`. Tras commitear BL-033, el usuario notó que "Operador" y "Equipo" hacían lo mismo y pidió cambiar dos botones de la barra de navegación por accesos a Mascotas y Clientes (los más usados) — implementado y luego reordenado a pedido explícito (Agenda, Mascotas, Clientes, Operador, hamburguesa). Después reportó que `MobUserConfig` ("Configuración personal") no permitía configurar nada real: tema, GMT, nombre, contraseña, foto.
