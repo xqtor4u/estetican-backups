@@ -65,7 +65,7 @@ export function Directory() {
           </div>
         </div>
 
-        <Link to="/admin/assign">
+        <Link to="/directorio/asignar">
           <button className="fixed bottom-24 right-container-margin w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-transform duration-200 z-40">
             <span className="material-symbols-outlined">add</span>
           </button>

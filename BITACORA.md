@@ -1,5 +1,120 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 10/07/2026 (cont.) — Reordenar navegación + `MobUserConfig` con cuenta real (BL-034)
+
+Continuación de la sesión de `MobTeam`. Tras commitear BL-033, el usuario notó que "Operador" y "Equipo" hacían lo mismo y pidió cambiar dos botones de la barra de navegación por accesos a Mascotas y Clientes (los más usados) — implementado y luego reordenado a pedido explícito (Agenda, Mascotas, Clientes, Operador, hamburguesa). Después reportó que `MobUserConfig` ("Configuración personal") no permitía configurar nada real: tema, GMT, nombre, contraseña, foto.
+
+**Navegación (sin BL, cambio chico):** `MENU_SECTIONS[0]` (compartido por el menú inferior y el drawer) pasó de `Agenda/Equipo/Operador/Directorio` a `Agenda/Mascotas/Clientes/Operador`. Se quitó la sección "Mascotas y clientes" del drawer (quedaba duplicada). Las pantallas `/equipo` y `/directorio` no se borraron, solo dejaron de estar enlazadas.
+
+**`MobUserConfig` (BL-034):** antes de implementar se investigó qué tan real era cada pedido — el usuario eligió avanzar con los 5 a la vez.
+- **Nombre/apellido/correo, contraseña y foto** — reutilizan lógica ya probada del backoffice web (`UserSettingsController`, `UserPhotoImageManager`). Nuevos endpoints API: `PATCH /api/me`, `PUT /api/me/password` (valida `current_password`), `POST`/`DELETE /api/me/photo`. `User::toApiArray()` centraliza la forma del JSON (antes duplicada entre `login()` y `me()`). `AuthContext` ahora expone `setUser()` para refrescar el estado tras guardar sin relogin.
+- **Tema** — no existía ningún sistema de temas en la app móvil (solo un tema fijo `.theme-admin`, distinto del sistema de paletas del backoffice web que es BL-001). Se construyó una paleta oscura completa derivada de los tokens `*-fixed`/`*-fixed-dim` ya definidos (metodología Material 3: en modo oscuro el primario pasa a ser el tono "fixed-dim" del claro, etc.), aplicada vía `:root.dark .theme-admin` en `index.css`. Preferencia de 3 vías (Claro/Oscuro/Sistema) en `useUserPrefs`, con `bootTheme()` aplicando el tema en `main.tsx` antes del primer render (evita flash) y escuchando cambios del sistema operativo cuando está en modo "Sistema".
+- **GMT/zona horaria — deliberadamente NO implementado.** Al investigar se encontró que ningún timestamp de `spa_bookings` (ni de ningún otro modelo de negocio) tiene ancla de zona horaria — son datetimes naive, tratados implícitamente como hora local del servidor/sucursal (confirmado por un comentario ya existente en `MobCitaDet.tsx`: "sin conversión UTC"). Agregar un selector de zona horaria por usuario sin resolver esto primero mostraría horas **incorrectas** para cualquiera cuya zona no coincida con la del servidor — se decidió no construir una feature que produce datos malos. Reportado al usuario en el chat, no se volvió a preguntar (ya se había preguntado una vez este mismo tema); queda como pendiente real, no como excusa.
+
+**Editor de foto: recorte + rotar + marca de agua (BL-035):** el usuario preguntó por la diferencia entre comprimir y "zipear" (aclarado: ZIP no sirve sobre JPEG, ya comprimido) y entre subir por cámara vs archivo (aclarado: el navegador no distingue el origen, así que la compresión debe aplicarse igual sin importar de dónde vino la foto). A partir de ahí pidió que la subida de foto siempre ofrezca recortar/rotar, y opcionalmente marca de agua con nombre + fecha.
+- Se preguntó dónde debía vivir el interruptor de la marca de agua — el usuario aclaró que es **regla de negocio del Backoffice, no preferencia personal**. Nueva sección "Fotografías" en `Configuración del sistema` (`SystemSettings::definitions()`), campo `photo_watermark_enabled` (boolean, default apagado) — se sumó sola con el sistema de secciones ya declarativo existente, sin tocar el Blade de la vista. Expuesta a la app móvil vía `GET /api/settings/photos` (`Api\SettingController::photos()`).
+- Nuevo componente `PhotoEditorModal.tsx` (`src/`, reusable — hoy solo cableado a la foto de perfil): usa `cropperjs@1.6.2` (misma versión exacta fijada que ya usa el backoffice web, ver NT-001 — se agregó como dependencia nueva de `mob_apps/operador`, no se tocó la del backoffice), recorte cuadrado con guía visual circular (CSS `border-radius:50%` sobre `.cropper-view-box`/`.cropper-face`, coherente con que el avatar se muestra redondo) y botón de rotar 90°.
+- Marca de agua: al confirmar, si `watermark_enabled` es true, se dibuja en un `<canvas>` una franja semitransparente en la parte inferior con `{nombre} · {fecha}`, tamaño de letra chico pero legible (~3.5% del ancho de la imagen). La fecha usa el metadato EXIF `DateTimeOriginal` de la foto si existe — parser propio escrito a mano (`src/lib/exifDate.ts`, ~90 líneas, sin dependencia nueva) que lee el segmento APP1 de un JPEG; si no hay EXIF, usa la fecha de subida.
+- Exportación final: JPEG calidad 90% vía `canvas.toBlob()`, subido con el mismo endpoint `POST /api/me/photo` de antes (ahora recibe un `Blob` en vez de un `File` crudo).
+
+**Primera prueba en celular real → 2 bugs encontrados en Mascotas (BL-036):**
+1. **"No muestra el nombre de la pantalla"** — causa raíz: `ScreenHeader.tsx` solo renderizaba el tag de depuración (`MobPetDet`, mono chico) en el branch **sin** breadcrumbs; el branch con breadcrumbs (el que se usa casi siempre al llegar a Mascotas, porque casi siempre hay una ruta previa) nunca lo mostraba. **Bug general de toda la app**, no específico de mascotas — solo que ahí es donde más se nota. Fix: se agregó el tag también al branch de breadcrumbs.
+2. **"No puedo cambiar la foto" / "se gestiona desde el backoffice"** — cierto hasta ahora: el bloque de foto en modo edición de una mascota existente era explícitamente de solo lectura (mensaje hardcodeado, sin `<input>` de archivo — nunca se construyó, no estaba deshabilitado). El usuario notó la contradicción: ya existe la capacidad completa de tomar/subir/procesar una foto (recién construida para el perfil de usuario), así que se conectó lo mismo acá.
+   - Nuevos endpoints `POST`/`DELETE /api/pets/{pet}/photo`, mismo `PhotoEditorModal` reusado (recorte/rotar/marca de agua, con el nombre de la mascota en vez del usuario).
+   - **Bug adicional encontrado de paso:** la subida de foto de mascota vía API (`PetController::store()`, usada por la app móvil al crear) guardaba el archivo **crudo, sin comprimir en absoluto** — ignoraba por completo `PetPhotoImageManager` (que sí usa el backoffice web) y tampoco dejaba registro en la galería (`pet_photos`). Se corrigió tanto `store()` como el `updatePhoto()` nuevo para usar `PetPhotoImageManager::store()` + crear el registro de galería (`photo_type: perfil`, `is_primary`, fecha EXIF vía `extractTakenAt()` — que además ya existía en el backend, en PHP, más confiable que el parser manual de JS del punto anterior; se mantuvieron ambos porque cumplen roles distintos: uno quema la marca de agua client-side antes de subir, el otro es metadato server-side para la galería).
+
+**Verificación:**
+- Backend: 10 tests nuevos (`ProfileTest.php` ×5, `PhotoSettingsTest.php` ×2, `PetPhotoTest.php` ×3 — comprime y deja registro de galería al subir, también al crear, y se puede quitar). Suite completa: 37 fallidas (mismas preexistentes de siempre), 83 pasan — nada roto.
+- `npx tsc --noEmit` y `npm run build` (varias pasadas): sin errores nuevos en los archivos tocados; los de siempre en `ActiveService.tsx`/`AssignService.tsx`/`MobCajaMovimientos.tsx` siguen igual, no son de esta sesión. **Nota del proceso:** en un momento se corrió `npm run build` desde el directorio equivocado (`apps/backoffice-laravel` en vez de `mob_apps/operador`, arrastrado de un `cd` anterior para `docker exec`) — intentó reconstruir los assets del backoffice web y falló por permisos (`EACCES`) a mitad de camino. Se verificó con `git status` que no se borró ni modificó nada real en `public/build/`; el build correcto se corrió después desde el directorio correcto.
+- Verificado contra datos reales de producción vía `tinker` (solo lectura).
+- **No se confirmó visualmente en el celular** el fix de esta vuelta (header + foto de mascota) — recién reportado, pendiente para la próxima prueba.
+
+### 📁 Archivos Modificados/Creados
+- `apps/backoffice-laravel/app/Models/User.php` — `getProfilePhotoUrlAttribute()`, `toApiArray()`
+- `apps/backoffice-laravel/app/Http/Controllers/Api/AuthController.php` — usa `toApiArray()`, ya no duplica la forma del JSON
+- `apps/backoffice-laravel/app/Http/Controllers/Api/ProfileController.php` — nuevo (`update`, `updatePassword`, `updatePhoto`, `deletePhoto`)
+- `apps/backoffice-laravel/app/Support/SystemSettings/SystemSettings.php` — sección `media` (`photo_watermark_enabled`)
+- `apps/backoffice-laravel/app/Http/Controllers/Api/SettingController.php` — método `photos()`
+- `apps/backoffice-laravel/routes/api.php` — rutas `/me` (PATCH), `/me/password` (PUT), `/me/photo` (POST/DELETE), `/settings/photos` (GET)
+- `apps/backoffice-laravel/tests/Feature/Api/ProfileTest.php`, `PhotoSettingsTest.php` — nuevos
+- `mob_apps/operador/src/AuthContext.tsx` — `AuthUser` con `first_name`/`last_name`/`photo_url`, expone `setUser`
+- `mob_apps/operador/src/hooks/useUserPrefs.ts` — `ThemeMode`, `applyTheme()`, `bootTheme()`
+- `mob_apps/operador/src/main.tsx` — llama `bootTheme()` antes del primer render
+- `mob_apps/operador/src/index.css` — paleta oscura `:root.dark .theme-admin`
+- `mob_apps/operador/src/lib/exifDate.ts` — nuevo (parser EXIF manual)
+- `mob_apps/operador/src/PhotoEditorModal.tsx` — nuevo (recorte + rotar + marca de agua)
+- `mob_apps/operador/src/admin/MobUserConfig.tsx` — reescrito completo (foto vía editor, datos personales, contraseña, tema, navegación)
+- `mob_apps/operador/src/App.tsx` — reorden de `MENU_SECTIONS`
+- `mob_apps/operador/package.json` — `cropperjs` `1.6.2` (exacta) como dependencia nueva
+- `mob_apps/operador/src/ScreenHeader.tsx` — fix: tag de depuración visible también con breadcrumbs
+- `mob_apps/operador/src/admin/PetDetail.tsx` — foto editable en mascotas existentes y en `NewPetForm` (alta) vía `PhotoEditorModal`
+- `apps/backoffice-laravel/app/Http/Controllers/Api/PetController.php` — `updatePhoto()`/`deletePhoto()` nuevos; `store()` corregido para usar `PetPhotoImageManager` + galería
+- `apps/backoffice-laravel/tests/Feature/Api/PetPhotoTest.php` — nuevo
+- `mob_apps/operador/package.json`, `package-lock.json` — 7 dependencias sin uso desinstaladas
+- `mob_apps/operador/src/admin/Directory.tsx`, `AssignService.tsx` — links rotos corregidos; import de `Link` faltante en `AssignService.tsx`
+- `apps/backoffice-laravel/tests/Feature/Api/TeamPanelTest.php` — fix NT-024 (`$this->travelTo()`)
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-024
+- `mob_apps/operador/src/AppLockContext.tsx` — nuevo (timeout de inactividad, bloqueo por `visibilitychange`, bloqueo manual)
+- `mob_apps/operador/src/LockScreen.tsx` — nuevo (pantalla de desbloqueo por contraseña o biometría)
+- `mob_apps/operador/src/lib/webauthnLock.ts` — nuevo (WebAuthn local, sin backend)
+- `mob_apps/operador/src/App.tsx` — envuelve con `AppLockProvider`, `AuthGuard` muestra `LockScreen`, botón "Bloquear ahora" en el menú
+- `mob_apps/operador/src/admin/MobUserConfig.tsx` — sección "Seguridad" (activar biometría + info de timeout)
+- `apps/backoffice-laravel/app/Http/Controllers/Api/ProfileController.php` — `verifyPassword()` nuevo
+- `apps/backoffice-laravel/routes/api.php` — ruta `/me/verify-password` (POST)
+- `apps/backoffice-laravel/tests/Feature/Api/ProfileTest.php` — 2 tests nuevos de `verify-password`
+- `mob_apps/operador/index.html` — meta `color-scheme` (fix NT-025)
+- `mob_apps/operador/src/index.css` — CSS `color-scheme` sincronizado con `.dark` (fix NT-025)
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-025
+- `docs/tecnico/BACKLOG.md` — BL-034, BL-035, BL-036, BL-037, BL-038, fix de commits pendientes ya reflejados de BL-032/BL-033/NT-022/NT-023
+
+**Auditoría de código pedida por el usuario (BL-037):** "busca software redundante, que no se use o que no esté resuelto en mov". Sin herramienta de navegador en este entorno, se corrió un agente (fork) que hizo `tsc`/`build`/`npm audit` + revisión manual exhaustiva del código de `mob_apps/operador`. Hallazgos y qué se hizo con cada uno (decisión del usuario, no automática):
+- **7 dependencias npm sin ninguna referencia real** (`@google/genai`, `clsx`, `dotenv`, `express`, `lucide-react`, `motion`, `tailwind-merge`) — desinstaladas. Bajó de 9 a 5 los avisos de `npm audit` de paso.
+- **Links rotos en `Directory.tsx`/`AssignService.tsx`** (rutas inexistentes: `/admin/assign`, `/admin/directory`, `/agenda-global`) — corregidos a `/directorio`, `/directorio/asignar`, `/agenda`. `AssignService.tsx` además compilaba mal (`Link` usado sin importar, bug preexistente no detectado hasta ahora) — corregido.
+- **`NewPetForm` (alta de mascota) seguía con el selector de foto viejo** (sin recorte/rotar/marca de agua) — era la única de las 3 pantallas de foto que había quedado atrás de BL-035/BL-036. Ahora usa el mismo `PhotoEditorModal`.
+- **4 archivos huérfanos sin ninguna ruta ni import** (`ActiveService.tsx`, `GroomerDashboard.tsx`, `client/Booking.tsx`, `client/Dashboard.tsx`, ~730 líneas, parecen resto de un template — `package.json` se llama literalmente `"react-example"`) — **el usuario decidió no borrarlos todavía**, quedan documentados por si se retoman o se limpian después.
+- De paso, al volver a correr la suite completa del backend para verificar que nada se había roto, apareció una falla nueva no relacionada (`TeamPanelTest`) — investigado y resuelto como bug de test, no de producción (ver NT-024): un fixture usaba `now()->addHours(2)` sin anclar el reloj, y cruzó medianoche porque la suite corrió después de las 22:00. Se ancló el test a mediodía con `$this->travelTo()`.
+- **Nota de proceso:** en un momento de esta sesión se corrió `npm run build` desde el directorio equivocado (`apps/backoffice-laravel`, arrastrado de un `cd` anterior para `docker exec`) e intentó reconstruir por error los assets del backoffice web — falló por permisos antes de tocar nada real, verificado con `git status`. Ya pasó dos veces en la misma sesión por no fijar el directorio con `pwd` antes de comandos de build; a vigilar en sesiones futuras.
+
+**Verificación (auditoría):** `npx tsc --noEmit` sin errores nuevos (los mismos 2 de `ActiveService.tsx`, ya conocidos, archivo dejado sin tocar a propósito). `npm run build` sin cambios de tamaño relevantes. Suite backend completa: 37 fallidas (mismas preexistentes de siempre, confirmado post-fix de NT-024), 83 pasan.
+
+**Bloqueo de sesión — timeout + candado manual (BL-038):** el usuario preguntó por login con Face ID/huella/PIN. Se explicó la diferencia entre reemplazar el login por completo (WebAuthn real, verificado por el servidor — mucho trabajo de backend) versus un candado local sobre la sesión que ya existe (mucho más chico). El usuario aterrizó la necesidad real: timeout por inactividad + poder bloquear manualmente sin cerrar sesión — y al preguntar cómo debía desbloquearse, pidió **las dos** (contraseña y biometría).
+
+- `AppLockContext.tsx` (nuevo, patrón `AuthContext`): temporizador de inactividad (5 min, reinicia con cualquier touch/click/tecla/scroll) + bloqueo inmediato al cambiar de app (`document.visibilitychange`) + `lock()` manual. Todo vive en un contexto global (no en `AuthGuard` local) porque tanto la pantalla de bloqueo como el botón manual del menú lo necesitan, y están en partes distintas del árbol de componentes.
+- `LockScreen.tsx` (nuevo): overlay de pantalla completa, no desmonta la app de abajo (así no se pierde ningún formulario a medio llenar). Si el usuario activó biometría, intenta el desbloqueo automáticamente al aparecer; si falla o no está activada, cae a un campo de contraseña. Siempre tiene un link de "Cerrar sesión" como salida de emergencia por si alguien no puede desbloquear.
+- `lib/webauthnLock.ts` (nuevo): WebAuthn **100% local**, sin tocar el servidor — el "challenge" es aleatorio generado en el celular (no hace falta que venga del backend porque no estamos verificando identidad ante el servidor, solo confirmando que el sistema operativo aceptó el Face ID/huella/PIN). La credencial se guarda en `localStorage` del dispositivo. Esto es deliberadamente más chico que un WebAuthn "de verdad" (passwordless login real) — no hay tabla de credenciales en el backend ni verificación de firma; si en el futuro se quiere reemplazar el login completo por esto, es un proyecto aparte.
+- Backend: `POST /api/me/verify-password` (`ProfileController::verifyPassword()`) — confirma la contraseña actual sin cambiarla ni tocar el token/sesión.
+- `MobUserConfig` → nueva sección "Seguridad": activar/desactivar biometría (oculto si el navegador no soporta WebAuthn) + texto informativo del timeout. Menú (`App.tsx` → `MenuDrawer`) → botón nuevo "Bloquear ahora" junto a "Cerrar sesión".
+
+**Verificación:** 2 tests nuevos (`ProfileTest.php` — verify-password correcta/incorrecta). Suite completa: 37 fallidas (mismas de siempre), 85 pasan. `tsc`/`build` sin errores nuevos (73 módulos, +3 archivos nuevos). **No se pudo probar de punta a punta** — WebAuthn necesita hardware biométrico real de un teléfono/navegador, imposible de simular en este entorno; el timeout de inactividad y el `visibilitychange` tampoco se probaron en un dispositivo real. Es la parte de esta sesión con menos verificación real detrás.
+
+**Nota de proceso (se repitió):** el error de correr `npm run build` desde el directorio equivocado (arrastrado de un `cd` anterior a `apps/backoffice-laravel` para un `docker exec`) volvió a pasar una tercera vez en esta sesión — de nuevo sin daño (mismo error de permisos, bloqueado antes de tocar nada real, verificado con `git status`). Confirma que la persistencia de directorio entre llamadas de Bash no es confiable en este entorno; a partir de ahora conviene anteponer `cd <ruta absoluta> &&` explícito a cualquier comando de build/test, no confiar en que el directorio anterior se mantenga.
+
+**Primer reporte visual real → bug de color en `LockScreen` (NT-025):** el usuario probó `LockScreen` en su celular (Android + Chrome + tema oscuro) y reportó el campo de contraseña como "un cuadro vacío" y el botón "Desbloquear" ilegible (solo "Des..."). Sin herramienta de navegador ni acceso al dispositivo en este entorno, y sin poder recibir una captura, se diagnosticó por descarte: se confirmó que el build servido era el último compilado (no caché vieja) y se inspeccionó el CSS generado — colores, contraste y z-index estaban bien compilados, sin bug de código encontrado. Con Android + Chrome + oscuro confirmados por el usuario, la hipótesis más fuerte es **"Auto Dark Theme" de Chrome para Android** reinvirtiendo heurísticamente colores de una página que nunca declaró `color-scheme` — problema del navegador, no de la lógica de la app. Fix aplicado: `<meta name="color-scheme" content="light dark">` + CSS `color-scheme` sincronizado con la clase `.dark` existente. **Diagnóstico no confirmado por reproducción directa** — pendiente que el usuario pruebe de nuevo.
+
+### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
+1. **Confirmar si el fix de `color-scheme` (NT-025) resolvió el problema real** de `LockScreen` en Android/Chrome/oscuro — diagnóstico por descarte, sin reproducción directa, prioridad #1 de esta vuelta. Si sigue mal, pedir al usuario probar en modo claro y/o con "Forzar tema oscuro para sitios web" desactivado en los ajustes de Chrome (`chrome://settings` → Accesibilidad), para aislar si es Chrome o el código.
+2. **Confirmar visualmente en el celular**: `/equipo` (sesión anterior), la barra de navegación reordenada, `MobUserConfig` (foto, datos, contraseña, los 3 modos de tema, la sección "Seguridad"), el editor de recorte/rotar/marca de agua en las 3 pantallas (perfil, mascota existente, mascota nueva), el fix de Mascotas (título visible, foto editable), y el candado de sesión completo (BL-038): activar biometría, esperar el timeout de 5 min, cambiar de app y volver, botón "Bloquear ahora".
+3. **Activar la marca de agua en Backoffice → Configuración del sistema → Fotografías** si se quiere ver el efecto real (queda apagada por default).
+4. **Sigue pendiente de sesiones anteriores: probar `/mapa-zonas`** (07/07/2026) — nunca se confirmó.
+5. **Si todo se confirma → `git push`** — el commit `fdeb7b6` (BL-033/NT-023) ya está local; todo lo demás de esta sesión (nav + BL-034 + BL-035 + BL-036 + BL-037 + BL-038 + NT-024 + NT-025) sigue sin commitear a propósito.
+6. **GMT/zona horaria** — decidir si de verdad hace falta antes de tocar el tema. Si sí, el primer paso real es decidir cómo se ancla la zona horaria en los timestamps de negocio (`spa_bookings.scheduled_at` y equivalentes), no diseñar el selector de UI.
+7. **Decidir el destino de los 4 archivos huérfanos** (`ActiveService.tsx`, `GroomerDashboard.tsx`, `client/Booking.tsx`, `client/Dashboard.tsx`) — borrarlos o retomarlos, quedaron documentados en BL-037/`IDEAS_FUTURO.md` sin tocar.
+8. **Si el timeout de 5 minutos o el bloqueo inmediato al cambiar de app resultan muy agresivos/molestos en el uso real** — son valores fijos en `AppLockContext.tsx`, fáciles de ajustar, no hay pantalla de configuración para esto todavía (decisión deliberada de no sobre-construir sin saber si hace falta).
+
+### Otros pendientes (no urgentes)
+- BL-031 — entidad espacial genérica, sigue sin acotar por el usuario; no planear hasta que decida si hace falta.
+- Decidir si vale la pena cablear `ExecutedServiceService::convertFromBooking()` (ver NT-020).
+- BL-028 — estrategia firewall (ufw) para la OPi.
+- BL-024b — Fase 2 de WhatsApp.
+- BL-001 — Tema de UI (backoffice web): persistencia y cambio reactivo de paleta.
+- BL-002 — Favicon & datos generales del negocio.
+- BL-003 — Email avanzado: SMTP completo.
+- BL-004 — Zonas horarias (backoffice web, configuración del negocio — distinto de la zona horaria por usuario de arriba).
+- BL-008 — Reportes PDF.
+- Investigar y arreglar el resto de la suite de tests preexistente (37 fallos, no relacionados a esta ni a sesiones recientes).
+
+---
+
 ## 📅 Sesión: 10/07/2026 — App móvil: `MobTeam` conectado a datos reales (BL-033) + fix schema drift (NT-023)
 
 Usuario pidió proponer el desarrollo de `MobTeam` (pantalla "Equipo" de la app móvil operador). Antes de proponer, se investigó con un agente explorador qué datos reales existían detrás — resultó ser un mockup 100% estático (nombres "María G."/"Carlos M.", fotos de placeholder, "Turno 08:00-16:00" y contadores todos hardcodeados en el componente). Tras compararlo con la pantalla "Operador" (`/groomer`, agenda individual de una persona) para aclarar que "Equipo" es un panel de estado en vivo de todos a la vez —propósito distinto—, el usuario pidió implementar directamente ("ya hazlo").

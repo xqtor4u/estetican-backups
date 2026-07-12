@@ -476,6 +476,19 @@ class SystemSettings
                     ],
                 ],
             ],
+            'media' => [
+                'label' => 'Fotografías',
+                'description' => 'Reglas para fotos subidas desde la app móvil (perfil de usuario, mascotas, etc.).',
+                'fields' => [
+                    'photo_watermark_enabled' => [
+                        'label' => 'Marca de agua en fotos subidas',
+                        'type' => 'boolean',
+                        'default' => false,
+                        'rules' => ['nullable', 'boolean'],
+                        'help' => 'Si está activo, las fotos subidas desde la app móvil llevan una marca de agua pequeña (nombre y fecha) en la parte inferior, agregada antes de subir la foto.',
+                    ],
+                ],
+            ],
             'finanzas' => [
                 'label' => 'Finanzas',
                 'description' => 'Configuración del módulo contable, caja y documentos.',

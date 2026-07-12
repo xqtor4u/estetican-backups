@@ -3,10 +3,13 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 interface AuthUser {
   id: number;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
   roles: string[];
   is_admin: boolean;
   operator_role: string | null;
+  photo_url: string | null;
 }
 
 interface AuthContextType {
@@ -15,6 +18,7 @@ interface AuthContextType {
   loading: boolean;
   login: (username: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
+  setUser: (user: AuthUser) => void;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
@@ -103,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -82,6 +82,9 @@ class TeamPanelTest extends TestCase
 
     public function test_operator_with_active_checkin_and_open_work_order_reports_current_job(): void
     {
+        // Ancla de mediodía: evita que scheduled_at +/- horas cruce medianoche según la hora real de ejecución.
+        $this->travelTo(now()->setTime(12, 0));
+
         [$operator, $loginUser] = $this->operatorWithLogin('Con Servicio');
         $branch = Branch::create(['code' => 'SUC1', 'name' => 'Sucursal Test']);
 

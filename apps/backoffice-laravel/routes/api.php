@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PetController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Middleware\ApiAuthenticate;
@@ -20,10 +21,18 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me',      [AuthController::class, 'me']);
 
-    Route::get('/pets',         [PetController::class, 'index']);
-    Route::post('/pets',        [PetController::class, 'store']);
-    Route::get('/pets/{pet}',   [PetController::class, 'show']);
-    Route::patch('/pets/{pet}', [PetController::class, 'update']);
+    Route::patch('/me',              [ProfileController::class, 'update']);
+    Route::put('/me/password',       [ProfileController::class, 'updatePassword']);
+    Route::post('/me/verify-password', [ProfileController::class, 'verifyPassword']);
+    Route::post('/me/photo',         [ProfileController::class, 'updatePhoto']);
+    Route::delete('/me/photo',       [ProfileController::class, 'deletePhoto']);
+
+    Route::get('/pets',              [PetController::class, 'index']);
+    Route::post('/pets',             [PetController::class, 'store']);
+    Route::get('/pets/{pet}',        [PetController::class, 'show']);
+    Route::patch('/pets/{pet}',      [PetController::class, 'update']);
+    Route::post('/pets/{pet}/photo', [PetController::class, 'updatePhoto']);
+    Route::delete('/pets/{pet}/photo', [PetController::class, 'deletePhoto']);
 
     Route::get('/clients',            [ClientController::class, 'index']);
     Route::post('/clients',           [ClientController::class, 'store']);
@@ -48,6 +57,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/checkout',      [CheckinController::class, 'checkout']);
 
     Route::get('/settings/booking', [SettingController::class, 'booking']);
+    Route::get('/settings/photos',  [SettingController::class, 'photos']);
 
     Route::get('/cash/session',                               [CashController::class, 'session']);
     Route::get('/cash/movement-types',                        [CashController::class, 'movementTypes']);

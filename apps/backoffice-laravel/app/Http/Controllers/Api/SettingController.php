@@ -18,4 +18,13 @@ class SettingController extends Controller
             'closing_time' => (string) ($all['booking_closing_time'] ?? '19:00'),
         ]);
     }
+
+    public function photos(SystemSettings $settings): JsonResponse
+    {
+        $all = $settings->all();
+
+        return response()->json([
+            'watermark_enabled' => (bool) ($all['photo_watermark_enabled'] ?? false),
+        ]);
+    }
 }

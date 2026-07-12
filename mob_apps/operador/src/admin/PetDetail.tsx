@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
+import { PhotoEditorModal } from '../PhotoEditorModal';
 
 interface Owner { id: number; name: string; phone: string | null }
 interface Alert { id: number; description: string }
@@ -114,10 +115,12 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
   });
   const PHOTO_KEY = `new_pet_photo_${client.id}`;
 
-  const [photo, setPhoto] = useState<File | null>(null);
+  const [photo, setPhoto] = useState<Blob | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(() => {
     return sessionStorage.getItem(PHOTO_KEY) ?? null;
   });
+  const [editingPhotoFile, setEditingPhotoFile] = useState<File | null>(null);
+  const [watermarkEnabled, setWatermarkEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -126,13 +129,18 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(form));
   }, [form, STORAGE_KEY]);
 
+  useEffect(() => {
+    fetch('/api/settings/photos')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setWatermarkEnabled(!!data.watermark_enabled); })
+      .catch(() => {});
+  }, []);
+
   const set = (key: string) => (val: string | boolean) =>
     setForm((f: typeof form) => ({ ...f, [key]: val }));
 
-  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhoto(file);
+  const handleEditedPhoto = (blob: Blob) => {
+    setPhoto(blob);
 
     // Convertir a base64 para sobrevivir recargas de página
     const reader = new FileReader();
@@ -141,7 +149,7 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
       setPhotoPreview(b64);
       sessionStorage.setItem(PHOTO_KEY, b64);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(blob);
   };
 
   const save = async () => {
@@ -163,9 +171,9 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
     body.append('is_sterilized', form.is_sterilized ? '1' : '0');
     if (form.notes)     body.append('notes', form.notes);
 
-    // Si hay File en memoria, usarlo; si no, recuperar desde base64 en sessionStorage
+    // Si hay Blob en memoria, usarlo; si no, recuperar desde base64 en sessionStorage
     if (photo) {
-      body.append('photo', photo);
+      body.append('photo', photo, 'photo.jpg');
     } else if (photoPreview?.startsWith('data:')) {
       const res2 = await fetch(photoPreview);
       const blob = await res2.blob();
@@ -229,7 +237,12 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
                   <span className="text-[10px] font-medium">Foto</span>
                 </div>
             }
-            <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) setEditingPhotoFile(f); e.target.value = ''; }}
+            />
           </label>
           <p className="text-xs text-on-surface-variant leading-relaxed">Toca para tomar o elegir una foto desde la galería</p>
         </div>
@@ -284,6 +297,16 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
         )}
 
       </div>
+
+      {editingPhotoFile && (
+        <PhotoEditorModal
+          file={editingPhotoFile}
+          label={form.name.trim() || 'Nueva mascota'}
+          watermarkEnabled={watermarkEnabled}
+          onCancel={() => setEditingPhotoFile(null)}
+          onConfirm={blob => { setEditingPhotoFile(null); handleEditedPhoto(blob); }}
+        />
+      )}
     </div>
   );
 }
@@ -315,8 +338,34 @@ export function PetDetail() {
   const [saving, setSaving] = useState(false);
   const [edits, setEdits] = useState<EditState | null>(null);
 
+  const [editingPhotoFile, setEditingPhotoFile] = useState<File | null>(null);
+  const [watermarkEnabled, setWatermarkEnabled] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
   const set = (key: keyof EditState) => (val: string | boolean) =>
     setEdits(d => d ? { ...d, [key]: val } : d);
+
+  useEffect(() => {
+    fetch('/api/settings/photos')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setWatermarkEnabled(!!data.watermark_enabled); })
+      .catch(() => {});
+  }, []);
+
+  const uploadPetPhoto = async (blob: Blob) => {
+    if (!pet) return;
+    setPhotoUploading(true);
+    try {
+      const body = new FormData();
+      body.append('photo', blob, 'photo.jpg');
+      const res = await fetch(`/api/pets/${pet.id}/photo`, { method: 'POST', body, headers: { Accept: 'application/json' } });
+      const data = await res.json();
+      if (res.ok) setPet(p => p ? { ...p, photo: data.photo } : p);
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (isNew) return;
@@ -560,15 +609,35 @@ export function PetDetail() {
         {editing && edits && (
           <div className="flex flex-col gap-3">
 
-            {/* Foto (read-only en mobile) */}
+            {/* Foto */}
             <div className="flex items-center gap-4 pb-2">
-              <div className="w-20 h-20 rounded-2xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
-                {pet.photo
-                  ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover" />
-                  : <span className="material-symbols-outlined text-4xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
-                }
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  className="w-20 h-20 rounded-2xl bg-primary/10 overflow-hidden flex items-center justify-center"
+                >
+                  {pet.photo
+                    ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover" />
+                    : <span className="material-symbols-outlined text-4xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
+                  }
+                </button>
+                <span className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center border-2 border-surface">
+                  <span className="material-symbols-outlined text-[14px]">photo_camera</span>
+                </span>
+                {photoUploading && (
+                  <div className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-white text-xl animate-spin">progress_activity</span>
+                  </div>
+                )}
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) setEditingPhotoFile(f); e.target.value = ''; }}
+                />
               </div>
-              <p className="text-xs text-on-surface-variant">La foto se gestiona desde el backoffice</p>
+              <p className="text-xs text-on-surface-variant">Toca la foto para tomar o elegir una nueva</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -612,6 +681,16 @@ export function PetDetail() {
         )}
 
       </div>
+
+      {editingPhotoFile && (
+        <PhotoEditorModal
+          file={editingPhotoFile}
+          label={pet.name}
+          watermarkEnabled={watermarkEnabled}
+          onCancel={() => setEditingPhotoFile(null)}
+          onConfirm={blob => { setEditingPhotoFile(null); uploadPetPhoto(blob); }}
+        />
+      )}
     </div>
   );
 }

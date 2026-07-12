@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\CausesActivity;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -90,9 +91,34 @@ class User extends Authenticatable
     // Determina si el usuario es super admin (Híbrido Spatie + Campo legacy)
     public function getIsSuperAdminAttribute()
     {
-        return $this->role === 'admin' || 
-               $this->hasRole('admin') || 
+        return $this->role === 'admin' ||
+               $this->hasRole('admin') ||
                $this->hasRole('super-admin');
+    }
+
+    public function getProfilePhotoUrlAttribute(): ?string
+    {
+        if (!$this->profile_photo_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->profile_photo_path);
+    }
+
+    /** Forma compartida del usuario para respuestas de la API móvil (login/me/perfil) */
+    public function toApiArray(): array
+    {
+        return [
+            'id'            => $this->id,
+            'name'          => trim(($this->first_name ?? $this->name) . ' ' . ($this->last_name ?? '')),
+            'first_name'    => $this->first_name,
+            'last_name'     => $this->last_name,
+            'email'         => $this->email,
+            'roles'         => $this->getRoleNames()->toArray(),
+            'is_admin'      => $this->is_super_admin,
+            'operator_role' => $this->operatorRole?->name,
+            'photo_url'     => $this->profile_photo_url,
+        ];
     }
 
 }

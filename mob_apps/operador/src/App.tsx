@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
+import { AppLockProvider, useAppLock } from './AppLockContext';
+import { LockScreen } from './LockScreen';
 import { LoginScreen } from './LoginScreen';
 import { PetSearch } from './admin/PetSearch';
 import { PetDetail } from './admin/PetDetail';
@@ -170,12 +172,18 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate  = useNavigate();
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
+  const { lock } = useAppLock();
 
   const go = (to: string) => { clearNavCrumbs(); onClose(); navigate(to); };
 
   const handleLogout = async () => {
     onClose();
     await logout();
+  };
+
+  const handleLock = () => {
+    onClose();
+    lock();
   };
 
   return (
@@ -264,6 +272,17 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
             </button>
           </div>
 
+          {/* Bloquear */}
+          <div className="bg-surface-container rounded-2xl overflow-hidden">
+            <button
+              onClick={handleLock}
+              className="w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-surface-container-high transition-colors"
+            >
+              <span className="material-symbols-outlined text-2xl text-on-surface-variant">lock</span>
+              <span className="text-sm font-medium text-on-surface">Bloquear ahora</span>
+            </button>
+          </div>
+
           {/* Cerrar sesión */}
           <div className="bg-surface-container rounded-2xl overflow-hidden">
             <button
@@ -339,6 +358,7 @@ function BottomNav() {
    ═══════════════════════════════════════════════════════════ */
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const { locked, unlock } = useAppLock();
 
   if (loading) {
     return (
@@ -352,7 +372,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) return <LoginScreen />;
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {locked && <LockScreen onUnlock={unlock} />}
+    </>
+  );
 }
 
 function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -367,6 +392,7 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
+      <AppLockProvider>
       <Router>
         <AuthGuard>
           <Routes>
@@ -393,6 +419,7 @@ export default function App() {
           </Routes>
         </AuthGuard>
       </Router>
+      </AppLockProvider>
     </AuthProvider>
   );
 }

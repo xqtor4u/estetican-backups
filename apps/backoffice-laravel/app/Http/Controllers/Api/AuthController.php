@@ -36,18 +36,9 @@ class AuthController extends Controller
             'name'    => 'mobile',
         ]);
 
-        $roles = $user->getRoleNames()->toArray();
-
         return response()->json([
             'token' => $plain,
-            'user'  => [
-                'id'    => $user->id,
-                'name'  => trim(($user->first_name ?? $user->name) . ' ' . ($user->last_name ?? '')),
-                'email' => $user->email,
-                'roles' => $roles,
-                'is_admin' => $user->is_super_admin,
-                'operator_role' => $user->operatorRole?->name,
-            ],
+            'user'  => $user->toApiArray(),
         ]);
     }
 
@@ -62,14 +53,6 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        $user = auth()->user();
-        return response()->json([
-            'id'    => $user->id,
-            'name'  => trim(($user->first_name ?? $user->name) . ' ' . ($user->last_name ?? '')),
-            'email' => $user->email,
-            'roles' => $user->getRoleNames()->toArray(),
-            'is_admin' => $user->is_super_admin,
-            'operator_role' => $user->operatorRole?->name,
-        ]);
+        return response()->json(auth()->user()->toApiArray());
     }
 }

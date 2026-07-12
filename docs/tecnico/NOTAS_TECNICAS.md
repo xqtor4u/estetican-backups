@@ -696,3 +696,63 @@ Antes de construir cualquier feature nueva sobre `ExecutedService`/`ExecutedServ
 
 **Lección:** cualquier cambio de esquema debe pasar por una migración commiteada, nunca por `Schema::`/`DB::statement` suelto en `tinker` contra producción — si se hace por urgencia, hay que escribir el migration file (con guard `hasColumn`) en la misma sesión, o el drift queda invisible hasta que algo (como un test nuevo) lo destapa. Si un test falla con `Unknown column` en un campo que sí existe en producción, sospechar de esto antes que de un bug de test.
 
+---
+
+## NT-024 — Test de `TeamPanelTest` fallaba solo después de las ~22:00 (medianoche cruzada en fixtures con `now()->addHours()`)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-10 |
+| **Severidad** | P3 — Bajo (solo afecta la suite de tests, no producción) |
+| **Componente** | `tests/Feature/Api/TeamPanelTest.php` |
+| **Impacto** | Falla intermitente de un test según la hora real del día en que corre la suite — no relacionado a ningún cambio de código real |
+
+**Síntoma:** la suite completa pasó de 37 a 38 fallidas entre dos corridas de la misma sesión, sin ningún cambio de código backend entre medio. El test que empezó a fallar (`operator with active checkin and open work order reports current job`) esperaba `pending_today = 2`, recibió `1`.
+
+**Causa raíz:** el fixture del test crea una `SpaBooking` con `scheduled_at => now()->addHours(2)` para simular "una cita de hoy más tarde". La suite corrió pasadas las 22:00 (hora del contenedor) — `now()->addHours(2)` cruzó medianoche y cayó en el día siguiente, quedando fuera del rango `whereBetween($today, $tomorrow)` que usa `Api\OperatorController::team()` para calcular "hoy". El código de producción está bien; el test es el que no contempló que un offset relativo puede cruzar el límite del día según la hora real de ejecución.
+
+**Solución aplicada:** `$this->travelTo(now()->setTime(12, 0))` al inicio del test — ancla el reloj a mediodía antes de crear los fixtures, así ningún `now()->addHours()`/`subHours()` dentro del rango usado por el test cruza medianoche sin importar a qué hora real corra la suite.
+
+**Lección:** cualquier test que use `now()->addHours(N)`/`subHours(N)` para fixtures de "hoy" es potencialmente frágil según la hora de ejecución — anclar el reloj con `$this->travelTo()`/`Carbon::setTestNow()` a una hora segura (ej. mediodía) al inicio del test, no confiar en la hora real del entorno. Si una suite que antes pasaba limpio empieza a fallar sin cambios de código, revisar primero si el test depende de la hora del día antes de sospechar una regresión real.
+
+---
+
+## NT-025 — Colores ilegibles en `LockScreen` en Android Chrome con tema oscuro — falta `color-scheme` (probable "Auto Dark Theme" de Chrome)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-11 |
+| **Severidad** | P2 — Alto (pantalla nueva difícil/imposible de usar en el navegador más común, Android Chrome) |
+| **Componente** | `mob_apps/operador/index.html`, `src/index.css` |
+| **Impacto** | Cualquier pantalla de la app móvil, no solo `LockScreen` — pero se detectó ahí primero |
+
+**Síntoma:** usuario reportó que en `LockScreen` (Android, Chrome, tema oscuro) el campo de contraseña se veía como "un cuadro vacío" y el botón "Desbloquear" solo se alcanzaba a leer "Des..." sin poder distinguir el resto del texto.
+
+**Diagnóstico (sin poder ver la pantalla — no hay herramienta de automatización de navegador ni acceso al dispositivo en este entorno):** se verificó primero que el build servido coincidía con el último compilado (no era caché vieja) y se inspeccionó el CSS generado — las variables de color de `.theme-admin`/`:root.dark .theme-admin` y las clases `bg-primary`/`text-on-primary`/`z-[60]` estaban bien compiladas, con buen contraste en ambos temas. Con el código descartado como causa directa, y confirmado Android + Chrome + tema oscuro activo, la sospecha más fuerte es **"Auto Dark Theme" de Chrome para Android** — una función del navegador (no relacionada a `prefers-color-scheme`) que reinvierte heurísticamente los colores de páginas que no declaran explícitamente que ya manejan su propio modo oscuro. Sin la declaración `color-scheme`, Chrome puede "corregir" colores que ya son correctos, produciendo combinaciones rotas (texto casi invisible sobre su propio fondo) — coincide con los síntomas reportados. El proyecto nunca declaró `color-scheme` en ningún lado.
+
+**Solución aplicada:** `<meta name="color-scheme" content="light dark">` en `index.html` + `:root { color-scheme: light; } :root.dark { color-scheme: dark; }` en `index.css`, sincronizado con la misma clase `.dark` que ya controla la paleta (ver BL-034/BL-038). Esto le dice al navegador explícitamente que la página ya maneja ambos temas — no debería seguir "corrigiendo" colores por su cuenta.
+
+**Sin confirmar:** es un diagnóstico basado en evidencia indirecta (código descartado + patrón de síntomas + navegador/SO reportados), no una reproducción directa — pendiente que el usuario confirme si el fix resuelve el problema real en su teléfono.
+
+**Lección:** cualquier app web con modo oscuro propio (paletas vía clase CSS, no solo `prefers-color-scheme`) debe declarar `color-scheme` explícitamente — sin eso, Chrome para Android (y en menor medida otros navegadores con "forzar oscuro") puede reinterpretar y romper colores que el código ya calculó correctamente. Si un bug de color reportado por un usuario no aparece en el CSS/código fuente, sospechar de un mecanismo del navegador antes que de la lógica de la app.
+
+---
+
+## NT-026 — Utilidades `max-w-xs`/`max-w-sm` de Tailwind resolvían a 4px/8px por colisión con tokens custom `--spacing-*`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-12 |
+| **Severidad** | P3 — Medio (rompe layout visualmente, sin afectar datos ni funcionalidad) |
+| **Componente** | `mob_apps/operador/src/index.css` (tokens `@theme`), cualquier uso de `max-w-xs`/`max-w-sm`/`max-w-md`/`max-w-lg`/`max-w-xl` en el proyecto |
+| **Impacto** | `LockScreen.tsx` — campo de contraseña y botón "Desbloquear" se veían diminutos (más chicos que el texto "Cerrar Sesión") |
+
+**Síntoma:** el usuario reportó el campo de contraseña y el botón "Desbloquear" de `LockScreen` como demasiado chicos y no centrados, incluso después de dos rondas de ajuste de clases Tailwind (`w-full`, `flex items-center justify-center`, `max-w-xs`→`max-w-sm`) y de confirmar que el build nuevo sí estaba desplegado (mismo hash de asset en el contenedor `estetican_mob` y en lo que respondía `mov.estetican.org` en vivo).
+
+**Causa raíz:** `index.css` define en el bloque `@theme` tokens custom de espaciado con nombres cortos (`--spacing-xs: 4px`, `--spacing-sm: 8px`, `--spacing-md: 16px`, etc., pensados para utilidades como `gap-md`/`p-lg`). En Tailwind v4, `w-*`, `max-w-*`, `min-w-*`, `p-*`, `m-*`, `gap-*` etc. comparten el mismo namespace de resolución de la escala de espaciado por nombre de clave — al existir una clave custom `sm`/`xs` en `--spacing-*`, esa definición **shadowea** la escala por defecto que normalmente usan `max-w-sm`/`max-w-xs` (que en Tailwind stock son ~384px/320px). Se confirmó inspeccionando el CSS compilado: `.max-w-sm{max-width:var(--spacing-sm)}` → 8px real, no 384px.
+
+**Solución aplicada:** en `LockScreen.tsx`, reemplazar `max-w-xs`/`max-w-sm` por valores arbitrarios explícitos que no pasan por el lookup de tema — `max-w-[24rem]` (384px) y `max-w-[20rem]` (320px) — que no colisionan con ningún token custom.
+
+**Sin resolver a nivel de proyecto:** el resto del código de `mob_apps/operador` no usa `max-w-{xs,sm,md,lg,xl}` (verificado por grep), así que no hay otras instancias rotas hoy — pero la colisión sigue latente para cualquier uso futuro de esas clases mientras existan los tokens `--spacing-xs`/`--spacing-sm`/etc. en `@theme`. No se renombraron los tokens custom en esta sesión (hubiera sido un cambio más amplio, fuera del alcance del bug reportado).
+
+**Lección:** en Tailwind v4, agregar tokens custom en `@theme` con nombres cortos genéricos (`xs`, `sm`, `md`, `lg`, `xl`) es peligroso porque esos nombres son compartidos por **todas** las utilidades de la familia de espaciado (ancho, alto, padding, margin, gap), no solo la utilidad para la que se pensaron. Si el layout de un componente se ve roto de forma que no tiene sentido con las clases escritas (por ejemplo, un `max-w-sm` que se ve más chico que el contenido sin restricción), inspeccionar el CSS **compilado** de esa clase específica antes de seguir ajustando clases a ciegas — el bug puede estar en la resolución del token, no en la clase usada.

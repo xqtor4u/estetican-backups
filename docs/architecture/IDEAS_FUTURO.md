@@ -61,5 +61,15 @@
 - **Pendiente de definir (el propio usuario no lo tiene claro todavía):** qué hay físicamente "en ese punto" (edificio, casa, solar, etc.) — recomendación: no forzar un enum ahora, usar un campo libre (`label`/`kind`) y convertir a catálogo más adelante si hace falta reportar por tipo. Evitar diseñar la taxonomía completa antes de tener un caso de uso real que la necesite.
 - **Alcance real todavía sin acotar:** ¿reemplaza el `lat`/`lng` directo que ya tienen `branches`/`addresses`, o convive con ellos? ¿Vehículos de reparto es un modelo nuevo completo (con placa, capacidad, etc.) o solo un punto en el mapa? Definir antes de planear implementación.
 
+## 🔐 Sesión y Seguridad — App Móvil (ideas surgidas 10-11/07/2026, ver BL-038)
+
+- [ ] **Login sin contraseña de verdad (WebAuthn real, verificado por servidor)** — lo construido en BL-038 es un candado *local* sobre una sesión que ya existe (el celular verifica Face ID/huella por su cuenta, sin involucrar al backend). Reemplazar el login mismo por WebAuthn sería un proyecto aparte y bastante más grande: tabla de credenciales por usuario/dispositivo, endpoints de challenge/response, verificación de firma en el servidor (librería tipo `web-auth/webauthn-lib`). Evaluar solo si el candado local no resulta suficiente en el uso real.
+- [ ] **Zona horaria por usuario** — quedó descartado en BL-034 no por falta de interés sino porque los timestamps de negocio (`spa_bookings.scheduled_at` y equivalentes) son *naive* (sin ancla de zona horaria) — agregar un selector de UI sin resolver esto primero mostraría horas incorrectas. El primer paso real, si algún día hace falta, es decidir una estrategia de zona horaria a nivel de datos (¿todo se guarda en UTC y se convierte al mostrar? ¿se ancla a la zona de la sucursal?), no diseñar el selector.
+- [ ] **Timeout de inactividad / bloqueo al cambiar de app configurable** — hoy son valores fijos en `AppLockContext.tsx` (5 min de inactividad, bloqueo inmediato al perder foco). Si en el uso real resultan muy agresivos o muy laxos, se puede exponer como preferencia (personal o de negocio, a decidir) en vez de tocar el código cada vez.
+
+## 🧹 Limpieza pendiente — App Móvil (BL-037, 10/07/2026)
+
+- [ ] **Decidir destino de 4 archivos huérfanos** (`ActiveService.tsx`, `GroomerDashboard.tsx`, `client/Booking.tsx`, `client/Dashboard.tsx`, ~730 líneas) — sin ruta ni import en ningún lado, links internos rotos, parecen resto de un template sin terminar. El usuario prefirió no borrarlos todavía. Decidir: completar como pantallas reales, o borrar.
+
 ---
 *Si una idea nace en la Bitácora pero no se puede ejecutar hoy, se mueve aquí.*

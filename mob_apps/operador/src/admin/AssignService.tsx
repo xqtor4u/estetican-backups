@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ScreenHeader } from '../ScreenHeader';
 
 export function AssignService() {
@@ -91,12 +91,12 @@ export function AssignService() {
           </div>
 
           <div className="flex flex-col sm:flex-row justify-end gap-gutter mt-8 pt-4 border-t border-outline-variant">
-            <Link to="/admin/directory">
+            <Link to="/directorio">
               <button className="px-6 py-3 border w-full border-outline-variant text-on-surface rounded font-label-md text-label-md hover:bg-surface-container-high text-center flex items-center justify-center gap-2" type="button">
                 Cancelar
               </button>
             </Link>
-            <Link to="/agenda-global">
+            <Link to="/agenda">
               <button className="px-6 py-3 w-full bg-primary text-on-primary rounded font-label-md text-label-md font-bold hover:bg-surface-tint flex items-center justify-center gap-2" type="button">
                 <span className="material-symbols-outlined">check_circle</span>
                 Confirmar y Asignar

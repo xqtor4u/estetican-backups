@@ -5,11 +5,34 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Pet;
+use App\Support\PetPhotoImageManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class PetController extends Controller
 {
+    public function __construct(private PetPhotoImageManager $imageManager)
+    {
+    }
+
+    /** Guarda y comprime la foto, actualiza profile_photo_path y deja registro en la galería (mismo patrón que el backoffice web) */
+    private function storeProfilePhoto(Pet $pet, $file): string
+    {
+        $newPhotoPath = $this->imageManager->store($file);
+
+        $pet->update(['profile_photo_path' => $newPhotoPath]);
+
+        $pet->photos()->create([
+            'photo_url' => $newPhotoPath,
+            'photo_type' => 'perfil',
+            'taken_at' => $this->imageManager->extractTakenAt($file),
+            'is_primary' => true,
+        ]);
+        $pet->photos()->where('photo_url', '!=', $newPhotoPath)->update(['is_primary' => false]);
+
+        return Storage::disk('public')->url($newPhotoPath);
+    }
+
     public function show(Pet $pet)
     {
         $pet->load('client', 'medicalAlerts', 'spaBookings');
@@ -76,11 +99,28 @@ class PetController extends Controller
 
         // Foto de perfil (si se envió)
         if ($request->hasFile('photo')) {
-            $path = $request->file('photo')->store('pet-photos/'.now()->format('Y/m').'/original', 'public');
-            $pet->update(['profile_photo_path' => $path]);
+            $this->storeProfilePhoto($pet, $request->file('photo'));
         }
 
         return response()->json(['id' => $pet->id], 201);
+    }
+
+    public function updatePhoto(Request $request, Pet $pet)
+    {
+        $request->validate(['photo' => 'required|image|max:15360']);
+
+        $photoUrl = $this->storeProfilePhoto($pet, $request->file('photo'));
+
+        return response()->json(['photo' => $photoUrl]);
+    }
+
+    public function deletePhoto(Pet $pet)
+    {
+        $this->imageManager->deleteFiles($pet->profile_photo_path);
+        $pet->update(['profile_photo_path' => null]);
+        $pet->photos()->where('photo_type', 'perfil')->update(['is_primary' => false]);
+
+        return response()->json(['photo' => null]);
     }
 
     public function update(Request $request, Pet $pet)
