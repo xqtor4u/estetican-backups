@@ -228,14 +228,23 @@
         if (testBtn) {
             testBtn.addEventListener('click', function() {
                 const form = testBtn.closest('form');
-                const originalAction = form.action;
-                
-                // Swap action to test route
+
+                // La ruta de prueba es POST real, sin spoofing — pero este form trae
+                // @method('PUT') (hidden _method=PUT) para el submit normal a
+                // system-settings.update. Si no se quita antes de enviar, Laravel
+                // interpreta el POST como PUT y lo enruta a update('smtp-test'),
+                // que no es una sección válida → 404 (ver NT-030).
+                const methodField = form.querySelector('input[name="_method"]');
+                if (methodField) {
+                    methodField.disabled = true;
+                }
+
                 form.action = "{{ route('system-settings.smtp-test') }}";
                 form.submit();
-                                
-                // Restore logic (not strictly needed but good practice)
-                setTimeout(() => { form.action = originalAction; }, 100);
+
+                if (methodField) {
+                    setTimeout(() => { methodField.disabled = false; }, 100);
+                }
             });
         }
     });

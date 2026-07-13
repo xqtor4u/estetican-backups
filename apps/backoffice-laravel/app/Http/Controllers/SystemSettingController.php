@@ -7,7 +7,9 @@ use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class SystemSettingController extends Controller
@@ -25,7 +27,7 @@ class SystemSettingController extends Controller
         abort_unless($systemSettings->hasSection($section), 404);
 
         $rules = $systemSettings->rulesFor($section);
-        
+
         // For image fields, we use specific rules
         foreach ($systemSettings->sections()[$section]['fields'] as $fieldKey => $field) {
             if ($field['type'] === 'image') {
@@ -41,7 +43,7 @@ class SystemSettingController extends Controller
                 if ($request->hasFile($fieldKey)) {
                     $path = $request->file($fieldKey)->store('branding', 'public');
                     $validated[$fieldKey] = $path;
-                    
+
                     // Optional: Clean up old file
                     $oldPath = $field['value'];
                     if ($oldPath && Storage::disk('public')->exists($oldPath)) {
@@ -57,8 +59,8 @@ class SystemSettingController extends Controller
         $systemSettings->save($section, $validated);
 
         return redirect()
-            ->to(route('system-settings.index') . '#' . $section)
-            ->with('success', 'Se actualizó la sección ' . mb_strtolower($systemSettings->labelFor($section)) . '.');
+            ->to(route('system-settings.index').'#'.$section)
+            ->with('success', 'Se actualizó la sección '.mb_strtolower($systemSettings->labelFor($section)).'.');
     }
 
     public function testSmtp(Request $request, SystemSettings $systemSettings): RedirectResponse
@@ -70,22 +72,22 @@ class SystemSettingController extends Controller
             config([
                 'mail.mailers.smtp.host' => $settings['mail_host'] ?? config('mail.mailers.smtp.host'),
                 'mail.mailers.smtp.port' => $settings['mail_port'] ?? config('mail.mailers.smtp.port'),
-                'mail.mailers.smtp.encryption' => $settings['mail_encryption'] ?? config('mail.mailers.smtp.encryption'),
+                'mail.mailers.smtp.scheme' => $settings['mail_encryption'] ?? config('mail.mailers.smtp.scheme'),
                 'mail.mailers.smtp.username' => $settings['mail_username'] ?? config('mail.mailers.smtp.username'),
                 'mail.mailers.smtp.password' => $settings['mail_password'] ?? config('mail.mailers.smtp.password'),
                 'mail.from.address' => $settings['mail_from_address'] ?? config('mail.from.address'),
                 'mail.from.name' => $settings['mail_from_name'] ?? config('mail.from.name'),
             ]);
 
-            \Illuminate\Support\Facades\Mail::raw('Esta es una prueba de conexión SMTP de EstetiCAN.', function ($message) use ($settings) {
+            Mail::raw('Esta es una prueba de conexión SMTP de EstetiCAN.', function ($message) use ($settings) {
                 $recipient = $settings['mail_from_address'] ?: 'test@example.com';
                 $message->to($recipient)
                     ->subject('Prueba de Conexión SMTP - EstetiCAN');
             });
 
-            return redirect()->back()->with('success', '¡Conexión SMTP exitosa! Se envió un correo de prueba a ' . ($settings['mail_from_address'] ?: 'la dirección configurada') . '.');
+            return redirect()->back()->with('success', '¡Conexión SMTP exitosa! Se envió un correo de prueba a '.($settings['mail_from_address'] ?: 'la dirección configurada').'.');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Error de conexión SMTP: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Error de conexión SMTP: '.$e->getMessage());
         }
     }
 
@@ -108,7 +110,7 @@ class SystemSettingController extends Controller
 
         try {
             $validated = $request->validate($rules);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json(['ok' => false, 'errors' => $e->errors()], 422);
         }
 

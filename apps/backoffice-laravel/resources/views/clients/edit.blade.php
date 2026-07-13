@@ -35,7 +35,27 @@
         <div class="form-text">Opcional. Debe existir al menos un telefono activo para conservar la captura.</div>
     </div>
 
-
+    <h4>Preferencias de comunicación</h4>
+    <div class="mb-3 d-grid gap-2">
+        @php
+            $commPrefs = [
+                'receives_offers' => 'Ofertas y promociones',
+                'receives_service_reminders' => 'Recordatorios de servicio (citas, recurrencias)',
+                'receives_job_updates' => 'Estado de trabajo y resúmenes de atención',
+                'receives_account_statements' => 'Estado de cuenta',
+                'receives_other_notifications' => 'Otras notificaciones',
+            ];
+        @endphp
+        @foreach($commPrefs as $field => $label)
+            <div class="form-check form-switch">
+                <input type="hidden" name="{{ $field }}" value="0">
+                <input type="checkbox" name="{{ $field }}" value="1" class="form-check-input" id="{{ $field }}"
+                    {{ old($field, $client->$field) ? 'checked' : '' }}>
+                <label class="form-check-label" for="{{ $field }}">{{ $label }}</label>
+            </div>
+        @endforeach
+        <div class="form-text">El cliente también puede administrar esto sin ayuda desde el enlace "Gestionar mis preferencias" que llevan los correos que recibe.</div>
+    </div>
 
 
     <h4>Direcciones</h4>

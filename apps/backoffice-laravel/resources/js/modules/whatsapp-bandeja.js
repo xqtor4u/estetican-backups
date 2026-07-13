@@ -7,14 +7,16 @@ export default function whatsappBandejaFactory(config) {
         templateContext: config.templateContext,
         templateVariables: config.templateVariables ?? {},
         templates: config.templates ?? [],
-        rowsById: config.rows.reduce((acc, r) => { acc[r.id] = r.label; return acc; }, {}),
+        rowsById: config.rows.reduce((acc, r) => { acc[String(r.id)] = r; return acc; }, {}),
         selected: [],
         templateId: config.defaultTemplateId ?? '',
+        channel: 'whatsapp',
         queue: [],
         queueIndex: 0,
         sending: false,
         previewLoading: false,
         previewMessage: '',
+        previewSubject: '',
         previewError: '',
         modalInstance: null,
         createModalInstance: null,
@@ -26,6 +28,19 @@ export default function whatsappBandejaFactory(config) {
 
         toggleAll(checked, ids) {
             this.selected = checked ? [...ids] : [];
+        },
+
+        get eligibleIds() {
+            return Object.keys(this.rowsById).filter(id => {
+                const row = this.rowsById[id];
+                if (row.alreadySentToday || row.receivesReminders === false) return false;
+                return this.channel === 'whatsapp' ? !!row.hasPhone : !!row.hasEmail;
+            });
+        },
+
+        setChannel(channel) {
+            this.channel = channel;
+            this.selected = this.selected.filter(id => this.eligibleIds.includes(String(id)));
         },
 
         onTemplateSelectChange() {
@@ -140,7 +155,7 @@ export default function whatsappBandejaFactory(config) {
         },
 
         get currentLabel() {
-            return this.rowsById[this.currentBookingId] ?? '';
+            return this.rowsById[String(this.currentBookingId)]?.label ?? '';
         },
 
         get isDone() {
@@ -151,6 +166,7 @@ export default function whatsappBandejaFactory(config) {
             if (this.isDone) return;
 
             this.previewMessage = '';
+            this.previewSubject = '';
             this.previewError = '';
             this.previewLoading = true;
 
@@ -164,7 +180,7 @@ export default function whatsappBandejaFactory(config) {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': this.csrfToken,
                     },
-                    body: JSON.stringify({ whatsapp_template_id: this.templateId }),
+                    body: JSON.stringify({ whatsapp_template_id: this.templateId, channel: this.channel }),
                 });
 
                 const data = await response.json();
@@ -173,6 +189,7 @@ export default function whatsappBandejaFactory(config) {
                     this.previewError = data.message ?? 'No se pudo generar la vista previa.';
                 } else {
                     this.previewMessage = data.message;
+                    this.previewSubject = data.subject ?? '';
                 }
             } catch (e) {
                 this.previewError = 'Error de red al generar la vista previa.';
@@ -195,7 +212,7 @@ export default function whatsappBandejaFactory(config) {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': this.csrfToken,
                     },
-                    body: JSON.stringify({ whatsapp_template_id: this.templateId }),
+                    body: JSON.stringify({ whatsapp_template_id: this.templateId, channel: this.channel }),
                 });
 
                 const data = await response.json();
@@ -206,7 +223,9 @@ export default function whatsappBandejaFactory(config) {
                     return;
                 }
 
-                window.open(data.wa_link, '_blank');
+                if (this.channel === 'whatsapp') {
+                    window.open(data.wa_link, '_blank');
+                }
                 await this.advance();
             } catch (e) {
                 alert('Error de red al enviar el recordatorio.');

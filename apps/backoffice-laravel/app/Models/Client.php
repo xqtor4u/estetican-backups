@@ -19,7 +19,23 @@ class Client extends Model
         'state',
         'zip_code',
         'notes',
+        'receives_offers',
+        'receives_service_reminders',
+        'receives_job_updates',
+        'receives_account_statements',
+        'receives_other_notifications',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'receives_offers' => 'boolean',
+            'receives_service_reminders' => 'boolean',
+            'receives_job_updates' => 'boolean',
+            'receives_account_statements' => 'boolean',
+            'receives_other_notifications' => 'boolean',
+        ];
+    }
 
     public function addresses()
     {

@@ -16,12 +16,16 @@
 
                         <div class="alert alert-danger small mb-2" x-show="!previewLoading && previewError" x-text="previewError"></div>
 
+                        <p class="small fw-semibold mb-1" x-show="!previewLoading && !previewError && channel === 'email' && previewSubject">
+                            Asunto: <span x-text="previewSubject"></span>
+                        </p>
                         <div class="border rounded p-3 bg-light small mb-2"
                              style="white-space: pre-wrap;"
                              x-show="!previewLoading && !previewError && previewMessage"
                              x-text="previewMessage"></div>
 
-                        <p class="small text-muted">Se abrirá WhatsApp en una pestaña nueva con este mensaje ya redactado. Confirma el envío ahí.</p>
+                        <p class="small text-muted" x-show="channel === 'whatsapp'">Se abrirá WhatsApp en una pestaña nueva con este mensaje ya redactado. Confirma el envío ahí.</p>
+                        <p class="small text-muted" x-show="channel === 'email'">El correo se envía directamente desde el servidor — no hace falta confirmar nada más.</p>
                     </div>
                 </template>
                 <template x-if="isDone">
@@ -33,7 +37,7 @@
             <div class="modal-footer bg-light border-0">
                 <button type="button" class="btn btn-link link-secondary" @click="skipCurrent()" x-show="!isDone">Omitir</button>
                 <button type="button" class="btn btn-success" @click="sendCurrent()" x-show="!isDone" :disabled="sending || previewLoading || previewError">
-                    <span x-show="!sending">Abrir WhatsApp</span>
+                    <span x-show="!sending" x-text="channel === 'whatsapp' ? 'Abrir WhatsApp' : 'Enviar correo'"></span>
                     <span x-show="sending">Enviando…</span>
                 </button>
             </div>

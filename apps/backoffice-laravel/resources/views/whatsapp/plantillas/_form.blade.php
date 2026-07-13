@@ -34,6 +34,16 @@
     </div>
 
     <div class="mb-3">
+        <label class="form-label fw-semibold">Asunto (para envío por correo)</label>
+        <input type="text" name="subject" class="form-control @error('subject') is-invalid @enderror"
+            value="{{ old('subject', $template->subject ?? '') }}" placeholder="Ej. Recordatorio de cita — {mascota}">
+        @error('subject')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
+        <div class="form-text">Admite las mismas variables que el mensaje. Se ignora al enviar por WhatsApp.</div>
+    </div>
+
+    <div class="mb-3">
         <label class="form-label fw-semibold">Contexto de uso</label>
         <select name="context" class="form-select @error('context') is-invalid @enderror" x-model="context">
             <option value="cita">Bandeja diaria (citas del día)</option>

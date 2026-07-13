@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\TemplateMessageMail;
 use App\Models\BookingMessage;
+use App\Models\Client;
 use App\Models\SpaBooking;
 use App\Models\WhatsAppTemplate;
 use App\Support\Pages\WhatsAppPage;
@@ -12,6 +14,8 @@ use App\Support\WhatsApp\TemplateResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class BookingMessageController extends Controller
@@ -104,9 +108,19 @@ class BookingMessageController extends Controller
     {
         $validated = $request->validate([
             'whatsapp_template_id' => ['required', 'exists:whatsapp_templates,id'],
+            'channel' => ['nullable', 'string', 'in:whatsapp,email'],
         ]);
 
         $template = WhatsAppTemplate::findOrFail($validated['whatsapp_template_id']);
+
+        if (($validated['channel'] ?? 'whatsapp') === 'email') {
+            $resolved = $this->resolveEmailMessage($booking, $template);
+            if ($resolved instanceof JsonResponse) {
+                return $resolved;
+            }
+
+            return response()->json(['message' => $resolved['message'], 'subject' => $resolved['subject']]);
+        }
 
         $resolved = $this->resolveMessage($booking, $template);
         if ($resolved instanceof JsonResponse) {
@@ -120,9 +134,15 @@ class BookingMessageController extends Controller
     {
         $validated = $request->validate([
             'whatsapp_template_id' => ['required', 'exists:whatsapp_templates,id'],
+            'channel' => ['nullable', 'string', 'in:whatsapp,email'],
         ]);
 
         $template = WhatsAppTemplate::findOrFail($validated['whatsapp_template_id']);
+        $channel = $validated['channel'] ?? 'whatsapp';
+
+        if ($channel === 'email') {
+            return $this->storeEmail($request, $booking, $template);
+        }
 
         $resolved = $this->resolveMessage($booking, $template);
         if ($resolved instanceof JsonResponse) {
@@ -134,6 +154,7 @@ class BookingMessageController extends Controller
         $bookingMessage = BookingMessage::create([
             'spa_booking_id' => $booking->id,
             'whatsapp_template_id' => $template->id,
+            'channel' => 'whatsapp',
             'phone_number' => $resolved['wa_number'],
             'message_body' => $resolved['message'],
             'wa_link' => $waLink,
@@ -147,6 +168,39 @@ class BookingMessageController extends Controller
         ]);
     }
 
+    private function storeEmail(Request $request, SpaBooking $booking, WhatsAppTemplate $template): JsonResponse
+    {
+        $resolved = $this->resolveEmailMessage($booking, $template);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
+        }
+
+        try {
+            Mail::to($resolved['to'])->send(new TemplateMessageMail($resolved['subject'], $resolved['message'], $resolved['client']));
+        } catch (\Throwable $e) {
+            Log::error('Error enviando correo de plantilla (cita): '.$e->getMessage());
+
+            return response()->json([
+                'message' => 'No se pudo enviar el correo. Revisa la configuración SMTP en Configuración del sistema.',
+            ], 422);
+        }
+
+        $bookingMessage = BookingMessage::create([
+            'spa_booking_id' => $booking->id,
+            'whatsapp_template_id' => $template->id,
+            'channel' => 'email',
+            'email_address' => $resolved['to'],
+            'message_body' => $resolved['message'],
+            'sent_by_user_id' => $request->user()->id,
+            'sent_at' => now(),
+        ]);
+
+        return response()->json([
+            'channel' => 'email',
+            'sent_at' => $bookingMessage->sent_at,
+        ]);
+    }
+
     /**
      * @return array{wa_number: string, message: string}|JsonResponse
      */
@@ -155,6 +209,13 @@ class BookingMessageController extends Controller
         $booking->loadMissing(['pet.client.phones', 'services.service']);
 
         $client = $booking->pet?->client;
+
+        if ($client && ! $client->receives_service_reminders) {
+            return response()->json([
+                'message' => 'El cliente optó por no recibir recordatorios de servicio.',
+            ], 422);
+        }
+
         $rawPhone = $client ? PhoneNormalizer::bestPhoneFor($client) : null;
         $waNumber = PhoneNormalizer::toWhatsAppNumber($rawPhone);
 
@@ -167,6 +228,37 @@ class BookingMessageController extends Controller
         return [
             'wa_number' => $waNumber,
             'message' => TemplateResolver::resolve($template->body, $booking),
+        ];
+    }
+
+    /**
+     * @return array{to: string, subject: string, message: string, client: Client}|JsonResponse
+     */
+    private function resolveEmailMessage(SpaBooking $booking, WhatsAppTemplate $template): array|JsonResponse
+    {
+        $booking->loadMissing(['pet.client', 'services.service']);
+
+        $client = $booking->pet?->client;
+
+        if ($client && ! $client->receives_service_reminders) {
+            return response()->json([
+                'message' => 'El cliente optó por no recibir recordatorios de servicio.',
+            ], 422);
+        }
+
+        if (! $client?->email) {
+            return response()->json([
+                'message' => 'El cliente no tiene correo electrónico registrado.',
+            ], 422);
+        }
+
+        $subject = TemplateResolver::resolve($template->subject ?: $template->name, $booking);
+
+        return [
+            'to' => $client->email,
+            'subject' => $subject,
+            'message' => TemplateResolver::resolve($template->body, $booking),
+            'client' => $client,
         ];
     }
 }

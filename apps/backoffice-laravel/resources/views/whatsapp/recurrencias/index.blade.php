@@ -25,6 +25,10 @@
         rows: {{ \Illuminate\Support\Js::from($rows->map(fn ($r) => [
             'id' => $r->key,
             'label' => trim(($r->pet->client?->full_name ?: 'Cliente') . ' — ' . ($r->pet->name ?: 'Mascota') . ' (' . $r->service->name . ')'),
+            'hasPhone' => (bool) $r->wa_number,
+            'hasEmail' => (bool) $r->pet->client?->email,
+            'receivesReminders' => $r->pet->client === null || (bool) $r->pet->client->receives_service_reminders,
+            'alreadySentToday' => $r->already_sent_today,
         ])->values()) }},
     })"
 >
@@ -45,6 +49,13 @@
                 </template>
                 <option value="__new__">+ Crear nueva plantilla…</option>
             </select>
+
+            <label class="fw-semibold mb-0">Enviar por:</label>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm" :class="channel === 'whatsapp' ? 'btn-success' : 'btn-outline-secondary'" @click="setChannel('whatsapp')">WhatsApp</button>
+                <button type="button" class="btn btn-sm" :class="channel === 'email' ? 'btn-success' : 'btn-outline-secondary'" @click="setChannel('email')">Correo</button>
+            </div>
+
             <button type="button" class="btn btn-success ms-auto" @click="openQueue()">
                 Enviar seleccionados
             </button>
@@ -63,12 +74,13 @@
                     <tr>
                         <th style="width:40px">
                             <input type="checkbox" class="form-check-input"
-                                title="No incluye los recordatorios ya enviados hoy"
-                                @change="toggleAll($event.target.checked, [{{ $rows->filter(fn ($r) => $r->wa_number && ! $r->already_sent_today)->pluck('key')->map(fn ($k) => "'{$k}'")->implode(',') }}])">
+                                title="No incluye los ya enviados hoy, ni los que no tienen el dato de contacto necesario para el canal elegido"
+                                @change="toggleAll($event.target.checked, eligibleIds)">
                         </th>
                         <th>Mascota</th>
                         <th>Cliente</th>
                         <th>Teléfono</th>
+                        <th>Correo</th>
                         <th>Servicio</th>
                         <th>Última vez</th>
                         <th style="width:110px">Vencido hace</th>
@@ -82,10 +94,15 @@
                                 <input type="checkbox" class="form-check-input"
                                     value="{{ $row->key }}"
                                     x-model="selected"
-                                    @disabled(! $row->wa_number)
+                                    :disabled="!rowsById['{{ $row->key }}']?.receivesReminders || (channel === 'whatsapp' ? !rowsById['{{ $row->key }}']?.hasPhone : !rowsById['{{ $row->key }}']?.hasEmail)"
                                     @if($row->already_sent_today) title="Ya enviado hoy — márcalo si quieres reenviarlo" @endif>
                             </td>
-                            <td>{{ $row->pet->name ?? '—' }}</td>
+                            <td>
+                                {{ $row->pet->name ?? '—' }}
+                                @if($row->pet->client && ! $row->pet->client->receives_service_reminders)
+                                    <span class="badge bg-warning-subtle text-warning-emphasis" title="El cliente optó por no recibir recordatorios de servicio">No acepta recordatorios</span>
+                                @endif
+                            </td>
                             <td>{{ $row->pet->client?->full_name ?? '—' }}</td>
                             <td>
                                 @if($row->wa_number)
@@ -94,6 +111,13 @@
                                     <span class="text-danger" title="No reconocido como teléfono mexicano de 10 dígitos">{{ $row->raw_phone }} ⚠️</span>
                                 @else
                                     <span class="text-muted">Sin teléfono</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($row->pet->client?->email)
+                                    <span class="text-body">{{ $row->pet->client->email }}</span>
+                                @else
+                                    <span class="text-muted">Sin correo</span>
                                 @endif
                             </td>
                             <td class="small text-muted">{{ $row->service->name }}</td>
@@ -111,7 +135,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">No hay mascotas con servicio recurrente vencido por el momento.</td>
+                            <td colspan="9" class="text-center text-muted py-4">No hay mascotas con servicio recurrente vencido por el momento.</td>
                         </tr>
                     @endforelse
                 </tbody>

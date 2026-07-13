@@ -2,13 +2,16 @@
 
 namespace Tests\Feature\WhatsApp;
 
+use App\Mail\TemplateMessageMail;
 use App\Models\Client;
 use App\Models\Pet;
+use App\Models\RecurrenceMessage;
 use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Models\User;
 use App\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class RecurrenceMessageFlowTest extends TestCase
@@ -27,9 +30,9 @@ class RecurrenceMessageFlowTest extends TestCase
         ]);
     }
 
-    private function petWithExecutedService(Service $service, string $executedAt, ?string $phone = '5512345678'): Pet
+    private function petWithExecutedService(Service $service, string $executedAt, ?string $phone = '5512345678', ?string $email = null): Pet
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => $email]);
         if ($phone) {
             $client->phones()->create(['number' => $phone, 'type' => 'mobile']);
         }
@@ -162,7 +165,7 @@ class RecurrenceMessageFlowTest extends TestCase
         $this->assertDatabaseMissing('recurrence_messages', ['pet_id' => $pet->id, 'service_id' => $service->id]);
     }
 
-    public function test_already_sent_today_row_is_excluded_from_select_all_but_still_checkable(): void
+    public function test_already_sent_today_row_is_flagged_in_the_row_config_for_the_frontend(): void
     {
         $service = Service::create([
             'code' => 'BAN06', 'name' => 'Baño', 'type' => 'spa',
@@ -176,7 +179,7 @@ class RecurrenceMessageFlowTest extends TestCase
 
         $admin = $this->admin();
 
-        \App\Models\RecurrenceMessage::create([
+        RecurrenceMessage::create([
             'pet_id' => $pet->id,
             'service_id' => $service->id,
             'whatsapp_template_id' => $template->id,
@@ -195,8 +198,15 @@ class RecurrenceMessageFlowTest extends TestCase
         $key = $pet->id.':'.$service->id;
         $response->assertSee('value="'.$key.'"', false);
 
-        preg_match('/toggleAll\(\$event\.target\.checked, \[(.*?)]\)/', $response->getContent(), $matches);
-        $this->assertStringNotContainsString($key, $matches[1] ?? '');
+        // La exclusión de "seleccionar todos" ahora la calcula el frontend (Alpine, `eligibleIds`)
+        // a partir del flag `alreadySentToday` de cada fila — se verifica que el flag llegue
+        // correcto en la config embebida, en vez de una lista de IDs armada en el servidor.
+        preg_match(
+            '/\\\\u0022id\\\\u0022:\\\\u0022'.preg_quote($key, '/').'\\\\u0022,.*?\\\\u0022alreadySentToday\\\\u0022:(true|false)/',
+            $response->getContent(),
+            $matches
+        );
+        $this->assertSame('true', $matches[1] ?? null);
     }
 
     public function test_sending_fails_gracefully_when_client_has_no_valid_phone(): void
@@ -220,5 +230,73 @@ class RecurrenceMessageFlowTest extends TestCase
 
         $response->assertStatus(422);
         $this->assertDatabaseMissing('recurrence_messages', ['pet_id' => $pet->id, 'service_id' => $service->id]);
+    }
+
+    public function test_sending_by_email_creates_a_recurrence_message_and_sends_mail(): void
+    {
+        Mail::fake();
+
+        $service = Service::create([
+            'code' => 'BAN07', 'name' => 'Baño', 'type' => 'spa',
+            'price' => 250, 'duration_minutes' => 60, 'recurrence_days' => 20,
+        ]);
+        $pet = $this->petWithExecutedService($service, now()->subDays(25)->toDateTimeString(), email: 'ana@example.com');
+
+        $template = WhatsAppTemplate::create([
+            'name' => 'Recordatorio recurrencia',
+            'subject' => 'Le toca {servicio} a {mascota}',
+            'body' => 'Hola {cliente}, {mascota} ya requiere su {servicio}.',
+            'context' => 'recurrencia',
+            'is_active' => true,
+        ]);
+
+        $key = $pet->id.':'.$service->id;
+
+        $response = $this->actingAs($this->admin())
+            ->postJson(route('whatsapp.recurrencias.enviar', ['key' => $key]), [
+                'whatsapp_template_id' => $template->id,
+                'channel' => 'email',
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('channel', 'email');
+
+        $this->assertDatabaseHas('recurrence_messages', [
+            'pet_id' => $pet->id,
+            'service_id' => $service->id,
+            'channel' => 'email',
+            'email_address' => 'ana@example.com',
+        ]);
+
+        Mail::assertSent(TemplateMessageMail::class, function (TemplateMessageMail $mail) {
+            return $mail->emailSubject === 'Le toca Baño a Luka' && $mail->hasTo('ana@example.com');
+        });
+    }
+
+    public function test_sending_by_email_fails_gracefully_when_client_has_no_email(): void
+    {
+        Mail::fake();
+
+        $service = Service::create([
+            'code' => 'BAN08', 'name' => 'Baño', 'type' => 'spa',
+            'price' => 250, 'duration_minutes' => 60, 'recurrence_days' => 20,
+        ]);
+        $pet = $this->petWithExecutedService($service, now()->subDays(25)->toDateTimeString());
+
+        $template = WhatsAppTemplate::create([
+            'name' => 'Recordatorio recurrencia', 'body' => 'Hola {cliente}.', 'context' => 'recurrencia', 'is_active' => true,
+        ]);
+
+        $key = $pet->id.':'.$service->id;
+
+        $response = $this->actingAs($this->admin())
+            ->postJson(route('whatsapp.recurrencias.enviar', ['key' => $key]), [
+                'whatsapp_template_id' => $template->id,
+                'channel' => 'email',
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseMissing('recurrence_messages', ['pet_id' => $pet->id, 'service_id' => $service->id]);
+        Mail::assertNothingSent();
     }
 }

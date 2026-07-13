@@ -361,7 +361,7 @@ class SpaBookingController extends Controller
 
             // SMTP Automated Messaging
             $settings = app(SystemSettings::class)->all();
-            if (($settings['operational_auto_email_report'] ?? false) && $booking->pet->client->email) {
+            if (($settings['operational_auto_email_report'] ?? false) && $booking->pet->client->email && $booking->pet->client->receives_job_updates) {
                 try {
                     Mail::to($booking->pet->client->email)
                         ->send(new ServiceSummaryMail($booking));

@@ -6,7 +6,6 @@ use App\Models\Client;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\Request;
 
-
 class ClientController extends Controller
 {
     /**
@@ -20,11 +19,11 @@ class ClientController extends Controller
         $sort = $request->query('sort');
         $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
 
-        if (!in_array($petsFilter, ['all', 'with_pets', 'without_pets'], true)) {
+        if (! in_array($petsFilter, ['all', 'with_pets', 'without_pets'], true)) {
             $petsFilter = 'all';
         }
 
-        if (!in_array($sort, ['name', 'first_name', 'last_name', 'email', 'pets'], true)) {
+        if (! in_array($sort, ['name', 'first_name', 'last_name', 'email', 'pets'], true)) {
             $sort = null;
         }
 
@@ -100,11 +99,10 @@ class ClientController extends Controller
         return view('clients.create', [
             'suggestAreaCode' => $systemSettings->all()['commercial_clients_suggest_area_code'] ?? false,
             'defaultAreaCode' => $systemSettings->all()['commercial_clients_default_area_code'] ?? '',
-            'defaultSpecies'  => $systemSettings->all()['commercial_pets_default_species'] ?? '',
+            'defaultSpecies' => $systemSettings->all()['commercial_pets_default_species'] ?? '',
         ]);
 
     }
-
 
     /**
      * Store a newly created resource in storage.
@@ -218,7 +216,7 @@ class ClientController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Client $client, \App\Support\SystemSettings\SystemSettings $systemSettings)
+    public function edit(Client $client, SystemSettings $systemSettings)
     {
         $client->load([
             'pets' => fn ($query) => $query
@@ -241,7 +239,12 @@ class ClientController extends Controller
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'nullable|string|max:255',
-            'email' => 'nullable|email|unique:clients,email,' . $client->id,
+            'email' => 'nullable|email|unique:clients,email,'.$client->id,
+            'receives_offers' => 'nullable|boolean',
+            'receives_service_reminders' => 'nullable|boolean',
+            'receives_job_updates' => 'nullable|boolean',
+            'receives_account_statements' => 'nullable|boolean',
+            'receives_other_notifications' => 'nullable|boolean',
             'addresses' => 'nullable|array',
             'addresses.*.type' => 'required|string',
             'addresses.*.street' => 'required|string',
@@ -278,16 +281,21 @@ class ClientController extends Controller
                 ->withInput();
         }
 
-        $client->update($request->only(['first_name', 'last_name', 'email', 'address', 'city', 'state', 'zip_code', 'notes']));
+        $client->update($request->only([
+            'first_name', 'last_name', 'email', 'address', 'city', 'state', 'zip_code', 'notes',
+            'receives_offers', 'receives_service_reminders', 'receives_job_updates',
+            'receives_account_statements', 'receives_other_notifications',
+        ]));
 
         // Direcciones
         if ($request->addresses) {
             foreach ($request->addresses as $addressData) {
-                if (!empty($addressData['delete']) && !empty($addressData['id'])) {
+                if (! empty($addressData['delete']) && ! empty($addressData['id'])) {
                     $client->addresses()->where('id', $addressData['id'])->delete();
+
                     continue;
                 }
-                
+
                 if (empty($addressData['delete'])) {
                     $client->addresses()->updateOrCreate(
                         ['id' => $addressData['id'] ?? null],
@@ -300,11 +308,12 @@ class ClientController extends Controller
         // Teléfonos
         if ($request->phones) {
             foreach ($request->phones as $phoneData) {
-                if (!empty($phoneData['delete']) && !empty($phoneData['id'])) {
+                if (! empty($phoneData['delete']) && ! empty($phoneData['id'])) {
                     $client->phones()->where('id', $phoneData['id'])->delete();
+
                     continue;
                 }
-                
+
                 if (empty($phoneData['delete'])) {
                     $phoneData['client_id'] = $client->id;
                     $client->phones()->updateOrCreate(
@@ -317,13 +326,14 @@ class ClientController extends Controller
 
         if ($request->pets) {
             foreach ($request->pets as $petData) {
-                if (!empty($petData['delete']) && !empty($petData['id'])) {
+                if (! empty($petData['delete']) && ! empty($petData['id'])) {
                     $client->pets()->where('id', $petData['id'])->delete();
+
                     continue;
                 }
-                
+
                 if (empty($petData['delete'])) {
-                    $petId = !empty($petData['id']) ? (int) $petData['id'] : null;
+                    $petId = ! empty($petData['id']) ? (int) $petData['id'] : null;
                     if ($petId) {
                         $client->pets()->where('id', $petId)->update(
                             $this->preparePetData($petData, $client->id)
@@ -364,7 +374,7 @@ class ClientController extends Controller
             'sex' => $petData['sex'] ?? null,
             'coat_color' => $petData['coat_color'] ?? null,
             'size' => $petData['size'] ?? null,
-            'is_sterilized' => !empty($petData['is_sterilized']),
+            'is_sterilized' => ! empty($petData['is_sterilized']),
             'notes' => $petData['notes'] ?? null,
         ];
     }

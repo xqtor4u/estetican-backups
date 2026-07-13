@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\TemplateMessageMail;
+use App\Models\Client;
 use App\Models\Pet;
 use App\Models\RecurrenceMessage;
 use App\Models\Service;
@@ -12,7 +14,10 @@ use App\Support\WhatsApp\TemplateResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
 class RecurrenceMessageController extends Controller
@@ -78,11 +83,21 @@ class RecurrenceMessageController extends Controller
     {
         $validated = $request->validate([
             'whatsapp_template_id' => ['required', 'exists:whatsapp_templates,id'],
+            'channel' => ['nullable', 'string', 'in:whatsapp,email'],
         ]);
 
         [$pet, $service, $template, $error] = $this->loadRecipient($key, $validated['whatsapp_template_id']);
         if ($error) {
             return $error;
+        }
+
+        if (($validated['channel'] ?? 'whatsapp') === 'email') {
+            $resolved = $this->resolveEmailMessage($pet, $service, $template);
+            if ($resolved instanceof JsonResponse) {
+                return $resolved;
+            }
+
+            return response()->json(['message' => $resolved['message'], 'subject' => $resolved['subject']]);
         }
 
         $resolved = $this->resolveMessage($pet, $service, $template);
@@ -97,11 +112,18 @@ class RecurrenceMessageController extends Controller
     {
         $validated = $request->validate([
             'whatsapp_template_id' => ['required', 'exists:whatsapp_templates,id'],
+            'channel' => ['nullable', 'string', 'in:whatsapp,email'],
         ]);
 
         [$pet, $service, $template, $error] = $this->loadRecipient($key, $validated['whatsapp_template_id']);
         if ($error) {
             return $error;
+        }
+
+        $channel = $validated['channel'] ?? 'whatsapp';
+
+        if ($channel === 'email') {
+            return $this->storeEmail($request, $pet, $service, $template);
         }
 
         $resolved = $this->resolveMessage($pet, $service, $template);
@@ -115,6 +137,7 @@ class RecurrenceMessageController extends Controller
             'pet_id' => $pet->id,
             'service_id' => $service->id,
             'whatsapp_template_id' => $template->id,
+            'channel' => 'whatsapp',
             'phone_number' => $resolved['wa_number'],
             'message_body' => $resolved['message'],
             'wa_link' => $waLink,
@@ -124,6 +147,40 @@ class RecurrenceMessageController extends Controller
 
         return response()->json([
             'wa_link' => $waLink,
+            'sent_at' => $recurrenceMessage->sent_at,
+        ]);
+    }
+
+    private function storeEmail(Request $request, Pet $pet, Service $service, WhatsAppTemplate $template): JsonResponse
+    {
+        $resolved = $this->resolveEmailMessage($pet, $service, $template);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
+        }
+
+        try {
+            Mail::to($resolved['to'])->send(new TemplateMessageMail($resolved['subject'], $resolved['message'], $resolved['client']));
+        } catch (\Throwable $e) {
+            Log::error('Error enviando correo de plantilla (recurrencia): '.$e->getMessage());
+
+            return response()->json([
+                'message' => 'No se pudo enviar el correo. Revisa la configuración SMTP en Configuración del sistema.',
+            ], 422);
+        }
+
+        $recurrenceMessage = RecurrenceMessage::create([
+            'pet_id' => $pet->id,
+            'service_id' => $service->id,
+            'whatsapp_template_id' => $template->id,
+            'channel' => 'email',
+            'email_address' => $resolved['to'],
+            'message_body' => $resolved['message'],
+            'sent_by_user_id' => $request->user()->id,
+            'sent_at' => now(),
+        ]);
+
+        return response()->json([
+            'channel' => 'email',
             'sent_at' => $recurrenceMessage->sent_at,
         ]);
     }
@@ -162,6 +219,13 @@ class RecurrenceMessageController extends Controller
         }
 
         $client = $pet->client;
+
+        if ($client && ! $client->receives_service_reminders) {
+            return response()->json([
+                'message' => 'El cliente optó por no recibir recordatorios de servicio.',
+            ], 422);
+        }
+
         $rawPhone = $client ? PhoneNormalizer::bestPhoneFor($client) : null;
         $waNumber = PhoneNormalizer::toWhatsAppNumber($rawPhone);
 
@@ -181,14 +245,52 @@ class RecurrenceMessageController extends Controller
     }
 
     /**
+     * @return array{to: string, subject: string, message: string, client: Client}|JsonResponse
+     */
+    private function resolveEmailMessage(Pet $pet, Service $service, WhatsAppTemplate $template): array|JsonResponse
+    {
+        $lastAt = $this->lastServiceDatesByPet($service)->get($pet->id);
+
+        if (! $lastAt) {
+            return response()->json([
+                'message' => 'Esta mascota no tiene historial de este servicio.',
+            ], 422);
+        }
+
+        $client = $pet->client;
+
+        if ($client && ! $client->receives_service_reminders) {
+            return response()->json([
+                'message' => 'El cliente optó por no recibir recordatorios de servicio.',
+            ], 422);
+        }
+
+        if (! $client?->email) {
+            return response()->json([
+                'message' => 'El cliente no tiene correo electrónico registrado.',
+            ], 422);
+        }
+
+        $dueDate = $lastAt->copy()->addDays($service->recurrence_days);
+        $daysOverdue = (int) $dueDate->diffInDays(now());
+
+        return [
+            'to' => $client->email,
+            'subject' => TemplateResolver::resolveForRecurrence($template->subject ?: $template->name, $pet, $service, $lastAt, $daysOverdue),
+            'message' => TemplateResolver::resolveForRecurrence($template->body, $pet, $service, $lastAt, $daysOverdue),
+            'client' => $client,
+        ];
+    }
+
+    /**
      * Última fecha en que la mascota recibió el servicio, tomada de las citas SPA completadas
      * (`spa_bookings.status = 'completed'` + `spa_booking_services`). `executed_services`/
      * `executed_service_items` existen en el esquema pero ningún flujo real las llena hoy
      * (ver NT-020) — no son fuente de verdad utilizable.
      *
-     * @return \Illuminate\Support\Collection<int, Carbon> última fecha por pet_id
+     * @return Collection<int, Carbon> última fecha por pet_id
      */
-    private function lastServiceDatesByPet(Service $service): \Illuminate\Support\Collection
+    private function lastServiceDatesByPet(Service $service): Collection
     {
         return DB::table('spa_booking_services')
             ->join('spa_bookings', 'spa_bookings.id', '=', 'spa_booking_services.spa_booking_id')

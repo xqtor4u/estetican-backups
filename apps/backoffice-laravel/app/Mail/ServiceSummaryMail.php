@@ -6,9 +6,11 @@ use App\Models\SpaBooking;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\URL;
 
 class ServiceSummaryMail extends Mailable
 {
@@ -16,17 +18,38 @@ class ServiceSummaryMail extends Mailable
 
     public array $settings;
 
+    public ?string $preferencesUrl = null;
+
     /**
      * Create a new message instance.
      */
     public function __construct(
         public SpaBooking $booking
     ) {
-        $systemSettings = app(SystemSettings::class);
+        if ($client = $this->booking->pet?->client) {
+            $this->preferencesUrl = URL::temporarySignedRoute('client-preferences.show', now()->addYear(), ['client' => $client->id]);
+        }
+
+        // SystemSettings no tiene un método get(section) — solo all() (todas las
+        // claves en un solo array plano) — ver NT-029. Se arma acá la forma anidada
+        // que espera la vista, tomando cada clave del array plano.
+        $flat = app(SystemSettings::class)->all();
         $this->settings = [
-            'branding' => $systemSettings->get('branding'),
-            'fiscal' => $systemSettings->get('fiscal'),
-            'operational' => $systemSettings->get('operational'),
+            'branding' => [
+                'brand_logo_web' => $flat['brand_logo_web'] ?? null,
+                'brand_business_name' => $flat['brand_business_name'] ?? null,
+                'brand_address' => $flat['brand_address'] ?? null,
+                'brand_phone' => $flat['brand_phone'] ?? null,
+                'brand_url' => $flat['brand_url'] ?? null,
+            ],
+            'fiscal' => [
+                'fiscal_business_name' => $flat['fiscal_business_name'] ?? null,
+                'fiscal_rfc' => $flat['fiscal_rfc'] ?? null,
+            ],
+            'operational' => [
+                'operational_email_signature_text' => $flat['operational_email_signature_text'] ?? null,
+                'operational_email_subject_prefix' => $flat['operational_email_subject_prefix'] ?? null,
+            ],
         ];
     }
 
@@ -35,8 +58,8 @@ class ServiceSummaryMail extends Mailable
      */
     public function envelope(): Envelope
     {
-        $subject = ($this->settings['operational']['operational_email_subject_prefix'] ?? 'Resumen de Servicio') . ' - ' . $this->booking->pet->name;
-        
+        $subject = ($this->settings['operational']['operational_email_subject_prefix'] ?? 'Resumen de Servicio').' - '.$this->booking->pet->name;
+
         return new Envelope(
             subject: $subject,
         );
@@ -55,7 +78,7 @@ class ServiceSummaryMail extends Mailable
     /**
      * Get the attachments for the message.
      *
-     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+     * @return array<int, Attachment>
      */
     public function attachments(): array
     {

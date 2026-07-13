@@ -36,6 +36,7 @@ class WhatsAppTemplateController extends Controller
 
         $template = WhatsAppTemplate::create([
             'name' => $validated['name'],
+            'subject' => $validated['subject'] ?? null,
             'body' => $validated['body'],
             'context' => $validated['context'],
             'is_active' => ! empty($validated['is_active']),
@@ -67,6 +68,7 @@ class WhatsAppTemplateController extends Controller
 
         $template->update([
             'name' => $validated['name'],
+            'subject' => $validated['subject'] ?? null,
             'body' => $validated['body'],
             'context' => $validated['context'],
             'is_active' => ! empty($validated['is_active']),
@@ -93,6 +95,7 @@ class WhatsAppTemplateController extends Controller
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'subject' => ['nullable', 'string', 'max:255'],
             'body' => ['required', 'string'],
             'context' => ['required', 'string', 'in:cita,recurrencia'],
             'is_active' => ['nullable', 'boolean'],

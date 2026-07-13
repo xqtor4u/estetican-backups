@@ -1,5 +1,50 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/07/2026 (cont. 3) — Envío de plantillas por correo (BL-040) + preferencias de comunicación del cliente (BL-041) + fixes SMTP (NT-030)
+
+Continuación de la misma sesión del 12/07. El usuario preguntó contra quién compite EstetiCAN (comparación con MoeGo, Gingr, Vetmanger, Covly — el motorlogra igualar o superar en profundidad de módulos, pero está atrás en la capa de cara al cliente: portal de reservas, mensajería automática, cobro con tarjeta) y decidió empezar por lo más fácil: habilitar el envío de plantillas también por correo.
+
+**BL-040 — Envío por correo:** sección "Servicio de Correo" completa en Configuración del sistema (usuario, contraseña cifrada, encriptación, remitente), bridgeada de verdad a `config('mail.*')` — antes solo existían `mail_host`/`mail_port` y ni siquiera se aplicaban a ningún request real. Campo `subject` nuevo en `whatsapp_templates`. Nuevo `TemplateMessageMail` con botón "Escríbenos por WhatsApp" (nuevo campo `brand_whatsapp_number` en Branding). Bandeja Diaria y Recurrencias ganan selector de canal (WhatsApp/Correo) reusando la misma cola de envío secuencial y previsualización que ya existía — `booking_messages`/`recurrence_messages` ganan columna `channel`. De paso se encontró y corrigió que `ServiceSummaryMail` llamaba a un método `SystemSettings::get()` que no existe — hubiera tronado (fatal) la primera vez que alguien activara el resumen automático por correo, nunca se había ejercitado.
+
+**NT-030 — 2 bugs reales encontrados por el usuario probando en producción, con 3 adendas el mismo día:**
+1. Botón "Probar Conexión" SMTP daba 404 — el formulario tenía `_method=PUT` (spoofing) para el submit normal, y el JS del botón solo cambiaba `form.action` sin quitar ese campo, así que Laravel enrutaba el POST como PUT hacia `update('smtp-test')`, que no es una sección válida. Fix: deshabilitar el input `_method` antes de enviar.
+2. El campo de encriptación ofrecía `ssl`/`tls` — pero Symfony Mailer (el transporte real detrás de Laravel) solo reconoce `smtp`/`smtps` como valor de `scheme`. Encontrado por el usuario al probar el envío real (`UnsupportedSchemeException`). Opciones corregidas.
+3. El valor viejo (`ssl`) ya guardado en BD de un intento anterior no se autocorregía — se agregó un resguardo genérico en `SystemSettings::castValue()`: si un campo `select` tiene guardado un valor fuera de sus `options` vigentes, cae al `default` en vez de propagarlo indefinidamente (protege a cualquier campo `select` futuro del mismo patrón).
+4. Verificar con `tinker`/`Mail::raw()` directo dio un falso negativo — los comandos de consola no pasan por el middleware `ApplySystemSettings`, así que la config de mail en ese contexto solo refleja `.env`, no lo guardado en `system_settings`. El envío real desde el navegador sí funciona (confirmado aplicando el bridge manualmente en tinker antes de reintentar). **Correo de prueba real enviado y confirmado recibido por el usuario en `no-reply@estetican.org`.**
+
+**BL-041 — Preferencias de comunicación del cliente (opt-out por categoría):** el usuario preguntó si hacía falta dar a los clientes la opción de no recibir ciertos tipos de comunicación — a) ofertas, b) recordatorios de servicio, c) estado de trabajo/resúmenes, d) estado de cuenta, e) otros — con motivo legal de por medio (LFPDPPP, derecho de oposición sobre mercadotecnia). Decisión explícita del usuario: las 5 categorías arrancan **opt-out por defecto** (opted-in, con baja fácil), incluida "ofertas".
+- 5 columnas booleanas nuevas en `clients`, sección nueva en la ficha de cliente (staff-managed).
+- **Bloqueo real en servidor** (no solo UI) en los dos únicos puntos de envío que existen hoy: `BookingMessageController`/`RecurrenceMessageController` (ambos canales) y `ServiceSummaryMail`. (a) ofertas y (d) estado de cuenta quedan solo con la preferencia guardada — no hay ningún emisor de campañas ni de estado de cuenta todavía, deliberadamente fuera de alcance.
+- **Autogestión pública sin login**: link "Gestionar mis preferencias" en el pie de los correos, apuntando a una URL firmada (`URL::temporarySignedRoute`, válida 1 año) — primer uso de rutas firmadas en este proyecto. Nuevo `ClientPreferencesController`, fuera del grupo `auth` de `routes/web.php`.
+
+**Autoresponder del buzón `no-reply@estetican.org`:** se investigaron los registros DNS del dominio (`dig`) — SPF ausente y DKIM no encontrado bajo selectores comunes, DMARC en `p=none` (solo monitorea). Esto afecta la entregabilidad más que si el buzón "existe" o no. Se recomendó activar un autoresponder + filtro de descarte desde el panel de cPanel (`supremecenterhost.com`) en vez de construirlo en la app (requeriría polling IMAP, librería nueva, cron — infraestructura real para replicar algo que cPanel ya hace nativo). **Sin decidir todavía si se documentan los pasos exactos en `docs/tecnico/` — pendiente para la próxima sesión, el usuario pidió que se le recuerde al arrancar.**
+
+**Verificación:** 16 tests nuevos (`SystemSettingsEmailTest` ×3, `ClientCommunicationPreferencesTest` ×7, más 6 ajustados/extendidos en `BookingMessageFlowTest`/`RecurrenceMessageFlowTest`). Suite completa: 37 fallidas (las mismas preexistentes de siempre), 101 pasan. Pint aplicado a todos los archivos tocados. Correo de prueba real confirmado por el usuario.
+
+### 📁 Archivos principales tocados
+- `app/Support/SystemSettings/SystemSettings.php` — sección `email_service` completa, tipo `password` (cifrado), resguardo genérico para `select` con valor obsoleto, `brand_whatsapp_number`
+- `app/Http/Controllers/SystemSettingController.php` — fix `testSmtp()` (scheme)
+- `resources/views/system-settings/index.blade.php` — fix JS del botón "Probar Conexión"
+- `database/migrations/2026_07_12_000002..000004_*.php` — `subject` en `whatsapp_templates`, `channel`/`email_address` en `booking_messages`/`recurrence_messages`, 5 columnas de preferencias en `clients`
+- `app/Mail/TemplateMessageMail.php` (nuevo), `app/Mail/ServiceSummaryMail.php` (fix `get()` + link de preferencias)
+- `app/Http/Controllers/BookingMessageController.php`, `RecurrenceMessageController.php` — canal correo + gate de preferencias
+- `app/Http/Controllers/ClientPreferencesController.php` (nuevo), `resources/views/client-preferences/show.blade.php` (nuevo)
+- `app/Http/Controllers/ClientController.php`, `resources/views/clients/edit.blade.php` — sección de preferencias
+- `resources/js/modules/whatsapp-bandeja.js`, `bandeja/index.blade.php`, `recurrencias/index.blade.php` — selector de canal + gate de preferencias en la cola de envío
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-030 (con 3 adendas)
+- `docs/tecnico/MODELO_BD.md` — columnas nuevas documentadas
+- `docs/tecnico/BACKLOG.md` — BL-040, BL-041
+
+### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
+1. **Recordar al usuario la decisión pendiente**: ¿documentar en `docs/tecnico/` los pasos exactos para activar el autoresponder + filtro de descarte de `no-reply@estetican.org` en cPanel? Quedó sin decidir, el usuario pidió que se le recuerde.
+2. Activar la marca de agua en Backoffice → Configuración del sistema → Fotografías, si se quiere ver el efecto real (sigue pendiente de sesiones anteriores).
+3. Confirmar visualmente en el celular lo pendiente de sesiones del 10-12/07 (candado completo con biometría, editor de foto en las 3 pantallas, `MobUserConfig`).
+4. Sigue pendiente probar `/mapa-zonas` (07/07/2026).
+5. Decidir destino de los 4 archivos huérfanos de la app móvil (ver BL-037).
+6. Considerar registro SPF/DKIM para `estetican.org` — encontrado ausente al investigar el autoresponder, afecta entregabilidad de todos los correos salientes, no solo `no-reply@`. Es configuración de DNS/hosting, no de la app.
+
+---
+
 ## 📅 Sesión: 12/07/2026 (cont. 2) — Candado de sesión: 2 bugs críticos más (NT-027/028) + ventana de alertas en Agenda + `created_by_user_id` en citas (BL-039)
 
 Continuación de la misma sesión del 12/07, después de pushear el batch acumulado (commit `8322bea`).

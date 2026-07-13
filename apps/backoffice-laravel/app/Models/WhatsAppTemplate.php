@@ -12,6 +12,7 @@ class WhatsAppTemplate extends Model
 
     protected $fillable = [
         'name',
+        'subject',
         'body',
         'context',
         'is_active',

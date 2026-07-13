@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\WhatsApp;
 
+use App\Mail\TemplateMessageMail;
+use App\Models\BookingMessage;
 use App\Models\Client;
 use App\Models\Pet;
 use App\Models\Service;
@@ -9,6 +11,7 @@ use App\Models\SpaBooking;
 use App\Models\User;
 use App\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class BookingMessageFlowTest extends TestCase
@@ -113,7 +116,7 @@ class BookingMessageFlowTest extends TestCase
         $this->assertDatabaseMissing('booking_messages', ['spa_booking_id' => $booking->id]);
     }
 
-    public function test_already_sent_today_row_is_excluded_from_select_all_but_still_checkable(): void
+    public function test_already_sent_today_row_is_flagged_in_the_row_config_for_the_frontend(): void
     {
         $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
         $client->phones()->create(['number' => '5512345678', 'type' => 'mobile']);
@@ -133,7 +136,7 @@ class BookingMessageFlowTest extends TestCase
 
         $admin = $this->admin();
 
-        \App\Models\BookingMessage::create([
+        BookingMessage::create([
             'spa_booking_id' => $booking->id,
             'whatsapp_template_id' => $template->id,
             'phone_number' => '525512345678',
@@ -149,8 +152,15 @@ class BookingMessageFlowTest extends TestCase
         $response->assertOk();
         $response->assertSee('Enviado hoy');
 
-        preg_match('/toggleAll\(\$event\.target\.checked, \[(.*?)]\)/', $response->getContent(), $matches);
-        $this->assertStringNotContainsString((string) $booking->id, $matches[1] ?? '');
+        // La exclusión de "seleccionar todos" ahora la calcula el frontend (Alpine, `eligibleIds`)
+        // a partir del flag `alreadySentToday` de cada fila — se verifica que el flag llegue
+        // correcto en la config embebida, en vez de una lista de IDs armada en el servidor.
+        preg_match(
+            '/\\\\u0022id\\\\u0022:'.$booking->id.',.*?\\\\u0022alreadySentToday\\\\u0022:(true|false)/',
+            $response->getContent(),
+            $matches
+        );
+        $this->assertSame('true', $matches[1] ?? null);
     }
 
     public function test_sending_fails_gracefully_when_client_has_no_valid_phone(): void
@@ -172,5 +182,73 @@ class BookingMessageFlowTest extends TestCase
 
         $response->assertStatus(422);
         $this->assertDatabaseMissing('booking_messages', ['spa_booking_id' => $booking->id]);
+    }
+
+    public function test_sending_by_email_creates_a_booking_message_and_sends_mail(): void
+    {
+        Mail::fake();
+
+        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => 'ana@example.com']);
+        $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
+        $booking = SpaBooking::create([
+            'pet_id' => $pet->id,
+            'scheduled_at' => now()->addDay(),
+            'status' => 'scheduled',
+            'total_estimated_price' => 250,
+        ]);
+
+        $template = WhatsAppTemplate::create([
+            'name' => 'Recordatorio',
+            'subject' => 'Recordatorio para {mascota}',
+            'body' => 'Hola {cliente}, recordamos la cita de {mascota}.',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin())
+            ->postJson(route('whatsapp.bandeja.enviar', $booking), [
+                'whatsapp_template_id' => $template->id,
+                'channel' => 'email',
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('channel', 'email');
+
+        $this->assertDatabaseHas('booking_messages', [
+            'spa_booking_id' => $booking->id,
+            'whatsapp_template_id' => $template->id,
+            'channel' => 'email',
+            'email_address' => 'ana@example.com',
+        ]);
+
+        Mail::assertSent(TemplateMessageMail::class, function (TemplateMessageMail $mail) {
+            return $mail->emailSubject === 'Recordatorio para Luka'
+                && str_contains($mail->messageBody, 'Luka')
+                && $mail->hasTo('ana@example.com');
+        });
+    }
+
+    public function test_sending_by_email_fails_gracefully_when_client_has_no_email(): void
+    {
+        Mail::fake();
+
+        $client = Client::create(['first_name' => 'Beto', 'last_name' => 'Soto']);
+        $pet = Pet::create(['client_id' => $client->id, 'name' => 'Rocko']);
+        $booking = SpaBooking::create([
+            'pet_id' => $pet->id,
+            'scheduled_at' => now()->addDay(),
+            'status' => 'scheduled',
+            'total_estimated_price' => 0,
+        ]);
+        $template = WhatsAppTemplate::create(['name' => 'Recordatorio', 'body' => 'Hola {cliente}.', 'is_active' => true]);
+
+        $response = $this->actingAs($this->admin())
+            ->postJson(route('whatsapp.bandeja.enviar', $booking), [
+                'whatsapp_template_id' => $template->id,
+                'channel' => 'email',
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseMissing('booking_messages', ['spa_booking_id' => $booking->id]);
+        Mail::assertNothingSent();
     }
 }

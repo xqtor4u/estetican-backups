@@ -28,6 +28,10 @@
         rows: {{ \Illuminate\Support\Js::from($rows->map(fn ($r) => [
             'id' => $r->booking->id,
             'label' => trim(($r->booking->pet?->client?->full_name ?: 'Cliente') . ' — ' . ($r->booking->pet?->name ?: 'Mascota')),
+            'hasPhone' => (bool) $r->wa_number,
+            'hasEmail' => (bool) $r->booking->pet?->client?->email,
+            'receivesReminders' => $r->booking->pet?->client === null || (bool) $r->booking->pet->client->receives_service_reminders,
+            'alreadySentToday' => $r->already_sent_today,
         ])->values()) }},
     })"
 >
@@ -62,6 +66,13 @@
                 </template>
                 <option value="__new__">+ Crear nueva plantilla…</option>
             </select>
+
+            <label class="fw-semibold mb-0">Enviar por:</label>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm" :class="channel === 'whatsapp' ? 'btn-success' : 'btn-outline-secondary'" @click="setChannel('whatsapp')">WhatsApp</button>
+                <button type="button" class="btn btn-sm" :class="channel === 'email' ? 'btn-success' : 'btn-outline-secondary'" @click="setChannel('email')">Correo</button>
+            </div>
+
             <button type="button" class="btn btn-success ms-auto" @click="openQueue()">
                 Enviar seleccionados
             </button>
@@ -80,13 +91,14 @@
                     <tr>
                         <th style="width:40px">
                             <input type="checkbox" class="form-check-input"
-                                title="No incluye las citas ya enviadas hoy"
-                                @change="toggleAll($event.target.checked, [{{ $rows->filter(fn ($r) => $r->wa_number && ! $r->already_sent_today)->pluck('booking.id')->implode(',') }}])">
+                                title="No incluye las ya enviadas hoy, ni las que no tienen el dato de contacto necesario para el canal elegido"
+                                @change="toggleAll($event.target.checked, eligibleIds)">
                         </th>
                         <th style="width:90px">Hora</th>
                         <th>Mascota</th>
                         <th>Cliente</th>
                         <th>Teléfono</th>
+                        <th>Correo</th>
                         <th>Servicio(s)</th>
                         <th style="width:120px">Estado</th>
                     </tr>
@@ -102,11 +114,16 @@
                                 <input type="checkbox" class="form-check-input"
                                     value="{{ $booking->id }}"
                                     x-model="selected"
-                                    @disabled(! $row->wa_number)
+                                    :disabled="!rowsById['{{ $booking->id }}']?.receivesReminders || (channel === 'whatsapp' ? !rowsById['{{ $booking->id }}']?.hasPhone : !rowsById['{{ $booking->id }}']?.hasEmail)"
                                     @if($row->already_sent_today) title="Ya enviado hoy — márcalo si quieres reenviarlo" @endif>
                             </td>
                             <td>{{ $booking->scheduled_at->format($timeFormat) }}</td>
-                            <td>{{ $booking->pet?->name ?? '—' }}</td>
+                            <td>
+                                {{ $booking->pet?->name ?? '—' }}
+                                @if($client && ! $client->receives_service_reminders)
+                                    <span class="badge bg-warning-subtle text-warning-emphasis" title="El cliente optó por no recibir recordatorios de servicio">No acepta recordatorios</span>
+                                @endif
+                            </td>
                             <td>{{ $client?->full_name ?? '—' }}</td>
                             <td>
                                 @if($row->wa_number)
@@ -115,6 +132,13 @@
                                     <span class="text-danger" title="No reconocido como teléfono mexicano de 10 dígitos">{{ $row->raw_phone }} ⚠️</span>
                                 @else
                                     <span class="text-muted">Sin teléfono</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($client?->email)
+                                    <span class="text-body">{{ $client->email }}</span>
+                                @else
+                                    <span class="text-muted">Sin correo</span>
                                 @endif
                             </td>
                             <td class="small text-muted">{{ $booking->services->pluck('service.name')->filter()->implode(', ') ?: '—' }}</td>
@@ -128,7 +152,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">No hay citas SPA programadas para esta fecha.</td>
+                            <td colspan="8" class="text-center text-muted py-4">No hay citas SPA programadas para esta fecha.</td>
                         </tr>
                     @endforelse
                 </tbody>

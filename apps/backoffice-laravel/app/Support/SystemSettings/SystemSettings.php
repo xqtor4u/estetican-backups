@@ -4,6 +4,7 @@ namespace App\Support\SystemSettings;
 
 use App\Models\SystemSetting;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Throwable;
@@ -149,13 +150,32 @@ class SystemSettings
 
         $timestamp = now();
         $payload = [];
+        $stored = $this->storedValues();
 
         foreach ($sectionDefinition['fields'] as $fieldKey => $fieldDefinition) {
+            $incoming = $validated[$fieldKey] ?? null;
+
+            // Los campos tipo password se dejan en blanco en el formulario a propósito
+            // (nunca se re-imprime el valor guardado) — si llega vacío, no se toca lo
+            // ya guardado, para no borrar la contraseña cada vez que se guarda la sección.
+            if ($fieldDefinition['type'] === 'password' && ($incoming === null || $incoming === '')) {
+                $payload[] = [
+                    'section' => $section,
+                    'key' => $fieldKey,
+                    'type' => $fieldDefinition['type'],
+                    'value' => $stored[$fieldKey] ?? null,
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
+
+                continue;
+            }
+
             $payload[] = [
                 'section' => $section,
                 'key' => $fieldKey,
                 'type' => $fieldDefinition['type'],
-                'value' => $this->serializeValue($fieldDefinition, $validated[$fieldKey] ?? null),
+                'value' => $this->serializeValue($fieldDefinition, $incoming),
                 'created_at' => $timestamp,
                 'updated_at' => $timestamp,
             ];
@@ -308,6 +328,13 @@ class SystemSettings
                         'config' => 'backoffice.brand.favicon',
                         'rules' => ['nullable', 'string'],
                     ],
+                    'brand_whatsapp_number' => [
+                        'label' => 'WhatsApp del negocio (con lada, sin espacios)',
+                        'type' => 'text',
+                        'default' => '',
+                        'rules' => ['nullable', 'string', 'max:20'],
+                        'help' => 'Ej. 5215512345678. Se usa como botón de contacto en los correos enviados a clientes.',
+                    ],
                 ],
             ],
             'guarantees' => [
@@ -437,13 +464,61 @@ class SystemSettings
                         'label' => 'Servidor SMTP',
                         'type' => 'text',
                         'default' => config('mail.mailers.smtp.host'),
+                        'config' => 'mail.mailers.smtp.host',
                         'rules' => ['nullable', 'string'],
                     ],
                     'mail_port' => [
                         'label' => 'Puerto',
                         'type' => 'number',
                         'default' => config('mail.mailers.smtp.port'),
+                        'config' => 'mail.mailers.smtp.port',
                         'rules' => ['nullable', 'integer'],
+                    ],
+                    'mail_username' => [
+                        'label' => 'Usuario SMTP',
+                        'type' => 'text',
+                        'default' => config('mail.mailers.smtp.username'),
+                        'config' => 'mail.mailers.smtp.username',
+                        'rules' => ['nullable', 'string', 'max:200'],
+                    ],
+                    'mail_password' => [
+                        'label' => 'Contraseña SMTP',
+                        'type' => 'password',
+                        'default' => config('mail.mailers.smtp.password'),
+                        'config' => 'mail.mailers.smtp.password',
+                        'rules' => ['nullable', 'string', 'max:200'],
+                        'help' => 'Se guarda cifrada. Dejar en blanco al editar la sección para conservar la contraseña ya guardada.',
+                    ],
+                    'mail_encryption' => [
+                        // Symfony Mailer (el transporte SMTP real detrás de Laravel) solo
+                        // reconoce los esquemas "smtp" y "smtps" para este mailer — "ssl"/"tls"
+                        // como valores literales de scheme no son válidos y truenan en tiempo
+                        // de envío ("The 'ssl' scheme is not supported…", ver NT-030).
+                        'label' => 'Encriptación',
+                        'type' => 'select',
+                        'default' => in_array(config('mail.mailers.smtp.scheme'), ['smtp', 'smtps'], true)
+                            ? config('mail.mailers.smtp.scheme')
+                            : 'smtps',
+                        'config' => 'mail.mailers.smtp.scheme',
+                        'rules' => ['required', Rule::in(['smtp', 'smtps'])],
+                        'options' => [
+                            ['value' => 'smtps', 'label' => 'SSL/TLS implícito (puerto 465)'],
+                            ['value' => 'smtp', 'label' => 'Ninguna / STARTTLS automático (puerto 587)'],
+                        ],
+                    ],
+                    'mail_from_address' => [
+                        'label' => 'Correo remitente',
+                        'type' => 'text',
+                        'default' => config('mail.from.address'),
+                        'config' => 'mail.from.address',
+                        'rules' => ['nullable', 'email', 'max:200'],
+                    ],
+                    'mail_from_name' => [
+                        'label' => 'Nombre remitente',
+                        'type' => 'text',
+                        'default' => config('mail.from.name'),
+                        'config' => 'mail.from.name',
+                        'rules' => ['nullable', 'string', 'max:200'],
                     ],
                 ],
             ],
@@ -526,6 +601,29 @@ class SystemSettings
         if ($fieldDefinition['type'] === 'number') {
             return (int) $value;
         }
+        if ($fieldDefinition['type'] === 'password') {
+            if ($value === null || $value === '') {
+                return null;
+            }
+
+            try {
+                return Crypt::decryptString($value);
+            } catch (Throwable) {
+                // Valor legado sin cifrar o corrupto — se trata como no configurado.
+                return null;
+            }
+        }
+        if ($fieldDefinition['type'] === 'select' && ! empty($fieldDefinition['options'])) {
+            $validValues = array_map(fn ($option) => (string) $option['value'], $fieldDefinition['options']);
+
+            // Si las opciones válidas de un campo cambiaron entre versiones (ver
+            // NT-030 — "ssl"/"tls" dejaron de ser valores válidos de encriptación),
+            // un valor viejo guardado en la BD ya no se propaga indefinidamente —
+            // se cae al default en vez de un valor obsoleto que ya no existe.
+            if (! in_array((string) $value, $validValues, true)) {
+                return $fieldDefinition['default'];
+            }
+        }
 
         return is_string($value) ? trim($value) : $value;
     }
@@ -539,6 +637,10 @@ class SystemSettings
             return (string) ((int) $value);
         }
         $normalized = is_string($value) ? trim($value) : $value;
+
+        if ($fieldDefinition['type'] === 'password') {
+            return $normalized === '' || $normalized === null ? null : Crypt::encryptString((string) $normalized);
+        }
 
         return $normalized === '' ? null : (string) $normalized;
     }

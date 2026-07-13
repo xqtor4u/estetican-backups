@@ -6,6 +6,7 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\BookingMessageController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ClientPreferencesController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Finances\AccountController;
 use App\Http\Controllers\Finances\CashMovementController;
@@ -45,6 +46,13 @@ Route::get('/', function () {
 Route::get('login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('login', [LoginController::class, 'login']);
 Route::post('logout', [LoginController::class, 'logout'])->name('logout');
+
+// Autogestión pública de preferencias de comunicación — sin login, acceso vía
+// enlace firmado que llega en los correos que se le mandan al cliente.
+Route::middleware('signed')->group(function () {
+    Route::get('preferencias/{client}', [ClientPreferencesController::class, 'show'])->name('client-preferences.show');
+    Route::post('preferencias/{client}', [ClientPreferencesController::class, 'update'])->name('client-preferences.update');
+});
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');

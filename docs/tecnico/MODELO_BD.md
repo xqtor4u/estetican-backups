@@ -151,6 +151,11 @@ Dueños o responsables de mascotas.
 | `state` | string nullable | Campo legacy |
 | `zip_code` | string nullable | Campo legacy |
 | `notes` | text nullable | |
+| `receives_offers` | boolean, default true | Preferencias de comunicación (BL-041) — opt-out, no opt-in. Autogestionable por el cliente vía `/preferencias/{client}` (URL firmada, sin login) |
+| `receives_service_reminders` | boolean, default true | Bloquea envío real (422) en Bandeja Diaria/Recurrencias, ambos canales |
+| `receives_job_updates` | boolean, default true | Bloquea `ServiceSummaryMail` (junto con el switch `operational_auto_email_report`) |
+| `receives_account_statements` | boolean, default true | Sin emisor todavía — solo se guarda la preferencia |
+| `receives_other_notifications` | boolean, default true | Catch-all, sin emisor todavía |
 | `timestamps` | | |
 
 ---
@@ -686,35 +691,38 @@ Registro de entradas y salidas de operadores por sucursal (app móvil).
 ## Comunicaciones
 
 ### `whatsapp_templates`
-Mensajes predefinidos con variables, reutilizables desde la bandeja diaria (BL-024 Fase 1) y desde Recurrencias (BL-029).
+Mensajes predefinidos con variables, reutilizables desde la bandeja diaria (BL-024 Fase 1) y desde Recurrencias (BL-029). Desde BL-040 también se envían por correo, no solo WhatsApp — el nombre de la tabla quedó desactualizado a propósito (no se renombró, para no ampliar el alcance del cambio).
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
 | `name` | string | |
-| `body` | text | Placeholders dependen de `context` — ver `App\Support\WhatsApp\TemplateResolver::availableVariables()` |
+| `subject` | string nullable | Asunto usado solo al enviar por correo (BL-040); WhatsApp lo ignora |
+| `body` | text | Placeholders dependen de `context` — ver `App\Support\WhatsApp\TemplateResolver::availableVariables()`. Mismo cuerpo para ambos canales |
 | `context` | string default `cita` | `cita` (bandeja diaria, placeholders `{cliente}`,`{mascota}`,`{servicio}`,`{fecha}`,`{hora}`) o `recurrencia` (placeholders `{cliente}`,`{mascota}`,`{servicio}`,`{ultima_fecha}`,`{dias_vencido}`) |
 | `is_active` | boolean default true | Solo activas aparecen en su bandeja correspondiente |
 | `created_by_user_id` | FK → `users` nullable | |
 | `timestamps` | | |
 
 ### `booking_messages`
-Log de recordatorios de WhatsApp enviados manualmente (vía `wa.me`) desde la bandeja diaria. Solo cubre `spa_bookings` — Hotel maneja sus mensajes con su propia lógica (unidades de negocio distintas, decisión explícita).
+Log de recordatorios (WhatsApp manual vía `wa.me`, o correo real desde BL-040) enviados desde la bandeja diaria. Solo cubre `spa_bookings` — Hotel maneja sus mensajes con su propia lógica (unidades de negocio distintas, decisión explícita).
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
 | `spa_booking_id` | FK → `spa_bookings` cascadeOnDelete | |
 | `whatsapp_template_id` | FK → `whatsapp_templates` nullOnDelete | Nulo si la plantilla se borra; conserva el log |
-| `phone_number` | string | Número ya normalizado para wa.me (ej. `525512345678`) |
+| `channel` | string default `whatsapp` | `whatsapp` o `email` (BL-040) |
+| `phone_number` | string nullable | Número ya normalizado para wa.me (ej. `525512345678`) — solo canal `whatsapp` |
+| `email_address` | string nullable | Solo canal `email` (BL-040) |
 | `message_body` | text | Snapshot del mensaje ya resuelto (placeholders reemplazados) |
-| `wa_link` | text | URL `https://wa.me/...` generada |
+| `wa_link` | text nullable | URL `https://wa.me/...` generada — solo canal `whatsapp` |
 | `sent_by_user_id` | FK → `users` nullOnDelete | |
-| `sent_at` | datetime | |
+| `sent_at` | datetime | Para WhatsApp marca cuándo se generó el link (no garantiza que el staff lo haya mandado); para correo marca el envío real |
 | `timestamps` | | |
 
 ### `recurrence_messages`
-Log de recordatorios de WhatsApp enviados manualmente desde la pantalla **Recurrencias** (BL-029) — mascotas cuyo servicio periódico (`services.recurrence_days`) ya se cumplió desde su última ejecución. La "última ejecución" se calcula de `spa_bookings.scheduled_at` (`status = 'completed'`) vía `spa_booking_services.service_id`, **no** de `executed_services`/`executed_service_items` — esas tablas están huérfanas, ningún flujo real las llena (ver NT-020). Mismo patrón que `booking_messages` pero sin `spa_booking_id` (no hay cita asociada, es proactivo).
+Log de recordatorios (WhatsApp manual o correo real desde BL-040) enviados desde la pantalla **Recurrencias** (BL-029) — mascotas cuyo servicio periódico (`services.recurrence_days`) ya se cumplió desde su última ejecución. La "última ejecución" se calcula de `spa_bookings.scheduled_at` (`status = 'completed'`) vía `spa_booking_services.service_id`, **no** de `executed_services`/`executed_service_items` — esas tablas están huérfanas, ningún flujo real las llena (ver NT-020). Mismo patrón que `booking_messages` pero sin `spa_booking_id` (no hay cita asociada, es proactivo).
 
 | Columna | Tipo | Notas |
 |---|---|---|
@@ -722,9 +730,11 @@ Log de recordatorios de WhatsApp enviados manualmente desde la pantalla **Recurr
 | `pet_id` | FK → `pets` cascadeOnDelete | |
 | `service_id` | FK → `services` cascadeOnDelete | |
 | `whatsapp_template_id` | FK → `whatsapp_templates` nullOnDelete | |
-| `phone_number` | string | Normalizado para wa.me |
+| `channel` | string default `whatsapp` | `whatsapp` o `email` (BL-040) |
+| `phone_number` | string nullable | Normalizado para wa.me — solo canal `whatsapp` |
+| `email_address` | string nullable | Solo canal `email` (BL-040) |
 | `message_body` | text | Snapshot ya resuelto |
-| `wa_link` | text | |
+| `wa_link` | text nullable | Solo canal `whatsapp` |
 | `sent_by_user_id` | FK → `users` nullOnDelete | |
 | `sent_at` | datetime | Se usa para marcar "ya enviado hoy" en la UI y evitar doble envío el mismo día; no suprime el recordatorio en días siguientes si la mascota sigue sin recibir el servicio |
 | `timestamps` | | |

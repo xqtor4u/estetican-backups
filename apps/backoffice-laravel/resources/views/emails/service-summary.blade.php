@@ -65,6 +65,9 @@
             @if($settings['branding']['brand_url'] ?? null)
                 <p><a href="{{ $settings['branding']['brand_url'] }}" style="color: #3498db;">{{ $settings['branding']['brand_url'] }}</a></p>
             @endif
+            @if($preferencesUrl ?? null)
+                <p><a href="{{ $preferencesUrl }}" style="color: #777;">Gestionar mis preferencias de comunicación</a></p>
+            @endif
         </div>
     </div>
 </body>

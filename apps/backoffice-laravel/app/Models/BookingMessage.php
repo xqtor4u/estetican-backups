@@ -10,7 +10,9 @@ class BookingMessage extends Model
     protected $fillable = [
         'spa_booking_id',
         'whatsapp_template_id',
+        'channel',
         'phone_number',
+        'email_address',
         'message_body',
         'wa_link',
         'sent_by_user_id',
