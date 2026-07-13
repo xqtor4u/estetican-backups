@@ -309,6 +309,7 @@ Citas de servicio SPA. Ciclo de vida: `scheduled` → `work_order` → `complete
 | `id` | bigint PK | |
 | `pet_id` | FK → `pets` | |
 | `operator_id` | FK → `operators` nullable | Operador asignado (desde app móvil) |
+| `created_by_user_id` | FK → `users` nullable, nullOnDelete | Usuario (dueño de la sesión, web o móvil) que agendó la cita — `auth()->id()` capturado en `BookingService::scheduleSpaSession()` (web) y `Api\BookingController::store()` (móvil). Relación `SpaBooking::createdBy()` |
 | `scheduled_at` | datetime | Fecha y hora de la cita |
 | `duration_minutes` | smallint nullable | Duración total en minutos |
 | `total_estimated_price` | decimal(10,2) | Sincronizado desde quote aceptado |

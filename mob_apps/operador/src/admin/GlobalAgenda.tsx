@@ -57,8 +57,8 @@ export function GlobalAgenda() {
   const [bookings,     setBookings]     = useState<Booking[]>([]);
   const [loadingAg,    setLoadingAg]    = useState(true);
   const [filterOp,     setFilterOp]     = useState<number | null>(null);
-  const [vencidas,     setVencidas]     = useState<Vencida[]>([]);
-  const [showVencidas, setShowVencidas] = useState(true);
+  const [vencidas,          setVencidas]          = useState<Vencida[]>([]);
+  const [showVencidasModal, setShowVencidasModal]  = useState(false);
 
   // Carga inicial: operadores, sucursales y citas vencidas
   useEffect(() => {
@@ -185,19 +185,31 @@ export function GlobalAgenda() {
 
       <main className="flex-1 flex flex-col">
 
-        {/* Toggle Día/Semana/Mes */}
-        <div className="bg-surface px-4 pt-2 flex items-center gap-1.5">
-          {(['day', 'week', 'month'] as CalView[]).map(v => (
+        {/* Toggle Día/Semana/Mes + alerta de citas vencidas */}
+        <div className="bg-surface px-4 pt-2 flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5">
+            {(['day', 'week', 'month'] as CalView[]).map(v => (
+              <button
+                key={v}
+                onClick={() => setCalView(v)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                  calView === v ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant border border-outline-variant'
+                }`}
+              >
+                {v === 'day' ? 'Día' : v === 'week' ? 'Semana' : 'Mes'}
+              </button>
+            ))}
+          </div>
+
+          {vencidas.length > 0 && (
             <button
-              key={v}
-              onClick={() => setCalView(v)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                calView === v ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant border border-outline-variant'
-              }`}
+              onClick={() => setShowVencidasModal(true)}
+              className="flex items-center gap-1 bg-error/10 text-error border border-error/30 px-3 py-1 rounded-full text-xs font-semibold active:scale-95 transition-transform shrink-0"
             >
-              {v === 'day' ? 'Día' : v === 'week' ? 'Semana' : 'Mes'}
+              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+              {vencidas.length}
             </button>
-          ))}
+          )}
         </div>
 
         {/* Selector de fecha (vista Día) */}
@@ -335,44 +347,6 @@ export function GlobalAgenda() {
           )}
         </div>
 
-        {/* ── Citas vencidas sin resolver ───────────────────── */}
-        {vencidas.length > 0 && showVencidas && (
-          <div className="mx-4 mt-3 bg-error/8 border border-error/30 rounded-2xl overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-error/20">
-              <span className="material-symbols-outlined text-error text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
-              <p className="flex-1 text-sm font-semibold text-error">
-                {vencidas.length} {vencidas.length === 1 ? 'cita pendiente sin resolver' : 'citas pendientes sin resolver'}
-              </p>
-              <button onClick={() => setShowVencidas(false)} className="p-1 rounded-full hover:bg-error/10">
-                <span className="material-symbols-outlined text-error/60 text-base">close</span>
-              </button>
-            </div>
-            <div className="flex flex-col divide-y divide-error/10">
-              {vencidas.map(v => (
-                <button
-                  key={v.id}
-                  onClick={() => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate(`/citas/${v.id}`); }}
-                  className="flex items-center gap-3 px-4 py-3 text-left active:bg-error/10 transition-colors w-full"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-error/10 overflow-hidden flex items-center justify-center shrink-0">
-                    {v.pet.photo
-                      ? <img src={v.pet.photo} className="w-full h-full object-cover" alt={v.pet.name} />
-                      : <span className="material-symbols-outlined text-error text-base" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-on-surface truncate">{v.pet.name}</p>
-                    <p className="text-xs text-error/80">
-                      {v.date_label} {v.time}
-                      {v.services.length > 0 && ` · ${v.services.map(s => s.name).join(', ')}`}
-                    </p>
-                  </div>
-                  <span className="material-symbols-outlined text-error/50 text-base shrink-0">chevron_right</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Lista de citas (Día) / Grid tipo calendario (Semana/Mes) */}
         <div className="flex-1 px-4 pb-4 flex flex-col gap-3">
 
@@ -413,6 +387,57 @@ export function GlobalAgenda() {
         </div>
 
       </main>
+
+      {/* Ventana de citas vencidas sin resolver, abierta desde el botón de alerta */}
+      {showVencidasModal && (
+        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setShowVencidasModal(false)} />
+      )}
+      <div
+        className={`fixed left-0 right-0 bottom-0 z-50 bg-surface rounded-t-3xl shadow-2xl transition-transform duration-300 ease-out ${
+          showVencidasModal ? 'translate-y-0' : 'translate-y-full'
+        }`}
+        style={{ maxHeight: '85vh', overflowY: 'auto' }}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-outline-variant" />
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-error/20">
+          <span className="material-symbols-outlined text-error text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+          <p className="flex-1 text-sm font-semibold text-error">
+            {vencidas.length} {vencidas.length === 1 ? 'cita pendiente sin resolver' : 'citas pendientes sin resolver'}
+          </p>
+          <button onClick={() => setShowVencidasModal(false)} className="p-1 rounded-full hover:bg-error/10">
+            <span className="material-symbols-outlined text-error/60 text-base">close</span>
+          </button>
+        </div>
+        <div className="flex flex-col divide-y divide-error/10 pb-4">
+          {vencidas.map(v => (
+            <button
+              key={v.id}
+              onClick={() => {
+                setShowVencidasModal(false);
+                setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
+                navigate(`/citas/${v.id}`);
+              }}
+              className="flex items-center gap-3 px-4 py-3 text-left active:bg-error/10 transition-colors w-full"
+            >
+              <div className="w-8 h-8 rounded-lg bg-error/10 overflow-hidden flex items-center justify-center shrink-0">
+                {v.pet.photo
+                  ? <img src={v.pet.photo} className="w-full h-full object-cover" alt={v.pet.name} />
+                  : <span className="material-symbols-outlined text-error text-base" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-on-surface truncate">{v.pet.name}</p>
+                <p className="text-xs text-error/80">
+                  {v.date_label} {v.time}
+                  {v.services.length > 0 && ` · ${v.services.map(s => s.name).join(', ')}`}
+                </p>
+              </div>
+              <span className="material-symbols-outlined text-error/50 text-base shrink-0">chevron_right</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

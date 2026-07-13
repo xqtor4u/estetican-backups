@@ -756,3 +756,41 @@ Antes de construir cualquier feature nueva sobre `ExecutedService`/`ExecutedServ
 **Sin resolver a nivel de proyecto:** el resto del código de `mob_apps/operador` no usa `max-w-{xs,sm,md,lg,xl}` (verificado por grep), así que no hay otras instancias rotas hoy — pero la colisión sigue latente para cualquier uso futuro de esas clases mientras existan los tokens `--spacing-xs`/`--spacing-sm`/etc. en `@theme`. No se renombraron los tokens custom en esta sesión (hubiera sido un cambio más amplio, fuera del alcance del bug reportado).
 
 **Lección:** en Tailwind v4, agregar tokens custom en `@theme` con nombres cortos genéricos (`xs`, `sm`, `md`, `lg`, `xl`) es peligroso porque esos nombres son compartidos por **todas** las utilidades de la familia de espaciado (ancho, alto, padding, margin, gap), no solo la utilidad para la que se pensaron. Si el layout de un componente se ve roto de forma que no tiene sentido con las clases escritas (por ejemplo, un `max-w-sm` que se ve más chico que el contenido sin restricción), inspeccionar el CSS **compilado** de esa clase específica antes de seguir ajustando clases a ciegas — el bug puede estar en la resolución del token, no en la clase usada.
+
+---
+
+## NT-027 — El candado de sesión (`AppLockContext`) se perdía en cada reload por una carrera con la carga asíncrona de `useAuth()`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-12 |
+| **Severidad** | P1 — Crítico (bypassea por completo el candado de sesión, BL-038) |
+| **Componente** | `mob_apps/operador/src/AppLockContext.tsx`, `src/AuthContext.tsx` |
+| **Impacto** | Cualquier reload de página, o "atrás" del navegador cuando implicaba una navegación real, mostraba la app desbloqueada sin importar que estuviera bloqueada manual o automáticamente |
+
+**Síntoma:** el usuario reportó que bloquear la sesión (manual o por timeout) no servía de nada si después recargaba la página o usaba "atrás" — volvía directo a la pantalla desbloqueada.
+
+**Causa raíz:** un primer intento de fix persistió `locked` en `localStorage` y lo leía en un lazy initializer de `useState` condicionado a `enabled` (`!!user`). Pero `useAuth()` resuelve la sesión de forma asíncrona (`fetch('/api/me')` tras leer el token de `localStorage`, ver `AuthContext.tsx:59-76`) — en el primer render de cada reload, `user` todavía es `null`, así que `enabled` es `false` y el initializer devuelve `false` sin importar lo persistido. Peor: el `useEffect` que reacciona a `enabled` trataba "todavía no sé si hay sesión" (`loading = true`) igual que "confirmado que no hay sesión" (`loading = false, user = null`) — en ambos casos entraba a la misma rama, que llamaba `clearStoredState()`, **borrando** el estado de bloqueo guardado antes de que hubiera oportunidad de usarlo cuando `enabled` pasara a `true` más tarde.
+
+**Solución aplicada:** se expone `loading` desde `useAuth()` y se usa para no tocar nada (ni el estado en memoria ni lo persistido) mientras la sesión todavía se está resolviendo. Una vez que `loading` es `false`, si hay sesión (`enabled`) se re-sincroniza `locked` explícitamente desde `localStorage` (no se confía en el valor del lazy initializer, que quedó fijado en el primer render); si no hay sesión, recién ahí se limpia el estado persistido.
+
+**Lección:** un lazy initializer de `useState` solo corre **una vez**, en el primer render — si depende de un valor que llega de forma asíncrona (como el usuario autenticado), va a quedar con un valor obsoleto para siempre a menos que algo lo vuelva a calcular explícitamente cuando esa dependencia async se resuelve. Cualquier estado derivado de `useAuth()` en este proyecto debe distinguir `loading` de "confirmado sin sesión" — son casos distintos, no el mismo `else`.
+
+---
+
+## NT-028 — Escribir en el campo de contraseña de `LockScreen` marcaba la sesión como desbloqueada en el storage persistido, sin haber terminado de desbloquear
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-12 |
+| **Severidad** | P2 — Alto (bypass parcial del candado, BL-038, encontrado durante la verificación de NT-027) |
+| **Componente** | `mob_apps/operador/src/AppLockContext.tsx` |
+| **Impacto** | Recargar la página a mitad de escribir la contraseña en `LockScreen` (sin llegar a tocar "Desbloquear") mostraba la app desbloqueada en el siguiente reload |
+
+**Síntoma:** encontrado mientras se verificaba el fix de NT-027 — bloquear, empezar a escribir la contraseña sin terminar, y recargar, mostraba la app sin candado.
+
+**Causa raíz:** los listeners de actividad (`touchstart`, `mousedown`, `keydown`, `scroll`) están registrados en `document` con burbujeo, así que también se disparan por los toques/tecleo **dentro de la propia pantalla de bloqueo** (escribir en el campo de contraseña, tocar el botón "Desbloquear"). Cada uno de esos eventos llama `resetTimer()`, que escribía `{ locked: false, ... }` en `localStorage` de forma incondicional (con throttle de 5s) — sin verificar si en ese momento la app seguía realmente bloqueada.
+
+**Solución aplicada:** se agregó `lockedRef` (un `useRef` sincronizado con el estado `locked` real) y `resetTimer()` ahora omite el guardado en `localStorage` si `lockedRef.current` es `true`. La programación del timeout de auto-bloqueo de 5 min no se ve afectada, solo el guardado indebido del flag `locked: false`.
+
+**Lección:** cuando una pantalla de overlay/candado convive con listeners globales de "actividad reciente" en `document`, esos listeners no distinguen por defecto si el toque/tecla ocurrió dentro del overlay o en la app real debajo — hay que guardar el estado "verdadero" actual en algo legible de forma síncrona (un ref, no el estado de React que se actualiza async) para poder filtrar esos casos dentro del mismo handler.

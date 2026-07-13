@@ -113,4 +113,24 @@ class SpaBookingSchedulingValidationTest extends TestCase
             'operator_id' => $operator->id,
         ]);
     }
+
+    public function test_records_the_authenticated_user_as_creator(): void
+    {
+        $pet = $this->pet();
+        $service = $this->service();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->post(route('pets.bookings.store', $pet), [
+            'operator_id' => $operator->id,
+            'scheduled_at' => now()->addDay()->setTime(11, 0)->format('Y-m-d H:i:s'),
+            'services' => [$service->id],
+        ]);
+
+        $response->assertRedirect(route('agenda.index'));
+        $this->assertDatabaseHas('spa_bookings', [
+            'pet_id' => $pet->id,
+            'created_by_user_id' => $admin->id,
+        ]);
+    }
 }

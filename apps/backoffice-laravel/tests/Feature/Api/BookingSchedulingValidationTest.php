@@ -38,6 +38,30 @@ class BookingSchedulingValidationTest extends TestCase
         return ['Authorization' => "Bearer {$plainToken}"];
     }
 
+    /** @return array{headers: array, user: User} */
+    private function authHeaderAndUser(): array
+    {
+        $user = User::create([
+            'name' => 'Operador Test 2',
+            'first_name' => 'Operador',
+            'last_name' => 'Test 2',
+            'email' => 'operador-api-test-2-'.uniqid().'@example.com',
+            'password' => bcrypt('secret'),
+            'role' => 'admin',
+            'is_active' => true,
+            'can_login' => true,
+        ]);
+
+        $plainToken = 'test-token-'.uniqid();
+        ApiToken::create([
+            'user_id' => $user->id,
+            'token' => hash('sha256', $plainToken),
+            'name' => 'test',
+        ]);
+
+        return ['headers' => ['Authorization' => "Bearer {$plainToken}"], 'user' => $user];
+    }
+
     private function pet(): Pet
     {
         $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
@@ -114,6 +138,25 @@ class BookingSchedulingValidationTest extends TestCase
         $this->assertDatabaseHas('spa_bookings', [
             'pet_id' => $pet->id,
             'operator_id' => $operator->id,
+        ]);
+    }
+
+    public function test_records_the_authenticated_user_as_creator(): void
+    {
+        $pet = $this->pet();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        ['headers' => $headers, 'user' => $user] = $this->authHeaderAndUser();
+
+        $response = $this->withHeaders($headers)->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $operator->id,
+            'scheduled_at' => now()->addDay()->setTime(11, 0)->format('Y-m-d H:i:s'),
+        ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('spa_bookings', [
+            'pet_id' => $pet->id,
+            'created_by_user_id' => $user->id,
         ]);
     }
 }

@@ -1,5 +1,37 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/07/2026 (cont. 2) — Candado de sesión: 2 bugs críticos más (NT-027/028) + ventana de alertas en Agenda + `created_by_user_id` en citas (BL-039)
+
+Continuación de la misma sesión del 12/07, después de pushear el batch acumulado (commit `8322bea`).
+
+**Candado de sesión seguía sin servir (NT-027, NT-028):** el usuario reportó que, además del bug de tamaño ya resuelto, podía darle "atrás" o recargar la página y volvía directo a la sesión abierta, saltándose el candado por completo (manual o automático). Investigado y corregido en `AppLockContext.tsx`:
+- **NT-027 (crítico):** el estado `locked` persistido en `localStorage` (agregado en un primer intento de fix) nunca se leía de verdad en un reload real, porque `useAuth()` resuelve la sesión de forma asíncrona — en el primer render `enabled` (`!!user`) es `false`, y el código trataba "todavía cargando" igual que "confirmado sin sesión", **borrando** lo persistido antes de tener oportunidad de usarlo. Fix: usar el flag `loading` de `AuthContext` para no tocar nada hasta que la sesión termine de resolverse, y recién ahí re-sincronizar `locked` desde `localStorage`.
+- **NT-028:** encontrado verificando el fix anterior — escribir la contraseña en `LockScreen` sin terminar de desbloquear (tocar/teclear dentro del propio candado) disparaba los mismos listeners globales de "actividad" que usa el resto de la app, y esos escribían `locked: false` en el storage aunque siguiera bloqueado. Fix: un `lockedRef` que el guardado de actividad respeta, sin tocar el storage mientras siga bloqueado de verdad.
+- Confirmado por el usuario en producción real tras cada fix: recargar estando bloqueado, y recargar a mitad de escribir la contraseña, ya piden desbloqueo correctamente.
+
+**Agenda móvil — panel de vencidas convertido en ventana (a pedido del usuario):** el bloque de "citas pendientes sin resolver" en `MobAgGbl` (`GlobalAgenda.tsx`) se mostraba siempre expandido arriba de la lista, ocupando mucho espacio. Reemplazado por un botón chico con colores de alarma (rojo/error) junto a los botones Día/Semana/Mes, visible solo si hay vencidas, que abre una ventana tipo hoja deslizable desde abajo (mismo patrón visual que el menú lateral de `App.tsx`) con el detalle completo.
+
+**`created_by_user_id` en citas (BL-039):** el usuario preguntó si el sistema ya registraba quién crea cada cita — investigado (agente de exploración) y confirmado que no: `spa_bookings` solo tenía `operator_id` (el operador asignado/que atiende, no quién la agendó), sin ningún campo de auditoría de creador, a diferencia de otros módulos del proyecto (caja, movimientos de finanzas, plantillas de WhatsApp) que sí siguen esa convención con `created_by_user_id`. A pedido explícito del usuario, se agregó:
+- Migración `2026_07_12_000001_add_created_by_user_id_to_spa_bookings.php` (FK nullable a `users`, `nullOnDelete`, mismo patrón que los otros módulos) — ya aplicada en producción.
+- `SpaBooking::createdBy()` (mismo nombre de relación que `JournalEntry`/`WhatsAppTemplate`).
+- `auth()->id()` capturado en los dos únicos caminos de creación de citas SPA hoy: `BookingService::scheduleSpaSession()` (ruta web, usada por `SpaBookingController::storeForPet()`) y `Api\BookingController::store()` (ruta móvil) — investigado con un agente que confirmó que la API móvil **no** pasa por `BookingService`, crea el modelo directo, así que hubo que tocar ambos lugares por separado.
+- 2 tests nuevos (uno por ruta) confirmando que el `id` del usuario autenticado queda guardado.
+- `MODELO_BD.md` actualizado con la columna nueva.
+
+**Verificación:** suite completa del backend: 37 fallidas (las mismas preexistentes de siempre), 87 pasan (85 + 2 nuevas). `tsc`/`build` sin errores nuevos en los archivos tocados.
+
+### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
+1. **Commit/push de esta sesión** — NT-027/028 (fix real del candado), la ventana de alertas de Agenda, y BL-039 (`created_by_user_id`) siguen sin commitear.
+2. Confirmar visualmente en el celular: la ventana de alertas nueva en Agenda (botón + hoja deslizable), y terminar de confirmar el candado de sesión completo (biometría, timeout de 5 min, cambio de app) — la parte de persistencia ya se confirmó, falta el resto de BL-038.
+3. Confirmar visualmente el resto de lo del 10/07 que seguía sin probar: `MobUserConfig` completo (foto, datos, contraseña, 3 modos de tema), editor de recorte/rotar/marca de agua en las 3 pantallas, fix de Mascotas (título + foto editable).
+4. Activar la marca de agua en Backoffice → Configuración del sistema → Fotografías si se quiere ver el efecto real (sigue apagada por default).
+5. Sigue pendiente de sesiones anteriores: probar `/mapa-zonas` (07/07/2026) — nunca se confirmó.
+6. GMT/zona horaria — sigue sin decidir (ver nota en BL-034).
+7. Decidir destino de los 4 archivos huérfanos (`ActiveService.tsx`, `GroomerDashboard.tsx`, `client/Booking.tsx`, `client/Dashboard.tsx`).
+8. **Riesgo latente (NT-026):** los tokens `--spacing-xs/sm/md/lg/xl` en `index.css` siguen colisionando con cualquier uso futuro de `max-w-{xs,sm,md,lg,xl}` en `mob_apps/operador` — no se renombraron.
+
+---
+
 ## 📅 Sesión: 12/07/2026 — Fix tamaño `LockScreen` (NT-026) + commit/push del batch pendiente (BL-034..BL-038)
 
 Continuación de la sesión del 10/07. El usuario probó `LockScreen` en su celular real (producción, `mov.estetican.org`) y reportó el campo de contraseña y el botón "Desbloquear" demasiado chicos y no centrados. Dos rondas de ajuste de clases Tailwind (`w-full`, `flex items-center justify-center`, `max-w-xs`→`max-w-sm`) no cambiaron nada visualmente — se confirmó primero que el deploy sí estaba actualizado (esta sesión corre directo en la OPi de producción; `npm run build` en `mob_apps/operador` despliega de inmediato vía bind mount al contenedor `estetican_mob`, ver `project_opi_workflow` en memoria).

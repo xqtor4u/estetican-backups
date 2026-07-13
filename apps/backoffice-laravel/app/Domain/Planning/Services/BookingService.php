@@ -28,6 +28,7 @@ class BookingService implements BookingServiceInterface
             $booking = $this->spaBookingRepository->create([
                 'pet_id' => $petId,
                 'operator_id' => $operatorId,
+                'created_by_user_id' => auth()->id(),
                 'scheduled_at' => $scheduledAt,
                 'total_estimated_price' => $totalPrice,
                 'status' => 'scheduled',

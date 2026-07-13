@@ -112,6 +112,7 @@ class BookingController extends Controller
         $booking = SpaBooking::create([
             'pet_id' => $data['pet_id'],
             'operator_id' => $data['operator_id'],
+            'created_by_user_id' => auth()->id(),
             'scheduled_at' => $data['scheduled_at'],
             'duration_minutes' => $data['duration_minutes'] ?? null,
             'status' => 'scheduled',
