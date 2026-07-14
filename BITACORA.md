@@ -1,5 +1,23 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 14/07/2026 (cont.) — Deploy real del widget en `estetican.org` (BL-042b, NT-032)
+
+Continuación de la sesión del 13/07. El usuario configuró la API key real de Anthropic y probó el widget en producción. Widget desplegado en el sitio real, con 2 bugs de configuración del usuario + 1 bug real de la plataforma:
+
+1. La primera API key guardada no tenía formato válido de Anthropic (`sk-ant-...`) — resultó ser una contraseña generada al azar pegada por error. Corregido por el usuario tras diagnosticar el formato.
+2. El campo "Token del widget" se había definido tipo `password` (nunca reimprime el valor guardado) pero **no es un secreto real** — el usuario necesitaba copiarlo al código público del sitio. Cambiado a tipo `text`, con migración del valor ya guardado (desencriptado y re-guardado en texto plano) para no perderlo.
+3. **Bug real de la plataforma, no del código de este repo (NT-032):** el editor de WordPress usado le aplica `wpautop` (filtro de párrafos) al contenido de los campos HTML/CSS/JS *antes* de envolverlos en sus etiquetas, insertando `<p>`/`</p>` en medio del JavaScript y rompiéndolo con errores de sintaxis — sin ningún error visible para el usuario, el botón simplemente nunca aparecía. Diagnosticado bajando el HTML real servido (`curl`) en vez de asumir. Quitar líneas en blanco redujo pero no eliminó el problema (`wpautop` envuelve *cualquier* bloque de texto en al menos un `<p>`, tenga o no separadores). **Fix definitivo:** toda la lógica del widget se movió a un archivo externo (`public/assistant-widget-wp.js`), cargado con una sola etiqueta `<script src="..." data-api-base="..." data-token="..." async>` sin texto en el cuerpo — inmune a `wpautop` porque no hay contenido de texto que corromper.
+4. Nuevo directorio `wp-portal/` (no se despliega, solo repositorio de trabajo) con el HTML/CSS del sitio real versionado, para que el usuario pueda bajarlo por SCP y copiar/pegar al editor de WordPress. De paso se corrigieron 2 errores de sintaxis CSS reales que ya traía la página (llaves `}` sueltas, propiedad `text-` cortada a la mitad — probablemente `text-transform: uppercase` con contenido perdido).
+5. Confirmado funcionando de punta a punta contra Anthropic real, con Cloudflare (proxy del sitio) purgado manualmente por el usuario tras cada cambio — no hay API de Cloudflare configurada en el proyecto para purgar por comando.
+
+### 📁 Archivos principales tocados
+- `apps/backoffice-laravel/public/assistant-widget-wp.js` (nuevo)
+- `wp-portal/README.md`, `wp-portal/pagina-servicios/{html.html,styles.css,script.js}` (nuevo directorio)
+- `app/Support/SystemSettings/SystemSettings.php` — `ai_assistant_site_token` de `password` a `text`
+- `docs/tecnico/NOTAS_TECNICAS.md` (NT-032), `BACKLOG.md` (BL-042b movido a Completados)
+
+---
+
 ## 📅 Sesión: 13/07/2026 — Asistente de IA para el widget de chat de WordPress (BL-042, backend completo)
 
 Sesión que arrancó como una pregunta amplia ("¿cómo ligamos WP/Facebook/Instagram a la app móvil para contestar?") y se acotó bastante tras varias rondas de aclaración con el usuario — quedó documentado en memoria (`project_asistente_ia_wp`, `project_app_clientes`) para no repetir la confusión en el futuro:

@@ -1,0 +1,396 @@
+/* RESET BASE */
+.estetican-spa-page *,
+.estetican-spa-page *::before,
+.estetican-spa-page *::after {
+  box-sizing: border-box;
+}
+.estetican-spa-page img {
+  max-width: 100%;
+  height: auto;
+}
+.estetican-spa-page {
+  font-family: 'Georgia', serif;
+  color: #3a2a1a;
+}
+/* HERO */
+.estetican-hero {
+  background: linear-gradient(135deg, #b5651d 0%, #8b4513 40%, #5c2d0a 100%);
+  color: white;
+  text-align: center;
+  padding: 80px 40px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  margin-bottom: 60px;
+}
+.estetican-hero .paw-decoration {
+  font-size: 60px;
+  display: block;
+  margin-bottom: 20px;
+}
+.estetican-hero h2 {
+  font-size: clamp(2em, 5vw, 3.5em);
+  font-weight: bold;
+  margin: 0 0 16px 0;
+  text-shadow: 2px 2px 8px rgba(0,0,0,0.4);
+  color: #fff8e1;
+  letter-spacing: 2px;
+}
+.estetican-hero p {
+  font-size: clamp(1em, 2.5vw, 1.3em);
+  max-width: 650px;
+  margin: 0 auto 30px;
+  line-height: 1.7;
+  opacity: 0.93;
+}
+.estetican-hero-badge {
+  display: inline-block;
+  background: rgba(255,255,255,0.2);
+  border: 2px solid rgba(255,255,255,0.5);
+  border-radius: 50px;
+  padding: 10px 30px;
+  font-size: 0.95em;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-family: sans-serif;
+}
+/* SECTION TITLES */
+.estetican-section-title {
+  text-align: center;
+  margin-bottom: 40px;
+}
+.estetican-section-title h3 {
+  font-size: clamp(1.6em, 3vw, 2.4em);
+  color: #5c2d0a;
+  margin: 0 0 10px 0;
+  position: relative;
+  display: inline-block;
+}
+.estetican-section-title h3::after {
+  content: '';
+  display: block;
+  width: 60%;
+  height: 4px;
+  background: linear-gradient(90deg, #b5651d, #f4c878);
+  border-radius: 2px;
+  margin: 8px auto 0;
+}
+.estetican-section-title p {
+  color: #7a5c3a;
+  font-size: 1.05em;
+  font-family: sans-serif;
+  max-width: 550px;
+  margin: 0 auto;
+}
+/* SERVICE CARDS */
+.estetican-services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 28px;
+  margin-bottom: 60px;
+}
+.estetican-card {
+  background: white;
+  border-radius: 16px;
+  padding: 36px 28px;
+  box-shadow: 0 4px 24px rgba(139,69,19,0.10);
+  border-top: 5px solid;
+  font-family: sans-serif;
+}
+.estetican-card:hover {
+  box-shadow: 0 12px 40px rgba(139,69,19,0.18);
+}
+.estetican-card:nth-child(1) { border-color: #e8a85f; }
+.estetican-card:nth-child(2) { border-color: #7db87d; }
+.estetican-card:nth-child(3) { border-color: #d67bb0; }
+.estetican-card-icon {
+  font-size: 3em;
+  margin-bottom: 16px;
+  display: block;
+}
+.estetican-card h4 {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #3a2a1a;
+  margin: 0 0 14px 0;
+  font-family: Georgia, serif;
+}
+.estetican-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.estetican-card ul li {
+  padding: 6px 0 6px 24px;
+  position: relative;
+  color: #5a4a3a;
+  font-size: 0.92em;
+  border-bottom: 1px solid #f5ede4;
+  line-height: 1.4;
+}
+.estetican-card ul li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #b5651d;
+  font-weight: bold;
+}
+/* WHY US */
+.estetican-why-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  margin-bottom: 60px;
+}
+.estetican-why-card {
+  text-align: center;
+  padding: 36px 24px;
+  background: linear-gradient(145deg, #fff8f0, #ffecd8);
+  border-radius: 14px;
+  font-family: sans-serif;
+  border: 1px solid #f5dcc0;
+}
+.estetican-why-card .why-icon {
+  font-size: 2.8em;
+  margin-bottom: 14px;
+  display: block;
+}
+.estetican-why-card h4 {
+  color: #5c2d0a;
+  font-size: 1.1em;
+  margin: 0 0 10px 0;
+  font-family: Georgia, serif;
+}
+.estetican-why-card p {
+  color: #7a5c3a;
+  font-size: 0.9em;
+  line-height: 1.6;
+  margin: 0;
+}
+/* PRICING */
+.estetican-pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 60px;
+}
+.estetican-price-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.09);
+  font-family: sans-serif;
+}
+.estetican-price-card.featured {
+  box-shadow: 0 8px 36px rgba(181,101,29,0.28);
+  position: relative;
+}
+.estetican-price-header {
+  padding: 24px 20px 18px;
+  text-align: center;
+  color: white;
+}
+.estetican-price-card:nth-child(1) .estetican-price-header { background: linear-gradient(135deg, #c8a97e, #a0784c); }
+.estetican-price-card:nth-child(2) .estetican-price-header { background: linear-gradient(135deg, #b5651d, #8b4513); }
+.estetican-price-card:nth-child(3) .estetican-price-header { background: linear-gradient(135deg, #8b4513, #5c2d0a); }
+.estetican-price-card:nth-child(4) .estetican-price-header { background: linear-gradient(135deg, #5a8a6a, #3a6a4a); }
+.estetican-price-card:nth-child(5) .estetican-price-header { background: linear-gradient(135deg, #7b68b0, #5a4a90); }
+.estetican-price-header .price-icon { font-size: 2.2em; display: block; margin-bottom: 8px; }
+.estetican-price-header h4 { margin: 0 0 4px 0; font-size: 1.1em; font-family: Georgia, serif; }
+.estetican-price-header .duration { font-size: 0.8em; opacity: 0.85; }
+.estetican-price-body {
+  padding: 20px;
+  background: white;
+}
+.estetican-price-body p {
+  color: #5a4a3a;
+  font-size: 0.88em;
+  line-height: 1.6;
+  margin: 0;
+}
+.estetican-featured-badge {
+  display: block;
+  background: #f4c878;
+  color: #5c2d0a;
+  text-align: center;
+  padding: 6px;
+  font-size: 0.75em;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-family: sans-serif;
+}
+/* TESTIMONIALS */
+.estetican-testimonials {
+  background: linear-gradient(135deg, #fff8f0, #fef0dc);
+  border-radius: 16px;
+  padding: 50px 40px;
+  margin-bottom: 60px;
+  border: 1px solid #f5dcc0;
+}
+.estetican-testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+  margin-top: 30px;
+}
+.estetican-testimonial {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(139,69,19,0.07);
+  font-family: sans-serif;
+}
+.estetican-testimonial .stars {
+  color: #f4a820;
+  font-size: 1.1em;
+  margin-bottom: 10px;
+}
+.estetican-testimonial p {
+  color: #5a4a3a;
+  font-size: 0.92em;
+  line-height: 1.65;
+  font-style: italic;
+  margin: 0 0 14px 0;
+}
+.estetican-testimonial .reviewer {
+  font-weight: bold;
+  color: #8b4513;
+  font-size: 0.88em;
+  font-style: normal;
+}
+/* CTA */
+.estetican-cta {
+  background: linear-gradient(135deg, #5c2d0a, #8b4513);
+  border-radius: 16px;
+  padding: 60px 40px;
+  text-align: center;
+  color: white;
+}
+.estetican-cta h3 {
+  font-size: clamp(1.6em, 3vw, 2.4em);
+  margin: 0 0 14px 0;
+  color: #fff8e1;
+}
+.estetican-cta p {
+  font-size: 1.05em;
+  opacity: 0.9;
+  max-width: 520px;
+  margin: 0 auto 32px;
+  font-family: sans-serif;
+  line-height: 1.6;
+}
+.estetican-cta-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+}
+.estetican-btn {
+  display: inline-block;
+  padding: 15px 36px;
+  border-radius: 50px;
+  font-weight: bold;
+  font-size: 1em;
+  text-decoration: none;
+  font-family: sans-serif;
+  cursor: pointer;
+}
+.estetican-btn-primary {
+  background: #f4c878;
+  color: #3a2a1a;
+}
+.estetican-btn-primary:hover { background: #f8d898; }
+.estetican-btn-secondary {
+  background: transparent;
+  color: white;
+  border: 2px solid rgba(255,255,255,0.7);
+}
+.estetican-btn-secondary:hover { background: rgba(255,255,255,0.15); }
+.estetican-cta-info {
+  margin-top: 24px;
+  opacity: 0.75;
+  font-size: 0.9em;
+  font-family: sans-serif;
+}
+/* DIVIDER */
+.estetican-divider {
+  text-align: center;
+  margin: 10px 0 50px;
+  color: #c8a97e;
+  font-size: 1.4em;
+  letter-spacing: 8px;
+}
+/* RESPONSIVE - TABLET */
+@media (max-width: 768px) {
+  .estetican-hero { padding: 50px 24px; border-radius: 12px; }
+  .estetican-hero h2 { font-size: 2em; letter-spacing: 1px; }
+  .estetican-hero p { font-size: 1em; }
+  .estetican-hero-badge { font-size: 0.82em; padding: 8px 20px; }
+  .estetican-section-title h3 { font-size: 1.7em; }
+  .estetican-services-grid { grid-template-columns: 1fr; gap: 20px; }
+  .estetican-why-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .estetican-pricing-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .estetican-testimonials { padding: 36px 24px; }
+  .estetican-testimonials-grid { grid-template-columns: 1fr; gap: 16px; }
+  .estetican-cta { padding: 44px 24px; }
+  .estetican-cta h3 { font-size: 1.8em; }
+  .estetican-cta-buttons { flex-direction: column; align-items: center; }
+  .estetican-btn { width: 100%; max-width: 320px; text-align: center; padding: 14px 24px; }
+}
+/* RESPONSIVE - MÓVIL */
+@media (max-width: 480px) {
+  .estetican-hero { padding: 36px 16px; border-radius: 10px; margin-bottom: 36px; }
+  .estetican-hero .paw-decoration { font-size: 2.5em; margin-bottom: 12px; }
+  .estetican-hero h2 { font-size: 1.6em; letter-spacing: 0px; margin-bottom: 12px; }
+  .estetican-hero p { font-size: 0.93em; margin-bottom: 20px; }
+  .estetican-hero-badge { font-size: 0.75em; padding: 7px 16px; letter-spacing: 0px; }
+  .estetican-section-title { margin-bottom: 24px; }
+  .estetican-section-title h3 { font-size: 1.4em; }
+  .estetican-section-title p { font-size: 0.93em; }
+  .estetican-services-grid { grid-template-columns: 1fr; gap: 16px; margin-bottom: 36px; }
+  .estetican-card { padding: 24px 20px; border-radius: 12px; }
+  .estetican-card-icon { font-size: 2.2em; margin-bottom: 10px; }
+  .estetican-card h4 { font-size: 1.05em; }
+  .estetican-card ul li { font-size: 0.88em; padding: 5px 0 5px 20px; }
+  .estetican-why-grid { grid-template-columns: 1fr; gap: 12px; margin-bottom: 36px; }
+  .estetican-why-card { padding: 24px 20px; border-radius: 12px; }
+  .estetican-why-card .why-icon { font-size: 2.2em; margin-bottom: 10px; }
+  .estetican-why-card h4 { font-size: 1em; }
+  .estetican-why-card p { font-size: 0.87em; }
+  .estetican-pricing-grid { grid-template-columns: 1fr; gap: 14px; margin-bottom: 36px; }
+  .estetican-price-card.featured { box-shadow: 0 4px 20px rgba(181,101,29,0.2); }
+  .estetican-price-header { padding: 20px 16px 14px; }
+  .estetican-price-header .price-icon { font-size: 1.8em; margin-bottom: 6px; }
+  .estetican-price-header h4 { font-size: 1em; }
+  .estetican-price-body { padding: 16px; }
+  .estetican-price-body p { font-size: 0.86em; }
+  .estetican-testimonials { padding: 28px 16px; border-radius: 12px; margin-bottom: 36px; }
+  .estetican-testimonials-grid { grid-template-columns: 1fr; gap: 14px; margin-top: 20px; }
+  .estetican-testimonial { padding: 18px 16px; }
+  .estetican-testimonial p { font-size: 0.87em; }
+  .estetican-cta { padding: 36px 16px; border-radius: 12px; }
+  .estetican-cta h3 { font-size: 1.45em; }
+  .estetican-cta p { font-size: 0.93em; }
+  .estetican-cta-buttons { flex-direction: column; align-items: center; gap: 12px; }
+  .estetican-btn { width: 100%; max-width: 280px; text-align: center; padding: 13px 20px; font-size: 0.95em; border-radius: 40px; }
+  .estetican-cta-info { font-size: 0.82em; line-height: 1.8; }
+  .estetican-divider { font-size: 1.1em; letter-spacing: 4px; margin: 8px 0 36px; }
+}
+/* ===== Widget del asistente de IA (BL-042) ===== */
+#estetican-ai-toggle{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:#2f6f4f;color:#fff;border:none;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;font-size:26px;z-index:999999;align-items:center;justify-content:center;}
+#estetican-ai-panel{position:fixed;bottom:88px;right:20px;width:320px;max-width:92vw;height:440px;max-height:75vh;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.3);flex-direction:column;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;font-size:14px;z-index:999999;}
+#estetican-ai-panel.estetican-ai-hidden{display:none;}
+#estetican-ai-panel:not(.estetican-ai-hidden){display:flex;}
+.estetican-ai-header{background:#2f6f4f;color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;}
+.estetican-ai-header button{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;}
+.estetican-ai-messages{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;}
+.estetican-ai-msg{padding:8px 10px;border-radius:10px;max-width:85%;line-height:1.35;white-space:pre-wrap;}
+.estetican-ai-msg.user{align-self:flex-end;background:#2f6f4f;color:#fff;}
+.estetican-ai-msg.assistant{align-self:flex-start;background:#f0f0f0;color:#222;}
+.estetican-ai-msg.system{align-self:center;background:transparent;color:#888;font-size:12px;}
+.estetican-ai-cta{padding:8px 10px;border-top:1px solid #eee;text-align:center;}
+.estetican-ai-cta a{display:block;background:#e8a33d;color:#222;text-decoration:none;padding:8px;border-radius:8px;font-weight:600;}
+.estetican-ai-form{display:flex;border-top:1px solid #eee;padding:8px;gap:6px;}
+.estetican-ai-form input{flex:1;border:1px solid #ddd;border-radius:8px;padding:8px;font-size:14px;}
+.estetican-ai-form button{background:#2f6f4f;color:#fff;border:none;border-radius:8px;padding:0 14px;cursor:pointer;}
+.estetican-ai-form button:disabled{opacity:.5;cursor:default;}

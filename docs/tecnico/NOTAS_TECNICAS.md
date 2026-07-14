@@ -847,3 +847,29 @@ Antes de construir cualquier feature nueva sobre `ExecutedService`/`ExecutedServ
 
 **Lección:** (1) el middleware de CORS que necesita interceptar preflight `OPTIONS` **debe** ser global, nunca de ruta — la ruta todavía no existe (en términos de método HTTP) cuando el preflight llega; (2) `append()` sitúa el middleware **después** de los que ya trae Laravel por defecto (incluido `HandleCors`) — si el objetivo es que el propio middleware gane la carrera para responder primero, hace falta `prepend()`; (3) cualquier valor de configuración que dependa de la base de datos (vía `SystemSettings` u otro mecanismo similar) no debe leerse desde un archivo de `config/*.php` — el momento de carga de esos archivos no garantiza que la BD/caché ya estén disponibles.
 
+---
+
+## NT-032 — Widget del asistente (BL-042 Fase 2) invisible en `estetican.org`: el editor de WordPress corrompe JavaScript inline vía `wpautop`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 14/07/2026 |
+| **Severidad** | P2 — Alto (el widget completo no funcionaba, sin ningún error visible para el usuario) |
+| **Componente** | Contenido del sitio WordPress (`estetican.org`, fuera de este repo) — no es un bug de `apps/backoffice-laravel` |
+| **Impacto** | Solo el widget del asistente; el resto del sitio no se vio afectado |
+
+**Síntoma:** tras pegar el HTML/CSS/JS del widget en los tres bloques separados del editor de WordPress y publicar, el botón flotante del asistente nunca aparecía — sin ningún error visible para el usuario final.
+
+**Diagnóstico:** se descargó el HTML real servido por `https://estetican.org/` (`curl`) para inspeccionar qué había llegado realmente a producción, en vez de asumir. Se encontró que el contenido del bloque JS llegaba envuelto así:
+```html
+<p><script data-wp-block-html="js">
+(function () { ... })();</p>
+<p></script></p>
+```
+El editor de WordPress usado en este sitio le aplica `wpautop()` (el filtro que WordPress usa para convertir saltos de línea en párrafos `<p>`, pensado para contenido de blog, no para código) al contenido **crudo** de cada campo **antes** de envolverlo en su etiqueta (`<script>`/`<style>`) — no después. El `wpautop()` nativo de WordPress sí protege el contenido dentro de `<script>`/`<style>` ya existente (lo reemplaza por un placeholder antes de fragmentar en párrafos, y lo restaura después) — pero esa protección no aplica acá porque las etiquetas `<script>`/`<style>` **todavía no existen** en el momento en que se ejecuta el filtro sobre el campo individual.
+
+**Primer intento (insuficiente):** eliminar todas las líneas en blanco del HTML/CSS/JS (`wpautop` inserta `<p>`/`</p>` en cada salto de línea doble). Esto arregló la corrupción **interna** (antes partía funciones a la mitad), pero `wpautop` de todas formas envuelve **cualquier bloque de texto sin líneas en blanco** en un único `<p>` al principio y `</p>` al final — porque su algoritmo siempre trata contenido "suelto" (que no empieza con una etiqueta de bloque reconocida) como un párrafo, tenga o no separadores internos. El resultado: `<p>(function () {` al inicio y `})();</p>` al final — el `</p>` quedaba **dentro** del texto del `<script>` (el parser HTML no corta el contenido de `<script>` hasta encontrar `</script>` literal), y el motor de JS tronaba con `SyntaxError: Unexpected token '<'` al toparse con esos caracteres.
+
+**Fix definitivo:** sacar toda la lógica del campo JS del editor por completo. En su lugar, el bloque HTML incluye una única etiqueta `<script src="https://app.estetican.org/assistant-widget-wp.js" data-api-base="..." data-token="..." async></script>` **sin ningún texto entre la apertura y el cierre** — toda la configuración va en atributos `data-*`, no en el cuerpo. Como `wpautop` solo puede corromper *contenido de texto*, una etiqueta vacía con atributos es inmune sin importar cuántos `<p>` sueltos le agregue alrededor (son inofensivos fuera del cuerpo del script). La lógica real vive en `apps/backoffice-laravel/public/assistant-widget-wp.js` — un asset estático servido directo por Laravel, nunca pasa por el editor de WordPress ni por ningún filtro de contenido. El bloque JS del editor queda vacío.
+
+**Lección:** (1) cuando un comportamiento en producción no tiene explicación obvia, bajar el HTML real servido (`curl`) y comparar contra lo que se pegó — no asumir que "se guardó tal cual"; los CMS con editores de contenido casi siempre tienen algún filtro de formato activo que puede alterar código pegado como si fuera texto; (2) quitar líneas en blanco reduce pero **no elimina** el riesgo de un filtro tipo `wpautop` — el único blindaje real contra corrupción de contenido de texto es no depender de contenido de texto: usar atributos de etiqueta (`data-*`, `src`) en vez de cuerpo inline cuando el canal de entrega no es 100% confiable; (3) mismo patrón que NT-031 en el fondo — cuando una plataforma externa (WordPress, Meta, lo que sea) no da garantías sobre cómo transporta contenido, diseñar para que ese contenido sea trivial (vacío o solo atributos) en vez de intentar que sobreviva intacto.
