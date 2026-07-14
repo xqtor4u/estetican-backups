@@ -21,12 +21,14 @@ Continuación de la sesión del 14/07. El usuario preguntó cómo evitar que se 
 - `mob_apps/operador/src/admin/MobCitaNueva.tsx` — banner de cobertura
 - `docs/tecnico/MODELO_BD.md`, `BACKLOG.md` (BL-043), `docs/architecture/IDEAS_FUTURO.md`
 
+**Commit/push:** los 5 commits de la sesión (BL-042 `27d1440`, BL-042b `a7ad910`, BL-043 `bc36006`, + 2 de docs `3302465`/`d58025f`) ya están pusheados a `origin/main`.
+
+**Resuelto en esta sesión:** el pendiente de sesiones anteriores sobre documentar el autoresponder de cPanel para `no-reply@estetican.org` — el usuario confirmó que maneja el correo directo en cPanel, no hace falta documentarlo. Memoria de un solo uso borrada.
+
 ### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
 1. **Empezar por las 3 ideas del asistente de IA anotadas arriba** — el usuario las trajo justo al cerrar esta sesión, todavía frescas: gap de zona de cobertura en el bot (fix chico), captura de lead desde el bot (sin decidir mecanismo), código de consulta de estado sin login (alternativa a BL-012, con 3 preguntas de alcance sin resolver — ver `IDEAS_FUTURO.md`).
-2. Push de los commits de esta sesión (BL-042 `27d1440`, BL-042b `a7ad910`, BL-043 `bc36006`) — ya están commiteados localmente, falta subir al remoto.
-3. Configurar respuestas automáticas de Meta Business Suite para Facebook/Instagram cuando el usuario quiera — sin código.
-4. Recordar al usuario la decisión pendiente de sesiones anteriores: ¿documentar en `docs/tecnico/` los pasos de cPanel para autoresponder/filtro de `no-reply@estetican.org`? (el usuario ya dijo que maneja el correo directo en cPanel — confirmar si sigue queriendo la doc o se descarta).
-5. Sigue pendiente de sesiones anteriores: activar marca de agua en fotos, confirmar visualmente candado/editor de foto en el celular, probar `/mapa-zonas`, decidir destino de los 4 archivos huérfanos de la app móvil (BL-037), SPF/DKIM para `estetican.org`.
+2. Configurar respuestas automáticas de Meta Business Suite para Facebook/Instagram cuando el usuario quiera — sin código.
+3. Sigue pendiente de sesiones anteriores: activar marca de agua en fotos, confirmar visualmente candado/editor de foto en el celular, probar `/mapa-zonas`, decidir destino de los 4 archivos huérfanos de la app móvil (BL-037), SPF/DKIM para `estetican.org`.
 
 ---
 
