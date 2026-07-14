@@ -768,6 +768,8 @@ Pantalla `AX-MAPZN` (`mapa-zonas.index`, `App\Http\Controllers\MapaZonasControll
 
 Sucursales (`branches.lat/lng`) y direcciones de clientes (`addresses.lat/lng`) ya existían y solo se leen aquí (de solo lectura en esta pantalla — se siguen editando desde sus propias pantallas). Mascotas y vehículos son de escritura desde el mapa mismo (clic en el mapa → ubicar mascota existente o crear vehículo).
 
+**Advertencia de cobertura geográfica (BL-043, 14/07/2026):** `App\Support\Geo\CoverageChecker` (+ `DistanceCalculator`, fórmula de Haversine) usa estas mismas coordenadas para avisar — **no bloquear** — cuando se agenda una cita para una mascota fuera del radio configurado (`coverage_radius_km`, sección `coverage` de `SystemSettings`, default 15 km) respecto a la sucursal activa más cercana. Prioriza `pets.lat/lng`; si la mascota no tiene coordenadas, cae a la primera dirección del cliente con `lat/lng`. Si no hay coordenadas de ningún lado, o ninguna sucursal activa tiene `lat/lng`, no se evalúa nada (sin falso positivo). Conectado en los dos únicos puntos de creación de citas SPA (`SpaBookingController::storeForPet()` — web, flash `session('warning')` — y `Api\BookingController::store()` — móvil, campo `coverage_warning` en la respuesta JSON, mismo patrón que `created_by_user_id` de BL-039).
+
 ### `vehicles`
 Vehículos de reparto — modelo deliberadamente mínimo, sin placa/capacidad/conductor (no definidos todavía, ver BL-031).
 

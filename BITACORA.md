@@ -1,5 +1,32 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 14/07/2026 (cont. 2) — Advertencia de cobertura geográfica al agendar citas (BL-043)
+
+Continuación de la sesión del 14/07. El usuario preguntó cómo evitar que se generen citas fuera de Aguascalientes. Se investigó qué coordenadas ya existen (`branches.lat/lng`, `addresses.lat/lng`, `pets.lat/lng` — todas de BL-032/Mapa de Cobertura) y se acordaron 3 decisiones explícitas con el usuario antes de programar: (1) radio en km desde la sucursal más cercana (no coincidencia de texto en "ciudad", poco confiable), (2) solo advertencia, no bloqueo — el staff puede confirmar igual, (3) aplica ya a las citas que agenda el staff hoy (web + móvil), no queda para cuando exista la futura app de clientes.
+
+- Nueva sección `coverage` en Configuración del sistema (`coverage_radius_km`, default 15).
+- `App\Support\Geo\DistanceCalculator` (Haversine) + `CoverageChecker` (prioriza `pets.lat/lng`, cae a la primera dirección del cliente con coordenadas; sin coordenadas de ningún lado o sin sucursal activa con coordenadas, no evalúa nada — no hay falso positivo).
+- Conectado en los dos únicos puntos de creación de citas SPA: `SpaBookingController::storeForPet()` (web, toast amarillo nuevo en el layout — no existía tipo "warning" antes, solo success/error) y `Api\BookingController::store()` (móvil, campo `coverage_warning` en la respuesta, banner nuevo en `MobCitaNueva.tsx` con más tiempo de lectura antes de navegar).
+- 9 tests nuevos. Suite completa: 37 fallidas (mismas preexistentes de siempre), 119 pasan (110 + 9). `tsc` de la app móvil sin errores nuevos en el archivo tocado.
+
+**Ideas capturadas para más adelante (sin diseñar, ver `docs/architecture/IDEAS_FUTURO.md`):** skill de Alexa para recordatorios/avisos, y que el asistente de IA también conteste sobre posts/artículos del sitio (no solo el catálogo de servicios).
+
+### 📁 Archivos principales tocados
+- `app/Support/Geo/DistanceCalculator.php`, `CoverageChecker.php` (nuevos)
+- `app/Support/SystemSettings/SystemSettings.php` — sección `coverage`
+- `app/Http/Controllers/SpaBookingController.php`, `app/Http/Controllers/Api/BookingController.php` — integración de `CoverageChecker`
+- `resources/views/layouts/app.blade.php` — toast tipo `warning`
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx` — banner de cobertura
+- `docs/tecnico/MODELO_BD.md`, `BACKLOG.md` (BL-043), `docs/architecture/IDEAS_FUTURO.md`
+
+### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
+1. Commit/push de esta sesión y las anteriores (BL-042, BL-042b, BL-043) — nada de esto está commiteado todavía.
+2. Configurar respuestas automáticas de Meta Business Suite para Facebook/Instagram cuando el usuario quiera — sin código.
+3. Recordar al usuario la decisión pendiente de sesiones anteriores: ¿documentar en `docs/tecnico/` los pasos de cPanel para autoresponder/filtro de `no-reply@estetican.org`? (el usuario ya dijo que maneja el correo directo en cPanel — confirmar si sigue queriendo la doc o se descarta).
+4. Sigue pendiente de sesiones anteriores: activar marca de agua en fotos, confirmar visualmente candado/editor de foto en el celular, probar `/mapa-zonas`, decidir destino de los 4 archivos huérfanos de la app móvil (BL-037), SPF/DKIM para `estetican.org`.
+
+---
+
 ## 📅 Sesión: 14/07/2026 (cont.) — Deploy real del widget en `estetican.org` (BL-042b, NT-032)
 
 Continuación de la sesión del 13/07. El usuario configuró la API key real de Anthropic y probó el widget en producción. Widget desplegado en el sitio real, con 2 bugs de configuración del usuario + 1 bug real de la plataforma:

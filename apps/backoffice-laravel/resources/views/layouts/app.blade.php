@@ -80,6 +80,17 @@
                     </div>
                 </div>
             @endif
+
+            @if(session('warning'))
+                <div id="toastWarning" class="toast align-items-center text-dark bg-warning border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body p-3 fw-bold">
+                            <i class="bi bi-geo-alt-fill me-2"></i> {{ session('warning') }}
+                        </div>
+                        <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            @endif
         </div>
 
         @if($errors->any())

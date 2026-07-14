@@ -522,6 +522,19 @@ class SystemSettings
                     ],
                 ],
             ],
+            'coverage' => [
+                'label' => 'Cobertura Geográfica',
+                'description' => 'Radio de servicio alrededor de tus sucursales, para alertar cuando una cita queda fuera de tu zona habitual.',
+                'fields' => [
+                    'coverage_radius_km' => [
+                        'label' => 'Radio de cobertura (km)',
+                        'type' => 'number',
+                        'default' => 15,
+                        'rules' => ['required', 'integer', 'min:1', 'max:200'],
+                        'help' => 'Distancia máxima desde la sucursal más cercana antes de mostrar una advertencia al agendar. No bloquea la cita, solo avisa.',
+                    ],
+                ],
+            ],
             'ai_assistant' => [
                 'label' => 'Asistente Virtual (Sitio Web)',
                 'description' => 'Chatbot de IA para responder preguntas sobre servicios en el sitio público (widget de WordPress). Es informativo, no toca CRM ni agenda.',

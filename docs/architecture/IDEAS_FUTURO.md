@@ -71,5 +71,13 @@
 
 - [ ] **Decidir destino de 4 archivos huérfanos** (`ActiveService.tsx`, `GroomerDashboard.tsx`, `client/Booking.tsx`, `client/Dashboard.tsx`, ~730 líneas) — sin ruta ni import en ningún lado, links internos rotos, parecen resto de un template sin terminar. El usuario prefirió no borrarlos todavía. Decidir: completar como pantallas reales, o borrar.
 
+## 🔔 Skill de Alexa — recordatorios y avisos (idea surgida 14/07/2026)
+
+- [ ] **Skill de Alexa para recordatorios/avisos** (ej. "recoger a tu perro", vencimiento de recordatorios de servicio, alertas de citas). Sin acotar todavía: ¿quién recibe el aviso — el cliente en su casa, o el negocio/staff? ¿Notificación proactiva (Alexa Notifications/Reminders API, requiere que el cliente vincule la skill a su cuenta de Amazon) o solo consulta bajo demanda ("Alexa, pregunta a EstetiCAN cuándo recojo a mi perro")? Requiere alta en Amazon Developer Console, definición de intents, y probablemente un backend propio (endpoint que la skill consuma) — no es un simple webhook. Evaluar alcance real antes de diseñar.
+
+## 🧠 Base de conocimientos para el asistente de IA — más allá del catálogo (idea surgida 14/07/2026)
+
+- [ ] **Que el asistente de IA del widget de WP (BL-042) también conteste preguntas sobre contenido publicado en el sitio** (posts/artículos de WordPress), no solo sobre el catálogo de servicios (`ServiceCatalogPromptBuilder` hoy solo usa `services`). Sin acotar todavía: ¿se trae el contenido de los posts en cada request vía la REST API nativa de WordPress (`/wp-json/wp/v2/posts`, sin plugin nuevo) y se inyecta en el prompt igual que el catálogo (mismo patrón, sin RAG/embeddings, viable si son pocos posts)? ¿O hace falta indexar/buscar (embeddings) si el volumen de contenido crece? Empezar por la opción simple (traer todo, igual que el catálogo) y solo subir a RAG si el volumen lo justifica — mismo criterio que ya se usó para el catálogo de servicios.
+
 ---
 *Si una idea nace en la Bitácora pero no se puede ejecutar hoy, se mueve aquí.*

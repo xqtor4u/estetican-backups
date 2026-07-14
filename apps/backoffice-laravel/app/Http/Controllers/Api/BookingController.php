@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
+use App\Support\Geo\CoverageChecker;
 use App\Support\SystemSettings\BusinessHours;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -17,7 +18,8 @@ class BookingController extends Controller
 {
     public function __construct(
         private BusinessHours $businessHours,
-        private OperatorAvailabilityChecker $operatorAvailabilityChecker
+        private OperatorAvailabilityChecker $operatorAvailabilityChecker,
+        private CoverageChecker $coverageChecker
     ) {}
 
     /** Serializa una cita al formato que usa la app móvil */
@@ -128,7 +130,14 @@ class BookingController extends Controller
             ]);
         }
 
-        return response()->json($this->serialize($booking), 201);
+        $coverageWarning = $this->coverageChecker->checkPet($booking->pet);
+
+        return response()->json([
+            ...$this->serialize($booking),
+            'coverage_warning' => $coverageWarning
+                ? "Esta mascota está a {$coverageWarning['distance_km']} km de {$coverageWarning['branch_name']}, fuera del radio de cobertura de {$coverageWarning['radius_km']} km."
+                : null,
+        ], 201);
     }
 
     public function update(Request $request, SpaBooking $booking)

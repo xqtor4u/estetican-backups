@@ -17,6 +17,7 @@ use App\Models\QuoteItem;
 use App\Models\Resource;
 use App\Models\Service;
 use App\Models\SpaBooking;
+use App\Support\Geo\CoverageChecker;
 use App\Support\Pages\AgendaPage;
 use App\Support\SystemSettings\BusinessHours;
 use App\Support\SystemSettings\SystemSettings;
@@ -35,7 +36,8 @@ class SpaBookingController extends Controller
         private ResourceAllocationServiceInterface $resourceAllocationService,
         private QuoteServiceInterface $quoteService,
         private BusinessHours $businessHours,
-        private OperatorAvailabilityChecker $operatorAvailabilityChecker
+        private OperatorAvailabilityChecker $operatorAvailabilityChecker,
+        private CoverageChecker $coverageChecker
     ) {}
 
     public function index(Request $request): View
@@ -543,6 +545,15 @@ class SpaBookingController extends Controller
                 $validated['scheduled_at'],
                 $durationMinutes,
                 $cleanupBuffer
+            );
+        }
+
+        $coverageWarning = $this->coverageChecker->checkPet($pet);
+
+        if ($coverageWarning) {
+            return redirect()->route('agenda.index')->with('success', 'Sesión programada correctamente.')->with(
+                'warning',
+                "Esta mascota está a {$coverageWarning['distance_km']} km de {$coverageWarning['branch_name']}, fuera del radio de cobertura de {$coverageWarning['radius_km']} km."
             );
         }
 
