@@ -741,6 +741,23 @@ Log de recordatorios (WhatsApp manual o correo real desde BL-040) enviados desde
 
 **Nota técnica:** El teléfono se guarda en `phones.number` sin lada país (10 dígitos MX asumidos). `App\Support\WhatsApp\PhoneNormalizer::toWhatsAppNumber()` prefija `52` solo si son exactamente 10 dígitos; cualquier otra longitud se considera no reconocible como MX y la fila queda deshabilitada en la bandeja (no se envía). No hay automatización de envío — el operador confirma manualmente en WhatsApp Web/App vía `wa.me`. El barrido de Recurrencias se calcula bajo demanda al abrir la pantalla (no hay cron/scheduler de Laravel configurado en la OPi).
 
+### `service_ai_chats` / `service_ai_messages`
+Chatbot de IA (Claude) para el widget de chat del sitio público de WordPress (BL-042). **Informativo, sin conexión a CRM** — no se relaciona con `clients`/`leads`, es tráfico anónimo identificado solo por `session_uuid` (generado por el widget, persistido en `localStorage` del visitante). Responde preguntas sobre el catálogo de servicios (`services`, vía `ServiceCatalogService::getActiveServices()`) y siempre termina invitando a un botón fijo de CTA (texto/URL configurables en `SystemSettings`, sección `ai_assistant` — hoy apunta a WhatsApp/contacto porque no existe todavía una app de clientes real, ver BL-012).
+
+| Tabla | Columna | Tipo | Notas |
+|---|---|---|---|
+| `service_ai_chats` | `id` | bigint PK | |
+| | `session_uuid` | string unique | Generado por el widget, `localStorage` |
+| | `message_count` | unsignedInteger default 0 | Se incrementa por turno completo (usuario+asistente); tope de 30 corta la sesión (`AssistantChatController::MAX_MESSAGES_PER_SESSION`) |
+| | `timestamps` | | |
+| `service_ai_messages` | `id` | bigint PK | |
+| | `service_ai_chat_id` | FK → `service_ai_chats` cascadeOnDelete | |
+| | `role` | enum `user`/`assistant` | |
+| | `content` | text | |
+| | `created_at` | timestamp | Sin `updated_at` (`$timestamps = false` en el modelo) |
+
+**Nota técnica:** Primera integración HTTP saliente del proyecto (`Illuminate\Support\Facades\Http` no se usaba en ningún lado antes) y primer uso de un LLM. El CORS de las rutas `/api/assistant/*` **no** usa `config/cors.php` — se resuelve con middleware global a medida (`App\Http\Middleware\HandleAssistantCors`, registrado con `prepend()` en `bootstrap/app.php` para ejecutar antes que el `HandleCors` por defecto de Laravel) porque el origen permitido vive en `SystemSettings` (base de datos), y un archivo de config estático no puede leerla de forma segura al cargarse antes de que Laravel registre los proveedores de BD/caché. El token del widget (`ai_assistant_site_token`) es ofuscación, no seguridad real — cualquiera puede leerlo desde el JS público; la defensa real es CORS + `throttle:15,1`.
+
 ---
 
 ## Mapa y cobertura espacial

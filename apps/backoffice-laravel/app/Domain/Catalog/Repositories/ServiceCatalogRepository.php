@@ -23,6 +23,11 @@ class ServiceCatalogRepository implements ServiceCatalogRepositoryInterface
         return Service::where('type', $type)->get();
     }
 
+    public function getActive(): Collection
+    {
+        return Service::where('is_active', true)->get();
+    }
+
     public function create(array $data): Service
     {
         return Service::create($data);
@@ -31,16 +36,20 @@ class ServiceCatalogRepository implements ServiceCatalogRepositoryInterface
     public function update(int $id, array $data): bool
     {
         $service = $this->findById($id);
-        if (!$service) return false;
-        
+        if (! $service) {
+            return false;
+        }
+
         return $service->update($data);
     }
 
     public function delete(int $id): bool
     {
         $service = $this->findById($id);
-        if (!$service) return false;
-        
+        if (! $service) {
+            return false;
+        }
+
         return $service->delete();
     }
 }

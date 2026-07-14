@@ -4,6 +4,10 @@ namespace App\Providers;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Accounting\Services\AccountingService;
+use App\Domain\Catalog\Contracts\ServiceCatalogRepositoryInterface;
+use App\Domain\Catalog\Contracts\ServiceCatalogServiceInterface;
+use App\Domain\Catalog\Repositories\ServiceCatalogRepository;
+use App\Domain\Catalog\Services\ServiceCatalogService;
 use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Commercial\Services\QuoteService;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
@@ -26,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ResourceAllocationServiceInterface::class, ResourceAllocationService::class);
         $this->app->bind(QuoteServiceInterface::class, QuoteService::class);
         $this->app->bind(AccountingServiceInterface::class, AccountingService::class);
+        $this->app->bind(ServiceCatalogRepositoryInterface::class, ServiceCatalogRepository::class);
+        $this->app->bind(ServiceCatalogServiceInterface::class, ServiceCatalogService::class);
     }
 
     /**

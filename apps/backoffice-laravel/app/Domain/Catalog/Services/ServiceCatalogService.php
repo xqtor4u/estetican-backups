@@ -2,8 +2,8 @@
 
 namespace App\Domain\Catalog\Services;
 
-use App\Domain\Catalog\Contracts\ServiceCatalogServiceInterface;
 use App\Domain\Catalog\Contracts\ServiceCatalogRepositoryInterface;
+use App\Domain\Catalog\Contracts\ServiceCatalogServiceInterface;
 use App\Models\Service;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -26,6 +26,11 @@ class ServiceCatalogService implements ServiceCatalogServiceInterface
     public function getServicesByType(string $type): Collection
     {
         return $this->serviceRepository->getByType($type);
+    }
+
+    public function getActiveServices(): Collection
+    {
+        return $this->serviceRepository->getActive();
     }
 
     public function createService(array $data): Service

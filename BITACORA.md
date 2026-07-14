@@ -1,5 +1,44 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 13/07/2026 — Asistente de IA para el widget de chat de WordPress (BL-042, backend completo)
+
+Sesión que arrancó como una pregunta amplia ("¿cómo ligamos WP/Facebook/Instagram a la app móvil para contestar?") y se acotó bastante tras varias rondas de aclaración con el usuario — quedó documentado en memoria (`project_asistente_ia_wp`, `project_app_clientes`) para no repetir la confusión en el futuro:
+
+- **Facebook/Instagram**: solo informativos, sin CRM. Se resuelven con las respuestas automáticas nativas de **Meta Business Suite** (gratis, sin app de desarrollador, sin webhook, sin Business Verification) — cero código, tarea de configuración manual del usuario cuando quiera hacerla. No implementado en esta sesión (no requiere).
+- **Widget del sitio WordPress**: el usuario lo quiere como un agente conversacional con IA (Claude) que conteste preguntas sobre el catálogo de servicios, sin tocar CRM/agenda, terminando siempre en un botón fijo de CTA. **Esta es la pieza que se construyó hoy.**
+- **App de clientes propietaria** (BL-012): ahí es donde debería vivir la comunicación real conectada al CRM (citas, estado de mascotas) — pero el usuario aclaró que no puede ser autoregistro abierto (falta decidir cobertura por zona primero, y el alta tendría que ser controlada). Queda fuera de esta sesión, sin tocar.
+
+**BL-042 — Backend del asistente (fase 1, completa y probada):**
+- Dos tablas nuevas sin relación a `clients`/`leads` (tráfico anónimo): `service_ai_chats` (`session_uuid`, `message_count`) y `service_ai_messages` (`role`, `content`).
+- Sección nueva `ai_assistant` en Configuración del sistema (mismo patrón declarativo que `email_service`: API key cifrada, modelo, prompt extra, texto/URL del botón CTA, token del widget, origen CORS).
+- `ServiceCatalogService::getActiveServices()` nuevo (el catálogo existente no filtraba `is_active`) — y de paso se descubrió que `ServiceCatalogServiceInterface`/`RepositoryInterface` nunca habían sido bindeadas en `AppServiceProvider` pese a existir; se agregó el binding porque este es el primer consumidor real de esa capa de dominio.
+- `ServiceCatalogPromptBuilder` arma el system prompt con el catálogo activo completo (sin RAG/embeddings — un solo negocio, catálogo chico) + reglas anti-alucinación + instrucciones configurables.
+- `Api\AssistantChatController` (`POST /api/assistant/chat`, `GET /api/assistant/config`), rutas públicas fuera de `ApiAuthenticate`, protegidas con `VerifyAssistantSiteToken` (token embebido + flag `ai_assistant_enabled`) + `throttle:15,1`. Tope de 30 mensajes por sesión. Primera llamada HTTP saliente del proyecto (`Http::` no se usaba en ningún lado) y primer LLM integrado.
+- **CORS con dos vueltas de bugs reales, documentadas en NT-031:** un middleware de ruta nunca ve el preflight `OPTIONS` (el router rechaza el método antes de llegar a middleware de ruta) — hubo que moverlo a middleware global; y aun así Laravel trae su propio `HandleCors` activo por defecto que ganaba la carrera si el nuevo middleware se registraba con `append()` en vez de `prepend()`. Corregido y confirmado con test.
+- 9 tests nuevos, todos pasan. Suite completa: 37 fallidas (mismas preexistentes de siempre), 110 pasan (101 + 9 nuevas). Pint aplicado a todos los archivos tocados.
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_13_000001..000002_*.php` — `service_ai_chats`, `service_ai_messages`
+- `app/Models/ServiceAiChat.php`, `ServiceAiMessage.php` (nuevos)
+- `app/Support/SystemSettings/SystemSettings.php` — sección `ai_assistant`
+- `app/Domain/Catalog/Contracts/ServiceCatalogRepositoryInterface.php`/`ServiceInterface.php`, `Repositories/ServiceCatalogRepository.php`, `Services/ServiceCatalogService.php` — `getActiveServices()`/`getActive()`
+- `app/Providers/AppServiceProvider.php` — binding nuevo de `ServiceCatalog*Interface`
+- `app/Support/Assistant/ServiceCatalogPromptBuilder.php` (nuevo)
+- `app/Http/Controllers/Api/AssistantChatController.php` (nuevo)
+- `app/Http/Middleware/VerifyAssistantSiteToken.php`, `HandleAssistantCors.php` (nuevos)
+- `bootstrap/app.php` — `prepend(HandleAssistantCors::class)`
+- `routes/api.php` — rutas públicas `/assistant/*`
+- `docs/tecnico/MODELO_BD.md`, `NOTAS_TECNICAS.md` (NT-031), `BACKLOG.md` (BL-042, BL-042b)
+
+### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
+1. **BL-042b — Fase 2 del asistente**: widget JS embebible (`public/assistant-widget.js`) + snippet de inserción en WordPress. Bloqueante real: el usuario necesita crear una API key de Anthropic (console.anthropic.com) y decidir el destino inicial del botón CTA (WhatsApp/contacto) en Configuración del sistema.
+2. Configurar respuestas automáticas de Meta Business Suite para Facebook/Instagram cuando el usuario quiera — sin código, documentar pasos si se pide (igual que quedó pendiente con el autoresponder de correo, ver punto 3).
+3. Recordar al usuario la decisión pendiente de sesiones anteriores: ¿documentar en `docs/tecnico/` los pasos de cPanel para autoresponder/filtro de `no-reply@estetican.org`? (el usuario ya dijo que maneja el correo directo en cPanel — confirmar si sigue queriendo la doc o se descarta).
+4. Commit/push de esta sesión (BL-042).
+5. Sigue pendiente de sesiones anteriores: activar marca de agua en fotos, confirmar visualmente candado/editor de foto en el celular, probar `/mapa-zonas`, decidir destino de los 4 archivos huérfanos de la app móvil (BL-037), SPF/DKIM para `estetican.org`.
+
+---
+
 ## 📅 Sesión: 12/07/2026 (cont. 3) — Envío de plantillas por correo (BL-040) + preferencias de comunicación del cliente (BL-041) + fixes SMTP (NT-030)
 
 Continuación de la misma sesión del 12/07. El usuario preguntó contra quién compite EstetiCAN (comparación con MoeGo, Gingr, Vetmanger, Covly — el motorlogra igualar o superar en profundidad de módulos, pero está atrás en la capa de cara al cliente: portal de reservas, mensajería automática, cobro con tarjeta) y decidió empezar por lo más fácil: habilitar el envío de plantillas también por correo.
