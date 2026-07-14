@@ -11,6 +11,8 @@ Continuación de la sesión del 14/07. El usuario preguntó cómo evitar que se 
 
 **Ideas capturadas para más adelante (sin diseñar, ver `docs/architecture/IDEAS_FUTURO.md`):** skill de Alexa para recordatorios/avisos, y que el asistente de IA también conteste sobre posts/artículos del sitio (no solo el catálogo de servicios).
 
+**Cierre de sesión — 3 ideas más discutidas tras ver el widget funcionando en real (sin implementar, bien detalladas en `docs/architecture/IDEAS_FUTURO.md`):** (1) el bot no sabe si el negocio cubre la zona del visitante — gap real, el prompt no tiene la ubicación de las sucursales; (2) el usuario reconsideró capturar el lead desde el bot, con preocupación explícita por no comprometer datos sensibles del visitante — sin decidir el mecanismo; (3) alternativa liviana a BL-012: código aleatorio de consulta de estado por mascota/servicio (no el `order_folio` actual, que es secuencial y adivinable), entregado al agendar/al llevar la mascota, que se desactiva al completar el servicio — como un número de guardarropa, sin necesidad de cuentas/login. El usuario decidió explícitamente anotarlo y no implementarlo esta sesión (ya iban 3 features grandes shippeadas).
+
 ### 📁 Archivos principales tocados
 - `app/Support/Geo/DistanceCalculator.php`, `CoverageChecker.php` (nuevos)
 - `app/Support/SystemSettings/SystemSettings.php` — sección `coverage`
@@ -20,10 +22,11 @@ Continuación de la sesión del 14/07. El usuario preguntó cómo evitar que se 
 - `docs/tecnico/MODELO_BD.md`, `BACKLOG.md` (BL-043), `docs/architecture/IDEAS_FUTURO.md`
 
 ### 🛑 Pendientes activos — EMPEZAR AQUÍ la próxima sesión
-1. Commit/push de esta sesión y las anteriores (BL-042, BL-042b, BL-043) — nada de esto está commiteado todavía.
-2. Configurar respuestas automáticas de Meta Business Suite para Facebook/Instagram cuando el usuario quiera — sin código.
-3. Recordar al usuario la decisión pendiente de sesiones anteriores: ¿documentar en `docs/tecnico/` los pasos de cPanel para autoresponder/filtro de `no-reply@estetican.org`? (el usuario ya dijo que maneja el correo directo en cPanel — confirmar si sigue queriendo la doc o se descarta).
-4. Sigue pendiente de sesiones anteriores: activar marca de agua en fotos, confirmar visualmente candado/editor de foto en el celular, probar `/mapa-zonas`, decidir destino de los 4 archivos huérfanos de la app móvil (BL-037), SPF/DKIM para `estetican.org`.
+1. **Empezar por las 3 ideas del asistente de IA anotadas arriba** — el usuario las trajo justo al cerrar esta sesión, todavía frescas: gap de zona de cobertura en el bot (fix chico), captura de lead desde el bot (sin decidir mecanismo), código de consulta de estado sin login (alternativa a BL-012, con 3 preguntas de alcance sin resolver — ver `IDEAS_FUTURO.md`).
+2. Push de los commits de esta sesión (BL-042 `27d1440`, BL-042b `a7ad910`, BL-043 `bc36006`) — ya están commiteados localmente, falta subir al remoto.
+3. Configurar respuestas automáticas de Meta Business Suite para Facebook/Instagram cuando el usuario quiera — sin código.
+4. Recordar al usuario la decisión pendiente de sesiones anteriores: ¿documentar en `docs/tecnico/` los pasos de cPanel para autoresponder/filtro de `no-reply@estetican.org`? (el usuario ya dijo que maneja el correo directo en cPanel — confirmar si sigue queriendo la doc o se descarta).
+5. Sigue pendiente de sesiones anteriores: activar marca de agua en fotos, confirmar visualmente candado/editor de foto en el celular, probar `/mapa-zonas`, decidir destino de los 4 archivos huérfanos de la app móvil (BL-037), SPF/DKIM para `estetican.org`.
 
 ---
 
