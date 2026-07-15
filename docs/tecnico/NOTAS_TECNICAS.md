@@ -938,3 +938,19 @@ Route::resource('items', ItemController::class)->except(['show'])
 Verificado con `php artisan route:list --name=items.store -vv` — el middleware `permission:crear catalogo_articulos` aparece solo en esa ruta, no en las demás.
 
 **Lección:** cuando un resource necesite permisos distintos por acción, usar `middlewareFor()` explícitamente y **siempre verificar con `route:list -vv`** cuál middleware quedó aplicado a cada ruta — este tipo de error de configuración no se manifiesta como excepción, sino como control de acceso silenciosamente mal aplicado (el peor tipo de bug de permisos: no truena, solo dice qué no debería).
+
+## NT-036 — Quitar una columna de `$fillable` no basta si la columna es `NOT NULL` sin default (BL-045b)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 14/07/2026 |
+| **Severidad** | P1 — rompe cualquier alta nueva en producción (`SQLSTATE[HY000]: Field '...' doesn't have a default value`), no un fallo silencioso |
+| **Componente** | `operators.full_name`, migración `2026_03_22_231000_enrich_operators_personal_data.php` |
+
+**Síntoma:** al atomizar `operators.full_name` en `first_name`/`apellido_paterno`/`apellido_materno` (mismo patrón usado en BL-044/045 para `clients.last_name`/`users.last_name`), quitar `full_name` de `$fillable` en `Operator` hizo que la suite completa pasara de 37 a **68 tests fallando** — cualquier `Operator::create()` sin pasar `full_name` explícito tronaba con un error SQL real, detectado antes de tocar producción.
+
+**Diagnóstico:** a diferencia de `last_name` en `clients`/`users` (que nacieron `nullable` desde su migración original), `operators.full_name` se creó `nullable()` pero luego se le aplicó `->nullable(false)->change()` en la misma migración (`2026_03_22_231000`), tras hacer un backfill de una sola pasada (`full_name = name`). Quedó `NOT NULL` sin `default` en la BD real. El patrón "accessor calculado + columna vieja fuera de `$fillable`" asume implícitamente que la columna vieja acepta `NULL` — si no lo hace, Eloquent deja de escribirla (ya no es masa-asignable) pero MySQL exige un valor en el `INSERT`, y truena.
+
+**Fix:** migración adicional (`2026_07_14_000019_make_full_name_nullable_on_operators_table.php`) que corre `$table->string('full_name')->nullable()->change()` **antes** de dar por buena la atomización.
+
+**Lección:** antes de asumir que "nullable + accessor + backfill" basta para atomizar un campo, correr `SHOW COLUMNS FROM {tabla}` (o revisar la migración original de la columna) para confirmar que de verdad es `NULL`-able. Si es `NOT NULL` sin default, hace falta una migración extra para relajarla — y correr la suite completa *antes* de tocar producción es lo que expone esto rápido (68 fallas de golpe vs. el baseline de 37 es una señal inequívoca de que algo estructural se rompió, no solo tests desactualizados).
