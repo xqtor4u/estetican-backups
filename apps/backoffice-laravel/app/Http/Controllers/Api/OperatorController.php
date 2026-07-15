@@ -15,8 +15,10 @@ class OperatorController extends Controller
     {
         $operators = Operator::where('is_active', true)
             ->with('operatorRole:id,code,acronym,name')
-            ->orderBy('full_name')
-            ->get(['id', 'full_name', 'profile_photo_path', 'specialty', 'role', 'operator_role_id']);
+            ->orderBy('apellido_paterno')
+            ->orderBy('apellido_materno')
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'profile_photo_path', 'specialty', 'role', 'operator_role_id']);
 
         return response()->json($operators->map(fn ($o) => [
             'id'           => $o->id,
@@ -34,8 +36,10 @@ class OperatorController extends Controller
     {
         $operators = Operator::where('is_active', true)
             ->with('operatorRole:id,code,acronym,name')
-            ->orderBy('full_name')
-            ->get(['id', 'full_name', 'profile_photo_path', 'specialty', 'role', 'operator_role_id']);
+            ->orderBy('apellido_paterno')
+            ->orderBy('apellido_materno')
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'profile_photo_path', 'specialty', 'role', 'operator_role_id']);
 
         $operatorIds = $operators->pluck('id');
 

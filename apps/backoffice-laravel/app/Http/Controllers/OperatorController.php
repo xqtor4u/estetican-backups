@@ -42,7 +42,9 @@ class OperatorController extends Controller
 
         if ($search !== '') {
             $operators->where(function ($query) use ($search) {
-                $query->where('full_name', 'like', "%{$search}%")
+                $query->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('apellido_paterno', 'like', "%{$search}%")
+                    ->orWhere('apellido_materno', 'like', "%{$search}%")
                     ->orWhere('name', 'like', "%{$search}%")
                     ->orWhere('code', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
@@ -64,20 +66,30 @@ class OperatorController extends Controller
         }
 
         if ($sort === 'name') {
-            $operators->orderByRaw('coalesce(full_name, name) ' . $direction)
+            $operators->orderBy('apellido_paterno', $direction)
+                ->orderBy('apellido_materno', $direction)
+                ->orderBy('first_name', $direction)
                 ->orderBy('code');
         } elseif ($sort === 'code') {
             $operators->orderBy('code', $direction)
-                ->orderByRaw('coalesce(full_name, name)');
+                ->orderBy('apellido_paterno')
+                ->orderBy('apellido_materno')
+                ->orderBy('first_name');
         } elseif ($sort === 'jobs') {
             $operators->orderBy('executed_services_count', $direction)
-                ->orderByRaw('coalesce(full_name, name)');
+                ->orderBy('apellido_paterno')
+                ->orderBy('apellido_materno')
+                ->orderBy('first_name');
         } elseif ($sort === 'status') {
             $operators->orderBy('is_active', $direction)
-                ->orderByRaw('coalesce(full_name, name)');
+                ->orderBy('apellido_paterno')
+                ->orderBy('apellido_materno')
+                ->orderBy('first_name');
         } else {
             $operators->orderByDesc('is_active')
-                ->orderByRaw('coalesce(full_name, name)');
+                ->orderBy('apellido_paterno')
+                ->orderBy('apellido_materno')
+                ->orderBy('first_name');
         }
 
         $operators = $operators
@@ -229,7 +241,7 @@ class OperatorController extends Controller
     {
         $duplicate = $operator->replicate();
         $duplicate->code = $this->buildDuplicateCode($operator->code);
-        $duplicate->full_name = $this->buildDuplicateName($operator->full_name);
+        $duplicate->first_name = $this->buildDuplicateName($operator->first_name ?: $operator->name);
         $duplicate->name = $this->buildDuplicateName($operator->name);
         $duplicate->is_active = false;
         $duplicate->save();
@@ -260,7 +272,7 @@ class OperatorController extends Controller
         $candidate = $baseName . ' (copia)';
         $suffix = 2;
 
-        while (Operator::where('full_name', $candidate)->orWhere('name', $candidate)->exists()) {
+        while (Operator::where('first_name', $candidate)->orWhere('name', $candidate)->exists()) {
             $candidate = $baseName . ' (copia ' . $suffix . ')';
             $suffix++;
         }
@@ -286,7 +298,9 @@ class OperatorController extends Controller
 
         return [
             'code' => ['required', 'string', 'max:255', $uniqueRule],
-            'full_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'apellido_paterno' => 'nullable|string|max:255',
+            'apellido_materno' => 'nullable|string|max:255',
             'name' => 'nullable|string|max:255',
             'ine_number' => 'nullable|string|max:255',
             'imss_number' => 'nullable|string|max:255',
@@ -309,10 +323,18 @@ class OperatorController extends Controller
 
     private function preparePayload(array $validated, ?Operator $operator = null): array
     {
+        $computedFullName = implode(' ', array_filter([
+            $validated['first_name'],
+            $validated['apellido_paterno'] ?? null,
+            $validated['apellido_materno'] ?? null,
+        ], fn ($part) => filled($part)));
+
         return [
             'code' => strtoupper(trim($validated['code'])),
-            'full_name' => $validated['full_name'],
-            'name' => $validated['name'] ?? $validated['full_name'],
+            'first_name' => $validated['first_name'],
+            'apellido_paterno' => $validated['apellido_paterno'] ?? null,
+            'apellido_materno' => $validated['apellido_materno'] ?? null,
+            'name' => $validated['name'] ?? $computedFullName,
             'ine_number' => $validated['ine_number'] ?? null,
             'imss_number' => $validated['imss_number'] ?? null,
             'address' => $validated['address'] ?? null,

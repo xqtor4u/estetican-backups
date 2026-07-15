@@ -1,5 +1,41 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 14/07/2026 (cont. 9) — BL-045b: atomización de apellido en `operators` (cierra clients→users→operators)
+
+### ✅ Logros y Cambios
+
+Tercera y última fase de la iniciativa de atomización de apellidos. A diferencia de `clients` (BL-044) y `users` (BL-045), `operators` **no tenía ningún campo de nombre separado** — solo `name` (legado, ambiguo: a veces espeja el login del `User` vinculado, a veces duplica el nombre completo para operadores creados directo) y `full_name` (string único mezclando nombre(s) + apellidos, ej. "Tomas Alejandro Martinez Gutierrez"). Se preguntó al usuario el alcance antes de tocar código: eligió agregar los 3 campos completos (`first_name` + `apellido_paterno` + `apellido_materno`), no solo los 2 apellidos, para quedar consistente con el resto del sistema.
+
+**Heurística de 3 vías** (distinta a la de 2 vías de BL-044/045): las últimas 2 palabras de `full_name` son los apellidos, el resto es el/los nombre(s) — "Jose Mendez Pérez" → nombre="Jose", paterno="Mendez", materno="Pérez"; "Tomas Alejandro Martinez Gutierrez" → nombre="Tomas Alejandro", paterno="Martinez", materno="Gutierrez". Solo se marca ambiguo con 5+ palabras (nada en los 2 operadores reales de producción).
+
+**Trampa nueva, no vista en BL-044/045:** `operators.full_name` era `NOT NULL` sin default en la BD real — a diferencia de `last_name` en `clients`/`users`, que nacieron nullable desde su migración original. Al quitar `full_name` de `$fillable` del modelo, cualquier alta nueva de operador empezó a tronar con `SQLSTATE[HY000]: ... Field 'full_name' doesn't have a default value` — se detectó corriendo la suite completa (68 tests fallando de golpe, no los 37 del baseline) antes de tocar producción. Fix: migración extra (`2026_07_14_000019`) para volver la columna nullable.
+
+**Auditoría de trampa #2 (query-level) más amplia que en BL-044/045:** `OperatorController` tenía búsqueda por `full_name`, 4 `orderByRaw('coalesce(full_name, name)...')`, y `duplicate()`/`buildDuplicateName()` operando sobre el string único — todo reescrito. Además, **5 eager-loads con columnas restringidas** en otros controllers seguían pidiendo `full_name` (`SpaBookingController::show()`, `Api\BookingController::index()`, `Api\AgendaController::index()` ×2, `Api\OperatorController::index()`/`team()` ×2) — de no corregirse, el accessor habría devuelto nombre **vacío sin ningún error** (columna no cargada = `null` silencioso), afectando agenda web, agenda móvil y el panel de equipo. `UserController::syncOperatorRecord()` se simplificó de paso: ya no concatena un string de `full_name`, pasa `first_name`/`apellido_paterno`/`apellido_materno` directo del `User` (ya atomizado en BL-045) al `Operator` vinculado.
+
+**Tests:** 2 archivos (`OperatorBranchSelectionTest`, `OperatorPhotoUploadTest`) exigían el campo de verdad vía HTTP (`route('operators.store')`), actualizados con cuidado real; 9 archivos con `Operator::create(['full_name' => 'Jose', ...])` como boilerplate sin relación con lo que prueban, reemplazo mecánico.
+
+**Respaldo previo:** dump de BD (`backups/estetican_pre-BL045b-apellidos-operators_20260714_2320.sql`) + tag git `pre-bl045b-apellidos-operators`, misma disciplina que BL-044/045/046.
+
+**Verificación:** backfill real en producción (2 operadores, 0 ambiguos, coincide exactamente con los usuarios ya migrados en BL-045 — mismas personas). Suite completa sin regresiones (37 fallidas preexistentes, 143 pasan — volvió al baseline después de agregar la migración de `full_name` nullable). Verificación manual de `/operators`, `/operators/create`, `/operators/1`, `/operators/1/edit` vía `Kernel::handle()` autenticado (200 en las 4) y de los endpoints API (`Api\OperatorController::index()`/`team()`, eager-load de `SpaBooking::operator`) invocados directo — todos devuelven el nombre completo reconstruido correctamente.
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_14_000018_add_first_name_and_apellidos_to_operators_table.php`, `2026_07_14_000019_make_full_name_nullable_on_operators_table.php` (nuevos)
+- `app/Console/Commands/MigrarApellidosOperadoresCommand.php` (nuevo)
+- `app/Models/Operator.php` (fillable, accessor `getFullNameAttribute()`)
+- `app/Http/Controllers/OperatorController.php` (rules, preparePayload, búsqueda, orden, duplicate)
+- `app/Http/Controllers/UserController.php` (`syncOperatorRecord()` simplificado)
+- `app/Http/Controllers/SpaBookingController.php`, `Api/BookingController.php`, `Api/AgendaController.php`, `Api/OperatorController.php` (eager-loads/selects restringidos)
+- `resources/views/operators/partials/form.blade.php`
+- 9 archivos de test (reemplazo mecánico) + `OperatorBranchSelectionTest.php`/`OperatorPhotoUploadTest.php` (cambio real)
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md` (BL-045b → Completados, cierra la iniciativa)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 (Fase 2 clínica), BL-049 (Tienda/Inventario real).
+3. Sueltos de sesiones previas: 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, los 4 archivos huérfanos de BL-037, SPF/DKIM.
+
+---
+
 ## 📅 Sesión: 14/07/2026 (cont. 8) — BL-045: atomización de apellido en `users`
 
 ### ✅ Logros y Cambios

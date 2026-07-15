@@ -32,7 +32,8 @@ class OperatorPhotoUploadTest extends TestCase
 
         $response = $this->post(route('operators.store'), [
             'code' => 'OP-100',
-            'full_name' => 'Marina Soto',
+            'first_name' => 'Marina',
+            'apellido_paterno' => 'Soto',
             'role_ids' => [$role->id],
             'branch_id' => $branch->id,
             'profile_photo' => UploadedFile::fake()->image('marina.jpg', 600, 600),
@@ -75,7 +76,8 @@ class OperatorPhotoUploadTest extends TestCase
 
         $operator = Operator::create([
             'code' => 'OP-101',
-            'full_name' => 'Nora Peña',
+            'first_name' => 'Nora',
+            'apellido_paterno' => 'Peña',
             'name' => 'Nora Peña',
             'role' => 'Bañado',
             'profile_photo_path' => 'operator-photos/2026/03/original/nora.jpg',
@@ -99,7 +101,8 @@ class OperatorPhotoUploadTest extends TestCase
 
         $response = $this->put(route('operators.update', $operator), [
             'code' => 'OP-101',
-            'full_name' => 'Nora Peña',
+            'first_name' => 'Nora',
+            'apellido_paterno' => 'Peña',
             'role_ids' => [$role->id],
             'branch_id' => $branch->id,
             'remove_profile_photo' => '1',

@@ -47,7 +47,8 @@ class OperatorBranchSelectionTest extends TestCase
 
         $response = $this->post(route('operators.store'), [
             'code' => 'OP-001',
-            'full_name' => 'Laura Campos',
+            'first_name' => 'Laura',
+            'apellido_paterno' => 'Campos',
             'role_ids' => [$role->id],
             'branch_id' => $branch->id,
             'hourly_rate' => '180.00',
@@ -174,7 +175,8 @@ class OperatorBranchSelectionTest extends TestCase
 
         $operator = Operator::create([
             'code' => 'OP-900',
-            'full_name' => 'Mario León',
+            'first_name' => 'Mario',
+            'apellido_paterno' => 'León',
             'name' => 'Mario León',
             'role' => 'Hotelero',
             'is_active' => true,

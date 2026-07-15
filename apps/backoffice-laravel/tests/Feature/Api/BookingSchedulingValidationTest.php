@@ -85,7 +85,7 @@ class BookingSchedulingValidationTest extends TestCase
     public function test_rejects_booking_outside_business_hours(): void
     {
         $pet = $this->pet();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
 
         $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
             'pet_id' => $pet->id,
@@ -100,7 +100,7 @@ class BookingSchedulingValidationTest extends TestCase
     public function test_rejects_overlapping_operator_booking(): void
     {
         $pet = $this->pet();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
         $scheduledAt = now()->addDay()->setTime(11, 0);
 
         SpaBooking::create([
@@ -126,7 +126,7 @@ class BookingSchedulingValidationTest extends TestCase
     public function test_accepts_a_valid_booking(): void
     {
         $pet = $this->pet();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
 
         $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
             'pet_id' => $pet->id,
@@ -144,7 +144,7 @@ class BookingSchedulingValidationTest extends TestCase
     public function test_records_the_authenticated_user_as_creator(): void
     {
         $pet = $this->pet();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
         ['headers' => $headers, 'user' => $user] = $this->authHeaderAndUser();
 
         $response = $this->withHeaders($headers)->postJson('/api/bookings', [

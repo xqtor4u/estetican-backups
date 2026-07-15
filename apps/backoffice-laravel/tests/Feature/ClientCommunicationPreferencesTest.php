@@ -154,7 +154,7 @@ class ClientCommunicationPreferencesTest extends TestCase
             'receives_job_updates' => false,
         ]);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
         $booking = SpaBooking::create([
             'pet_id' => $pet->id,
             'operator_id' => $operator->id,

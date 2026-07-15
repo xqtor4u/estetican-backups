@@ -52,7 +52,7 @@ class SpaBookingCoverageWarningTest extends TestCase
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka', 'lat' => 19.4326, 'lng' => -99.1332]);
         $service = $this->service();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
 
         $response = $this->actingAs($this->admin())->post(route('pets.bookings.store', $pet), [
             'operator_id' => $operator->id,
@@ -71,7 +71,7 @@ class SpaBookingCoverageWarningTest extends TestCase
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka', 'lat' => 21.89, 'lng' => -102.29]);
         $service = $this->service();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
 
         $response = $this->actingAs($this->admin())->post(route('pets.bookings.store', $pet), [
             'operator_id' => $operator->id,

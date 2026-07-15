@@ -17,7 +17,7 @@ class OperatorAvailabilityCheckerTest extends TestCase
 
     private function operator(string $name = 'Jose'): Operator
     {
-        return Operator::create(['code' => strtoupper(substr($name, 0, 3)).uniqid(), 'name' => $name, 'full_name' => $name, 'is_active' => true]);
+        return Operator::create(['code' => strtoupper(substr($name, 0, 3)).uniqid(), 'name' => $name, 'first_name' => $name, 'is_active' => true]);
     }
 
     private function bookingFor(int $operatorId, string $scheduledAt, int $durationMinutes = 60, string $status = 'scheduled'): SpaBooking

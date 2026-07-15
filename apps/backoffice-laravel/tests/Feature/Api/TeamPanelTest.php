@@ -45,7 +45,7 @@ class TeamPanelTest extends TestCase
         $operator = Operator::create([
             'code' => 'OP'.uniqid(),
             'name' => $name,
-            'full_name' => $name,
+            'first_name' => $name,
             'is_active' => true,
         ]);
 

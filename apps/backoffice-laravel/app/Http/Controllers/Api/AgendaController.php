@@ -38,9 +38,9 @@ class AgendaController extends Controller
                 'pet:id,name,species,breed,profile_photo_path,client_id',
                 'pet.client:id,first_name,apellido_paterno,apellido_materno',
                 'services.service:id,name,type',
-                'operator:id,full_name,profile_photo_path',
+                'operator:id,first_name,apellido_paterno,apellido_materno,profile_photo_path',
                 'quotes' => fn ($q) => $q->where('status', 'accepted')
-                    ->with(['items.operator:id,full_name,profile_photo_path']),
+                    ->with(['items.operator:id,first_name,apellido_paterno,apellido_materno,profile_photo_path']),
             ])
             ->orderBy('scheduled_at')
             ->get();

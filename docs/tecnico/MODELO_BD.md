@@ -73,8 +73,11 @@ Catálogo legado de operadores (pre-fusión). Sigue siendo la FK usada en `spa_b
 |---|---|---|
 | `id` | bigint PK | |
 | `code` | string unique | Ej. `GRO-JMP` |
-| `name` | string | |
-| `full_name` | string | Nombre completo |
+| `name` | string | Legado — a veces espeja el `name` (login) del `User` vinculado, a veces duplica el nombre completo si el operador se creó directo sin `User`. No se atomizó, sigue como texto libre |
+| `full_name` | string nullable | **Vestigial** desde BL-045b — accessor calculado (`first_name` + `apellido_paterno` + `apellido_materno`). Nullable desde BL-045b (antes era `NOT NULL`, rompía altas nuevas tras dejar de escribirse directo) |
+| `first_name` | string nullable | BL-045b — a diferencia de `clients`/`users`, `operators` no tenía ningún campo de nombre separado; se creó de cero junto con los apellidos |
+| `apellido_paterno` | string nullable | BL-045b |
+| `apellido_materno` | string nullable | BL-045b — nunca obligatorio (convención mexicana) |
 | `role` | string nullable | Rol legacy |
 | `operator_role_id` | FK → `operator_roles` nullable | Agregado 30/06/2026 |
 | `branch_id` | FK → `branches` nullable | Sucursal base |

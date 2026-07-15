@@ -34,7 +34,7 @@ class ClinicalVisitServiceTest extends TestCase
         $operator = Operator::create([
             'code' => 'VET'.uniqid(),
             'name' => 'Dra. Ana Vet',
-            'full_name' => 'Dra. Ana Vet',
+            'first_name' => 'Dra. Ana Vet',
             'operator_role_id' => $role->id,
             'professional_license' => $withLicense ? 'CED-123456' : null,
             'is_active' => true,

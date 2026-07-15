@@ -647,7 +647,7 @@ class SpaBookingController extends Controller
             'resourceAllocations.resource:id,branch_id,code,name,resource_type',
             'resourceAllocations.childAllocations',
             'executedServices:id,spa_booking_id,executed_at,final_price,operator_id,service_summary',
-            'executedServices.operator:id,full_name,name',
+            'executedServices.operator:id,first_name,apellido_paterno,apellido_materno,name',
             'quotes.items.service',
             'quotes.items.operator',
             'quotes.cashLedgers',

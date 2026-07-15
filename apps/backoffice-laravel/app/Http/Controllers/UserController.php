@@ -239,12 +239,12 @@ class UserController extends Controller
             return;
         }
 
-        $fullName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-
         $data = [
             'code'                    => $user->operator_code ?: strtoupper(substr($user->name, 0, 8)),
             'name'                    => $user->name,
-            'full_name'               => $fullName ?: $user->name,
+            'first_name'              => $user->first_name ?: $user->name,
+            'apellido_paterno'        => $user->apellido_paterno,
+            'apellido_materno'        => $user->apellido_materno,
             'operator_role_id'        => $user->operator_role_id,
             'ine_number'              => $user->ine_number,
             'imss_number'             => $user->imss_number,

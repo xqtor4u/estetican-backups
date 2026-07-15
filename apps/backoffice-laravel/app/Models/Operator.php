@@ -14,7 +14,9 @@ use Illuminate\Support\Collection;
 
 #[Fillable([
     'code',
-    'full_name',
+    'first_name',
+    'apellido_paterno',
+    'apellido_materno',
     'name',
     'operator_role_id',
     'ine_number',
@@ -43,6 +45,15 @@ class Operator extends Model
             'is_active' => 'boolean',
             'hire_date' => 'date',
         ];
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return implode(' ', array_filter([
+            $this->first_name,
+            $this->apellido_paterno,
+            $this->apellido_materno,
+        ], fn ($part) => filled($part)));
     }
 
     public function operatorRole(): BelongsTo

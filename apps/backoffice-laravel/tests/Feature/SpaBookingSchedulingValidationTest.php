@@ -57,7 +57,7 @@ class SpaBookingSchedulingValidationTest extends TestCase
     {
         $pet = $this->pet();
         $service = $this->service();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
 
         $response = $this->actingAs($this->admin())->post(route('pets.bookings.store', $pet), [
             'operator_id' => $operator->id,
@@ -73,7 +73,7 @@ class SpaBookingSchedulingValidationTest extends TestCase
     {
         $pet = $this->pet();
         $service = $this->service();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
         $scheduledAt = now()->addDay()->setTime(11, 0);
 
         SpaBooking::create([
@@ -99,7 +99,7 @@ class SpaBookingSchedulingValidationTest extends TestCase
     {
         $pet = $this->pet();
         $service = $this->service();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
 
         $response = $this->actingAs($this->admin())->post(route('pets.bookings.store', $pet), [
             'operator_id' => $operator->id,
@@ -118,7 +118,7 @@ class SpaBookingSchedulingValidationTest extends TestCase
     {
         $pet = $this->pet();
         $service = $this->service();
-        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
         $admin = $this->admin();
 
         $response = $this->actingAs($admin)->post(route('pets.bookings.store', $pet), [

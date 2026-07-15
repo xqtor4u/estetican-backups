@@ -31,7 +31,7 @@ class BookingController extends Controller
             'pet:id,name,species,breed,profile_photo_path,client_id',
             'pet.client:id,first_name,apellido_paterno,apellido_materno',
             'services.service:id,name,type,price,duration_minutes',
-            'operator:id,full_name,profile_photo_path',
+            'operator:id,first_name,apellido_paterno,apellido_materno,profile_photo_path',
         ]);
 
         $endTime = $b->duration_minutes

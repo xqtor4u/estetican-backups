@@ -13,9 +13,19 @@
         <input id="code" type="text" name="code" class="form-control" value="{{ old('code', $operator->code ?? '') }}" required>
     </div>
 
-    <div class="col-md-6">
-        <label for="full_name" class="form-label">Nombre completo</label>
-        <input id="full_name" type="text" name="full_name" class="form-control" value="{{ old('full_name', $operator->full_name ?? $operator->name ?? '') }}" required>
+    <div class="col-md-4">
+        <label for="first_name" class="form-label">Nombre(s)</label>
+        <input id="first_name" type="text" name="first_name" class="form-control" value="{{ old('first_name', $operator->first_name ?? $operator->name ?? '') }}" required>
+    </div>
+
+    <div class="col-md-3">
+        <label for="apellido_paterno" class="form-label">Apellido paterno</label>
+        <input id="apellido_paterno" type="text" name="apellido_paterno" class="form-control" value="{{ old('apellido_paterno', $operator->apellido_paterno ?? '') }}">
+    </div>
+
+    <div class="col-md-3">
+        <label for="apellido_materno" class="form-label">Apellido materno</label>
+        <input id="apellido_materno" type="text" name="apellido_materno" class="form-control" value="{{ old('apellido_materno', $operator->apellido_materno ?? '') }}">
     </div>
 
     <div class="col-md-4">
