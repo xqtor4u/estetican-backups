@@ -20,7 +20,7 @@ class MapaZonasIndexTest extends TestCase
         return User::create([
             'name' => 'Admin Test',
             'first_name' => 'Admin',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'admin-mapa-zonas-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

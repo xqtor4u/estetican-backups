@@ -21,7 +21,7 @@ class BookingCoverageWarningTest extends TestCase
         $user = User::create([
             'name' => 'Operador Test',
             'first_name' => 'Operador',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'operador-coverage-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

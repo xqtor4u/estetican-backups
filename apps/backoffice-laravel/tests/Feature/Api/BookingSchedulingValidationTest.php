@@ -20,7 +20,7 @@ class BookingSchedulingValidationTest extends TestCase
         $user = User::create([
             'name' => 'Operador Test',
             'first_name' => 'Operador',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'operador-api-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',
@@ -44,7 +44,7 @@ class BookingSchedulingValidationTest extends TestCase
         $user = User::create([
             'name' => 'Operador Test 2',
             'first_name' => 'Operador',
-            'last_name' => 'Test 2',
+            'apellido_paterno' => 'Test 2',
             'email' => 'operador-api-test-2-'.uniqid().'@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

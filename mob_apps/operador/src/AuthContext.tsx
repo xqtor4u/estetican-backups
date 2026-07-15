@@ -5,6 +5,8 @@ interface AuthUser {
   name: string;
   first_name: string | null;
   last_name: string | null;
+  apellido_paterno: string | null;
+  apellido_materno: string | null;
   email: string;
   roles: string[];
   is_admin: boolean;

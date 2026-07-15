@@ -20,7 +20,7 @@ class ClinicalModuleToggleTest extends TestCase
         return User::create([
             'name' => 'Admin Test',
             'first_name' => 'Admin',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'admin-clinical-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

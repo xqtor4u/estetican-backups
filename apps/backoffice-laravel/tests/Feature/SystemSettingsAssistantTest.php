@@ -21,7 +21,7 @@ class SystemSettingsAssistantTest extends TestCase
         $user = User::create([
             'name' => 'Admin Test',
             'first_name' => 'Admin',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'admin-settings-assistant-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

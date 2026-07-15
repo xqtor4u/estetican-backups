@@ -1,5 +1,39 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 14/07/2026 (cont. 8) — BL-045: atomización de apellido en `users`
+
+### ✅ Logros y Cambios
+
+Segunda fase de la iniciativa de atomización de apellidos (clients→users→operators, BL-044). Mismo patrón que BL-044 aplicado a `users`: migración con `apellido_paterno`/`apellido_materno` nullable (`last_name` no se borra, queda vestigial vía `getLastNameAttribute()`), comando de backfill idempotente `usuarios:migrar-apellidos --dry-run` (usa `getRawOriginal()`, mismo cuidado que BL-044), y auditoría de todos los puntos de escritura/lectura del campo.
+
+**Respaldo previo** (misma disciplina de BL-044/046 por tratarse de producción real con bind mount directo): dump de BD (`backups/estetican_pre-BL045-apellidos-users_20260714_2240.sql`) + tag git `pre-bl045-apellidos-users`.
+
+**Diferencia real con BL-044 (clients):** el impacto a nivel de query fue casi nulo — `UserController::index()` es un `User::all()` sin `select`/`orderBy` restringido (a diferencia de `ClientController`, que sí tenía varios). El foco real estuvo en los **puntos de escritura**: 3 formularios web (`user/create`, `user/edit`, `user/settings` — cada uno pasó de 1 campo "Apellido(s)" a 2 campos "Apellido paterno"/"Apellido materno") y el endpoint móvil `PATCH /api/me` (`Api\ProfileController`, consumido por `MobUserConfig.tsx` en la app operador) que mass-asignaba `last_name` directo. `User::toApiArray()` sigue exponiendo `last_name` calculado (además de los 2 campos nuevos) para no romper compatibilidad con cualquier consumidor existente de la API móvil.
+
+**Backfill real en producción:** 4 usuarios migrados sin ningún caso ambiguo (`Martinez Topete`, `Mendez Pérez`, `Martinez Gutierrez`, `Mode`).
+
+**Auditoría de tests:** 25 archivos creaban un usuario de prueba con `'last_name' => 'Test'` como puro boilerplate de autenticación (sin relación con lo que el test verifica) — reemplazo mecánico a `apellido_paterno` vía `sed`, verificado archivo por archivo que todos eran `User::create()` y no `Client::create()`. La excepción real fue `tests/Feature/Api/ProfileTest.php`, que sí ejercita el campo de verdad contra `/api/me` — se actualizó para enviar y verificar `apellido_paterno`/`apellido_materno` (más el `last_name` calculado en la respuesta).
+
+**Verificación:** suite completa (37 fallidas preexistentes sin cambios, 143 pasan — mismo conteo que antes, no se agregaron tests nuevos). Además, verificación manual de las 3 pantallas Blade tocadas a mano (`user/create`, `user/edit`, `user/settings`) vía `Kernel::handle()` con un usuario autenticado real dentro de `tinker` — las tres devuelven `200` con el stack completo de middleware (más confiable que renderizar la vista suelta, que falla por falta del `$errors` bag fuera de una request real).
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_14_000017_add_apellidos_paterno_materno_to_users_table.php` (nuevo)
+- `app/Console/Commands/MigrarApellidosUsuariosCommand.php` (nuevo)
+- `app/Models/User.php` (fillable, accessor, activitylog, `toApiArray()`)
+- `app/Http/Controllers/UserController.php`, `UserSettingsController.php`, `Api/ProfileController.php`
+- `resources/views/user/{create,edit,settings}.blade.php`
+- `mob_apps/operador/src/AuthContext.tsx`, `mob_apps/operador/src/admin/MobUserConfig.tsx`
+- 25 archivos de test (reemplazo mecánico) + `tests/Feature/Api/ProfileTest.php` (cambio real)
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md` (BL-045 → Completados, BL-045b nuevo para operators/fase 3)
+
+### 🛑 Pendientes activos
+1. BL-045b — atomización de apellidos en `operators` (fase 3, arranca de cero — solo `name` corto + `full_name` string único).
+2. Commit y push de esta sesión.
+3. BL-047 (Fase 2 clínica), BL-049 (Tienda/Inventario real).
+4. Sueltos de sesiones previas: 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, los 4 archivos huérfanos de BL-037, SPF/DKIM.
+
+---
+
 ## 📅 Sesión: 14/07/2026 (cont. 7) — Verificación de BL-044, activación del módulo clínico, CRUD de artículos independiente y commit/push de la racha completa
 
 ### ✅ Logros y Cambios

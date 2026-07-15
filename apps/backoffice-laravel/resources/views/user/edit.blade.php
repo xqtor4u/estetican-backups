@@ -50,18 +50,22 @@
                     </div>
 
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="name" class="form-label">Nombre de usuario (login)</label>
                             <input type="text" class="form-control" id="name" name="name" value="{{ old('name', $user->name) }}" required>
                             <div class="form-text">Debe ser único. Se usa para iniciar sesión.</div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="first_name" class="form-label">Nombre(s)</label>
                             <input type="text" class="form-control" id="first_name" name="first_name" value="{{ old('first_name', $user->first_name) }}">
                         </div>
-                        <div class="col-md-4">
-                            <label for="last_name" class="form-label">Apellido(s)</label>
-                            <input type="text" class="form-control" id="last_name" name="last_name" value="{{ old('last_name', $user->last_name) }}">
+                        <div class="col-md-3">
+                            <label for="apellido_paterno" class="form-label">Apellido paterno</label>
+                            <input type="text" class="form-control" id="apellido_paterno" name="apellido_paterno" value="{{ old('apellido_paterno', $user->apellido_paterno) }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="apellido_materno" class="form-label">Apellido materno</label>
+                            <input type="text" class="form-control" id="apellido_materno" name="apellido_materno" value="{{ old('apellido_materno', $user->apellido_materno) }}">
                         </div>
                         <div class="col-md-6">
                             <label for="email" class="form-label">Correo electrónico</label>

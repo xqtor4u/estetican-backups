@@ -21,7 +21,7 @@ class ItemCrudTest extends TestCase
         $user = User::create([
             'name' => 'Catalogo Test',
             'first_name' => 'Catalogo',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'catalogo-item-test-'.uniqid().'@example.com',
             'password' => bcrypt('secret'),
             'is_active' => true,

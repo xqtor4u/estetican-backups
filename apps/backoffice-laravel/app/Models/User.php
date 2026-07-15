@@ -20,7 +20,8 @@ use Spatie\Permission\Traits\HasRoles;
 #[Fillable([
     'name',
     'first_name',
-    'last_name',
+    'apellido_paterno',
+    'apellido_materno',
     'email',
     'password',
     'ine_number',
@@ -49,7 +50,7 @@ class User extends Authenticatable
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'first_name', 'last_name', 'email', 'phone',
+            ->logOnly(['name', 'first_name', 'apellido_paterno', 'apellido_materno', 'email', 'phone',
                        'is_active', 'can_login', 'is_operator', 'operator_role_id',
                        'role', 'hire_date', 'notes'])
             ->logOnlyDirty()
@@ -88,6 +89,11 @@ class User extends Authenticatable
         return $this->belongsTo(Operator::class, 'operator_id');
     }
 
+    public function getLastNameAttribute()
+    {
+        return trim("{$this->apellido_paterno} {$this->apellido_materno}");
+    }
+
     // Determina si el usuario es super admin (Híbrido Spatie + Campo legacy)
     public function getIsSuperAdminAttribute()
     {
@@ -113,6 +119,8 @@ class User extends Authenticatable
             'name'          => trim(($this->first_name ?? $this->name) . ' ' . ($this->last_name ?? '')),
             'first_name'    => $this->first_name,
             'last_name'     => $this->last_name,
+            'apellido_paterno' => $this->apellido_paterno,
+            'apellido_materno' => $this->apellido_materno,
             'email'         => $this->email,
             'roles'         => $this->getRoleNames()->toArray(),
             'is_admin'      => $this->is_super_admin,

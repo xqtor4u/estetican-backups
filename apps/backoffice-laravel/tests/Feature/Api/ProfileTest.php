@@ -30,7 +30,7 @@ class ProfileTest extends TestCase
         return User::create(array_merge([
             'name' => 'usertest'.uniqid(),
             'first_name' => 'Ana',
-            'last_name' => 'Ruiz',
+            'apellido_paterno' => 'Ruiz',
             'email' => 'profile-test'.uniqid().'@example.com',
             'password' => bcrypt('secret123'),
             'role' => 'operator',
@@ -46,12 +46,19 @@ class ProfileTest extends TestCase
 
         $response = $this->patchJson('/api/me', [
             'first_name' => 'Anita',
-            'last_name'  => 'Ruiz Gómez',
+            'apellido_paterno' => 'Ruiz',
+            'apellido_materno' => 'Gómez',
             'email'      => 'anita.updated@example.com',
         ], $headers);
 
         $response->assertOk();
-        $response->assertJsonFragment(['first_name' => 'Anita', 'last_name' => 'Ruiz Gómez', 'email' => 'anita.updated@example.com']);
+        $response->assertJsonFragment([
+            'first_name' => 'Anita',
+            'apellido_paterno' => 'Ruiz',
+            'apellido_materno' => 'Gómez',
+            'last_name' => 'Ruiz Gómez',
+            'email' => 'anita.updated@example.com',
+        ]);
         $this->assertDatabaseHas('users', ['id' => $user->id, 'email' => 'anita.updated@example.com']);
     }
 

@@ -17,7 +17,7 @@ class PetLocationUpdateTest extends TestCase
         return User::create([
             'name' => 'Admin Test',
             'first_name' => 'Admin',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'admin-pet-location-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

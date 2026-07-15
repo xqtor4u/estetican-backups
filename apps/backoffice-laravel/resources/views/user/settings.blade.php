@@ -53,18 +53,22 @@
                         </div>
 
                         <div class="row g-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label small fw-bold text-secondary">Nombre de usuario (Login)</label>
                                 <input type="text" name="name" class="form-control rounded-3" value="{{ old('name', $user->name) }}" required>
                                 <small class="text-muted" style="font-size: 0.7rem;">Es el identificador para iniciar sesión.</small>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label small fw-bold text-secondary">Nombre(s)</label>
                                 <input type="text" name="first_name" class="form-control rounded-3" value="{{ old('first_name', $user->first_name) }}">
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-bold text-secondary">Apellido(s)</label>
-                                <input type="text" name="last_name" class="form-control rounded-3" value="{{ old('last_name', $user->last_name) }}">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-secondary">Apellido paterno</label>
+                                <input type="text" name="apellido_paterno" class="form-control rounded-3" value="{{ old('apellido_paterno', $user->apellido_paterno) }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-secondary">Apellido materno</label>
+                                <input type="text" name="apellido_materno" class="form-control rounded-3" value="{{ old('apellido_materno', $user->apellido_materno) }}">
                             </div>
                             <div class="col-md-8">
                                 <label class="form-label small fw-bold text-secondary">Correo electrónico</label>

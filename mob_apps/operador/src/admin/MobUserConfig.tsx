@@ -54,7 +54,8 @@ export function MobUserConfig() {
 
   const [profileForm, setProfileForm] = useState({
     first_name: user?.first_name ?? '',
-    last_name: user?.last_name ?? '',
+    apellido_paterno: user?.apellido_paterno ?? '',
+    apellido_materno: user?.apellido_materno ?? '',
     email: user?.email ?? '',
   });
   const [profileSaving, setProfileSaving] = useState(false);
@@ -217,7 +218,8 @@ export function MobUserConfig() {
         <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 px-1">Datos personales</p>
         <div className="bg-surface-container border border-outline-variant rounded-2xl overflow-hidden divide-y divide-outline-variant/50">
           <Field label="Nombre" value={profileForm.first_name} onChange={e => setProfileForm(f => ({ ...f, first_name: e.target.value }))} />
-          <Field label="Apellido" value={profileForm.last_name} onChange={e => setProfileForm(f => ({ ...f, last_name: e.target.value }))} />
+          <Field label="Apellido paterno" value={profileForm.apellido_paterno} onChange={e => setProfileForm(f => ({ ...f, apellido_paterno: e.target.value }))} />
+          <Field label="Apellido materno" value={profileForm.apellido_materno} onChange={e => setProfileForm(f => ({ ...f, apellido_materno: e.target.value }))} />
           <Field label="Correo" type="email" value={profileForm.email} onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))} />
         </div>
         {profileMsg && (

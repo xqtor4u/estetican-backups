@@ -21,7 +21,7 @@ class BookingMessageCalendarTest extends TestCase
         return User::create([
             'name' => 'Admin Test',
             'first_name' => 'Admin',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'admin-bandeja-calendar-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

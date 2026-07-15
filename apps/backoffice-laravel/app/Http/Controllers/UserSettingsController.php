@@ -59,7 +59,8 @@ class UserSettingsController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:users,name,' . $user->id,
             'first_name' => 'nullable|string|max:255',
-            'last_name' => 'nullable|string|max:255',
+            'apellido_paterno' => 'nullable|string|max:255',
+            'apellido_materno' => 'nullable|string|max:255',
             'email' => 'required|email|max:255|unique:users,email,' . $user->id,
             'phone' => 'nullable|string|max:255',
             'profile_photo' => 'nullable|image|max:5120',

@@ -20,7 +20,7 @@ class AgendaRangeTest extends TestCase
         $user = User::create([
             'name' => 'Operador Test',
             'first_name' => 'Operador',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'agenda-range-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

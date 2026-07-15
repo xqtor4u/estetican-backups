@@ -40,7 +40,9 @@ Usuarios del backoffice. También representan operadores cuando `is_operator = t
 | `email` | string unique | |
 | `password` | string | bcrypt |
 | `first_name` | string nullable | |
-| `last_name` | string nullable | |
+| `last_name` | string nullable | **Vestigial** desde BL-045 — accessor calculado (`apellido_paterno` + `apellido_materno`), la columna cruda ya no se escribe |
+| `apellido_paterno` | string nullable | BL-045 — mismo patrón que `clients` (BL-044) |
+| `apellido_materno` | string nullable | BL-045 — nunca obligatorio (convención mexicana) |
 | `ine_number` | string nullable | |
 | `imss_number` | string nullable | |
 | `address` | text nullable | Dirección libre (no normalizada) |

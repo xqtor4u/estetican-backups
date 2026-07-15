@@ -23,7 +23,7 @@ class ItemTest extends TestCase
         $user = User::create([
             'name' => 'Admin Test',
             'first_name' => 'Admin',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'admin-item-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

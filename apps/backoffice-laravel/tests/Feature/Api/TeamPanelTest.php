@@ -22,7 +22,7 @@ class TeamPanelTest extends TestCase
         $user = User::create([
             'name' => 'Admin Test',
             'first_name' => 'Admin',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'team-panel-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',
@@ -52,7 +52,7 @@ class TeamPanelTest extends TestCase
         $loginUser = User::create([
             'name' => $name,
             'first_name' => $name,
-            'last_name' => 'Op',
+            'apellido_paterno' => 'Op',
             'email' => strtolower(str_replace(' ', '.', $name)).uniqid().'@example.com',
             'password' => bcrypt('secret'),
             'role' => 'operator',

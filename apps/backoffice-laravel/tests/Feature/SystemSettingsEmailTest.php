@@ -21,7 +21,7 @@ class SystemSettingsEmailTest extends TestCase
         $user = User::create([
             'name' => 'Admin Test',
             'first_name' => 'Admin',
-            'last_name' => 'Test',
+            'apellido_paterno' => 'Test',
             'email' => 'admin-settings-email-test@example.com',
             'password' => bcrypt('secret'),
             'role' => 'admin',

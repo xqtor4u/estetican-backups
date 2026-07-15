@@ -20,7 +20,8 @@ class ProfileController extends Controller
 
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
-            'last_name'  => 'nullable|string|max:255',
+            'apellido_paterno' => 'nullable|string|max:255',
+            'apellido_materno' => 'nullable|string|max:255',
             'email'      => 'required|email|max:255|unique:users,email,' . $user->id,
         ]);
 

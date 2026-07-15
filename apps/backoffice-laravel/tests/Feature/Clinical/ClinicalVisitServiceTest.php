@@ -45,7 +45,7 @@ class ClinicalVisitServiceTest extends TestCase
         $user = User::create([
             'name' => 'vet'.uniqid(),
             'first_name' => 'Ana',
-            'last_name' => 'Vet',
+            'apellido_paterno' => 'Vet',
             'email' => 'vet'.uniqid().'@example.com',
             'password' => bcrypt('secret123'),
             'operator_id' => $operator->id,
