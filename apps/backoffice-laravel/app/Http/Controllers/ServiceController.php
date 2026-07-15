@@ -161,6 +161,9 @@ class ServiceController extends Controller
             'recurrence_days' => 'nullable|integer|min:1',
             'is_active' => 'nullable|boolean',
             'is_core_vaccine' => 'nullable|boolean',
+            'ai_visible' => 'nullable|boolean',
+            'is_generic' => 'nullable|boolean',
+            'is_emergency' => 'nullable|boolean',
         ];
     }
 
@@ -192,6 +195,9 @@ class ServiceController extends Controller
             'recurrence_days' => $validated['recurrence_days'] ?? null,
             'is_active' => !empty($validated['is_active']),
             'is_core_vaccine' => !empty($validated['is_core_vaccine']),
+            'ai_visible' => !empty($validated['ai_visible']),
+            'is_generic' => !empty($validated['is_generic']),
+            'is_emergency' => !empty($validated['is_emergency']),
         ];
     }
 

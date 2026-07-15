@@ -97,6 +97,33 @@
     <div class="col-12">
         <div class="form-text">"Vacuna core" solo aplica si el tipo es <strong>Vacuna</strong> — el módulo de Veterinaria advierte (sin bloquear) al agendar spa/hotel si a la mascota le falta alguna vacuna marcada así.</div>
     </div>
+
+    <div class="col-md-4 d-flex align-items-end">
+        <div class="form-check form-switch mb-2">
+            <input type="hidden" name="ai_visible" value="0">
+            <input id="ai_visible" class="form-check-input" type="checkbox" name="ai_visible" value="1" @checked((bool) old('ai_visible', $service->ai_visible ?? false))>
+            <label class="form-check-label" for="ai_visible">Visible para el asistente IA</label>
+        </div>
+    </div>
+
+    <div class="col-md-4 d-flex align-items-end">
+        <div class="form-check form-switch mb-2">
+            <input type="hidden" name="is_generic" value="0">
+            <input id="is_generic" class="form-check-input" type="checkbox" name="is_generic" value="1" @checked((bool) old('is_generic', $service->is_generic ?? false))>
+            <label class="form-check-label" for="is_generic">Genérico (sin precio, requiere cita de evaluación)</label>
+        </div>
+    </div>
+
+    <div class="col-md-4 d-flex align-items-end">
+        <div class="form-check form-switch mb-2">
+            <input type="hidden" name="is_emergency" value="0">
+            <input id="is_emergency" class="form-check-input" type="checkbox" name="is_emergency" value="1" @checked((bool) old('is_emergency', $service->is_emergency ?? false))>
+            <label class="form-check-label" for="is_emergency">Emergencia (invita a WhatsApp de inmediato)</label>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-text">Estas 3 banderas solo afectan al asistente de IA del sitio (chatbot público) — no cambian el comportamiento del backoffice. "Visible para el asistente IA" controla si el chatbot puede mencionar este servicio; sin marcar, el servicio no aparece aunque esté activo.</div>
+    </div>
 </div>
 
 <div class="d-flex gap-2 mt-4">

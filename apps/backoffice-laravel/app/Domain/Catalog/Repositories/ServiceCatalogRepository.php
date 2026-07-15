@@ -28,6 +28,11 @@ class ServiceCatalogRepository implements ServiceCatalogRepositoryInterface
         return Service::where('is_active', true)->get();
     }
 
+    public function getAssistantVisible(): Collection
+    {
+        return Service::where('is_active', true)->where('ai_visible', true)->get();
+    }
+
     public function create(array $data): Service
     {
         return Service::create($data);

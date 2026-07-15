@@ -114,12 +114,19 @@ class ItemController extends Controller
             'department' => 'nullable|string|max:255',
             'brand' => 'nullable|string|max:255',
             'presentation' => 'nullable|string|max:255',
+            'price' => 'nullable|numeric|min:0',
             'is_active' => 'nullable|boolean',
+            'ai_visible' => 'nullable|boolean',
+            'stock_quantity' => 'nullable|integer|min:0',
             'notes' => 'nullable|string',
         ]);
 
         // Alta rápida (mini-formulario en vacunas) no manda checkbox de "activo" — se asume activo.
         $validated['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : true;
+        // Visible al asistente IA solo si se marca a mano — nada se expone por default.
+        $validated['ai_visible'] = $request->boolean('ai_visible');
+        // Alta rápida no manda existencia — 0 hasta que se capture a mano (no visible para la IA).
+        $validated['stock_quantity'] = $validated['stock_quantity'] ?? 0;
 
         return $validated;
     }

@@ -25,6 +25,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'recurrence_days',
     'is_active',
     'is_core_vaccine',
+    'ai_visible',
+    'is_generic',
+    'is_emergency',
 ])]
 class Service extends Model
 {
@@ -41,6 +44,9 @@ class Service extends Model
             'is_active' => 'boolean',
             'requires_advance' => 'boolean',
             'is_core_vaccine' => 'boolean',
+            'ai_visible' => 'boolean',
+            'is_generic' => 'boolean',
+            'is_emergency' => 'boolean',
         ];
     }
 

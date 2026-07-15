@@ -1,5 +1,41 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 15/07/2026 — BL-051: banderas de visibilidad IA en `services`/`items` + campos mínimos de venta
+
+### ✅ Logros y Cambios
+
+El usuario pidió "una marca para ver si la IA los puede mencionar o no", tanto en servicios como en artículos (`items`, maestro del BL-050). Se aclaró el alcance en varias vueltas de conversación antes de tocar código (mismo patrón de siempre): "activos" = `items` (accesorios, medicinas), "servicios" = `Service` (cirugías, cortes). El diseño creció durante la conversación — el usuario agregó 3 requisitos más que el flag original: (1) servicios "genéricos" (ej. "Cirugía" sin precio fijo) que la IA debe ofrecer sin precio, invitando a agendar cita de evaluación; (2) servicios de "emergencia" que deben empujar al visitante al WhatsApp de inmediato; (3) que los artículos solo se mencionen si hay existencia > 0, más la idea de fondo (a futuro, no hoy) de mover el catálogo de ventas de WhatsApp/redes al sistema, con fotos de producto.
+
+**Se dividió el alcance explícitamente con el usuario antes de programar** (evitando la trampa de construir el inventario real de golpe): hoy solo se agregaron los campos mínimos para que el asistente IA (BL-042) pueda filtrar y mencionar servicios/artículos, **sin** construir el módulo de inventario transaccional (BL-049, sigue sin diseñar) ni la galería de fotos/publicación externa (nuevo, anotado como BL-052 para después).
+
+**Hallazgo importante al auditar `getActiveServices()`:** ese método del dominio (`ServiceCatalogService`/`ServiceCatalogRepository`) es usado **únicamente** por `ServiceCatalogPromptBuilder` (grep confirmó cero usos en controllers), pero se decidió **no** reutilizarlo para el filtro de IA — se agregó un método nuevo `getAssistantVisibleServices()` en su lugar, para no mezclar la semántica de "servicio activo en el catálogo" con "servicio visible para el asistente IA" (son conceptualmente distintos, aunque hoy compartan el único consumidor).
+
+**Resultado:**
+- `services` gana `ai_visible`/`is_generic`/`is_emergency` (los 3 boolean, default `false` — decisión explícita del usuario, "no tomar en cuenta" hasta marcarse a mano).
+- `items` gana `ai_visible` (boolean, default `false`), `stock_quantity` (unsigned int, default `0` — contador simple sin movimientos/histórico, decisión del usuario de armar "los campos que necesitemos" sin complicarse con el IM todavía) y `price` (decimal nullable — agregado por criterio propio, no lo pidió el usuario explícitamente, pero sin precio el caso de uso de "catálogo de ventas por WhatsApp" no tiene sentido; documentado así para que se pueda revertir si no se quiere).
+- `ServiceCatalogPromptBuilder` reescrito: nueva sección de artículos en el prompt (`Item::query()` directo, sin capa de dominio — igual que `ItemController`, no existía repositorio para `Item`), filtrando `is_active`+`ai_visible`+`stock_quantity > 0`. Servicios `is_generic` muestran "sin precio publicado" en vez del precio real; `is_emergency` se marca `[URGENCIA]` en el catálogo y el prompt instruye a invitar de inmediato al botón de WhatsApp **ya existente** (`ai_assistant_cta_url`, BL-042) — deliberadamente no se construyó un botón/mecanismo de envío nuevo, se reusa el CTA que ya dispara wa.me.
+- Formularios actualizados: `services/partials/form.blade.php` (3 checkboxes nuevos) y `items/partials/form.blade.php` (`price`, `stock_quantity`, checkbox `ai_visible`) — mismo patrón hidden+checkbox que `is_core_vaccine`/`is_active`. El mini-formulario de alta rápida de artículo (en `clinical/pets/show.blade.php`) no se tocó — solo manda `name`/`brand`/`presentation`, y los defaults de servidor (`ai_visible=false`, `stock_quantity=0`) ya cubren ese caso sin romper nada.
+- **No se estructuraron columnas de especie/talla/sexo para el artículo** (ej. el caso "sweater para perro chico hembra" que planteó el usuario) — se decidió confiar en que la IA infiera esos atributos del texto libre ya existente (`name`/`department`/`brand`/`presentation`/`notes`) en vez de rigidizar el esquema; si el matching falla en la práctica, ahí se estructura.
+
+**Verificación:** sin tests nuevos (cambio de datos/configuración, sin lógica de negocio propia que testear). Suite completa sin regresiones (37 fallidas preexistentes — confirmadas idénticas haciendo `git stash` antes de correr `ServiceOperatorRoleLinkTest`, 143 pasan). Migraciones corridas en producción real vía `docker exec estetican_app php artisan migrate --force` (confirmado con el usuario antes de ejecutar), columnas y defaults verificados por `tinker`/`Schema::getColumns()`.
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_15_000001_add_ai_flags_to_services_table.php`, `2026_07_15_000002_add_ai_flags_and_stock_to_items_table.php` (nuevos)
+- `app/Models/{Service,Item}.php` (fillable, casts, `logOnly` de `Item`)
+- `app/Domain/Catalog/Contracts/{ServiceCatalogServiceInterface,ServiceCatalogRepositoryInterface}.php`, `app/Domain/Catalog/{Services/ServiceCatalogService,Repositories/ServiceCatalogRepository}.php` (método nuevo `getAssistantVisible(Services)()`)
+- `app/Support/Assistant/ServiceCatalogPromptBuilder.php` (reescrito: bloque de artículos, genérico/emergencia)
+- `app/Http/Controllers/{ServiceController,ItemController}.php` (rules/payload/validatedData)
+- `resources/views/{services,items}/partials/form.blade.php`
+- `docs/tecnico/MODELO_BD.md` (`services`/`items`), `docs/tecnico/BACKLOG.md` (BL-051 → Completados, BL-052 nuevo en Activos, nota en BL-049)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (pendiente de que el usuario lo pida).
+2. BL-052 — fotos de artículos + automatizar publicación en catálogo de WhatsApp Business/redes/página, usando `stock_quantity` como filtro de existencias reales. Sin diseñar, anotado a propósito para su propia sesión.
+3. BL-047 (Fase 2 clínica), BL-049 (Tienda/Inventario real — decidir si `stock_quantity` se reemplaza por tablas de movimientos o queda como snapshot).
+4. Sueltos de sesiones previas: 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, los 4 archivos huérfanos de BL-037, SPF/DKIM.
+
+---
+
 ## 📅 Sesión: 14/07/2026 (cont. 9) — BL-045b: atomización de apellido en `operators` (cierra clients→users→operators)
 
 ### ✅ Logros y Cambios

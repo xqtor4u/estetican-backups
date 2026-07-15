@@ -33,6 +33,11 @@ class ServiceCatalogService implements ServiceCatalogServiceInterface
         return $this->serviceRepository->getActive();
     }
 
+    public function getAssistantVisibleServices(): Collection
+    {
+        return $this->serviceRepository->getAssistantVisible();
+    }
+
     public function createService(array $data): Service
     {
         return $this->serviceRepository->create($data);

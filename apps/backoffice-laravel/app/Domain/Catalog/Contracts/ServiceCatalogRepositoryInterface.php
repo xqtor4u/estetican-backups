@@ -15,6 +15,8 @@ interface ServiceCatalogRepositoryInterface
 
     public function getActive(): Collection;
 
+    public function getAssistantVisible(): Collection;
+
     public function create(array $data): Service;
 
     public function update(int $id, array $data): bool;

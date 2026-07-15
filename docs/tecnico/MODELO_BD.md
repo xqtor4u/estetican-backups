@@ -433,8 +433,10 @@ Adjuntos clínicos (laboratorio/imagenología) — tabla creada en Fase 1, **UI/
 | `uploaded_by_operator_id` | FK → `operators` nullable | |
 | `timestamps` | | |
 
-### `items` (BL-050)
-**Maestro de artículos — fundación atómica para el futuro módulo Tienda/Inventario (BL-049), sin funcionalidad de stock todavía.** A pedido explícito del usuario: en vez de esperar a diseñar el inventario completo para empezar a capturar productos, esta tabla ya existe con la identidad correcta (marca, presentación, departamento) para no tener que deshacer y rehacer el trabajo de vacunas cuando llegue el inventario real. **Deliberadamente sin columnas de existencia/cantidad/almacén** — eso lo agrega BL-049 cuando se diseñe, referenciando `items.id`, sin tocar este esquema. Primer consumidor real: `pet_vaccinations.item_id`. CRUD propio en Catálogos → Artículos (`app/Http/Controllers/ItemController.php`, permisos `ver/crear/editar/eliminar catalogo_articulos`), independiente del módulo clínico — la ficha de mascota solo consume el `<select>` y el alta rápida.
+### `items` (BL-050, BL-051)
+**Maestro de artículos — fundación atómica para el futuro módulo Tienda/Inventario (BL-049), sin funcionalidad de stock **transaccional** todavía.** A pedido explícito del usuario: en vez de esperar a diseñar el inventario completo para empezar a capturar productos, esta tabla ya existe con la identidad correcta (marca, presentación, departamento) para no tener que deshacer y rehacer el trabajo de vacunas cuando llegue el inventario real. **Deliberadamente sin movimientos/almacenes/histórico** — eso lo agrega BL-049 cuando se diseñe, referenciando `items.id`, sin tocar este esquema. Primer consumidor real: `pet_vaccinations.item_id`. CRUD propio en Catálogos → Artículos (`app/Http/Controllers/ItemController.php`, permisos `ver/crear/editar/eliminar catalogo_articulos`), independiente del módulo clínico — la ficha de mascota solo consume el `<select>` y el alta rápida.
+
+BL-051 agregó `price`, `ai_visible` y `stock_quantity` — campos mínimos para que el asistente IA (BL-042) pueda mencionar artículos (accesorios, medicinas) en venta, sin construir el módulo de inventario real. `stock_quantity` es un **contador simple editable a mano** (sin movimientos/histórico); cuando se diseñe BL-049 con tablas de movimientos reales, este campo puede pasar a ser calculado o eliminarse a favor de esas tablas — es intencionalmente el mínimo necesario para no complicarse ahora.
 
 | Columna | Tipo | Notas |
 |---|---|---|
@@ -443,7 +445,10 @@ Adjuntos clínicos (laboratorio/imagenología) — tabla creada en Fase 1, **UI/
 | `department` | string nullable | "Farmacia", "Accesorios", etc. — texto libre con sugerencias, sin enum |
 | `brand` | string nullable | Marca |
 | `presentation` | string nullable | Ej. "Frasco 1 dosis", "Multidosis 10ml" |
+| `price` | decimal(10,2) nullable | BL-051 — si es null, el asistente IA dice "precio a consultar" |
 | `is_active` | boolean, default true | |
+| `ai_visible` | boolean, default false | BL-051 — controla si el asistente IA puede mencionar el artículo. Default `false`: nada se expone hasta marcarlo a mano |
+| `stock_quantity` | unsigned int, default 0 | BL-051 — existencias simples sin movimientos/almacenes. El asistente IA solo menciona artículos con `stock_quantity > 0` — con el default en 0, ningún artículo real entra al catálogo IA hasta que se capture existencia a mano |
 | `notes` | text nullable | |
 | `timestamps` | | |
 
@@ -474,6 +479,9 @@ Catálogo **único** de servicios ofrecidos — deliberadamente uno solo para to
 | `account_id` | bigint FK nullable | Cuenta de ingreso contable para este servicio (módulo contable) |
 | `recurrence_days` | unsigned smallint nullable | Días de recurrencia esperada (ej. 30 en "Baño", 365 en una vacuna anual). Null = no aplica recordatorio periódico. Usado por la pantalla Recurrencias (BL-029/BL-048) para detectar mascotas vencidas |
 | `is_core_vaccine` | boolean, default false | BL-048 — solo relevante si `type='vaccine'`. Marca cuáles vacunas exige `VaccinationEligibilityChecker` al agendar spa/hotel (advertencia, no bloqueo) |
+| `ai_visible` | boolean, default false | BL-051 — controla si el asistente IA (BL-042) puede mencionar el servicio. Default `false`: nada se expone hasta marcarlo a mano, ver `ServiceCatalogPromptBuilder` |
+| `is_generic` | boolean, default false | BL-051 — el asistente IA confirma que el servicio existe pero **no da precio**; invita a agendar cita de evaluación. Pensado para servicios como "Cirugía" sin costo fijo |
+| `is_emergency` | boolean, default false | BL-051 — el asistente IA invita al visitante a usar el botón de WhatsApp de inmediato (mismo CTA de `ai_assistant_cta_url`) en vez de seguir en el chat |
 | `timestamps` | | |
 
 **Nota BL-048 (modelo operativo — servicios que intersectan módulos):** un servicio tipo `vaccine` se **aplica** vía el módulo de Veterinaria (`pet_vaccinations`, con `administered_by_operator_id`/`clinical_visit_id` — el evento completo, incluyendo quién la aplicó), no vía `spa_bookings`. Para que la misma pantalla de Recurrencias (pensada originalmente solo para servicios de spa) también cubra vacunas, `RecurrenceMessageController::lastServiceDatesByPet()` tiene una rama: si `service.type === 'vaccine'`, la "última vez" sale de `MAX(pet_vaccinations.applied_at)` en vez de `spa_bookings` completados. El resto del flujo (plantillas, `recurrence_messages`, envío wa.me/correo) es 100% el mismo, sin tabla ni pantalla nueva. La ficha de mascota (`pets/show.blade.php`) también refleja esto **informativamente** en spa/hotel (sección "Vacunación": nombre de vacuna + fechas + vigente/vencida) — sin mostrar quién la aplicó, ese detalle queda exclusivo de las pantallas `clinical/*`.
