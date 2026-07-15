@@ -1,5 +1,41 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 14/07/2026 (cont. 7) — Verificación de BL-044, activación del módulo clínico, CRUD de artículos independiente y commit/push de la racha completa
+
+### ✅ Logros y Cambios
+
+**Verificación de BL-044 (atomización de apellidos):** revisión completa de la sesión anterior — migración, accessor, comando de backfill, ~14 controllers con `select`/`where`/`orderBy`/eager-load a nivel de columna, vistas y app móvil. Todo correcto, con **una excepción real**: `tests/Feature/ResourceEventCrudTest.php` seguía creando el cliente de prueba con `'last_name' => 'Lopez'` — trampa #3 documentada en memoria (columna descartada en silencio por Eloquent al no estar en `$fillable`), el único caso sin corregir de los ~29 `Client::create()` en tests. Corregido a `apellido_paterno`. Suite completa confirmó el baseline documentado: 37 fallidas preexistentes, 140 pasan.
+
+**Activación de `clinical_module_enabled` en producción real**, a pedido del usuario, vía `SystemSettings::saveFields()` (mismo camino que usa la UI). Confirmado que el permiso `ver clinico` y el rol `veterinario` ya existían (seeder de BL-046 corrido antes) — quedó operativo sin pasos adicionales.
+
+**Corrección de arquitectura de BL-050 — CRUD de `items` movido fuera del módulo clínico:** el usuario señaló que el maestro de artículos no debía vivir dentro de Veterinaria. Se movió `ItemController` de `Clinical/` a `app/Http/Controllers/ItemController.php`, agregando `index`/`create`/`edit` (antes solo tenía `store`/`update`/`destroy`, sin pantalla de listado). Nueva pantalla **Catálogos → Artículos** (búsqueda, filtro por estado, orden, alta y edición — mismas convenciones que Servicios/Tipos de operador). Rutas movidas fuera del prefijo `clinico`/middleware `clinical.module`, con permiso dedicado `catalogo_articulos` (ver/crear/editar/eliminar, mismo patrón que `catalogo_servicios`) en vez de reusar `alergias.administrar`. El rol `veterinario` conserva `ver`+`crear catalogo_articulos` para que el alta rápida inline ("+ Nuevo") desde la ficha de vacunas siga funcionando sin salir de esa pantalla; `eliminar` queda solo para admin. Seeders (`BaseRolesSeeder`, `ClinicalRolesSeeder`) corridos en producción para sincronizar los permisos nuevos.
+
+**Bug real encontrado al implementar el permiso por acción:** `Route::resource(...)->middleware([...])` con un array asociativo por método (`['index' => 'permission:...', 'store' => 'permission:...']`) **no hace lo que parece** — Laravel aplica ese array tal cual a las 7 rutas por igual, sin distinguir por acción. El método correcto es `->middlewareFor($methods, $middleware)` (Laravel 11+). Verificado con `route:list -vv` que cada ruta terminó con el middleware correcto. Ver NT-035.
+
+**Tests:** `tests/Feature/ItemCrudTest.php` nuevo (6 casos: CRUD feliz vía HTTP, bloqueo por falta de permiso con `assertForbidden()`, borrado seguro de un artículo con vacunación histórica ligada — confirma que `manufacturer` queda como snapshot y `item_id` cae a `null` vía `nullOnDelete`). Suite completa: 37 fallidas preexistentes (sin cambios), 143 pasan (antes 140).
+
+**Commit y push de toda la racha pendiente** (BL-044/046/048/050 + esta corrección), commit único `255d271` dado que los cambios estaban profundamente entrelazados en el árbol de trabajo sin commits intermedios (confirmado revisando diffs de archivos como `SpaBookingController.php`, que mezclaba cambios de BL-044 y BL-046 en los mismos métodos). Pusheado a `origin/main`.
+
+**Documentación:** `BACKLOG.md` actualizado con los hashes de commit reales (incluyendo `570f070` para BL-029/030, que ya estaban commiteados desde el 07/07 pero con la nota desactualizada), fila nueva para la corrección de BL-050, y NT-035 agregada a `NOTAS_TECNICAS.md`.
+
+### 📁 Archivos principales tocados
+- `app/Http/Controllers/ItemController.php` (movido de `Clinical/`, con `index`/`create`/`edit` nuevos)
+- `app/Support/Pages/ItemsPage.php` (nuevo), `resources/views/items/*` (nuevo: `index`, `create`, `edit`, `partials/form`)
+- `routes/web.php` (resource `items` con `middlewareFor()` por acción, fuera del grupo `clinico`)
+- `app/Support/Navigation/Groups/CatalogsNavigation.php` (entrada "Artículos")
+- `database/seeders/BaseRolesSeeder.php` (módulo `catalogo_articulos`), `database/seeders/ClinicalRolesSeeder.php` (permiso para `veterinario`)
+- `resources/views/clinical/pets/show.blade.php` (rutas actualizadas + link a Catálogos)
+- `tests/Feature/ItemCrudTest.php` (nuevo), `tests/Feature/ResourceEventCrudTest.php` (fix trampa #3)
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md`, `docs/tecnico/NOTAS_TECNICAS.md` (NT-035)
+
+### 🛑 Pendientes activos
+1. BL-045 — atomización de apellidos en `users`/`operators` (continuación de BL-044).
+2. BL-047 — Fase 2 del módulo clínico (adjuntos reales, PDF, app móvil, catálogo ICD).
+3. BL-049 — módulo Tienda/Inventario real (stock, transacciones, almacenes/sucursales) — ya tiene su fundación (`items`) con CRUD propio.
+4. Sueltos de sesiones previas: 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, los 4 archivos huérfanos de BL-037, SPF/DKIM.
+
+---
+
 ## 📅 Sesión: 14/07/2026 (cont. 6) — Maestro de artículos (`items`), fundación atómica del futuro inventario (BL-050)
 
 Tras cerrar BL-048, el usuario planteó un escenario real: al capturar una vacuna en el expediente clínico, puede que se haya aplicado con una marca/presentación específica (a dar de alta rápido, con marca y presentación, agrupable luego por departamento), o puede que se haya aplicado **fuera de EstetiCAN** (otro veterinario, campaña antirrábica) — en ese caso se quiere igual poder registrarla (para que cuente como protección de la mascota) sin que descuente inventario ni se cobre al cliente. El usuario fue explícito sobre el motivo de fondo: "podemos ir armando las tablas atómicas que en el futuro sirvan y no haya que deshacer todo y rehacerlo" — el futuro inventario (BL-049) venderá de todo, desde medicinas hasta accesorios y hasta perros, así que debe pensarse como catálogo general de objetos, no como otro tipo de servicio.

@@ -906,3 +906,35 @@ El editor de WordPress usado en este sitio le aplica `wpautop()` (el filtro que 
 **Fix:** `$original->allowLockedStatusTransition = false;` inmediatamente después de `$original->save()` dentro de `createAmendment()`.
 
 **Lección:** cualquier bandera de bypass de un guard debe resetearse explícitamente justo después de la operación que la necesitó, en el mismo método — nunca asumir que un `refresh()`/`fresh()` posterior la va a limpiar, porque esos métodos solo tocan atributos respaldados por columnas de BD, no propiedades públicas normales de PHP.
+
+## NT-035 — `Route::resource(...)->middleware([...])` con array asociativo por acción no hace lo que parece (usar `middlewareFor()`)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 14/07/2026 |
+| **Severidad** | P2 — no rompe en runtime de forma obvia, pero deja rutas sin la protección de permiso esperada (o con protección incorrecta en todas las acciones) |
+| **Componente** | `routes/web.php` — `Route::resource('items', ItemController::class)` (BL-050, movido de Catálogos fuera del módulo clínico) |
+
+**Síntoma:** al querer que cada acción del resource `items` (`index`, `create`/`store`, `edit`/`update`, `destroy`) exigiera un permiso Spatie distinto, la forma intuitiva fue pasar un array asociativo a `->middleware([...])`:
+```php
+Route::resource('items', ItemController::class)->middleware([
+    'index' => 'permission:ver catalogo_articulos',
+    'store' => 'permission:crear catalogo_articulos',
+    // ...
+]);
+```
+Esto **no lanza ningún error** al bootear ni al correr `route:list` en versiones donde `PendingResourceRegistration::middleware()` castea cada valor del array a string y lo aplica **tal cual, a las 7 acciones por igual** — es decir, terminaría intentando usar literales como `'index'` (la propia clave) como si fueran nombres de middleware, o en el mejor de los casos aplicando el mismo middleware a todas las rutas sin distinción por acción.
+
+**Diagnóstico:** `Route::resource()` sí soporta middleware por acción, pero con un método **separado**: `->middlewareFor($methods, $middleware)` (Laravel 11+). `->middleware()` a secas siempre aplica de forma uniforme a todas las acciones del resource.
+
+**Fix:**
+```php
+Route::resource('items', ItemController::class)->except(['show'])
+    ->middlewareFor('index', 'permission:ver catalogo_articulos')
+    ->middlewareFor(['create', 'store'], 'permission:crear catalogo_articulos')
+    ->middlewareFor(['edit', 'update'], 'permission:editar catalogo_articulos')
+    ->middlewareFor('destroy', 'permission:eliminar catalogo_articulos');
+```
+Verificado con `php artisan route:list --name=items.store -vv` — el middleware `permission:crear catalogo_articulos` aparece solo en esa ruta, no en las demás.
+
+**Lección:** cuando un resource necesite permisos distintos por acción, usar `middlewareFor()` explícitamente y **siempre verificar con `route:list -vv`** cuál middleware quedó aplicado a cada ruta — este tipo de error de configuración no se manifiesta como excepción, sino como control de acceso silenciosamente mal aplicado (el peor tipo de bug de permisos: no truena, solo dice qué no debería).
