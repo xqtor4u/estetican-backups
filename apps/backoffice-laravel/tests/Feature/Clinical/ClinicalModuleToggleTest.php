@@ -59,14 +59,25 @@ class ClinicalModuleToggleTest extends TestCase
         $response->assertOk();
     }
 
+    /**
+     * "Veterinaria" vive anidada como sub-sección dentro del grupo "Administración"
+     * (ver MainNavigation::administracionGroup()), no como grupo de nivel superior.
+     */
+    private function allNavigationLabels(): \Illuminate\Support\Collection
+    {
+        return collect(MainNavigation::groups())->flatMap(function ($group) {
+            return isset($group['subgroups'])
+                ? collect($group['subgroups'])->pluck('label')
+                : collect([$group['label']]);
+        });
+    }
+
     public function test_veterinaria_does_not_appear_in_navigation_when_disabled(): void
     {
         app(SystemSettings::class)->saveFields('clinical', ['clinical_module_enabled' => false]);
         $this->actingAs($this->admin());
 
-        $groups = collect(MainNavigation::groups())->pluck('label');
-
-        $this->assertNotContains('Veterinaria', $groups);
+        $this->assertNotContains('Veterinaria', $this->allNavigationLabels());
     }
 
     public function test_veterinaria_appears_in_navigation_when_enabled(): void
@@ -75,8 +86,6 @@ class ClinicalModuleToggleTest extends TestCase
         app(SystemSettings::class)->saveFields('clinical', ['clinical_module_enabled' => true]);
         $this->actingAs($this->admin());
 
-        $groups = collect(MainNavigation::groups())->pluck('label');
-
-        $this->assertContains('Veterinaria', $groups);
+        $this->assertContains('Veterinaria', $this->allNavigationLabels());
     }
 }

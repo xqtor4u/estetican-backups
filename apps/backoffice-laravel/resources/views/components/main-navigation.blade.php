@@ -101,32 +101,22 @@
                         </a>
 
                         <div class="dropdown-menu app-dropdown-menu dropdown-menu-end">
-                            <div class="app-dropdown-label">{{ $group['label'] }}</div>
-
-                            @foreach($group['items'] as $item)
-                                @if(empty($item['comingSoon']))
-                                    <a href="{{ $item['route'] }}" class="dropdown-item app-dropdown-item {{ $item['active'] ? 'active' : '' }}" 
-                                       data-bs-toggle="tooltip" data-bs-placement="left" 
-                                       data-bs-title="{{ ($item['debug_id'] ?? '') . ' - ' . ($item['description'] ?? '') }}">
-                                        <span class="app-dropdown-title">{{ $item['label'] }}</span>
-                                        <small class="app-dropdown-description">{{ $item['description'] }}</small>
-                                    </a>
-                                @else
-                                    <div class="dropdown-item app-dropdown-item disabled {{ $item['active'] ? 'active' : '' }}" 
-                                         data-bs-toggle="tooltip" data-bs-placement="left" 
-                                         data-bs-title="{{ ($item['debug_id'] ?? '') . ' - ' . ($item['description'] ?? '') }}">
-                                        <div class="d-flex justify-content-between align-items-start gap-2">
-                                            <div>
-                                                <span class="app-dropdown-title">{{ $item['label'] }}</span>
-                                                <small class="app-dropdown-description">{{ $item['description'] }}</small>
-                                            </div>
-                                            @if(!empty($item['comingSoon']))
-                                                <span class="badge rounded-pill text-bg-light">Próx.</span>
-                                            @endif
-                                        </div>
-                                    </div>
-                                @endif
-                            @endforeach
+                            @if(isset($group['subgroups']))
+                                @foreach($group['subgroups'] as $subgroup)
+                                    @if(!$loop->first)
+                                        <hr class="dropdown-divider">
+                                    @endif
+                                    <div class="app-dropdown-label">{{ $subgroup['label'] }}</div>
+                                    @foreach($subgroup['items'] as $item)
+                                        <x-main-navigation-item :item="$item" />
+                                    @endforeach
+                                @endforeach
+                            @else
+                                <div class="app-dropdown-label">{{ $group['label'] }}</div>
+                                @foreach($group['items'] as $item)
+                                    <x-main-navigation-item :item="$item" />
+                                @endforeach
+                            @endif
                         </div>
                     </li>
                 @endforeach

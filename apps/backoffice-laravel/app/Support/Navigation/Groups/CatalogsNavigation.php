@@ -21,48 +21,7 @@ class CatalogsNavigation
             ];
         }
 
-        if ($user?->can('ver catalogo_articulos') || $user?->is_super_admin) {
-            $items[] = [
-                'label' => 'Artículos',
-                'description' => 'Maestro de productos (marca, presentación, departamento) — fundación del futuro módulo de inventario.',
-                'route' => route('items.index'),
-                'active' => request()->routeIs('items.*'),
-            ];
-        }
-
-        if ($user?->can('ver operadores') || $user?->is_super_admin) {
-            $items[] = [
-                'label' => 'Operadores',
-                'description' => 'Catálogo del personal operativo con trazabilidad de trabajos realizados.',
-                'route' => route('operators.index'),
-                'active' => request()->routeIs('operators.index', 'operators.show'),
-            ];
-        }
-
-        if ($user?->can('ver sucursales') || $user?->is_super_admin) {
-            $items[] = [
-                'label' => 'Tipos de operador',
-                'description' => 'Catálogo canónico de especialidades con clave, descripción y tarifa base.',
-                'route' => route('operator-roles.index'),
-                'active' => request()->routeIs('operator-roles.index', 'operator-roles.show'),
-            ];
-            
-            $items[] = [
-                'label' => 'Sucursales',
-                'description' => 'Catálogo de bases operativas para asignación controlada de personal y futura operación multisucursal.',
-                'route' => route('branches.index'),
-                'active' => request()->routeIs('branches.index', 'branches.show'),
-            ];
-        }
-
         if ($user?->can('ver usuarios') || $user?->is_super_admin) {
-            $items[] = [
-                'label' => 'Usuarios',
-                'description' => 'Administrar usuarios del sistema.',
-                'route' => route('users.index'),
-                'active' => request()->routeIs('users.*'),
-            ];
-
             $items[] = [
                 'label' => 'Bitácora de actividad',
                 'description' => 'Registro de todas las operaciones realizadas por los usuarios.',
@@ -73,7 +32,7 @@ class CatalogsNavigation
 
         return [
             'label' => 'Catálogos',
-            'active' => request()->routeIs('services.*', 'items.*', 'operators.*', 'operator-roles.*', 'branches.*', 'users.*', 'activity-log.*'),
+            'active' => request()->routeIs('services.*', 'activity-log.*'),
             'items' => $items,
         ];
     }
@@ -88,26 +47,6 @@ class CatalogsNavigation
                 'label' => 'Servicios',
                 'route' => route('services.index'),
                 'active' => request()->routeIs('services.index', 'services.show'),
-            ],
-            [
-                'label' => 'Artículos',
-                'route' => route('items.index'),
-                'active' => request()->routeIs('items.*'),
-            ],
-            [
-                'label' => 'Operadores',
-                'route' => route('operators.index'),
-                'active' => request()->routeIs('operators.index', 'operators.show'),
-            ],
-            [
-                'label' => 'Tipos de operador',
-                'route' => route('operator-roles.index'),
-                'active' => request()->routeIs('operator-roles.index', 'operator-roles.show'),
-            ],
-            [
-                'label' => 'Sucursales',
-                'route' => route('branches.index'),
-                'active' => request()->routeIs('branches.index', 'branches.show'),
             ],
         ];
     }

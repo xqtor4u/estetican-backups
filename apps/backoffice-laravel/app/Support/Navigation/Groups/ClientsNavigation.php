@@ -30,9 +30,18 @@ class ClientsNavigation
             ];
         }
 
+        if ($user?->can('ver sucursales') || $user?->is_super_admin) {
+            $items[] = [
+                'label' => 'Sucursales',
+                'description' => 'Catálogo de bases operativas para asignación controlada de personal y futura operación multisucursal.',
+                'route' => route('branches.index'),
+                'active' => request()->routeIs('branches.index', 'branches.show'),
+            ];
+        }
+
         return [
             'label' => 'Clientes',
-            'active' => request()->routeIs('clients.*', 'pets.*'),
+            'active' => request()->routeIs('clients.*', 'pets.*', 'branches.*'),
             'items' => $items,
         ];
     }

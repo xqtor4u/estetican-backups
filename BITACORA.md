@@ -1,5 +1,93 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 15/07/2026 (cont. 3) — Ajuste: Clientes/Mascotas/Sucursales se queda como persiana propia, fuera de "Administración"
+
+### ✅ Logros y Cambios
+
+Corrección directa sobre la persiana "Administración" armada en la vuelta anterior: el usuario aclaró que Clientes **no** debía ir mezclado con Inventario/RH/Finanzas/Veterinaria — quería una persiana propia de nivel superior para "los temas relacionados a Clientes y Mascotas", y de paso confirmó que **Sucursales** se une a esa misma persiana (antes vivía dentro de Catálogos).
+
+**Resultado:** `ClientsNavigation::group()` gana el item "Sucursales" (mismo permiso `ver sucursales` que tenía en `CatalogsNavigation`, mismo texto/descripción, solo cambia dónde vive). Se quitó de `CatalogsNavigation` (que ahora solo tiene Servicios + Bitácora de actividad) y de `administracionGroup()` en `MainNavigation` se sacó `ClientsNavigation::group()` de los subgrupos — Administración quedó con 4 sub-secciones (Inventario/RH/Finanzas/Veterinaria), Clientes vuelve a ser dropdown de nivel superior independiente (con Abrir clientes + Mascotas + Sucursales).
+
+**Verificación:** suite completa sin regresiones (37 fallidas preexistentes, 143 pasan). Render manual confirmado: las 7 etiquetas nuevas/movidas aparecen en el HTML de `/items`, y `/clients`, `/pets`, `/branches` responden 200.
+
+### 📁 Archivos principales tocados
+- `app/Support/Navigation/Groups/ClientsNavigation.php` (+Sucursales)
+- `app/Support/Navigation/Groups/CatalogsNavigation.php` (-Sucursales)
+- `app/Support/Navigation/MainNavigation.php` (Clientes sale de `administracionGroup()`, vuelve a `structure()` top-level)
+
+### 🛑 Pendientes activos
+1. Commit y push de toda la racha de navegación de hoy (pendiente de que el usuario lo pida).
+2. BL-049 "IM sencillo" — diseño propuesto, sin construir; requiere las 3 respuestas de alcance (stock global/sucursal, solo conteo vs. cobro real, conexión automática de vacunas).
+3. BL-053 — artículos de uso interno/equipo para servicios.
+4. BL-052 — fotos de artículos + automatización de catálogo de WhatsApp/redes.
+5. BL-047 (Fase 2 clínica).
+6. Sueltos de sesiones previas: 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, los 4 archivos huérfanos de BL-037, SPF/DKIM.
+
+---
+
+## 📅 Sesión: 15/07/2026 (cont. 2) — Navegación anidada: persiana "Administración" (Clientes/Inventario/RH/Finanzas/Veterinaria)
+
+### ✅ Logros y Cambios
+
+Continuación directa de la reorganización anterior (Inventario/RH). El usuario pidió ir un paso más allá: meter Inventario, RH, Finanzas, Veterinaria **y Clientes** (lo relacionado a clientes/mascotas) en una sola persiana, para no saturar la barra superior del Backoffice con módulos de uso menos frecuente que Agenda/Operación. Se confirmó explícitamente que esto es solo el Backoffice web (desktop) — la app móvil (React, `mob_apps/operador`) tiene su propia navegación y no se toca.
+
+**Cambio de forma de datos, no solo de contenido:** hasta ahora `MainNavigation::structure()` era una lista plana de grupos `{label, items}`. Para anidar 5 módulos en un dropdown se necesitaba un segundo nivel — se agregó la forma `{label, subgroups: [{label, items}, ...]}` **solo** para el grupo nuevo "Administración"; los grupos existentes (Operación, Catálogos, WhatsApp) no cambiaron de forma. `MainNavigation::groups()` y `mobileLinks()` ahora manejan ambas formas explícitamente (filtran items dentro de cada subgrupo, ocultan subgrupos vacíos, y ocultan el grupo completo si todos sus subgrupos quedan vacíos — mismo criterio que ya existía para Veterinaria cuando el módulo clínico está apagado).
+
+**Bug real evitado en un test existente:** `ClinicalModuleToggleTest` verificaba `Veterinaria` como label de nivel superior en `MainNavigation::groups()`. Al anidarla dentro de "Administración", ese `pluck('label')` plano dejó de encontrarla — el assert `assertNotContains` habría pasado siempre "por accidente" (nunca hay 'Veterinaria' en el nivel superior, esté o no el módulo activo), enmascarando una regresión real. Se corrigió con un helper `allNavigationLabels()` que aplana también los subgrupos antes de comparar.
+
+**Blade:** se extrajo el markup de un item de menú (antes duplicado inline) a un componente nuevo `<x-main-navigation-item>`, reusado tanto en el render plano (grupos normales) como en el anidado (subgrupos de Administración) — evita duplicar el HTML de cada item dos veces en la plantilla.
+
+**Verificación:** suite completa sin regresiones (37 fallidas preexistentes, 143 pasan). Render manual vía `Kernel::handle()` autenticado en `/items`, `/operators`, `/clients`, `/finances/accounts`, `/services` — 200 en todos, y se confirmó que "Administración", "Clientes", "Inventario", "RH" y "Finanzas" aparecen en el HTML devuelto.
+
+### 📁 Archivos principales tocados
+- `app/Support/Navigation/MainNavigation.php` (reescrito: `administracionGroup()`, `groups()`/`mobileLinks()` soportan `subgroups`)
+- `resources/views/components/main-navigation.blade.php` (render anidado)
+- `resources/views/components/main-navigation-item.blade.php` (nuevo, extraído para no duplicar markup)
+- `tests/Feature/Clinical/ClinicalModuleToggleTest.php` (helper `allNavigationLabels()` para aplanar subgrupos)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (pendiente de que el usuario lo pida).
+2. BL-049 "IM sencillo" — diseño propuesto, sin construir; requiere las 3 respuestas de alcance (stock global/sucursal, solo conteo vs. cobro real, conexión automática de vacunas).
+3. BL-053 — artículos de uso interno/equipo para servicios.
+4. BL-052 — fotos de artículos + automatización de catálogo de WhatsApp/redes.
+5. BL-047 (Fase 2 clínica).
+6. Sueltos de sesiones previas: 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, los 4 archivos huérfanos de BL-037, SPF/DKIM.
+
+---
+
+## 📅 Sesión: 15/07/2026 (cont.) — Reorganización de navegación (Inventario/RH) + diseño de "IM sencillo" pendiente de decisiones
+
+### ✅ Logros y Cambios
+
+Tras cerrar BL-051, se le propuso al usuario un plan para el "IM sencillo" (movimientos de inventario tipo `item_movements`, mismo patrón que `CashLedger`/`BankLedger`, con `items.stock_quantity` pasando de editable a mano a caché recalculado por movimiento). El usuario, en vez de responder las 3 preguntas de alcance planteadas, señaló algo más de fondo primero: es momento de separar módulos en la navegación — Artículos (venta) debería vivir en un grupo "Inventario" propio, distinto de "artículos de uso" (máquinas para dar servicios, ej. rasuradoras), más un grupo "RH" para Usuarios/Operadores, y notó que Finanzas ya es su propio módulo ("contable").
+
+**Se separaron dos cosas explícitamente antes de tocar código:** la reorganización de navegación (barata, cero riesgo, sin tocar esquema/datos) vs. modelar "artículos de uso interno" (máquinas/equipo — concepto nuevo, distinto tanto de `items` como de `Resources`/jaulas-cuartos ya existente). Se hizo solo lo primero esta vuelta; lo segundo quedó anotado como **BL-053** para diseñar aparte.
+
+**Resultado — reorganización de navegación:**
+- 2 grupos nuevos: `App\Support\Navigation\Groups\InventoryNavigation` ("Inventario": Artículos) y `HrNavigation` ("RH": Operadores, Tipos de operador, Usuarios) — mismos permisos Spatie que tenían en `CatalogsNavigation`, sin cambios de rutas ni controllers.
+- `CatalogsNavigation` recortado: solo queda Servicios, Sucursales y Bitácora de actividad (no son ni inventario ni personal). Se limpió también su método `mobileLinks()` (confirmado código muerto — `MainNavigation::mobileLinks()` genera el menú móvil real a partir de `structure()`, no llama a los métodos `mobileLinks()` de cada grupo; se dejó igual en las demás clases por no ser parte del alcance de hoy).
+- `MainNavigation::structure()` registra los 2 grupos nuevos entre Catálogos y WhatsApp.
+- Finanzas se dejó con su nombre actual (el usuario no confirmó explícitamente el renombre a "Contable" cuando se le preguntó).
+- Verificación: suite completa sin regresiones (37 fallidas preexistentes, 143 pasan; el test `ClinicalModuleToggleTest` que sí depende de `MainNavigation::groups()` solo verifica presencia/ausencia de "Veterinaria", no afectado). `/items`, `/operators`, `/services` verificados manualmente vía `Kernel::handle()` autenticado — 200 los 3.
+
+**El diseño del "IM sencillo" (BL-049) quedó documentado en el backlog pero sin construir** — las 3 preguntas de alcance siguen abiertas para la próxima vuelta: (1) stock global vs. por sucursal, (2) ¿el IM hoy solo cuenta existencias o ya conecta con cobro real (`Payment`/caja/banco)?, (3) ¿se conecta ya el consumo automático de `pet_vaccinations.item_id` o después?
+
+### 📁 Archivos principales tocados
+- `app/Support/Navigation/Groups/{InventoryNavigation,HrNavigation}.php` (nuevos)
+- `app/Support/Navigation/Groups/CatalogsNavigation.php` (recortado)
+- `app/Support/Navigation/MainNavigation.php` (registra los 2 grupos nuevos)
+- `docs/tecnico/BACKLOG.md` (nota de reorganización + diseño propuesto de BL-049 + BL-053 nuevo)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (pendiente de que el usuario lo pida).
+2. BL-049 "IM sencillo" — diseño propuesto, sin construir; requiere las 3 respuestas de alcance antes de programar.
+3. BL-053 — artículos de uso interno/equipo para servicios (máquinas, rasuradoras) — sin diseñar, concepto nuevo.
+4. BL-052 — fotos de artículos + automatización de catálogo de WhatsApp/redes.
+5. BL-047 (Fase 2 clínica).
+6. Sueltos de sesiones previas: 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, los 4 archivos huérfanos de BL-037, SPF/DKIM.
+
+---
+
 ## 📅 Sesión: 15/07/2026 — BL-051: banderas de visibilidad IA en `services`/`items` + campos mínimos de venta
 
 ### ✅ Logros y Cambios
