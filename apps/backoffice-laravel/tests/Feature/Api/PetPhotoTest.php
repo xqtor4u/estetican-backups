@@ -40,7 +40,7 @@ class PetPhotoTest extends TestCase
 
     private function makePet(): Pet
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
 
         return Pet::create(['client_id' => $client->id, 'name' => 'Firulais']);
     }
@@ -70,7 +70,7 @@ class PetPhotoTest extends TestCase
     public function test_photo_upload_on_creation_also_creates_gallery_entry(): void
     {
         Storage::fake('public');
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $headers = $this->authHeader();
 
         $response = $this->post('/api/pets', [

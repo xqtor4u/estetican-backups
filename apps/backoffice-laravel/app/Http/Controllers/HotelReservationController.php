@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Models\HotelReservation;
 use App\Models\Pet;
@@ -17,6 +18,7 @@ class HotelReservationController extends Controller
 {
     public function __construct(
         private readonly ResourceAllocationServiceInterface $resourceAllocationService,
+        private readonly VaccinationEligibilityChecker $vaccinationChecker,
     ) {
     }
 
@@ -25,7 +27,7 @@ class HotelReservationController extends Controller
         $page = HotelReservationsPage::index();
 
         $reservations = HotelReservation::query()
-            ->with(['pet.client:id,first_name,last_name', 'resourceAllocations.resource:id,code,name'])
+            ->with(['pet.client:id,first_name,apellido_paterno,apellido_materno', 'resourceAllocations.resource:id,code,name'])
             ->orderBy('start_at')
             ->paginate(15);
 
@@ -75,6 +77,15 @@ class HotelReservationController extends Controller
             return back()->withErrors(['resource_id' => $exception->getMessage()])->withInput();
         }
 
+        $vaccinationWarning = $this->vaccinationChecker->check($reservation->pet);
+
+        if ($vaccinationWarning) {
+            return redirect()
+                ->route('hotel-reservations.show', $reservation)
+                ->with('success', 'Reserva de hotel creada.')
+                ->with('warning', 'Esta mascota no tiene vigente: '.implode(', ', $vaccinationWarning['missing_vaccines']).'.');
+        }
+
         return redirect()
             ->route('hotel-reservations.show', $reservation)
             ->with('success', 'Reserva de hotel creada.');
@@ -83,7 +94,7 @@ class HotelReservationController extends Controller
     public function show(HotelReservation $hotelReservation): View
     {
         $hotelReservation->load([
-            'pet.client:id,first_name,last_name',
+            'pet.client:id,first_name,apellido_paterno,apellido_materno',
             'resourceAllocations.resource:id,code,name,resource_type',
         ]);
 
@@ -173,7 +184,7 @@ class HotelReservationController extends Controller
     private function loadPets()
     {
         return Pet::query()
-            ->with('client:id,first_name,last_name')
+            ->with('client:id,first_name,apellido_paterno,apellido_materno')
             ->orderBy('name')
             ->get(['id', 'client_id', 'name']);
     }

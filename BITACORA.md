@@ -1,5 +1,161 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 14/07/2026 (cont. 6) — Maestro de artículos (`items`), fundación atómica del futuro inventario (BL-050)
+
+Tras cerrar BL-048, el usuario planteó un escenario real: al capturar una vacuna en el expediente clínico, puede que se haya aplicado con una marca/presentación específica (a dar de alta rápido, con marca y presentación, agrupable luego por departamento), o puede que se haya aplicado **fuera de EstetiCAN** (otro veterinario, campaña antirrábica) — en ese caso se quiere igual poder registrarla (para que cuente como protección de la mascota) sin que descuente inventario ni se cobre al cliente. El usuario fue explícito sobre el motivo de fondo: "podemos ir armando las tablas atómicas que en el futuro sirvan y no haya que deshacer todo y rehacerlo" — el futuro inventario (BL-049) venderá de todo, desde medicinas hasta accesorios y hasta perros, así que debe pensarse como catálogo general de objetos, no como otro tipo de servicio.
+
+**Resultado:**
+- Tabla nueva `items` — deliberadamente **sin ninguna columna de existencias/stock** todavía (`name`, `department` con datalist de sugerencias — Farmacia, Accesorios, Grooming, Hospedaje —, `brand`, `presentation`, `is_active`, `notes`). Es identidad de producto, no inventario.
+- `services` también gana `department` (mismo texto libre con sugerencias), para poder agrupar servicios y artículos con el mismo criterio de cara al futuro.
+- `pet_vaccinations` gana dos columnas nuevas e independientes entre sí: `item_id` (FK nullable → `items`, identifica marca/presentación específica; autocompleta `manufacturer` desde `item.brand`) e `is_external` (bandera propia, **no confundir con `clinical_visits.is_external`** que ya existía desde BL-046 para veterinario externo) — registra que la vacuna se aplicó fuera de EstetiCAN, sin efecto en cobro ni stock, solo para elegibilidad/protección.
+- `VaccinationEligibilityChecker` confirmado sin cambios de lógica necesarios: una vacuna externa con fecha vigente ya cuenta como protección (el checker pregunta "¿está protegida la mascota?", no "¿se cobró aquí?") — se agregó un test que lo deja explícito.
+- CRUD de `items` deliberadamente mínimo (`ItemController::store/update/destroy`, **sin index/listado propio**) — alta rápida desde un mini-formulario inline (`showNewItem`/Alpine) en la misma pantalla de captura de vacuna. Protegido con el permiso `alergias.administrar` que ya existía.
+- **Bug real encontrado:** directivas Blade adyacentes sin espacio (`@endif@if(`) en el `<option>` del selector de artículo producían `Illuminate\View\ViewException: unexpected token "endif"` — corregido insertando el espacio faltante.
+- 4 tests nuevos (`ItemTest` ×3, 1 más en `VaccinationEligibilityCheckerTest`). Suite completa sin regresiones: 37 fallidas preexistentes, 140 pasan (antes 136).
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_14_000014..000016_*` — 3 migraciones (`items`, `services.department`, `pet_vaccinations.item_id`/`is_external`)
+- `app/Models/Item.php` (nuevo), `app/Models/{PetVaccination,Service}.php`
+- `app/Http/Controllers/Clinical/ItemController.php` (nuevo), `routes/web.php`
+- `app/Http/Controllers/Clinical/{PetVaccinationController,ClinicalVisitController}.php`, `resources/views/clinical/pets/show.blade.php`
+- `resources/views/services/partials/form.blade.php`, `app/Http/Controllers/ServiceController.php`
+- `tests/Feature/Clinical/ItemTest.php` (nuevo), `tests/Feature/Clinical/VaccinationEligibilityCheckerTest.php`
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md` (BL-050 completado, BL-049 actualizado para referenciar la fundación)
+
+### 🛑 Pendientes activos
+1. **Commit y push** — BL-044, BL-046, BL-048 y BL-050 siguen sin commitear (nada de esta racha de sesiones se ha subido a git todavía).
+2. BL-049: módulo Tienda/Inventario real (stock, transacciones, almacenes/sucursales) — sigue sin diseñar, solo tiene ahora su fundación atómica (`items`). `ItemController` es candidato a moverse cuando exista ese módulo.
+3. BL-047: Fase 2 del módulo clínico (adjuntos, PDF, app móvil, ICD). BL-045: atomización de apellidos en `users`/`operators`.
+4. Sigue pendiente de sesiones anteriores: las 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, BL-037 (4 archivos huérfanos), SPF/DKIM.
+
+---
+
+## 📅 Sesión: 14/07/2026 (cont. 5) — Vacunas como servicio del catálogo único, no catálogo aparte (BL-048)
+
+Tras cerrar BL-046, se pidió diseñar cómo evitar errores de dedo al capturar vacunas y mandar recordatorios reales. El diseño inicial (tabla `vaccine_catalog` nueva + tabla `vaccination_messages` nueva + pantalla/controller nuevos) se **descartó a medio camino** por una corrección del usuario: **`services` ya tiene `recurrence_days`** y ya alimenta la pantalla de Recurrencias (BL-024/029) — el catálogo debería ser **uno solo** (spa, hotel, recogida a domicilio, vacunas, lo que se agregue después), no catálogos separados por tipo. Segunda corrección: los servicios intersectan módulos de negocio — una vacuna aplicada en Veterinaria debe reflejarse informativamente en Spa/Hotel (sin decir quién la aplicó), mientras que dentro de Veterinaria sí queda como evento asignado con operador responsable (esto ya existía en `pet_vaccinations` desde BL-046, solo había que conectarlo).
+
+**Resultado — mucho más pequeño que el diseño descartado, cero tablas/pantallas nuevas para recordatorios:**
+- `services` gana `is_core_vaccine` (bool) + tipo nuevo `vaccine` (columna `type` ya era string libre, sin enum en BD — cero migración para eso).
+- `pet_vaccinations` gana `service_id` (FK); `vaccine_name` pasa a ser un **snapshot automático** del servicio elegido — el formulario de captura en el módulo clínico ahora es un `<select>` de servicios tipo vacuna, nunca más texto libre.
+- `VaccinationEligibilityChecker` (BL-046) cambia su fuente de "vacunas core" del texto libre `clinical_core_vaccines` (recién agregado en BL-046, sin uso real) a `services.is_core_vaccine` — se eliminó ese campo de `SystemSettings` y se borró el valor de prueba guardado en producción.
+- **Único punto de cirugía real:** `RecurrenceMessageController::lastServiceDatesByPet()` gana una rama — si `service.type==='vaccine'`, la "última vez aplicada" sale de `MAX(pet_vaccinations.applied_at)` en vez de `spa_bookings` completados. El resto de Recurrencias (plantillas, tabla `recurrence_messages`, envío wa.me/correo, `TemplateResolver::resolveForRecurrence()`) no cambió nada — ya era genérico sobre `Service`+`Pet`+fecha. Una vacuna vencida aparece en la misma pantalla que un baño vencido.
+- Nueva sección de solo lectura "Vacunación" en `pets/show.blade.php` (ficha de mascota compartida por todos los módulos): nombre de vacuna + fechas + vigente/vencida, **sin** operador — ese detalle sigue exclusivo de `clinical/*`.
+- 6 tests nuevos/actualizados (checker migrado a `Service`, 2 tests nuevos de la rama vacuna en Recurrencias). Suite completa sin regresiones: 37 fallidas preexistentes, 136 pasan (antes 132).
+
+**Fuera de alcance a propósito, anotado como BL-049:** el usuario mencionó "considera manejar existencias por localidad, almacén o sucursal" — eso es del futuro módulo Tienda/Inventario (catálogo general de objetos físicos: collares, platos, etc.), un dominio distinto (productos y stock) del de servicios/recordatorios que se resolvió hoy. No se diseñó ni se tocó nada de eso.
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_14_000012..000013_*` — 2 migraciones (`is_core_vaccine` en `services`, `service_id` en `pet_vaccinations`)
+- `app/Models/{Service,PetVaccination}.php`
+- `resources/views/services/partials/form.blade.php`, `app/Http/Controllers/ServiceController.php`
+- `app/Http/Controllers/Clinical/PetVaccinationController.php`, `app/Http/Controllers/Clinical/ClinicalVisitController.php`, `resources/views/clinical/pets/show.blade.php`
+- `app/Domain/Clinical/Services/VaccinationEligibilityChecker.php`, `app/Support/SystemSettings/SystemSettings.php` (quitado `clinical_core_vaccines`)
+- `app/Http/Controllers/RecurrenceMessageController.php` (rama por tipo de servicio)
+- `app/Http/Controllers/PetController.php`, `resources/views/pets/show.blade.php` (sección "Vacunación")
+- `tests/Feature/Clinical/VaccinationEligibilityCheckerTest.php`, `tests/Feature/WhatsApp/RecurrenceMessageFlowTest.php`
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md` (BL-048 completado, BL-049 nuevo)
+
+### 🛑 Pendientes activos
+1. **Commit y push** — BL-044, BL-046 y BL-048 siguen sin commitear.
+2. El usuario ya activó `clinical_module_enabled` en producción real (encontró y se resolvió un 403 de permisos en el camino — ver abajo). Falta dar de alta servicios tipo "Vacuna" reales (Rabia, Múltiple, etc.) desde Servicios → Nuevo, marcando cuáles son "core".
+3. BL-047: Fase 2 del módulo clínico (adjuntos, PDF, app móvil, ICD). BL-049: módulo Tienda/Inventario, sin diseñar. BL-045: atomización de apellidos en `users`/`operators`.
+4. Sigue pendiente de sesiones anteriores: las 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, BL-037 (4 archivos huérfanos), SPF/DKIM.
+
+---
+
+## 📅 Sesión: 14/07/2026 (cont. 4) — Expediente clínico veterinario formato SOAP (BL-046)
+
+El usuario pidió diseñar un expediente clínico de mascotas con estándares profesionales actuales. Exploración previa confirmó que EstetiCAN es hoy 100% spa/grooming/hotel — **sin ningún veterinario en plantilla** (roles reales: Groomer Básico, Groomer Profesional, Auxiliar de Estética). El usuario, informado de esto, pidió expresamente un **expediente veterinario completo tipo SOAP** y decidió diseñar ya el rol de veterinario funcional desde el día uno (firma/bloqueo de notas incluido).
+
+**3 correcciones explícitas del usuario durante el diseño (cambiaron la arquitectura antes de programar):**
+1. El módulo debe ser **un área de negocio independiente**, activable/desactivable, con código propio separado del de mascotas/spa — no una pestaña más dentro de la ficha de mascota.
+2. Cualquier uso futuro de jaulas/equipo desde el lado veterinario (ej. hospitalización) debe pasar por el mismo `ResourceAllocation` que ya usa Hotel — nunca un sistema de reservas paralelo (documentado como restricción para el futuro, no implementado ahora).
+3. La identidad de `clients`/`pets` sigue siendo atómica y 100% compartida — el módulo solo *agrega* expedientes, nunca duplica datos. El veterinario que atiende no siempre es interno (puede ser uno externo local, o se le puede entregar una "carpeta" con los datos) — sin sincronización automática de vuelta, solo transcripción manual si hace falta.
+
+**Implementación (BL-046) — Fase 1:**
+- 7 tablas nuevas (`clinical_visits` como encabezado SOAP central — Subjetivo/Objetivo semi-estructurado con signos vitales estándar/Evaluación/Plan —, `pet_weights`, `pet_allergies`, `pet_conditions`, `clinical_diagnoses`, `clinical_prescriptions`/`items`, `clinical_attachments` (Fase 2)) + `pet_vaccinations` alterada (dejó de estar huérfana desde `2026_03_19`, ya tiene modelo/controller/vista).
+- `App\Domain\Clinical` (Contracts/Repositories/Services), reusando el patrón exacto de dominios existentes (`Accounting`, `Planning`). `ClinicalVisitService` maneja el ciclo draft→signed con inmutabilidad real (guard en `saving` del modelo) y enmiendas enlazadas (nunca edición in-place). `ClinicalDiagnosisService` promueve diagnósticos puntuales a condiciones crónicas.
+- Rol veterinario en dos capas: `operator_role` nuevo (agenda/asignación) + permisos Spatie `clinico.*`/`alergias.administrar` (gating de escritura/firma) — reusa `Operator::professional_license` que ya existía sin ningún uso real hasta ahora.
+- `VaccinationEligibilityChecker` — mismo patrón que `CoverageChecker` (BL-043): advertencia, nunca bloqueo (decisión explícita del usuario, descartando la variante de bloqueo duro en hotel que el diseño inicial proponía). Enganchado en `SpaBookingController`, `Api\BookingController` (+ banner nuevo en `MobCitaNueva.tsx`) y `HotelReservationController`.
+- Módulo completo activable/desactivable vía `SystemSettings` (sección `clinical`, `clinical_module_enabled` default `false`) — nav ("Veterinaria") y rutas (`EnsureClinicalModuleEnabled` middleware, 404 si apagado) respetan el toggle. Controllers en `app/Http/Controllers/Clinical/`, vistas en `resources/views/clinical/`, incluyendo una ficha/carpeta imprimible (`window.print()`, sin dependencia nueva) para entregar a un veterinario externo.
+- Soporte de atención externa (`clinical_visits.is_external` + campos de proveedor externo) sin exigir firma/cédula — es transcripción de staff interno, no un acto clínico propio.
+
+**2 bugs reales encontrados y corregidos, solo gracias a probar el flujo completo contra producción real** (dentro de una transacción revertida al final — nada quedó persistido):
+- **NT-033:** `sign()` corría sin error pero no cambiaba nada — `status`, `signed_by_operator_id`, `signed_at`, `professional_license_snapshot` faltaban en el `#[Fillable]` de `ClinicalVisit`, así que `update()` los descartaba en silencio (comportamiento default de Eloquent, sin excepción).
+- **NT-034:** la bandera de bypass del guard de inmutabilidad (`allowLockedStatusTransition`) quedaba pegada en `true` tras usarse una vez — nunca se reseteaba, dejando ese objeto PHP desbloqueado para siempre (no cruza requests HTTP reales, pero sí afectaba las pruebas). Corregido reseteándola a `false` justo después de guardar.
+
+**Otra regresión real encontrada por la suite completa:** el default no vacío de `clinical_core_vaccines` ("Rabia, Múltiple") hacía que `VaccinationEligibilityChecker` advirtiera en **toda** cita nueva aunque el módulo apareciera "apagado" en la navegación — inconsistente con el principio de "no afecta nada hasta activarse". Corregido: el checker ahora respeta `clinical_module_enabled` antes que nada.
+
+Suite completa sin regresiones: 37 fallidas preexistentes (sin relación), 132 pasan (119 + 13 nuevas). Verificado en producción real (solo lectura + transacciones revertidas): módulo apagado por defecto, aparece al activarlo, formularios y ficha imprimible renderizan bien con datos reales.
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_14_000002..000011_*` — 10 migraciones nuevas
+- `app/Models/{ClinicalVisit,ClinicalDiagnosis,ClinicalPrescription,ClinicalPrescriptionItem,ClinicalAttachment,PetWeight,PetAllergy,PetCondition,PetVaccination}.php` (nuevos), `Pet.php`/`Operator.php` (relaciones nuevas)
+- `app/Domain/Clinical/{Contracts,Services,Exceptions}/*` (nuevo dominio completo)
+- `app/Http/Controllers/Clinical/*` (7 controllers nuevos), `app/Http/Middleware/EnsureClinicalModuleEnabled.php`
+- `app/Support/Pages/ClinicalPage.php`, `app/Support/Navigation/Groups/VeterinariaNavigation.php`, `app/Support/Navigation/MainNavigation.php` (oculta grupos sin items)
+- `app/Support/SystemSettings/SystemSettings.php` (sección `clinical`)
+- `database/seeders/ClinicalRolesSeeder.php`
+- `resources/views/clinical/**` (9 vistas nuevas), `resources/views/pets/show.blade.php` (enlace condicional)
+- `app/Http/Controllers/{SpaBookingController,HotelReservationController,Api/BookingController}.php` — enganche de `VaccinationEligibilityChecker`
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx` — banner de advertencia de vacunas
+- `tests/Feature/Clinical/*` (3 archivos, 13 tests)
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/NOTAS_TECNICAS.md` (NT-033, NT-034), `docs/tecnico/BACKLOG.md` (BL-046 completado, BL-047 Fase 2 nuevo)
+
+**Cierre de sesión — 403 real al activar el módulo:** el usuario activó `clinical_module_enabled` y probó en real, encontrando 403 con su propio usuario admin — `ClinicalRolesSeeder` solo le daba los permisos `clinico.*`/`alergias.administrar` al rol nuevo `veterinario`, no al rol `admin` existente. Corregido agregando el módulo `clinico` (patrón ver/crear/editar/eliminar) y `clinico.firmar`/`alergias.administrar` a `BaseRolesSeeder` (renombrado `$financialPermissions` a `$granularPermissions`, ya no es solo financiero) — así el admin tiene acceso completo como en cualquier otro módulo, y sobrevive futuros re-runs del seeder base (a diferencia de un `givePermissionTo` suelto, que `syncPermissions()` habría borrado en el próximo re-run). El gate real de firma sigue protegido igual: aunque el admin tenga el permiso Spatie, `ClinicalVisitService::sign()` exige además `operator_role = veterinario` y cédula cargada.
+
+### 🛑 Pendientes activos
+1. **Commit y push** — todavía no se ha creado el commit de BL-044 ni de BL-046.
+2. El usuario debe dar de alta al menos un `Operator` con `operator_role` Veterinario + cédula profesional para poder firmar visitas de verdad (ver/crear/editar ya funcionan para admin).
+3. BL-047: Fase 2 del módulo clínico (adjuntos de laboratorio, PDF oficial, espejo automático a alertas rápidas, app móvil, catálogo ICD) — diferida a propósito.
+4. BL-045: continuar la atomización de apellidos con `users`/`operators` cuando el usuario lo pida.
+5. Sigue pendiente de sesiones anteriores: las 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, BL-037 (4 archivos huérfanos), SPF/DKIM.
+
+---
+
+## 📅 Sesión: 14/07/2026 (cont. 3) — Atomizar apellido de clientes: paterno/materno (BL-044)
+
+El usuario pidió evaluar separar apellido paterno/materno en clientes, usuarios y operadores. Tras exploración del modelo actual (`clients`: `first_name`+`last_name` combinado; `users`: mismo patrón; `operators`: ni siquiera separado, solo `full_name` string único) se propuso un plan en 3 fases y el usuario decidió empezar solo por `clients` esta sesión.
+
+**Decisiones explícitas del usuario antes de programar:**
+1. Backfill de datos existentes con heurística automática + reporte simple de casos ambiguos para revisión manual (sin pantalla nueva de revisión).
+2. Incluir también el formulario de cliente de la app móvil en esta misma tanda (no dejarlo para después).
+3. **Respaldo completo antes de tocar nada** — se descubrió que `estetican_app` corre con bind mount directo de este repo (no hay imagen empaquetada: el código que se edita es el código vivo de producción). Se generaron 3 respaldos: dump de BD (`backups/estetican_pre-BL044_*.sql`), tarball completo del proyecto excluyendo `.git` (`backups/estetican-completo_pre-BL044_*.tar.gz`, 93 MB) y tag git `pre-bl044-apellidos` sobre `a965e52`.
+
+**Implementación (BL-044):**
+- Migración: `apellido_paterno`/`apellido_materno` nullable en `clients` + índice compuesto. `last_name` queda vestigial (no se borra ni se deja de leer — `Client::getLastNameAttribute()` la recalcula desde los 2 campos nuevos, así todo el código de solo lectura sigue funcionando sin tocarlo).
+- Comando `clientes:migrar-apellidos --dry-run` (idempotente): heurística por conteo de palabras (1 palabra → solo paterno; 2 → paterno+materno; 3+ → mejor intento marcado como ambiguo). Corrido contra los 9 clientes reales de producción: 6 migrados, **0 ambiguos**.
+- **Trampa real encontrada:** el propio comando de backfill leía `$client->last_name` para obtener el valor original a partir del cual dividir — pero como esa propiedad ahora es el accessor calculado (que en ese momento da `""` porque los campos nuevos aún están vacíos), el comando veía "0 palabras" en todo. Corregido leyendo `$client->getRawOriginal('last_name')` en su lugar.
+- 8 controllers actualizados (más de lo previsto en el plan original): además de `ClientController`/`Api\ClientController`, se encontraron problemas de columnas restringidas en eager-loads (`->with('client:id,first_name,last_name')`) en `PetController`, `Api\PetController`, `SpaBookingController`, `ResourceController`, `ResourceEventController`, `HotelReservationController`, `Api\BookingController`, `Api\AgendaController` — si esas columnas no se actualizaban, el accessor calculaba vacío por falta de datos cargados. También 2 `DB::raw("CONCAT(...)")` crudos en `Api\CashController`/`Finances\CashSessionController` (reportes de caja), cambiados a `CONCAT_WS` para no dejar espacios colgantes cuando no hay materno.
+- 2 vistas Blade (`clients/create.blade.php`, `clients/edit.blade.php`): input único "Apellido" dividido en paterno (requerido en alta) + materno (siempre opcional).
+- App móvil `ClientDetail.tsx`: mismo split en alta y edición.
+- **Regresión real encontrada en tests:** ~30 archivos de test creaban clientes con `Client::create(['last_name' => ...])` — como ese campo ya no es *fillable*, se guardaban silenciosamente sin apellido. Corregidos con un script que distingue `Client::create` de `User::create` por contexto (con un falso positivo detectado y revertido a mano en `Api/ProfileTest.php`, que es de `users`, no de `clients`). Suite completa vuelve a la línea base exacta: 37 fallidas (preexistentes, no relacionadas), 119 pasan — sin regresiones.
+- Verificación adicional sin tocar datos reales: render read-only de `clients.edit`/`clients.index` y de `Api\ClientController` (`show`/`index`) vía `tinker` contra los 9 clientes reales de producción — confirma que el caso más complejo (`"Tomás Eduardo Martínez Topete"`) se parte y reconstruye correctamente de punta a punta.
+
+**Efecto colateral encontrado (no corregido, bloqueado a propósito):** la contraseña de root de MySQL documentada en `docs/OPI_PRODUCCION.md` (`EstetiCAN2026`) está desactualizada — la real es la de `DB_PASSWORD` en `.env`. El clasificador de auto-modo bloqueó mi intento de corregirla directo en el archivo versionado (correctamente: es escribir una credencial real de producción sin que el usuario lo pidiera explícito). **Queda pendiente que el usuario decida** cómo actualizar esa documentación.
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_14_000001_add_apellidos_paterno_materno_to_clients_table.php` (nuevo)
+- `app/Console/Commands/MigrarApellidosClientesCommand.php` (nuevo)
+- `app/Models/Client.php` — accessor `getLastNameAttribute()`, fillable
+- `app/Http/Controllers/{ClientController,PetController,SpaBookingController,ResourceController,ResourceEventController,HotelReservationController}.php`, `app/Http/Controllers/Api/{ClientController,PetController,BookingController,AgendaController,CashController}.php`, `app/Http/Controllers/Finances/CashSessionController.php`
+- `resources/views/clients/{create,edit}.blade.php`
+- `mob_apps/operador/src/admin/ClientDetail.tsx`
+- ~30 archivos en `tests/Feature/**` (payloads de test)
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md` (BL-044 completado, BL-045 nuevo para users/operators)
+
+**Cierre de la sesión — 2 pendientes resueltos tras revisar con el usuario:**
+- **Contraseña de root desactualizada en `docs/OPI_PRODUCCION.md`:** se confirmó que la contraseña real activa (`DB_PASSWORD` en `.env`) ya es la correcta (coincide con la que el usuario tiene anotada en sus notas personales) — no hizo falta rotar nada en MySQL. Se corrigió el doc para no volver a hardcodear ninguna contraseña real: los 5 comandos ahora usan `$DB_ROOT_PASSWORD` (variable a exportar antes de correrlos) y la nota remite a las notas personales del usuario como fuente de verdad, no al repo.
+- **App móvil — fix de apellidos no estaba desplegado:** el cambio a `ClientDetail.tsx` de esta sesión se había editado pero nunca compilado — `mob_apps/operador/dist/` (bind-mounteado directo por `estetican_mob`, ver `project_opi_workflow`) seguía siendo del 12/07. Corrido `npm run build`; confirmado el bundle nuevo desplegado y con el código de apellido_paterno/materno incluido.
+
+### 🛑 Pendientes activos
+1. **Commit y push de esta sesión** — todavía no se ha creado el commit de BL-044.
+2. BL-045: continuar la atomización con `users` (fase 2) y `operators` (fase 3) cuando el usuario lo pida.
+3. Revisar manualmente en el backoffice real los 6 clientes migrados (ninguno quedó marcado ambiguo, pero vale una confirmación visual).
+4. Sigue pendiente de sesiones anteriores: las 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, BL-037 (4 archivos huérfanos), SPF/DKIM.
+
+---
+
 ## 📅 Sesión: 14/07/2026 (cont. 2) — Advertencia de cobertura geográfica al agendar citas (BL-043)
 
 Continuación de la sesión del 14/07. El usuario preguntó cómo evitar que se generen citas fuera de Aguascalientes. Se investigó qué coordenadas ya existen (`branches.lat/lng`, `addresses.lat/lng`, `pets.lat/lng` — todas de BL-032/Mapa de Cobertura) y se acordaron 3 decisiones explícitas con el usuario antes de programar: (1) radio en km desde la sucursal más cercana (no coincidencia de texto en "ciudad", poco confiable), (2) solo advertencia, no bloqueo — el staff puede confirmar igual, (3) aplica ya a las citas que agenda el staff hoy (web + móvil), no queda para cuando exista la futura app de clientes.

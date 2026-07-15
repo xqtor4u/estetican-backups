@@ -50,7 +50,7 @@ class BookingMessageFlowTest extends TestCase
 
     public function test_sending_a_reminder_creates_a_booking_message_and_returns_wa_link(): void
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $client->phones()->create(['number' => '5512345678', 'type' => 'mobile']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
         $service = Service::create(['code' => 'BC01', 'name' => 'Baño y corte', 'type' => 'spa', 'price' => 250, 'duration_minutes' => 60]);
@@ -86,7 +86,7 @@ class BookingMessageFlowTest extends TestCase
 
     public function test_preview_resolves_the_message_without_persisting_a_booking_message(): void
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $client->phones()->create(['number' => '5512345678', 'type' => 'mobile']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
         $service = Service::create(['code' => 'BC02', 'name' => 'Baño y corte', 'type' => 'spa', 'price' => 250, 'duration_minutes' => 60]);
@@ -118,7 +118,7 @@ class BookingMessageFlowTest extends TestCase
 
     public function test_already_sent_today_row_is_flagged_in_the_row_config_for_the_frontend(): void
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $client->phones()->create(['number' => '5512345678', 'type' => 'mobile']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
         $service = Service::create(['code' => 'BC03', 'name' => 'Baño y corte', 'type' => 'spa', 'price' => 250, 'duration_minutes' => 60]);
@@ -165,7 +165,7 @@ class BookingMessageFlowTest extends TestCase
 
     public function test_sending_fails_gracefully_when_client_has_no_valid_phone(): void
     {
-        $client = Client::create(['first_name' => 'Beto', 'last_name' => 'Soto']);
+        $client = Client::create(['first_name' => 'Beto', 'apellido_paterno' => 'Soto']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Rocko']);
         $booking = SpaBooking::create([
             'pet_id' => $pet->id,
@@ -188,7 +188,7 @@ class BookingMessageFlowTest extends TestCase
     {
         Mail::fake();
 
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => 'ana@example.com']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz', 'email' => 'ana@example.com']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
         $booking = SpaBooking::create([
             'pet_id' => $pet->id,
@@ -231,7 +231,7 @@ class BookingMessageFlowTest extends TestCase
     {
         Mail::fake();
 
-        $client = Client::create(['first_name' => 'Beto', 'last_name' => 'Soto']);
+        $client = Client::create(['first_name' => 'Beto', 'apellido_paterno' => 'Soto']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Rocko']);
         $booking = SpaBooking::create([
             'pet_id' => $pet->id,

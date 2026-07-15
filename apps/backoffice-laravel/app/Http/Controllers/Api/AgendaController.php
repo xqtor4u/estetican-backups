@@ -36,7 +36,7 @@ class AgendaController extends Controller
             ->when($operatorId, fn ($q) => $q->where('operator_id', $operatorId))
             ->with([
                 'pet:id,name,species,breed,profile_photo_path,client_id',
-                'pet.client:id,first_name,last_name',
+                'pet.client:id,first_name,apellido_paterno,apellido_materno',
                 'services.service:id,name,type',
                 'operator:id,full_name,profile_photo_path',
                 'quotes' => fn ($q) => $q->where('status', 'accepted')
@@ -116,7 +116,7 @@ class AgendaController extends Controller
             ->where('scheduled_at', '<', now()->startOfDay())
             ->with([
                 'pet:id,name,species,breed,profile_photo_path,client_id',
-                'pet.client:id,first_name,last_name',
+                'pet.client:id,first_name,apellido_paterno,apellido_materno',
                 'services.service:id,name,type',
             ])
             ->orderBy('scheduled_at')

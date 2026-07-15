@@ -28,7 +28,7 @@ class AgendaStatusFilterTest extends TestCase
 
     private function bookingWithStatus(string $status): SpaBooking
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz'.uniqid()]);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz'.uniqid()]);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Mascota-'.$status]);
         $service = Service::create(['code' => 'ST'.uniqid(), 'name' => 'Servicio', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30]);
 

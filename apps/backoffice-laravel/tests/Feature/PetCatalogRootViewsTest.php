@@ -15,7 +15,7 @@ class PetCatalogRootViewsTest extends TestCase
     {
         $client = Client::create([
             'first_name' => 'Ana',
-            'last_name' => 'Lopez',
+            'apellido_paterno' => 'Lopez',
             'email' => 'ana-pets@example.com',
         ]);
 
@@ -53,13 +53,13 @@ class PetCatalogRootViewsTest extends TestCase
     {
         $firstClient = Client::create([
             'first_name' => 'Ana',
-            'last_name' => 'Lopez',
+            'apellido_paterno' => 'Lopez',
             'email' => 'ana-filter@example.com',
         ]);
 
         $secondClient = Client::create([
             'first_name' => 'Beto',
-            'last_name' => 'Mora',
+            'apellido_paterno' => 'Mora',
             'email' => 'beto-filter@example.com',
         ]);
 
@@ -110,7 +110,7 @@ class PetCatalogRootViewsTest extends TestCase
     {
         $client = Client::create([
             'first_name' => 'Laura',
-            'last_name' => 'Mendez',
+            'apellido_paterno' => 'Mendez',
             'email' => 'laura-pets@example.com',
         ]);
 
@@ -138,7 +138,7 @@ class PetCatalogRootViewsTest extends TestCase
     {
         $client = Client::create([
             'first_name' => 'Sofia',
-            'last_name' => 'Ruiz',
+            'apellido_paterno' => 'Ruiz',
             'email' => 'sofia-pets@example.com',
         ]);
 

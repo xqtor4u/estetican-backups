@@ -11,6 +11,8 @@ interface Client {
   id: number;
   first_name: string;
   last_name: string;
+  apellido_paterno: string | null;
+  apellido_materno: string | null;
   full_name: string;
   email: string | null;
   address: string | null;
@@ -25,7 +27,7 @@ interface Client {
 type PhoneEdit = { number: string; type: string };
 
 type EditState = {
-  first_name: string; last_name: string; email: string;
+  first_name: string; apellido_paterno: string; apellido_materno: string; email: string;
   address: string; city: string; state: string; zip_code: string; notes: string;
   phones: PhoneEdit[];
 };
@@ -48,7 +50,7 @@ function TextInput({ value, onChange, placeholder, type = 'text' }: { value: str
 
 function clientToEdits(c: Client): EditState {
   return {
-    first_name: c.first_name, last_name: c.last_name ?? '',
+    first_name: c.first_name, apellido_paterno: c.apellido_paterno ?? '', apellido_materno: c.apellido_materno ?? '',
     email: c.email ?? '', address: c.address ?? '',
     city: c.city ?? '', state: c.state ?? '',
     zip_code: c.zip_code ?? '', notes: c.notes ?? '',
@@ -65,7 +67,7 @@ const PHONE_TYPE: Record<string, string> = { mobile: 'Celular', home: 'Casa', wo
    ══════════════════════════════════════════════════════════ */
 function NewClientForm({ navigate, returnTo }: { navigate: ReturnType<typeof useNavigate>; returnTo?: string }) {
   const [form, setForm] = useState({
-    first_name: '', last_name: '', phone: '', email: '',
+    first_name: '', apellido_paterno: '', apellido_materno: '', phone: '', email: '',
     address: '', city: '', state: '', zip_code: '', notes: '',
   });
   const [saving, setSaving] = useState(false);
@@ -87,7 +89,8 @@ function NewClientForm({ navigate, returnTo }: { navigate: ReturnType<typeof use
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
         first_name: form.first_name,
-        last_name:  form.last_name  || null,
+        apellido_paterno: form.apellido_paterno || null,
+        apellido_materno: form.apellido_materno || null,
         phone:      form.phone,
         email:      form.email      || null,
         address:    form.address    || null,
@@ -133,8 +136,11 @@ function NewClientForm({ navigate, returnTo }: { navigate: ReturnType<typeof use
             <TextInput value={form.first_name} onChange={set('first_name')} placeholder="Nombre" />
             {errors.first_name && <p className="text-xs text-error mt-1">{errors.first_name}</p>}
           </Field>
-          <Field label="Apellido(s)">
-            <TextInput value={form.last_name} onChange={set('last_name')} placeholder="Apellido" />
+          <Field label="Apellido paterno">
+            <TextInput value={form.apellido_paterno} onChange={set('apellido_paterno')} placeholder="Apellido paterno" />
+          </Field>
+          <Field label="Apellido materno">
+            <TextInput value={form.apellido_materno} onChange={set('apellido_materno')} placeholder="Apellido materno" />
           </Field>
           <div className="col-span-2">
             <Field label="Teléfono celular *">
@@ -210,7 +216,9 @@ export function ClientDetail() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
-        first_name: edits.first_name, last_name: edits.last_name || null,
+        first_name: edits.first_name,
+        apellido_paterno: edits.apellido_paterno || null,
+        apellido_materno: edits.apellido_materno || null,
         email: edits.email || null, address: edits.address || null,
         city: edits.city || null, state: edits.state || null,
         zip_code: edits.zip_code || null, notes: edits.notes || null,
@@ -244,7 +252,7 @@ export function ClientDetail() {
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
 
       <ScreenHeader
-        title={editing ? `${edits.first_name} ${edits.last_name}`.trim() || client.full_name : client.full_name}
+        title={editing ? `${edits.first_name} ${edits.apellido_paterno} ${edits.apellido_materno}`.replace(/\s+/g, ' ').trim() || client.full_name : client.full_name}
         screenTag="MobCliDet"
         onBack={() => navigate(-1)}
         crumbs={crumbs}
@@ -365,8 +373,11 @@ export function ClientDetail() {
               <Field label="Nombre(s)">
                 <TextInput value={edits.first_name} onChange={set('first_name')} />
               </Field>
-              <Field label="Apellido(s)">
-                <TextInput value={edits.last_name} onChange={set('last_name')} />
+              <Field label="Apellido paterno">
+                <TextInput value={edits.apellido_paterno} onChange={set('apellido_paterno')} />
+              </Field>
+              <Field label="Apellido materno">
+                <TextInput value={edits.apellido_materno} onChange={set('apellido_materno')} />
               </Field>
               <div className="col-span-2">
                 <Field label="Correo electrónico">

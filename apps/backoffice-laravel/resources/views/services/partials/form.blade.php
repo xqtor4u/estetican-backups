@@ -1,7 +1,7 @@
 @php
     $service = $service ?? $copySource ?? null;
     $isCopy = isset($copySource) && !isset($service->id);
-    $serviceTypeOptions = ['spa' => 'Spa', 'hotel' => 'Hotel', 'extra' => 'Extra', 'combo' => 'Combo'];
+    $serviceTypeOptions = ['spa' => 'Spa', 'hotel' => 'Hotel', 'extra' => 'Extra', 'combo' => 'Combo', 'vaccine' => 'Vacuna'];
     if($isCopy) {
         $service->code = $service->code . '-COPIA';
         $service->name = $service->name . ' (copia)';
@@ -27,6 +27,18 @@
     <div class="col-md-5">
         <label for="name" class="form-label">Nombre del servicio</label>
         <input id="name" type="text" name="name" class="form-control" value="{{ old('name', $service->name ?? '') }}" required>
+    </div>
+
+    <div class="col-md-4">
+        <label for="department" class="form-label">Departamento</label>
+        <input id="department" type="text" name="department" class="form-control" list="department-suggestions" value="{{ old('department', $service->department ?? '') }}" placeholder="Ej. Farmacia, Accesorios...">
+        <datalist id="department-suggestions">
+            <option value="Farmacia">
+            <option value="Accesorios">
+            <option value="Grooming">
+            <option value="Hospedaje">
+        </datalist>
+        <div class="form-text">Opcional — sugerencia para agrupar en el futuro módulo de inventario.</div>
     </div>
 
     <div class="col-md-8">
@@ -67,12 +79,23 @@
         <div class="form-text">Deja vacío si este servicio no requiere recordatorio periódico.</div>
     </div>
 
-    <div class="col-md-8 d-flex align-items-end">
+    <div class="col-md-4 d-flex align-items-end">
         <div class="form-check form-switch mb-2">
             <input type="hidden" name="is_active" value="0">
             <input id="is_active" class="form-check-input" type="checkbox" name="is_active" value="1" @checked((bool) old('is_active', $service->is_active ?? true))>
             <label class="form-check-label" for="is_active">Servicio activo</label>
         </div>
+    </div>
+
+    <div class="col-md-4 d-flex align-items-end">
+        <div class="form-check form-switch mb-2">
+            <input type="hidden" name="is_core_vaccine" value="0">
+            <input id="is_core_vaccine" class="form-check-input" type="checkbox" name="is_core_vaccine" value="1" @checked((bool) old('is_core_vaccine', $service->is_core_vaccine ?? false))>
+            <label class="form-check-label" for="is_core_vaccine">Vacuna "core" (exigida en Veterinaria)</label>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="form-text">"Vacuna core" solo aplica si el tipo es <strong>Vacuna</strong> — el módulo de Veterinaria advierte (sin bloquear) al agendar spa/hotel si a la mascota le falta alguna vacuna marcada así.</div>
     </div>
 </div>
 

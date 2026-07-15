@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
+use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
@@ -37,7 +38,8 @@ class SpaBookingController extends Controller
         private QuoteServiceInterface $quoteService,
         private BusinessHours $businessHours,
         private OperatorAvailabilityChecker $operatorAvailabilityChecker,
-        private CoverageChecker $coverageChecker
+        private CoverageChecker $coverageChecker,
+        private VaccinationEligibilityChecker $vaccinationChecker
     ) {}
 
     public function index(Request $request): View
@@ -99,7 +101,8 @@ class SpaBookingController extends Controller
             $bookingsQuery->join('pets', 'pets.id', '=', 'spa_bookings.pet_id')
                 ->join('clients', 'clients.id', '=', 'pets.client_id')
                 ->orderBy('clients.first_name', $direction)
-                ->orderBy('clients.last_name', $direction);
+                ->orderBy('clients.apellido_paterno', $direction)
+                ->orderBy('clients.apellido_materno', $direction);
         } elseif ($sort === 'status') {
             $bookingsQuery->orderBy('spa_bookings.status', $direction);
         } elseif ($sort === 'total') {
@@ -167,8 +170,9 @@ class SpaBookingController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhereHas('client', function ($q2) use ($search) {
                         $q2->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('last_name', 'like', "%{$search}%")
-                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
+                            ->orWhere('apellido_paterno', 'like', "%{$search}%")
+                            ->orWhere('apellido_materno', 'like', "%{$search}%")
+                            ->orWhereRaw("CONCAT(first_name, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
                     });
             });
         }
@@ -246,8 +250,9 @@ class SpaBookingController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhereHas('client', function ($q2) use ($search) {
                         $q2->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('last_name', 'like', "%{$search}%")
-                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
+                            ->orWhere('apellido_paterno', 'like', "%{$search}%")
+                            ->orWhere('apellido_materno', 'like', "%{$search}%")
+                            ->orWhereRaw("CONCAT(first_name, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
                     });
             });
         }
@@ -549,11 +554,23 @@ class SpaBookingController extends Controller
         }
 
         $coverageWarning = $this->coverageChecker->checkPet($pet);
+        $vaccinationWarning = $this->vaccinationChecker->check($pet);
+
+        $warnings = [];
 
         if ($coverageWarning) {
+            $warnings[] = "Esta mascota está a {$coverageWarning['distance_km']} km de {$coverageWarning['branch_name']}, fuera del radio de cobertura de {$coverageWarning['radius_km']} km.";
+        }
+
+        if ($vaccinationWarning) {
+            $vaccineList = implode(', ', $vaccinationWarning['missing_vaccines']);
+            $warnings[] = "Esta mascota no tiene vigente: {$vaccineList}.";
+        }
+
+        if ($warnings !== []) {
             return redirect()->route('agenda.index')->with('success', 'Sesión programada correctamente.')->with(
                 'warning',
-                "Esta mascota está a {$coverageWarning['distance_km']} km de {$coverageWarning['branch_name']}, fuera del radio de cobertura de {$coverageWarning['radius_km']} km."
+                implode(' ', $warnings)
             );
         }
 

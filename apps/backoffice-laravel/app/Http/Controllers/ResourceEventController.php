@@ -30,7 +30,7 @@ class ResourceEventController extends Controller
 
         $event->load([
             'resource.branch:id,name,code',
-            'client:id,first_name,last_name',
+            'client:id,first_name,apellido_paterno,apellido_materno',
             'pet:id,name,client_id',
             'service:id,name,code',
             'detectedBy:id,name',

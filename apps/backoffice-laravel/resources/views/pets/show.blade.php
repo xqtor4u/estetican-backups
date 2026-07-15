@@ -5,6 +5,7 @@
     $returnViewMode = $returnViewMode ?? 'blocks';
     $page = \App\Support\Pages\PetsPage::show($pet, $client, $isRootView, $returnViewMode);
     $breadcrumbs = $page['breadcrumbs'];
+    $clinicalModuleEnabled = $clinicalModuleEnabled ?? (bool) app(\App\Support\SystemSettings\SystemSettings::class)->all()['clinical_module_enabled'];
 @endphp
 @extends('layouts.app')
 
@@ -19,6 +20,9 @@
             <a href="{{ route('pets.index', ['view' => $returnViewMode]) }}" class="btn btn-outline-secondary">Volver al listado</a>
         @endif
         <a href="{{ $isRootView ? route('pets.bookings.create', ['pet' => $pet, 'return_view_mode' => $returnViewMode]) : route('clients.pets.bookings.create', [$client, $pet]) }}" class="btn btn-outline-dark catalog-action-upcoming">Programar servicio</a>
+        @if($clinicalModuleEnabled && auth()->user()?->can('ver clinico'))
+            <a href="{{ route('clinical.pets.show', $pet) }}" class="btn btn-outline-info">Ver expediente clínico</a>
+        @endif
         <a href="{{ route('clients.show', $client) }}" class="btn btn-outline-secondary">Ver cliente</a>
         <a href="{{ route('clients.edit', $client) }}" class="btn btn-secondary">Editar cliente</a>
         <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#modalChangeOwner">Cambiar dueño</button>
@@ -297,6 +301,43 @@
         </tbody>
     </x-list-table>
 </section>
+
+@if($clinicalModuleEnabled && $pet->vaccinations->isNotEmpty())
+<section id="vaccination-summary" class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="h4 mb-1">Vacunación</h2>
+            <p class="text-muted mb-0">Resumen informativo desde el módulo de Veterinaria.</p>
+        </div>
+        @can('ver clinico')
+            <a href="{{ route('clinical.pets.show', $pet) }}" class="btn btn-sm btn-outline-info">Ver expediente clínico</a>
+        @endcan
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <table class="table table-sm mb-0">
+                <thead><tr><th>Vacuna</th><th>Aplicada</th><th>Vigente hasta</th><th>Estado</th></tr></thead>
+                <tbody>
+                    @foreach($pet->vaccinations as $vaccination)
+                        <tr>
+                            <td>{{ $vaccination->service?->name ?? $vaccination->vaccine_name }}</td>
+                            <td>{{ $vaccination->applied_at?->format('d/m/Y') ?? '—' }}</td>
+                            <td>{{ $vaccination->expires_at?->format('d/m/Y') ?? '—' }}</td>
+                            <td>
+                                @if($vaccination->isExpired())
+                                    <span class="badge text-bg-danger">Vencida</span>
+                                @else
+                                    <span class="badge text-bg-success">Vigente</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+@endif
 
 <section id="medical-alerts" class="mb-5">
     <div class="d-flex justify-content-between align-items-center mb-3">

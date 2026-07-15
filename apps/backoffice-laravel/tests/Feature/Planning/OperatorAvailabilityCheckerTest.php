@@ -22,7 +22,7 @@ class OperatorAvailabilityCheckerTest extends TestCase
 
     private function bookingFor(int $operatorId, string $scheduledAt, int $durationMinutes = 60, string $status = 'scheduled'): SpaBooking
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
 
         return SpaBooking::create([

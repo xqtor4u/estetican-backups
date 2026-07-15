@@ -132,7 +132,7 @@ class ResourceController extends Controller
                 ->orderByDesc('taken_at')
                 ->orderByDesc('created_at'),
             'events' => fn ($query) => $query
-                ->with(['client:id,first_name,last_name', 'pet:id,name', 'service:id,name,code'])
+                ->with(['client:id,first_name,apellido_paterno,apellido_materno', 'pet:id,name', 'service:id,name,code'])
                 ->withCount(['updates', 'photos'])
                 ->orderByDesc('detected_at')
                 ->orderByDesc('created_at')
@@ -142,10 +142,11 @@ class ResourceController extends Controller
         $eventFormUsers = User::query()->orderBy('name')->get(['id', 'name']);
         $eventFormClients = Client::query()
             ->orderBy('first_name')
-            ->orderBy('last_name')
-            ->get(['id', 'first_name', 'last_name']);
+            ->orderBy('apellido_paterno')
+            ->orderBy('apellido_materno')
+            ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno']);
         $eventFormPets = Pet::query()
-            ->with('client:id,first_name,last_name')
+            ->with('client:id,first_name,apellido_paterno,apellido_materno')
             ->orderBy('name')
             ->get(['id', 'client_id', 'name']);
         $eventFormServices = Service::query()->orderBy('name')->get(['id', 'name', 'code']);

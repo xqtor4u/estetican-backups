@@ -28,7 +28,7 @@ class ClientAddressHarmonizationTest extends TestCase
     {
         $response = $this->post(route('clients.store'), [
             'first_name' => 'Lucia',
-            'last_name' => 'Mena',
+            'apellido_paterno' => 'Mena',
             'email' => 'lucia@example.com',
             'addresses' => [
                 [
@@ -73,7 +73,7 @@ class ClientAddressHarmonizationTest extends TestCase
     {
         $client = Client::create([
             'first_name' => 'Alicia',
-            'last_name' => 'Prado',
+            'apellido_paterno' => 'Prado',
             'email' => 'alicia@example.com',
         ]);
 

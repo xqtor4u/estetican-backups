@@ -34,7 +34,7 @@ class ClientCommunicationPreferencesTest extends TestCase
 
     public function test_client_defaults_to_receiving_everything(): void
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => 'ana@example.com']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz', 'email' => 'ana@example.com']);
         $client->refresh(); // los defaults de columna del schema no quedan en memoria tras create()
 
         $this->assertTrue($client->receives_offers);
@@ -46,12 +46,12 @@ class ClientCommunicationPreferencesTest extends TestCase
 
     public function test_staff_can_update_client_communication_preferences_from_edit_form(): void
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => 'ana@example.com']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz', 'email' => 'ana@example.com']);
         $phone = $client->phones()->create(['number' => '5512345678', 'type' => 'mobile']);
 
         $response = $this->actingAs($this->admin())->put(route('clients.update', $client), [
             'first_name' => 'Ana',
-            'last_name' => 'Ruiz',
+            'apellido_paterno' => 'Ruiz',
             'email' => 'ana@example.com',
             'phones' => [
                 ['id' => $phone->id, 'number' => '5512345678', 'type' => 'mobile'],
@@ -75,7 +75,7 @@ class ClientCommunicationPreferencesTest extends TestCase
         Mail::fake();
 
         $client = Client::create([
-            'first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => 'ana@example.com',
+            'first_name' => 'Ana', 'apellido_paterno' => 'Ruiz', 'email' => 'ana@example.com',
             'receives_service_reminders' => false,
         ]);
         $client->phones()->create(['number' => '5512345678', 'type' => 'mobile']);
@@ -109,7 +109,7 @@ class ClientCommunicationPreferencesTest extends TestCase
         Mail::fake();
 
         $client = Client::create([
-            'first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => 'ana@example.com',
+            'first_name' => 'Ana', 'apellido_paterno' => 'Ruiz', 'email' => 'ana@example.com',
             'receives_service_reminders' => false,
         ]);
         $client->phones()->create(['number' => '5512345678', 'type' => 'mobile']);
@@ -150,7 +150,7 @@ class ClientCommunicationPreferencesTest extends TestCase
         SystemSetting::create(['section' => 'clinical', 'key' => 'operational_auto_email_report', 'type' => 'boolean', 'value' => '1']);
 
         $client = Client::create([
-            'first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => 'ana@example.com',
+            'first_name' => 'Ana', 'apellido_paterno' => 'Ruiz', 'email' => 'ana@example.com',
             'receives_job_updates' => false,
         ]);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
@@ -170,7 +170,7 @@ class ClientCommunicationPreferencesTest extends TestCase
 
     public function test_public_preferences_page_shows_and_updates_with_valid_signed_url(): void
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => 'ana@example.com']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz', 'email' => 'ana@example.com']);
 
         $showUrl = URL::temporarySignedRoute('client-preferences.show', now()->addYear(), ['client' => $client->id]);
 
@@ -194,7 +194,7 @@ class ClientCommunicationPreferencesTest extends TestCase
 
     public function test_public_preferences_page_rejects_a_tampered_url(): void
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
 
         $response = $this->get(route('client-preferences.show', ['client' => $client->id]));
 

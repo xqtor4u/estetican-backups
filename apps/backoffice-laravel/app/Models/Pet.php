@@ -83,6 +83,31 @@ class Pet extends Model
         return $this->hasMany(PetPhoto::class);
     }
 
+    public function weights()
+    {
+        return $this->hasMany(PetWeight::class);
+    }
+
+    public function allergies()
+    {
+        return $this->hasMany(PetAllergy::class);
+    }
+
+    public function conditions()
+    {
+        return $this->hasMany(PetCondition::class);
+    }
+
+    public function vaccinations()
+    {
+        return $this->hasMany(PetVaccination::class);
+    }
+
+    public function clinicalVisits()
+    {
+        return $this->hasMany(ClinicalVisit::class);
+    }
+
     public function spaBookings(): HasMany
     {
         return $this->hasMany(SpaBooking::class);

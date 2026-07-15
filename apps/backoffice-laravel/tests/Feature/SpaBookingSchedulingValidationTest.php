@@ -29,7 +29,7 @@ class SpaBookingSchedulingValidationTest extends TestCase
 
     private function pet(): Pet
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
 
         return Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
     }

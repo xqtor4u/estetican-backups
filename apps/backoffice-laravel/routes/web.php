@@ -7,6 +7,14 @@ use App\Http\Controllers\BookingMessageController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPreferencesController;
+use App\Http\Controllers\Clinical\ClinicalController;
+use App\Http\Controllers\Clinical\ClinicalDiagnosisController;
+use App\Http\Controllers\Clinical\ClinicalPrescriptionController;
+use App\Http\Controllers\Clinical\ClinicalVisitController;
+use App\Http\Controllers\Clinical\PetAllergyController;
+use App\Http\Controllers\Clinical\PetConditionController;
+use App\Http\Controllers\Clinical\PetFolderController;
+use App\Http\Controllers\Clinical\PetVaccinationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Finances\AccountController;
 use App\Http\Controllers\Finances\CashMovementController;
@@ -15,6 +23,7 @@ use App\Http\Controllers\Finances\CashSessionController;
 use App\Http\Controllers\Finances\DocumentSeriesController;
 use App\Http\Controllers\Finances\PaymentMethodController;
 use App\Http\Controllers\HotelReservationController;
+use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\MapaZonasController;
 use App\Http\Controllers\OperatorController;
@@ -68,6 +77,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('clients', ClientController::class);
     Route::resource('hotel-reservations', HotelReservationController::class)->except(['destroy']);
     Route::resource('services', ServiceController::class);
+    Route::resource('items', ItemController::class)->except(['show'])
+        ->middlewareFor('index', 'permission:ver catalogo_articulos')
+        ->middlewareFor(['create', 'store'], 'permission:crear catalogo_articulos')
+        ->middlewareFor(['edit', 'update'], 'permission:editar catalogo_articulos')
+        ->middlewareFor('destroy', 'permission:eliminar catalogo_articulos');
     Route::resource('operators', OperatorController::class);
     Route::post('operators/{operator}/duplicate', [OperatorController::class, 'duplicate'])->name('operators.duplicate');
     Route::resource('branches', BranchController::class);
@@ -166,6 +180,40 @@ Route::middleware('auth')->group(function () {
     Route::get('reports/quote/{quote}', [ReportController::class, 'quote'])->name('reports.quote');
     Route::get('reports/work-order/{booking}', [ReportController::class, 'workOrder'])->name('reports.work-order');
     Route::get('reports/invoice/{booking}', [ReportController::class, 'invoice'])->name('reports.invoice');
+
+    // Veterinaria (Expediente Clínico) — módulo independiente, apagado por defecto (SystemSettings)
+    Route::middleware('clinical.module')->prefix('clinico')->name('clinical.')->group(function () {
+        Route::get('/', [ClinicalController::class, 'index'])->middleware('permission:ver clinico')->name('index');
+
+        Route::get('mascotas/{pet}', [ClinicalVisitController::class, 'showPet'])->middleware('permission:ver clinico')->name('pets.show');
+        Route::get('mascotas/{pet}/ficha', [PetFolderController::class, 'print'])->middleware('permission:ver clinico')->name('pets.folder');
+
+        Route::get('mascotas/{pet}/visitas/crear', [ClinicalVisitController::class, 'create'])->middleware('permission:crear clinico')->name('visits.create');
+        Route::post('mascotas/{pet}/visitas', [ClinicalVisitController::class, 'store'])->middleware('permission:crear clinico')->name('visits.store');
+        Route::get('visitas/{visit}', [ClinicalVisitController::class, 'show'])->middleware('permission:ver clinico')->name('visits.show');
+        Route::get('visitas/{visit}/editar', [ClinicalVisitController::class, 'edit'])->middleware('permission:editar clinico')->name('visits.edit');
+        Route::put('visitas/{visit}', [ClinicalVisitController::class, 'update'])->middleware('permission:editar clinico')->name('visits.update');
+        Route::post('visitas/{visit}/firmar', [ClinicalVisitController::class, 'sign'])->middleware('permission:clinico.firmar')->name('visits.sign');
+        Route::get('visitas/{visit}/enmendar', [ClinicalVisitController::class, 'createAmendment'])->middleware('permission:crear clinico')->name('visits.amend.create');
+        Route::post('visitas/{visit}/enmendar', [ClinicalVisitController::class, 'storeAmendment'])->middleware('permission:crear clinico')->name('visits.amend.store');
+
+        Route::post('visitas/{visit}/diagnosticos', [ClinicalDiagnosisController::class, 'store'])->middleware('permission:editar clinico')->name('diagnoses.store');
+        Route::post('diagnosticos/{diagnosis}/promover', [ClinicalDiagnosisController::class, 'promote'])->middleware('permission:editar clinico')->name('diagnoses.promote');
+
+        Route::post('visitas/{visit}/recetas', [ClinicalPrescriptionController::class, 'store'])->middleware('permission:editar clinico')->name('prescriptions.store');
+
+        Route::post('mascotas/{pet}/vacunas', [PetVaccinationController::class, 'store'])->middleware('permission:alergias.administrar')->name('vaccinations.store');
+        Route::put('mascotas/{pet}/vacunas/{vaccination}', [PetVaccinationController::class, 'update'])->middleware('permission:alergias.administrar')->name('vaccinations.update');
+        Route::delete('mascotas/{pet}/vacunas/{vaccination}', [PetVaccinationController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('vaccinations.destroy');
+
+        Route::post('mascotas/{pet}/alergias', [PetAllergyController::class, 'store'])->middleware('permission:alergias.administrar')->name('allergies.store');
+        Route::put('mascotas/{pet}/alergias/{allergy}', [PetAllergyController::class, 'update'])->middleware('permission:alergias.administrar')->name('allergies.update');
+        Route::delete('mascotas/{pet}/alergias/{allergy}', [PetAllergyController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('allergies.destroy');
+
+        Route::post('mascotas/{pet}/condiciones', [PetConditionController::class, 'store'])->middleware('permission:alergias.administrar')->name('conditions.store');
+        Route::put('mascotas/{pet}/condiciones/{condition}', [PetConditionController::class, 'update'])->middleware('permission:alergias.administrar')->name('conditions.update');
+        Route::delete('mascotas/{pet}/condiciones/{condition}', [PetConditionController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('conditions.destroy');
+    });
 
     Route::scopeBindings()->group(function () {
         Route::post('resources/{resource}/events', [ResourceEventController::class, 'store'])->name('resources.events.store');

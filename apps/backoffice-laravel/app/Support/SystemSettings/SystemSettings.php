@@ -535,6 +535,19 @@ class SystemSettings
                     ],
                 ],
             ],
+            'clinical' => [
+                'label' => 'Veterinaria (Expediente Clínico)',
+                'description' => 'Módulo de expediente clínico veterinario — otra área de negocio, independiente del spa/grooming/hotel. Se activa cuando el negocio veterinario esté listo para operar; mientras esté apagado, no aparece en la navegación ni se puede acceder a sus pantallas.',
+                'fields' => [
+                    'clinical_module_enabled' => [
+                        'label' => 'Módulo activo',
+                        'type' => 'boolean',
+                        'default' => false,
+                        'rules' => ['nullable', 'boolean'],
+                        'help' => 'Al activarlo aparece "Veterinaria" en la navegación (para quien tenga el permiso correspondiente). Las vacunas "core" (las que se advierten al agendar) se marcan directamente en el catálogo de Servicios (tipo "Vacuna" → casilla "Vacuna core"), no aquí.',
+                    ],
+                ],
+            ],
             'ai_assistant' => [
                 'label' => 'Asistente Virtual (Sitio Web)',
                 'description' => 'Chatbot de IA para responder preguntas sobre servicios en el sitio público (widget de WordPress). Es informativo, no toca CRM ni agenda.',

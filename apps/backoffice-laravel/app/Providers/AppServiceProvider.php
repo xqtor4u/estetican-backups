@@ -8,6 +8,10 @@ use App\Domain\Catalog\Contracts\ServiceCatalogRepositoryInterface;
 use App\Domain\Catalog\Contracts\ServiceCatalogServiceInterface;
 use App\Domain\Catalog\Repositories\ServiceCatalogRepository;
 use App\Domain\Catalog\Services\ServiceCatalogService;
+use App\Domain\Clinical\Contracts\ClinicalDiagnosisServiceInterface;
+use App\Domain\Clinical\Contracts\ClinicalVisitServiceInterface;
+use App\Domain\Clinical\Services\ClinicalDiagnosisService;
+use App\Domain\Clinical\Services\ClinicalVisitService;
 use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Commercial\Services\QuoteService;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
@@ -32,6 +36,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(AccountingServiceInterface::class, AccountingService::class);
         $this->app->bind(ServiceCatalogRepositoryInterface::class, ServiceCatalogRepository::class);
         $this->app->bind(ServiceCatalogServiceInterface::class, ServiceCatalogService::class);
+        $this->app->bind(ClinicalVisitServiceInterface::class, ClinicalVisitService::class);
+        $this->app->bind(ClinicalDiagnosisServiceInterface::class, ClinicalDiagnosisService::class);
     }
 
     /**

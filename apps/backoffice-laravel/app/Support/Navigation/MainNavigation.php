@@ -6,6 +6,7 @@ use App\Support\Navigation\Groups\CatalogsNavigation;
 use App\Support\Navigation\Groups\ClientsNavigation;
 use App\Support\Navigation\Groups\FinanzasNavigation;
 use App\Support\Navigation\Groups\OperationsNavigation;
+use App\Support\Navigation\Groups\VeterinariaNavigation;
 use App\Support\Navigation\Groups\WhatsAppNavigation;
 
 class MainNavigation
@@ -21,6 +22,7 @@ class MainNavigation
             CatalogsNavigation::group(),
             WhatsAppNavigation::group(),
             FinanzasNavigation::group(),
+            VeterinariaNavigation::group(),
         ];
     }
 
@@ -35,8 +37,10 @@ class MainNavigation
             $group['items'] = array_values(array_filter($group['items']));
             $group['active'] = collect($group['items'])->contains(fn ($item) => $item['active']);
         }
+        unset($group);
 
-        return $structure;
+        // Oculta grupos completos sin ningún item visible (ej. Veterinaria con el módulo apagado)
+        return array_values(array_filter($structure, fn ($group) => ! empty($group['items'])));
     }
 
     /**

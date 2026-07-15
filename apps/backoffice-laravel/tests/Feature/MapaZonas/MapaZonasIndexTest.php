@@ -31,7 +31,7 @@ class MapaZonasIndexTest extends TestCase
     {
         $branch = Branch::create(['code' => 'SUC01', 'name' => 'SucursalMapaTest', 'lat' => 19.111111, 'lng' => -99.111111, 'is_active' => true]);
 
-        $client = Client::create(['first_name' => 'ClienteMapaTest', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'ClienteMapaTest', 'apellido_paterno' => 'Ruiz']);
         Address::create(['client_id' => $client->id, 'type' => 'home', 'street' => 'Calle 1', 'city' => 'CDMX', 'country' => 'México', 'lat' => 19.222222, 'lng' => -99.222222]);
 
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'MascotaMapaTest', 'lat' => 19.333333, 'lng' => -99.333333]);
@@ -51,7 +51,7 @@ class MapaZonasIndexTest extends TestCase
     {
         Branch::create(['code' => 'SUC02', 'name' => 'SucursalSinCoords', 'is_active' => true]);
 
-        $client = Client::create(['first_name' => 'Cliente', 'last_name' => 'SinCoords']);
+        $client = Client::create(['first_name' => 'Cliente', 'apellido_paterno' => 'SinCoords']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'MascotaSinCoords']);
 
         $response = $this->actingAs($this->admin())->get(route('mapa-zonas.index'));

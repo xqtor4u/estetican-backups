@@ -21,6 +21,15 @@ class CatalogsNavigation
             ];
         }
 
+        if ($user?->can('ver catalogo_articulos') || $user?->is_super_admin) {
+            $items[] = [
+                'label' => 'Artículos',
+                'description' => 'Maestro de productos (marca, presentación, departamento) — fundación del futuro módulo de inventario.',
+                'route' => route('items.index'),
+                'active' => request()->routeIs('items.*'),
+            ];
+        }
+
         if ($user?->can('ver operadores') || $user?->is_super_admin) {
             $items[] = [
                 'label' => 'Operadores',
@@ -64,7 +73,7 @@ class CatalogsNavigation
 
         return [
             'label' => 'Catálogos',
-            'active' => request()->routeIs('services.*', 'operators.*', 'operator-roles.*', 'branches.*', 'users.*', 'activity-log.*'),
+            'active' => request()->routeIs('services.*', 'items.*', 'operators.*', 'operator-roles.*', 'branches.*', 'users.*', 'activity-log.*'),
             'items' => $items,
         ];
     }
@@ -79,6 +88,11 @@ class CatalogsNavigation
                 'label' => 'Servicios',
                 'route' => route('services.index'),
                 'active' => request()->routeIs('services.index', 'services.show'),
+            ],
+            [
+                'label' => 'Artículos',
+                'route' => route('items.index'),
+                'active' => request()->routeIs('items.*'),
             ],
             [
                 'label' => 'Operadores',

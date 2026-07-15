@@ -5,6 +5,7 @@ namespace Tests\Feature\WhatsApp;
 use App\Mail\TemplateMessageMail;
 use App\Models\Client;
 use App\Models\Pet;
+use App\Models\PetVaccination;
 use App\Models\RecurrenceMessage;
 use App\Models\Service;
 use App\Models\SpaBooking;
@@ -32,7 +33,7 @@ class RecurrenceMessageFlowTest extends TestCase
 
     private function petWithExecutedService(Service $service, string $executedAt, ?string $phone = '5512345678', ?string $email = null): Pet
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz', 'email' => $email]);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz', 'email' => $email]);
         if ($phone) {
             $client->phones()->create(['number' => $phone, 'type' => 'mobile']);
         }
@@ -271,6 +272,58 @@ class RecurrenceMessageFlowTest extends TestCase
         Mail::assertSent(TemplateMessageMail::class, function (TemplateMessageMail $mail) {
             return $mail->emailSubject === 'Le toca Baño a Luka' && $mail->hasTo('ana@example.com');
         });
+    }
+
+    public function test_overdue_vaccine_type_service_appears_using_pet_vaccinations_instead_of_spa_bookings(): void
+    {
+        $service = Service::create([
+            'code' => 'VAC01', 'name' => 'Vacuna Rabia', 'type' => 'vaccine',
+            'price' => 0, 'duration_minutes' => 10, 'recurrence_days' => 365, 'is_core_vaccine' => true,
+        ]);
+
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
+        $client->phones()->create(['number' => '5512345678', 'type' => 'mobile']);
+        $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
+
+        // Sin ninguna cita SPA — la vacuna se aplicó vía el módulo clínico, no vía spa_bookings.
+        PetVaccination::create([
+            'pet_id' => $pet->id,
+            'service_id' => $service->id,
+            'vaccine_name' => $service->name,
+            'applied_at' => now()->subDays(400),
+            'expires_at' => now()->subDays(35),
+        ]);
+
+        $response = $this->actingAs($this->admin())->get(route('whatsapp.recurrencias'));
+
+        $response->assertOk();
+        $response->assertSee($pet->name);
+        $response->assertSee('Vacuna Rabia');
+        $response->assertDontSee('No hay mascotas con servicio recurrente vencido');
+    }
+
+    public function test_vaccine_type_service_not_yet_due_does_not_appear(): void
+    {
+        $service = Service::create([
+            'code' => 'VAC02', 'name' => 'Vacuna Múltiple', 'type' => 'vaccine',
+            'price' => 0, 'duration_minutes' => 10, 'recurrence_days' => 365, 'is_core_vaccine' => true,
+        ]);
+
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
+        $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
+
+        PetVaccination::create([
+            'pet_id' => $pet->id,
+            'service_id' => $service->id,
+            'vaccine_name' => $service->name,
+            'applied_at' => now()->subDays(30),
+            'expires_at' => now()->addDays(335),
+        ]);
+
+        $response = $this->actingAs($this->admin())->get(route('whatsapp.recurrencias'));
+
+        $response->assertOk();
+        $response->assertSee('No hay mascotas con servicio recurrente vencido');
     }
 
     public function test_sending_by_email_fails_gracefully_when_client_has_no_email(): void

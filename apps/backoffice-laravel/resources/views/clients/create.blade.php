@@ -39,15 +39,19 @@
             </div>
 
             <div class="row g-3">
-                <div class="col-lg-4">
+                <div class="col-lg-3">
                     <label class="form-label small mb-1">Nombre <span class="text-danger">*</span></label>
                     <input type="text" name="first_name" value="{{ old('first_name') }}" class="form-control form-control-sm" required>
                 </div>
-                <div class="col-lg-4">
-                    <label class="form-label small mb-1">Apellido <span class="text-danger">*</span></label>
-                    <input type="text" name="last_name" value="{{ old('last_name') }}" class="form-control form-control-sm" required>
+                <div class="col-lg-3">
+                    <label class="form-label small mb-1">Apellido paterno <span class="text-danger">*</span></label>
+                    <input type="text" name="apellido_paterno" value="{{ old('apellido_paterno') }}" class="form-control form-control-sm" required>
                 </div>
-                <div class="col-lg-4">
+                <div class="col-lg-3">
+                    <label class="form-label small mb-1">Apellido materno <span class="text-secondary">(Opcional)</span></label>
+                    <input type="text" name="apellido_materno" value="{{ old('apellido_materno') }}" class="form-control form-control-sm">
+                </div>
+                <div class="col-lg-3">
                     <label class="form-label small mb-1">Email <span class="text-secondary">(Opcional)</span></label>
                     <input type="email" name="email" value="{{ old('email') }}" class="form-control form-control-sm">
                 </div>

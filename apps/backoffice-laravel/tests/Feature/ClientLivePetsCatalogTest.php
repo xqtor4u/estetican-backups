@@ -16,19 +16,19 @@ class ClientLivePetsCatalogTest extends TestCase
     {
         Client::create([
             'first_name' => 'Zoe',
-            'last_name' => 'Alvarez',
+            'apellido_paterno' => 'Alvarez',
             'email' => 'zoe@example.com',
         ]);
 
         Client::create([
             'first_name' => 'Ana',
-            'last_name' => 'Zuluaga',
+            'apellido_paterno' => 'Zuluaga',
             'email' => 'ana@example.com',
         ]);
 
         Client::create([
             'first_name' => 'Beto',
-            'last_name' => 'Mora',
+            'apellido_paterno' => 'Mora',
             'email' => 'beto@example.com',
         ]);
 
@@ -48,13 +48,13 @@ class ClientLivePetsCatalogTest extends TestCase
     {
         $client = Client::create([
             'first_name' => 'Rosa',
-            'last_name' => 'Diaz',
+            'apellido_paterno' => 'Diaz',
             'email' => 'rosa-split@example.com',
         ]);
 
         $response = $this->get(route('clients.index', [
             'view' => 'table',
-            'sort' => 'last_name',
+            'sort' => 'apellido_paterno',
             'direction' => 'asc',
         ]));
 
@@ -73,7 +73,7 @@ class ClientLivePetsCatalogTest extends TestCase
     {
         $client = Client::create([
             'first_name' => 'Rosa',
-            'last_name' => 'Diaz',
+            'apellido_paterno' => 'Diaz',
             'email' => 'rosa@example.com',
         ]);
 

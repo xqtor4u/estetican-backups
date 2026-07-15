@@ -12,7 +12,8 @@ class Client extends Model
     protected $fillable = [
         'lead_id',
         'first_name',
-        'last_name',
+        'apellido_paterno',
+        'apellido_materno',
         'email',
         'address',
         'city',
@@ -70,6 +71,11 @@ class Client extends Model
     public function bankLedgers()
     {
         return $this->hasMany(BankLedger::class);
+    }
+
+    public function getLastNameAttribute()
+    {
+        return trim("{$this->apellido_paterno} {$this->apellido_materno}");
     }
 
     public function getFullNameAttribute()

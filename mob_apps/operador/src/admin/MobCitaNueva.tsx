@@ -94,6 +94,7 @@ export function MobCitaNueva() {
   const [saved,       setSaved]       = useState(false);
   const [saveErr,     setSaveErr]     = useState<string | null>(null);
   const [coverageWarning, setCoverageWarning] = useState<string | null>(null);
+  const [vaccinationWarning, setVaccinationWarning] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   /* Refs para scroll a campos con error */
@@ -280,8 +281,10 @@ export function MobCitaNueva() {
 
       setSaved(true);
       if (data.coverage_warning) setCoverageWarning(data.coverage_warning);
-      // Esperar más si hay advertencia de cobertura, para que el operador la alcance a leer
-      setTimeout(() => navigate(`/mascotas/${pet!.id}`, { replace: true }), data.coverage_warning ? 4000 : 1500);
+      if (data.vaccination_warning) setVaccinationWarning(data.vaccination_warning);
+      // Esperar más si hay alguna advertencia, para que el operador la alcance a leer
+      const hasWarning = data.coverage_warning || data.vaccination_warning;
+      setTimeout(() => navigate(`/mascotas/${pet!.id}`, { replace: true }), hasWarning ? 4000 : 1500);
 
     } catch (err) {
       setSaveErr('No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.');
@@ -702,6 +705,20 @@ export function MobCitaNueva() {
             <p className="text-xs mt-0.5 opacity-90">{coverageWarning}</p>
           </div>
           <button onClick={() => setCoverageWarning(null)} className="shrink-0 p-1 rounded-full hover:bg-white/20">
+            <span className="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      )}
+
+      {/* ── Banner fijo: vacunas core no vigentes ─── */}
+      {vaccinationWarning && (
+        <div className="fixed bottom-32 left-4 right-4 z-40 bg-amber-500 text-white rounded-2xl px-4 py-3 flex items-start gap-2 shadow-lg">
+          <span className="material-symbols-outlined text-xl shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>vaccines</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold leading-tight">Vacunas pendientes</p>
+            <p className="text-xs mt-0.5 opacity-90">{vaccinationWarning}</p>
+          </div>
+          <button onClick={() => setVaccinationWarning(null)} className="shrink-0 p-1 rounded-full hover:bg-white/20">
             <span className="material-symbols-outlined text-base">close</span>
           </button>
         </div>

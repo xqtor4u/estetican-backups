@@ -15,6 +15,7 @@
 | **Agenda SPA** | `spa_bookings`, `spa_booking_services` |
 | **Presupuestos y cobro** | `quotes`, `quote_items`, `payments`, `cash_ledgers`, `bank_ledgers` |
 | **Módulo contable** | `accounts`, `payment_methods`, `document_series`, `documents`, `journal_entries`, `journal_entry_lines`, `cash_registers`, `cash_sessions`, `cash_movements` |
+| **Módulo Clínico Veterinario** (independiente, apagado por defecto — BL-046) | `clinical_visits`, `pet_weights`, `pet_allergies`, `pet_conditions`, `clinical_diagnoses`, `clinical_prescriptions`, `clinical_prescription_items`, `clinical_attachments`, `items` (BL-050, fundación del futuro inventario) |
 | **Ejecución** | `executed_services`, `executed_service_items` |
 | **Hotel** | `hotel_reservations`, `stays` |
 | **Recursos físicos** | `resources`, `resource_allocations`, `resource_photos`, `resource_events`, `resource_event_updates`, `resource_event_photos` |
@@ -143,7 +144,9 @@ Dueños o responsables de mascotas.
 | `id` | bigint PK | |
 | `lead_id` | FK → `leads` nullable | Origen de captación |
 | `first_name` | string | |
-| `last_name` | string nullable | |
+| `last_name` | string nullable | **Vestigial (BL-044)** — ya no se escribe, columna congelada con el valor previo a la atomización. `Client::getLastNameAttribute()` la recalcula desde `apellido_paterno`+`apellido_materno`; pendiente `drop` en limpieza futura una vez confirmado que nada más la lee directo por SQL |
+| `apellido_paterno` | string nullable | BL-044. Único apellido requerido en alta (web); origen real de `last_name`/`full_name` |
+| `apellido_materno` | string nullable | BL-044. Siempre opcional (convención mexicana) |
 | `phone` | string | Campo legacy; teléfonos reales en `phones` |
 | `email` | string nullable | |
 | `address` | string nullable | Campo legacy; direcciones reales en `addresses` |
@@ -263,15 +266,179 @@ Galería cronológica de fotos por mascota (bitácora visual).
 ---
 
 ### `pet_vaccinations`
-Registro de vacunas por mascota.
+Registro de vacunas por mascota. **Ya no está huérfana** (BL-046) — tiene modelo `PetVaccination`, CRUD en el módulo clínico (`Clinical/PetVaccinationController`) y por fin cumple el propósito original del comentario "Crítico: Control de acceso al Hotel" vía `VaccinationEligibilityChecker` (advertencia, no bloqueo — ver sección Módulo Clínico Veterinario).
+
+**BL-048:** cada vacuna es un `Service` del catálogo único (`type='vaccine'`) en vez de un catálogo aparte — ver `services.is_core_vaccine` más abajo y la nota en `recurrence_messages`. `vaccine_name` sigue existiendo pero ahora es un **snapshot automático** del nombre del servicio elegido (`Clinical/PetVaccinationController` lo llena solo) — ya no se teclea a mano, elimina el error de dedo.
+
+**BL-050:** `service_id` responde "¿qué tipo de vacuna es?" (para la recurrencia/recordatorio); `item_id` responde "¿qué producto/marca/presentación específico se usó?" — son conceptos distintos y complementarios (la misma "Vacuna Rabia" puede aplicarse con marcas/lotes distintos con el tiempo). `is_external` marca que **esta aplicación puntual** fue fuera de EstetiCAN (otro veterinario, campaña antirrábica) — se registra igual para que la mascota quede protegida y `VaccinationEligibilityChecker` no la marque como faltante, pero no implica ningún descuento de inventario ni cargo a cuenta (esas consecuencias no existen todavía — quedan listas para cuando exista BL-049). Es un flag propio de `pet_vaccinations`, distinto de `clinical_visits.is_external` — se puede registrar sin pasar por crear una visita completa.
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
 | `pet_id` | FK → `pets` | |
-| `vaccine_name` | string | Rabia, Múltiple, Bordetella, etc. |
+| `service_id` | FK → `services` nullable | BL-048 — el servicio tipo `vaccine` elegido; fuente real del nombre |
+| `item_id` | FK → `items` nullable | BL-050 — producto/marca/presentación específico usado |
+| `is_external` | boolean, default false | BL-050 — esta aplicación fue fuera de EstetiCAN (ver nota arriba) |
+| `vaccine_name` | string | Snapshot automático de `service.name` (BL-048) — no editable directo |
 | `applied_at` | date nullable | |
-| `expires_at` | date nullable | Crítico para control de acceso al Hotel |
+| `expires_at` | date nullable | Usado por `VaccinationEligibilityChecker` |
+| `notes` | text nullable | |
+| `lot_number` | string nullable | BL-046 — siempre a mano, el lote varía aunque el producto/marca sea el mismo |
+| `manufacturer` | string nullable | BL-046 — BL-050: se auto-llena desde `item.brand` si hay `item_id` y no se capturó a mano |
+| `administered_by_operator_id` | FK → `operators` nullable | BL-046 |
+| `clinical_visit_id` | FK → `clinical_visits` nullable | BL-046 — si se aplicó durante una consulta |
+| `dose_number` | integer nullable | BL-046 — ej. 1 de 3 en serie de cachorro |
+| `route` | enum nullable | `subcutaneous`/`intramuscular`/`intranasal`/`oral` — BL-046 |
+| `site` | string nullable | BL-046 |
+| `reaction_notes` | text nullable | BL-046 |
+| `timestamps` | | |
+
+---
+
+## Módulo Clínico Veterinario (BL-046 — independiente, apagado por defecto)
+
+Expediente clínico veterinario formato SOAP. **Módulo de negocio separado** del spa/grooming/hotel — activable vía `SystemSettings` (sección `clinical`, campo `clinical_module_enabled`, default `false`). Mientras esté apagado no aparece en la navegación, sus rutas responden 404 (`EnsureClinicalModuleEnabled` middleware), y `VaccinationEligibilityChecker` no advierte nada. Comparte identidad atómica con `clients`/`pets` (nunca duplica esos datos) y con el pool de `operators` (el veterinario es un operador más, `operator_role` nuevo `veterinario`). Controllers en `app/Http/Controllers/Clinical/`, vistas en `resources/views/clinical/`, dominio en `App\Domain\Clinical`.
+
+### `clinical_visits`
+Encabezado SOAP — tabla central del expediente. Inmutable tras firmarse (`status`: `draft`→`signed`→`amended`); corrección solo vía nota aclaratoria enlazada (nunca edición in-place, guardia en `ClinicalVisit::booted()`).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `pet_id` | FK → `pets` | |
+| `operator_id` | FK → `operators` (restrict) | Quien atiende |
+| `branch_id` | FK → `branches` nullable | |
+| `visit_type` | enum | `consultation`/`follow_up`/`emergency`/`pre_grooming_check`/`vaccination` |
+| `visited_at` | datetime | |
+| `reason_for_visit` | text | |
+| `subjective` | text nullable | Formato SOAP — Subjetivo |
+| `weight_kg`, `temperature_celsius`, `heart_rate_bpm`, `respiratory_rate_bpm`, `mucous_membranes`, `hydration_status`, `body_condition_score`, `objective_notes` | varios | Formato SOAP — Objetivo (signos semi-estructurados, escala de condición corporal WSAVA 1-9) |
+| `assessment` | text nullable | Formato SOAP — Evaluación |
+| `plan`, `follow_up_at` | text/date nullable | Formato SOAP — Plan |
+| `status` | enum | `draft`/`signed`/`amended` |
+| `signed_by_operator_id` | FK → `operators` nullable | Puede diferir de `operator_id` (ej. auxiliar captura, veterinario firma) |
+| `signed_at` | datetime nullable | |
+| `professional_license_snapshot` | string nullable | Copia congelada de `operators.professional_license` al firmar |
+| `amends_visit_id` | FK → `clinical_visits` (self) nullable | Enlaza la nota aclaratoria con la visita original |
+| `amendment_reason` | text nullable | |
+| `is_external` | boolean | Atención de un veterinario ajeno a EstetiCAN |
+| `external_provider_name`, `external_provider_license`, `external_clinic_name` | string nullable | Solo si `is_external` |
+| `external_status` | enum nullable | `pending_external_report`/`completed` — seguimiento manual, sin sync automática |
+| `timestamps` | | |
+
+### `pet_weights`
+Peso histórico — no solo de consultas veterinarias, también de check-in de grooming.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `pet_id` | FK → `pets` | |
+| `clinical_visit_id` | FK → `clinical_visits` nullable | Si vino de una visita SOAP (espejado automático por `ClinicalVisitService`) |
+| `weight_kg` | decimal(6,2) | |
+| `measured_at` | datetime | |
+| `recorded_by_operator_id` | FK → `operators` nullable | |
+| `source` | enum | `clinical_visit`/`grooming_checkin`/`manual` |
+| `notes` | text nullable | |
+| `timestamps` | | |
+
+### `pet_allergies`
+Alergias estructuradas (reemplaza el uso de `pet_medical_alerts.category = 'alergia'` como texto libre, para el módulo clínico — `pet_medical_alerts` sigue viva para la alerta rápida operativa).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `pet_id` | FK → `pets` | |
+| `allergen` | string | |
+| `allergen_type` | enum | `food`/`medication`/`environmental`/`flea_tick`/`other` |
+| `reaction_description` | text nullable | |
+| `severity` | enum | `mild`/`moderate`/`severe`/`anaphylaxis` |
+| `diagnosed_at` | date nullable | |
+| `is_active` | boolean | |
+| `medical_alert_id` | FK → `pet_medical_alerts` nullable | Espejo opcional hacia la alerta rápida |
+| `clinical_visit_id` | FK → `clinical_visits` nullable | |
+| `recorded_by_operator_id` | FK → `operators` nullable | |
+| `timestamps` | | |
+
+### `pet_conditions`
+Problem list / condiciones crónicas.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `pet_id` | FK → `pets` | |
+| `name` | string | |
+| `icd_code` | string nullable | Reservado, sin catálogo poblado aún |
+| `status` | enum | `active`/`controlled`/`resolved`/`chronic_monitoring` |
+| `onset_date`, `resolved_date` | date nullable | |
+| `promoted_from_diagnosis_id` | FK → `clinical_diagnoses` nullable | Si se creó promoviendo un diagnóstico puntual |
+| `notes` | text nullable | |
+| `medical_alert_id` | FK → `pet_medical_alerts` nullable | |
+| `timestamps` | | |
+
+### `clinical_diagnoses`
+Diagnósticos puntuales por visita, promovibles a `pet_conditions`.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `clinical_visit_id` | FK → `clinical_visits` | |
+| `pet_id` | FK → `pets` | Denormalizado para queries directas |
+| `diagnosis` | string | |
+| `diagnosis_type` | enum | `presumptive`/`definitive`/`differential`/`ruled_out` |
+| `icd_code` | string nullable | |
+| `notes` | text nullable | |
+| `promoted_to_condition_id` | FK → `pet_conditions` nullable | |
+| `timestamps` | | |
+
+### `clinical_prescriptions` / `clinical_prescription_items`
+Recetas — encabezado/líneas, mismo patrón que `executed_services`/`executed_service_items`.
+
+| Columna (`clinical_prescriptions`) | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `clinical_visit_id` | FK → `clinical_visits` | |
+| `pet_id` | FK → `pets` | |
+| `prescribed_by_operator_id` | FK → `operators` (restrict) | |
+| `prescribed_at` | datetime | |
+| `general_instructions` | text nullable | |
+
+| Columna (`clinical_prescription_items`) | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `clinical_prescription_id` | FK → `clinical_prescriptions` | |
+| `drug_name`, `concentration` | string | |
+| `dose`, `frequency` | string | |
+| `route` | enum | `oral`/`topical`/`subcutaneous`/`intramuscular`/`intravenous`/`ophthalmic`/`otic`/`other` |
+| `duration_days` | integer nullable | |
+| `special_instructions` | text nullable | |
+
+### `clinical_attachments`
+Adjuntos clínicos (laboratorio/imagenología) — tabla creada en Fase 1, **UI/upload real diferido a Fase 2** (generalizar `PetPhotoImageManager` para aceptar PDF).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `clinical_visit_id` | FK → `clinical_visits` nullable | |
+| `pet_id` | FK → `pets` | |
+| `attachment_type` | enum | `lab_result`/`xray`/`ultrasound`/`other_imaging`/`referral_letter`/`other` |
+| `file_path`, `file_mime_type` | string | |
+| `description` | text nullable | |
+| `performed_at` | date nullable | |
+| `performed_by` | string nullable | Laboratorio/clínica externa |
+| `uploaded_by_operator_id` | FK → `operators` nullable | |
+| `timestamps` | | |
+
+### `items` (BL-050)
+**Maestro de artículos — fundación atómica para el futuro módulo Tienda/Inventario (BL-049), sin funcionalidad de stock todavía.** A pedido explícito del usuario: en vez de esperar a diseñar el inventario completo para empezar a capturar productos, esta tabla ya existe con la identidad correcta (marca, presentación, departamento) para no tener que deshacer y rehacer el trabajo de vacunas cuando llegue el inventario real. **Deliberadamente sin columnas de existencia/cantidad/almacén** — eso lo agrega BL-049 cuando se diseñe, referenciando `items.id`, sin tocar este esquema. Primer consumidor real: `pet_vaccinations.item_id`. CRUD propio en Catálogos → Artículos (`app/Http/Controllers/ItemController.php`, permisos `ver/crear/editar/eliminar catalogo_articulos`), independiente del módulo clínico — la ficha de mascota solo consume el `<select>` y el alta rápida.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `name` | string | |
+| `department` | string nullable | "Farmacia", "Accesorios", etc. — texto libre con sugerencias, sin enum |
+| `brand` | string nullable | Marca |
+| `presentation` | string nullable | Ej. "Frasco 1 dosis", "Multidosis 10ml" |
+| `is_active` | boolean, default true | |
 | `notes` | text nullable | |
 | `timestamps` | | |
 
@@ -280,13 +447,14 @@ Registro de vacunas por mascota.
 ## Catálogo
 
 ### `services`
-Catálogo de servicios ofrecidos.
+Catálogo **único** de servicios ofrecidos — deliberadamente uno solo para todo (spa, hotel, vacunas, y lo que se agregue después: recogida a domicilio, revisión de salud, etc.), decisión explícita del usuario en BL-048 en vez de catálogos separados por tipo de negocio.
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
 | `code` | string unique | Ej. `SPA-0001`, `HOT-0001` |
-| `type` | string | `spa`, `hotel`, `extra`, `combo` |
+| `type` | string | `spa`, `hotel`, `extra`, `combo`, `vaccine` (BL-048) — sin enum en BD, solo convención de UI |
+| `department` | string nullable | BL-050 — "Farmacia", "Accesorios", etc., mismo espíritu que `items.department`, pensando en agrupar de cara al futuro inventario |
 | `operator_role_id` | FK → `operator_roles` nullable | Tipo de operador requerido |
 | `name` | string | |
 | `description` | text nullable | |
@@ -299,8 +467,11 @@ Catálogo de servicios ofrecidos.
 | `suggested_duration_minutes` | int nullable | |
 | `is_active` | boolean | |
 | `account_id` | bigint FK nullable | Cuenta de ingreso contable para este servicio (módulo contable) |
-| `recurrence_days` | unsigned smallint nullable | Días de recurrencia esperada (ej. 30 en "Baño"). Null = no aplica recordatorio periódico. Usado por la pantalla Recurrencias (BL-029) para detectar mascotas vencidas |
+| `recurrence_days` | unsigned smallint nullable | Días de recurrencia esperada (ej. 30 en "Baño", 365 en una vacuna anual). Null = no aplica recordatorio periódico. Usado por la pantalla Recurrencias (BL-029/BL-048) para detectar mascotas vencidas |
+| `is_core_vaccine` | boolean, default false | BL-048 — solo relevante si `type='vaccine'`. Marca cuáles vacunas exige `VaccinationEligibilityChecker` al agendar spa/hotel (advertencia, no bloqueo) |
 | `timestamps` | | |
+
+**Nota BL-048 (modelo operativo — servicios que intersectan módulos):** un servicio tipo `vaccine` se **aplica** vía el módulo de Veterinaria (`pet_vaccinations`, con `administered_by_operator_id`/`clinical_visit_id` — el evento completo, incluyendo quién la aplicó), no vía `spa_bookings`. Para que la misma pantalla de Recurrencias (pensada originalmente solo para servicios de spa) también cubra vacunas, `RecurrenceMessageController::lastServiceDatesByPet()` tiene una rama: si `service.type === 'vaccine'`, la "última vez" sale de `MAX(pet_vaccinations.applied_at)` en vez de `spa_bookings` completados. El resto del flujo (plantillas, `recurrence_messages`, envío wa.me/correo) es 100% el mismo, sin tabla ni pantalla nueva. La ficha de mascota (`pets/show.blade.php`) también refleja esto **informativamente** en spa/hotel (sección "Vacunación": nombre de vacuna + fechas + vigente/vencida) — sin mostrar quién la aplicó, ese detalle queda exclusivo de las pantallas `clinical/*`.
 
 ---
 
@@ -722,7 +893,7 @@ Log de recordatorios (WhatsApp manual vía `wa.me`, o correo real desde BL-040) 
 | `timestamps` | | |
 
 ### `recurrence_messages`
-Log de recordatorios (WhatsApp manual o correo real desde BL-040) enviados desde la pantalla **Recurrencias** (BL-029) — mascotas cuyo servicio periódico (`services.recurrence_days`) ya se cumplió desde su última ejecución. La "última ejecución" se calcula de `spa_bookings.scheduled_at` (`status = 'completed'`) vía `spa_booking_services.service_id`, **no** de `executed_services`/`executed_service_items` — esas tablas están huérfanas, ningún flujo real las llena (ver NT-020). Mismo patrón que `booking_messages` pero sin `spa_booking_id` (no hay cita asociada, es proactivo).
+Log de recordatorios (WhatsApp manual o correo real desde BL-040) enviados desde la pantalla **Recurrencias** (BL-029) — mascotas cuyo servicio periódico (`services.recurrence_days`) ya se cumplió desde su última ejecución. La "última ejecución" se calcula de `spa_bookings.scheduled_at` (`status = 'completed'`) vía `spa_booking_services.service_id` para servicios normales, **o** de `MAX(pet_vaccinations.applied_at)` para servicios `type='vaccine'` (BL-048, ver nota en `services`) — **no** de `executed_services`/`executed_service_items` — esas tablas están huérfanas, ningún flujo real las llena (ver NT-020). Mismo patrón que `booking_messages` pero sin `spa_booking_id` (no hay cita asociada, es proactivo).
 
 | Columna | Tipo | Notas |
 |---|---|---|

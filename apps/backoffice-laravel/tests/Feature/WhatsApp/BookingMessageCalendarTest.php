@@ -30,7 +30,7 @@ class BookingMessageCalendarTest extends TestCase
 
     private function petAndService(): array
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
         $service = Service::create(['code' => 'CAL01', 'name' => 'Baño', 'type' => 'spa', 'price' => 250, 'duration_minutes' => 60]);
 

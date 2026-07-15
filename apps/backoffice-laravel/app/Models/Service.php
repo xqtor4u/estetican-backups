@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'operator_role_id',
     'account_id',
     'type',
+    'department',
     'name',
     'description',
     'price',
@@ -23,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'lead_time_hours',
     'recurrence_days',
     'is_active',
+    'is_core_vaccine',
 ])]
 class Service extends Model
 {
@@ -38,6 +40,7 @@ class Service extends Model
             'recurrence_days' => 'integer',
             'is_active' => 'boolean',
             'requires_advance' => 'boolean',
+            'is_core_vaccine' => 'boolean',
         ];
     }
 

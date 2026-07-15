@@ -292,6 +292,16 @@ class RecurrenceMessageController extends Controller
      */
     private function lastServiceDatesByPet(Service $service): Collection
     {
+        if ($service->type === 'vaccine') {
+            return DB::table('pet_vaccinations')
+                ->where('service_id', $service->id)
+                ->whereNotNull('applied_at')
+                ->select('pet_id', DB::raw('MAX(applied_at) as last_at'))
+                ->groupBy('pet_id')
+                ->get()
+                ->mapWithKeys(fn ($row) => [$row->pet_id => Carbon::parse($row->last_at)]);
+        }
+
         return DB::table('spa_booking_services')
             ->join('spa_bookings', 'spa_bookings.id', '=', 'spa_booking_services.spa_booking_id')
             ->where('spa_booking_services.service_id', $service->id)

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
+use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Http\Controllers\Controller;
 use App\Models\Service;
@@ -19,7 +20,8 @@ class BookingController extends Controller
     public function __construct(
         private BusinessHours $businessHours,
         private OperatorAvailabilityChecker $operatorAvailabilityChecker,
-        private CoverageChecker $coverageChecker
+        private CoverageChecker $coverageChecker,
+        private VaccinationEligibilityChecker $vaccinationChecker
     ) {}
 
     /** Serializa una cita al formato que usa la app móvil */
@@ -27,7 +29,7 @@ class BookingController extends Controller
     {
         $b->loadMissing([
             'pet:id,name,species,breed,profile_photo_path,client_id',
-            'pet.client:id,first_name,last_name',
+            'pet.client:id,first_name,apellido_paterno,apellido_materno',
             'services.service:id,name,type,price,duration_minutes',
             'operator:id,full_name,profile_photo_path',
         ]);
@@ -131,11 +133,15 @@ class BookingController extends Controller
         }
 
         $coverageWarning = $this->coverageChecker->checkPet($booking->pet);
+        $vaccinationWarning = $this->vaccinationChecker->check($booking->pet);
 
         return response()->json([
             ...$this->serialize($booking),
             'coverage_warning' => $coverageWarning
                 ? "Esta mascota está a {$coverageWarning['distance_km']} km de {$coverageWarning['branch_name']}, fuera del radio de cobertura de {$coverageWarning['radius_km']} km."
+                : null,
+            'vaccination_warning' => $vaccinationWarning
+                ? 'Esta mascota no tiene vigente: '.implode(', ', $vaccinationWarning['missing_vaccines']).'.'
                 : null,
         ], 201);
     }

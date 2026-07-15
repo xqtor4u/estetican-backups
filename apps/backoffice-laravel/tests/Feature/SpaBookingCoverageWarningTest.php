@@ -49,7 +49,7 @@ class SpaBookingCoverageWarningTest extends TestCase
     public function test_flashes_a_warning_when_the_pet_is_outside_the_coverage_radius(): void
     {
         $this->branch();
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka', 'lat' => 19.4326, 'lng' => -99.1332]);
         $service = $this->service();
         $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);
@@ -68,7 +68,7 @@ class SpaBookingCoverageWarningTest extends TestCase
     public function test_does_not_flash_a_warning_when_the_pet_is_within_coverage(): void
     {
         $this->branch();
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka', 'lat' => 21.89, 'lng' => -102.29]);
         $service = $this->service();
         $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'full_name' => 'Jose', 'is_active' => true]);

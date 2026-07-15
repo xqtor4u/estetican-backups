@@ -55,6 +55,21 @@ class Operator extends Model
         return $this->hasMany(ExecutedService::class);
     }
 
+    public function clinicalVisitsAttended(): HasMany
+    {
+        return $this->hasMany(ClinicalVisit::class, 'operator_id');
+    }
+
+    public function clinicalVisitsSigned(): HasMany
+    {
+        return $this->hasMany(ClinicalVisit::class, 'signed_by_operator_id');
+    }
+
+    public function isVeterinario(): bool
+    {
+        return $this->operatorRole?->code === 'veterinario';
+    }
+
     public function roleAssignments(): HasMany
     {
         return $this->hasMany(OperatorRoleAssignment::class);

@@ -26,8 +26,12 @@
         <input type="text" name="first_name" value="{{ old('first_name', $client->first_name) }}" class="form-control form-control-sm" required>
     </div>
     <div class="mb-2">
-        <label class="form-label small mb-1">Apellido</label>
-        <input type="text" name="last_name" value="{{ old('last_name', $client->last_name) }}" class="form-control form-control-sm">
+        <label class="form-label small mb-1">Apellido paterno</label>
+        <input type="text" name="apellido_paterno" value="{{ old('apellido_paterno', $client->apellido_paterno) }}" class="form-control form-control-sm">
+    </div>
+    <div class="mb-2">
+        <label class="form-label small mb-1">Apellido materno</label>
+        <input type="text" name="apellido_materno" value="{{ old('apellido_materno', $client->apellido_materno) }}" class="form-control form-control-sm">
     </div>
     <div class="mb-3">
         <label class="form-label small mb-1">Email</label>

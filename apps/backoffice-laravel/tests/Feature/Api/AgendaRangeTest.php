@@ -40,7 +40,7 @@ class AgendaRangeTest extends TestCase
 
     private function booking(string $scheduledAt): SpaBooking
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
         $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Op Test', 'full_name' => 'Op Test', 'is_active' => true]);
 

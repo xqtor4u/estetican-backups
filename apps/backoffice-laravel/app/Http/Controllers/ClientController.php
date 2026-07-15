@@ -28,7 +28,7 @@ class ClientController extends Controller
         }
 
         $clients = Client::query()
-            ->select(['id', 'first_name', 'last_name', 'email'])
+            ->select(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'email'])
             ->with([
                 'addresses:id,client_id,type,street,exterior_number,interior_number,colonia,city,state,zip,country',
                 'phones:id,client_id,number,type',
@@ -45,7 +45,8 @@ class ClientController extends Controller
         if ($search !== '') {
             $clients->where(function ($query) use ($search) {
                 $query->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('apellido_paterno', 'like', "%{$search}%")
+                    ->orWhere('apellido_materno', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
                     ->orWhereHas('phones', function ($phoneQuery) use ($search) {
                         $phoneQuery->where('number', 'like', "%{$search}%");
@@ -69,20 +70,25 @@ class ClientController extends Controller
 
         if ($sort === 'name' || $sort === 'first_name') {
             $clients->orderBy('first_name', $direction)
-                ->orderBy('last_name', $direction);
+                ->orderBy('apellido_paterno', $direction)
+                ->orderBy('apellido_materno', $direction);
         } elseif ($sort === 'last_name') {
-            $clients->orderBy('last_name', $direction)
+            $clients->orderBy('apellido_paterno', $direction)
+                ->orderBy('apellido_materno', $direction)
                 ->orderBy('first_name', $direction);
         } elseif ($sort === 'email') {
             $clients->orderBy('email', $direction)
-                ->orderBy('last_name')
+                ->orderBy('apellido_paterno')
+                ->orderBy('apellido_materno')
                 ->orderBy('first_name');
         } elseif ($sort === 'pets') {
             $clients->orderBy('live_pets_count', $direction)
-                ->orderBy('last_name')
+                ->orderBy('apellido_paterno')
+                ->orderBy('apellido_materno')
                 ->orderBy('first_name');
         } else {
-            $clients->orderBy('last_name', $direction)
+            $clients->orderBy('apellido_paterno', $direction)
+                ->orderBy('apellido_materno', $direction)
                 ->orderBy('first_name', $direction);
         }
 
@@ -111,7 +117,8 @@ class ClientController extends Controller
     {
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
+            'apellido_paterno' => 'required|string|max:255',
+            'apellido_materno' => 'nullable|string|max:255',
 
             'email' => 'nullable|email|unique:clients,email',
             'next_action' => 'nullable|string|in:save,schedule_first_pet',
@@ -159,7 +166,7 @@ class ClientController extends Controller
                 ->withInput();
         }
 
-        $client = Client::create($request->only(['first_name', 'last_name', 'email', 'address', 'city', 'state', 'zip_code', 'notes']));
+        $client = Client::create($request->only(['first_name', 'apellido_paterno', 'apellido_materno', 'email', 'address', 'city', 'state', 'zip_code', 'notes']));
 
         if ($request->addresses) {
             foreach ($request->addresses as $addressData) {
@@ -238,7 +245,8 @@ class ClientController extends Controller
     {
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
-            'last_name' => 'nullable|string|max:255',
+            'apellido_paterno' => 'nullable|string|max:255',
+            'apellido_materno' => 'nullable|string|max:255',
             'email' => 'nullable|email|unique:clients,email,'.$client->id,
             'receives_offers' => 'nullable|boolean',
             'receives_service_reminders' => 'nullable|boolean',
@@ -282,7 +290,7 @@ class ClientController extends Controller
         }
 
         $client->update($request->only([
-            'first_name', 'last_name', 'email', 'address', 'city', 'state', 'zip_code', 'notes',
+            'first_name', 'apellido_paterno', 'apellido_materno', 'email', 'address', 'city', 'state', 'zip_code', 'notes',
             'receives_offers', 'receives_service_reminders', 'receives_job_updates',
             'receives_account_statements', 'receives_other_notifications',
         ]));

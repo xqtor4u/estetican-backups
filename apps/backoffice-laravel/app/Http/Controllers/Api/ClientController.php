@@ -17,7 +17,8 @@ class ClientController extends Controller
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name',  'like', "%{$search}%")
+                  ->orWhere('apellido_paterno', 'like', "%{$search}%")
+                  ->orWhere('apellido_materno', 'like', "%{$search}%")
                   ->orWhereHas('phones',  fn ($q) => $q->where('number', 'like', "%{$search}%"));
             });
         }
@@ -39,6 +40,8 @@ class ClientController extends Controller
             'id'         => $client->id,
             'first_name' => $client->first_name,
             'last_name'  => $client->last_name ?? '',
+            'apellido_paterno' => $client->apellido_paterno,
+            'apellido_materno' => $client->apellido_materno,
             'full_name'  => $client->full_name,
             'email'      => $client->email,
             'address'    => $client->address,
@@ -64,7 +67,8 @@ class ClientController extends Controller
     {
         $data = $request->validate([
             'first_name' => 'required|string|max:255',
-            'last_name'  => 'nullable|string|max:255',
+            'apellido_paterno' => 'nullable|string|max:255',
+            'apellido_materno' => 'nullable|string|max:255',
             'email'      => 'nullable|email|max:255',
             'phone'      => 'required|string|max:30',
             'address'    => 'nullable|string|max:255',
@@ -92,7 +96,8 @@ class ClientController extends Controller
     {
         $data = $request->validate([
             'first_name' => 'sometimes|required|string|max:255',
-            'last_name'  => 'sometimes|nullable|string|max:255',
+            'apellido_paterno' => 'sometimes|nullable|string|max:255',
+            'apellido_materno' => 'sometimes|nullable|string|max:255',
             'email'      => 'sometimes|nullable|email|max:255',
             'address'    => 'sometimes|nullable|string|max:255',
             'city'       => 'sometimes|nullable|string|max:255',

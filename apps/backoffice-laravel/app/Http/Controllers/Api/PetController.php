@@ -157,7 +157,8 @@ class PetController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('breed', 'like', "%{$search}%")
                   ->orWhereHas('client', fn ($q) => $q->where('first_name', 'like', "%{$search}%")
-                                                       ->orWhere('last_name', 'like', "%{$search}%"));
+                                                       ->orWhere('apellido_paterno', 'like', "%{$search}%")
+                                                       ->orWhere('apellido_materno', 'like', "%{$search}%"));
             });
         }
 

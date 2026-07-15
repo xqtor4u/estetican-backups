@@ -130,7 +130,7 @@ class HotelReservationResourceBlockingTest extends TestCase
     {
         $client = Client::create([
             'first_name' => 'Ana',
-            'last_name' => 'Lopez',
+            'apellido_paterno' => 'Lopez',
             'email' => $email,
         ]);
 

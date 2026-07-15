@@ -153,12 +153,14 @@ class ServiceController extends Controller
             'code' => ['nullable', 'string', 'max:255', Rule::unique('services', 'code')->ignore($service?->id)],
             'operator_role_id' => ['required', 'integer', Rule::exists('operator_roles', 'id')],
             'type' => 'required|string|max:255',
+            'department' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'suggested_price' => 'required|numeric|min:0',
             'suggested_duration_minutes' => 'required|integer|min:0',
             'recurrence_days' => 'nullable|integer|min:1',
             'is_active' => 'nullable|boolean',
+            'is_core_vaccine' => 'nullable|boolean',
         ];
     }
 
@@ -180,6 +182,7 @@ class ServiceController extends Controller
             'code' => $code,
             'operator_role_id' => (int) $validated['operator_role_id'],
             'type' => $validated['type'],
+            'department' => $validated['department'] ?? null,
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'price' => $suggestedPrice,
@@ -188,6 +191,7 @@ class ServiceController extends Controller
             'suggested_duration_minutes' => $suggestedDuration,
             'recurrence_days' => $validated['recurrence_days'] ?? null,
             'is_active' => !empty($validated['is_active']),
+            'is_core_vaccine' => !empty($validated['is_core_vaccine']),
         ];
     }
 

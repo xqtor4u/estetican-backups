@@ -225,7 +225,7 @@ class CashController extends Controller
                 ->when($until, fn ($q) => $q->where('cash_ledgers.created_at', '<=', $until))
                 ->select('cash_ledgers.id', 'cash_ledgers.created_at', 'cash_ledgers.amount',
                          'cash_ledgers.payment_method',
-                         \Illuminate\Support\Facades\DB::raw("CONCAT(clients.first_name,' ',clients.last_name) as client_name"))
+                         \Illuminate\Support\Facades\DB::raw("CONCAT_WS(' ', clients.first_name, clients.apellido_paterno, clients.apellido_materno) as client_name"))
                 ->get();
 
             $items = $items->concat($cashRows->map(fn ($r) => [
@@ -249,7 +249,7 @@ class CashController extends Controller
                 ->when($until, fn ($q) => $q->where('bank_ledgers.created_at', '<=', $until))
                 ->select('bank_ledgers.id', 'bank_ledgers.created_at', 'bank_ledgers.amount',
                          'bank_ledgers.payment_method',
-                         \Illuminate\Support\Facades\DB::raw("CONCAT(clients.first_name,' ',clients.last_name) as client_name"))
+                         \Illuminate\Support\Facades\DB::raw("CONCAT_WS(' ', clients.first_name, clients.apellido_paterno, clients.apellido_materno) as client_name"))
                 ->get();
 
             $items = $items->concat($bankRows->map(fn ($r) => [

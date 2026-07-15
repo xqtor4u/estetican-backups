@@ -39,7 +39,7 @@ class PhoneNormalizerTest extends TestCase
 
     public function test_prefers_mobile_phone_over_others(): void
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $client->phones()->create(['number' => '5511112222', 'type' => 'fixed']);
         $client->phones()->create(['number' => '5533334444', 'type' => 'mobile']);
 
@@ -48,7 +48,7 @@ class PhoneNormalizerTest extends TestCase
 
     public function test_falls_back_to_first_phone_when_no_mobile_registered(): void
     {
-        $client = Client::create(['first_name' => 'Beto', 'last_name' => 'Soto']);
+        $client = Client::create(['first_name' => 'Beto', 'apellido_paterno' => 'Soto']);
         $client->phones()->create(['number' => '5511112222', 'type' => 'fixed']);
 
         $this->assertSame('5511112222', PhoneNormalizer::bestPhoneFor($client->fresh(['phones'])));

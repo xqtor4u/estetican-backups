@@ -55,7 +55,7 @@ class PetController extends Controller
                     ->limit(1),
             ])
             ->with([
-                'client:id,first_name,last_name,email',
+                'client:id,first_name,apellido_paterno,apellido_materno,email',
                 'primaryPhoto',
                 'latestPhoto',
             ]);
@@ -67,7 +67,8 @@ class PetController extends Controller
                     ->orWhere('pets.species', 'like', "%{$search}%")
                     ->orWhereHas('client', function ($clientQuery) use ($search) {
                         $clientQuery->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('apellido_paterno', 'like', "%{$search}%")
+                            ->orWhere('apellido_materno', 'like', "%{$search}%")
                             ->orWhere('email', 'like', "%{$search}%");
                     });
             });
@@ -86,7 +87,8 @@ class PetController extends Controller
         if ($sort === 'client') {
             $pets->join('clients', 'clients.id', '=', 'pets.client_id')
                 ->orderBy('clients.first_name', $direction)
-                ->orderBy('clients.last_name', $direction)
+                ->orderBy('clients.apellido_paterno', $direction)
+                ->orderBy('clients.apellido_materno', $direction)
                 ->orderBy('pets.name');
         } elseif ($sort === 'species') {
             $pets->orderByRaw('case when pets.species is null or pets.species = "" then 1 else 0 end')
@@ -197,15 +199,21 @@ class PetController extends Controller
                 ->orderByDesc('taken_at')
                 ->latest(),
             'spaBookings' => fn ($query) => $query
-                ->with(['services.service:id,code,name,type,suggested_duration_minutes', 'pet.client:id,first_name,last_name'])
+                ->with(['services.service:id,code,name,type,suggested_duration_minutes', 'pet.client:id,first_name,apellido_paterno,apellido_materno'])
                 ->where('scheduled_at', '>=', now()->startOfDay())
                 ->orderBy('scheduled_at')
                 ->limit(5),
         ]);
 
-        $allClients = Client::orderBy('first_name')->orderBy('last_name')->get(['id', 'first_name', 'last_name', 'email']);
+        $clinicalModuleEnabled = (bool) app(\App\Support\SystemSettings\SystemSettings::class)->all()['clinical_module_enabled'];
 
-        return view('pets.show', compact('client', 'pet', 'isRootView', 'returnViewMode', 'allClients'));
+        if ($clinicalModuleEnabled) {
+            $pet->load(['vaccinations' => fn ($query) => $query->with('service:id,name')->orderByDesc('expires_at')]);
+        }
+
+        $allClients = Client::orderBy('first_name')->orderBy('apellido_paterno')->orderBy('apellido_materno')->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'email']);
+
+        return view('pets.show', compact('client', 'pet', 'isRootView', 'returnViewMode', 'allClients', 'clinicalModuleEnabled'));
     }
 
     public function destroy(Request $request, Pet $pet)

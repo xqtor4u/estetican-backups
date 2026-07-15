@@ -94,7 +94,7 @@ class TeamPanelTest extends TestCase
             'checked_in_at' => now()->subHour(),
         ]);
 
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Max']);
 
         SpaBooking::create([

@@ -32,7 +32,7 @@ class CoverageCheckerTest extends TestCase
 
     private function petWithoutClientAddress(): Pet
     {
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
 
         return Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
     }
@@ -80,7 +80,7 @@ class CoverageCheckerTest extends TestCase
     public function test_falls_back_to_the_client_address_when_the_pet_has_no_coordinates(): void
     {
         $this->branch();
-        $client = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         Address::create([
             'client_id' => $client->id,
             'type' => 'home',

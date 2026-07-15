@@ -873,3 +873,36 @@ El editor de WordPress usado en este sitio le aplica `wpautop()` (el filtro que 
 **Fix definitivo:** sacar toda la lógica del campo JS del editor por completo. En su lugar, el bloque HTML incluye una única etiqueta `<script src="https://app.estetican.org/assistant-widget-wp.js" data-api-base="..." data-token="..." async></script>` **sin ningún texto entre la apertura y el cierre** — toda la configuración va en atributos `data-*`, no en el cuerpo. Como `wpautop` solo puede corromper *contenido de texto*, una etiqueta vacía con atributos es inmune sin importar cuántos `<p>` sueltos le agregue alrededor (son inofensivos fuera del cuerpo del script). La lógica real vive en `apps/backoffice-laravel/public/assistant-widget-wp.js` — un asset estático servido directo por Laravel, nunca pasa por el editor de WordPress ni por ningún filtro de contenido. El bloque JS del editor queda vacío.
 
 **Lección:** (1) cuando un comportamiento en producción no tiene explicación obvia, bajar el HTML real servido (`curl`) y comparar contra lo que se pegó — no asumir que "se guardó tal cual"; los CMS con editores de contenido casi siempre tienen algún filtro de formato activo que puede alterar código pegado como si fuera texto; (2) quitar líneas en blanco reduce pero **no elimina** el riesgo de un filtro tipo `wpautop` — el único blindaje real contra corrupción de contenido de texto es no depender de contenido de texto: usar atributos de etiqueta (`data-*`, `src`) en vez de cuerpo inline cuando el canal de entrega no es 100% confiable; (3) mismo patrón que NT-031 en el fondo — cuando una plataforma externa (WordPress, Meta, lo que sea) no da garantías sobre cómo transporta contenido, diseñar para que ese contenido sea trivial (vacío o solo atributos) en vez de intentar que sobreviva intacto.
+
+## NT-033 — `ClinicalVisit::sign()` no firmaba nada, sin ningún error visible (BL-046)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 14/07/2026 |
+| **Severidad** | P1 — el flujo de firma completo era inoperante, sin ninguna excepción ni mensaje de error |
+| **Componente** | `app/Models/ClinicalVisit.php` (`#[Fillable]`), `app/Domain/Clinical/Services/ClinicalVisitService.php` |
+| **Impacto** | Solo el módulo clínico (Fase 1, aún sin activar en producción) — detectado en pruebas antes de dar por cerrada la tarea |
+
+**Síntoma:** `ClinicalVisitService::sign()` corría sin lanzar ninguna excepción (las 4 validaciones de permiso/rol/cédula pasaban correctamente), pero al releer la visita de la BD seguía en `status = 'draft'`, sin `signed_at` ni `professional_license_snapshot`.
+
+**Diagnóstico:** `$visit->update(['status' => 'signed', 'signed_by_operator_id' => ..., 'signed_at' => ..., 'professional_license_snapshot' => ...])` — ninguno de esos 4 campos estaba en el `#[Fillable([...])]` del modelo. Eloquent, por defecto, **no lanza excepción** cuando `update()`/`create()` recibe claves fuera de `$fillable` — simplemente las descarta en silencio de la asignación masiva. El resto de la lógica (guardas, permisos) funcionaba perfecto; el bug estaba en que la escritura final nunca llegaba a tocar esas columnas.
+
+**Fix:** agregar `status`, `signed_by_operator_id`, `signed_at`, `professional_license_snapshot` al `#[Fillable]` de `ClinicalVisit`. El control de acceso real sigue viviendo en `ClinicalVisitService` (único punto de entrada de escritura para el dominio) — el fillable no reintroduce riesgo porque ningún controller llama `update()` con input crudo del usuario sobre estos campos.
+
+**Lección:** cuando un `update()`/`create()` con claves fuera de `$fillable` no lanza error visible, el síntoma es exactamente este — "corrió sin fallar, pero no cambió nada". Al depurar un guardado que "no hace nada" sin excepción, **lo primero** a revisar es si todas las claves del array pasado están en `$fillable`/`#[Fillable]`, antes de sospechar de lógica de negocio más compleja. Detectado en este caso ejecutando el flujo completo dentro de una transacción de prueba revertida contra datos reales de producción (`DB::transaction` + `throw` intencional al final) — sin ese tipo de prueba end-to-end, este bug hubiera llegado a producción intacto pese a que la suite de tests unitarios (que sí usaba `$fillable` correctamente en sus propios asserts) no lo detectó hasta que se escribió expresamente para probar la firma.
+
+## NT-034 — Bandera de bypass de guardia (`allowLockedStatusTransition`) quedaba pegada en `true` tras usarse una vez (BL-046)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 14/07/2026 |
+| **Severidad** | P2 — solo relevante si el mismo objeto PHP se reutiliza tras una enmienda dentro del mismo request (no reproducible cruzando requests HTTP reales) |
+| **Componente** | `app/Domain/Clinical/Services/ClinicalVisitService.php::createAmendment()` |
+
+**Síntoma:** tras crear una nota aclaratoria sobre una visita firmada (`$original->status = 'amended'` vía bypass del guard de inmutabilidad), el mismo objeto `$original` en memoria seguía aceptando ediciones adicionales sin lanzar `ClinicalVisitLockedException`, pese a que el guard del modelo revisa `getOriginal('status')`.
+
+**Diagnóstico:** `allowLockedStatusTransition` es una propiedad pública en memoria (no una columna de BD), usada como bandera de un solo uso para permitir la transición `signed → amended` sin disparar el guard de `saving`. Se seteaba a `true` antes de guardar, pero **nunca se regresaba a `false`** después — el objeto PHP (no la fila de BD) quedaba permanentemente desbloqueado mientras esa instancia siguiera viva. `refresh()` no resetea propiedades públicas que no son atributos de Eloquent, así que ni siquiera releer el modelo lo corregía.
+
+**Fix:** `$original->allowLockedStatusTransition = false;` inmediatamente después de `$original->save()` dentro de `createAmendment()`.
+
+**Lección:** cualquier bandera de bypass de un guard debe resetearse explícitamente justo después de la operación que la necesitó, en el mismo método — nunca asumir que un `refresh()`/`fresh()` posterior la va a limpiar, porque esos métodos solo tocan atributos respaldados por columnas de BD, no propiedades públicas normales de PHP.

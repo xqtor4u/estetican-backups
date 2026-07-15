@@ -26,8 +26,8 @@ class PetOwnerReassignmentTest extends TestCase
 
     public function test_pet_show_page_renders_the_change_owner_button(): void
     {
-        $owner = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
-        $otherClient = Client::create(['first_name' => 'Beto', 'last_name' => 'Soto']);
+        $owner = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
+        $otherClient = Client::create(['first_name' => 'Beto', 'apellido_paterno' => 'Soto']);
         $pet = Pet::create(['client_id' => $owner->id, 'name' => 'Luka']);
 
         $this->actingAs($this->admin())
@@ -39,8 +39,8 @@ class PetOwnerReassignmentTest extends TestCase
 
     public function test_reassigns_pet_to_a_different_client(): void
     {
-        $originalOwner = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
-        $newOwner = Client::create(['first_name' => 'Beto', 'last_name' => 'Soto']);
+        $originalOwner = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
+        $newOwner = Client::create(['first_name' => 'Beto', 'apellido_paterno' => 'Soto']);
         $pet = Pet::create(['client_id' => $originalOwner->id, 'name' => 'Luka']);
 
         $response = $this->actingAs($this->admin())
@@ -52,7 +52,7 @@ class PetOwnerReassignmentTest extends TestCase
 
     public function test_rejects_a_client_id_that_does_not_exist(): void
     {
-        $owner = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $owner = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $owner->id, 'name' => 'Luka']);
 
         $response = $this->actingAs($this->admin())
@@ -64,7 +64,7 @@ class PetOwnerReassignmentTest extends TestCase
 
     public function test_keeps_owner_when_the_same_client_is_submitted(): void
     {
-        $owner = Client::create(['first_name' => 'Ana', 'last_name' => 'Ruiz']);
+        $owner = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $owner->id, 'name' => 'Luka']);
 
         $response = $this->actingAs($this->admin())

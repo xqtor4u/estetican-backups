@@ -22,7 +22,7 @@ class PetDependenciesCrudTest extends TestCase
     {
         $client = Client::create([
             'first_name' => 'Ana',
-            'last_name' => 'Lopez',
+            'apellido_paterno' => 'Lopez',
             'email' => 'ana@example.com',
         ]);
 
@@ -50,7 +50,7 @@ class PetDependenciesCrudTest extends TestCase
     {
         $client = Client::create([
             'first_name' => 'Ana',
-            'last_name' => 'Lopez',
+            'apellido_paterno' => 'Lopez',
             'email' => 'ana-core@example.com',
         ]);
 
@@ -91,7 +91,7 @@ class PetDependenciesCrudTest extends TestCase
 
         $client = Client::create([
             'first_name' => 'Ana',
-            'last_name' => 'Lopez',
+            'apellido_paterno' => 'Lopez',
             'email' => 'ana2@example.com',
         ]);
 
@@ -212,7 +212,7 @@ class PetDependenciesCrudTest extends TestCase
 
         $client = Client::create([
             'first_name' => 'Laura',
-            'last_name' => 'Mendez',
+            'apellido_paterno' => 'Mendez',
             'email' => 'laura@example.com',
         ]);
 

@@ -40,7 +40,7 @@ class ResourceEventCrudTest extends TestCase
         ]);
         $client = Client::create([
             'first_name' => 'Ana',
-            'last_name' => 'Lopez',
+            'apellido_paterno' => 'Lopez',
             'email' => 'ana-resource@example.com',
         ]);
         $pet = Pet::create([

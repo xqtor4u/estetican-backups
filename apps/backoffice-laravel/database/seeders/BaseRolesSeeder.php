@@ -22,6 +22,7 @@ class BaseRolesSeeder extends Seeder
         $modules = [
             'agenda',
             'catalogo_servicios',
+            'catalogo_articulos',
             'clientes',
             'configuracion_sistema',
             'hotel',
@@ -30,6 +31,7 @@ class BaseRolesSeeder extends Seeder
             'sucursales',
             'usuarios',
             'whatsapp',
+            'clinico',
         ];
 
         $actions = ['ver', 'crear', 'editar', 'eliminar'];
@@ -41,15 +43,17 @@ class BaseRolesSeeder extends Seeder
             }
         }
 
-        // Permisos granulares del módulo financiero
-        $financialPermissions = [
+        // Permisos granulares fuera del patrón CRUD básico
+        $granularPermissions = [
             'cobros.registrar',
             'caja.abrir',
             'caja.cerrar',
             'asientos.aprobar',
+            'clinico.firmar',
+            'alergias.administrar',
         ];
 
-        $permissions = array_merge($permissions, $financialPermissions);
+        $permissions = array_merge($permissions, $granularPermissions);
 
         // 2. Crear/Asegurar Permisos
         foreach ($permissions as $permission) {

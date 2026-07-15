@@ -101,9 +101,11 @@ docker exec estetican_app php artisan permission:cache-reset
 
 ## Respaldo de base de datos
 
+> Los comandos de esta sección usan `$DB_ROOT_PASSWORD` — antes de correrlos, exporta la variable con el valor real (ver "Notas importantes" más abajo sobre dónde vive esa contraseña): `export DB_ROOT_PASSWORD='...'`
+
 **Desde la OPi (manual):**
 ```bash
-docker exec estetican_mysql mysqldump -u root -pEstetiCAN2026 estetican > /opt/www/estetican/backups/estetican_$(date +%Y%m%d_%H%M).sql
+docker exec estetican_mysql mysqldump -u root -p"$DB_ROOT_PASSWORD" estetican > /opt/www/estetican/backups/estetican_$(date +%Y%m%d_%H%M).sql
 ```
 
 **Desde WSL hacia la OPi (reemplaza la BD en OPi con la de desarrollo):**
@@ -117,7 +119,7 @@ cd /home/tomas/EstetiCAN_2/apps/backoffice-laravel
 scp /tmp/estetican.sql tomas@192.168.100.250:/opt/www/estetican/apps/backoffice-laravel/
 
 # 3. Importar en OPi (vía PuTTY)
-docker exec -i estetican_mysql mysql -u root -pEstetiCAN2026 estetican < /opt/www/estetican/apps/backoffice-laravel/estetican.sql
+docker exec -i estetican_mysql mysql -u root -p"$DB_ROOT_PASSWORD" estetican < /opt/www/estetican/apps/backoffice-laravel/estetican.sql
 ```
 
 ---
@@ -125,7 +127,7 @@ docker exec -i estetican_mysql mysql -u root -pEstetiCAN2026 estetican < /opt/ww
 ## Restaurar respaldo
 
 ```bash
-docker exec -i estetican_mysql mysql -u root -pEstetiCAN2026 estetican < /ruta/al/backup.sql
+docker exec -i estetican_mysql mysql -u root -p"$DB_ROOT_PASSWORD" estetican < /ruta/al/backup.sql
 ```
 
 ---
@@ -177,14 +179,14 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 | Error de vista / variable undefined | Borrar vistas compiladas: `docker exec estetican_app find /var/www/html/storage/framework/views -name "*.php" -delete` |
 | Error 403 en rutas protegidas | `docker exec estetican_app php artisan permission:cache-reset` |
 | Cambios de código no se reflejan | Borrar vistas compiladas + `docker restart estetican_app` |
-| BD no conecta | `docker exec estetican_mysql mysqladmin ping -u root -pEstetiCAN2026` |
+| BD no conecta | `docker exec estetican_mysql mysqladmin ping -u root -p"$DB_ROOT_PASSWORD"` (exporta la variable primero, ver "Notas importantes") |
 | Loop de redirecciones en el dominio | Verificar que "Force SSL" esté **desactivado** en NPM para `app.estetican.org` |
 
 ---
 
 ## Notas importantes
 
-- **DB_PASSWORD en producción:** `EstetiCAN2026` (sin símbolos especiales — Docker Compose los interpreta como variables)
+- **DB_PASSWORD en producción:** no vive en este repo — está en las notas personales del usuario ("Estetican Notas.txt", junto con las demás API keys y contraseñas de admin). Coincide con el `DB_PASSWORD` real de `apps/backoffice-laravel/.env` (sin símbolos especiales — Docker Compose los interpreta como variables)
 - **`proxy_net`** es una red Docker externa creada por NPM — nunca la borres con `down -v`
 - **Force SSL en NPM debe estar DESACTIVADO** — Cloudflare Tunnel ya maneja HTTPS
 - Los assets compilados (`public/build/`) están en el repo — no se necesita npm en la OPi
