@@ -954,3 +954,19 @@ Verificado con `php artisan route:list --name=items.store -vv` — el middleware
 **Fix:** migración adicional (`2026_07_14_000019_make_full_name_nullable_on_operators_table.php`) que corre `$table->string('full_name')->nullable()->change()` **antes** de dar por buena la atomización.
 
 **Lección:** antes de asumir que "nullable + accessor + backfill" basta para atomizar un campo, correr `SHOW COLUMNS FROM {tabla}` (o revisar la migración original de la columna) para confirmar que de verdad es `NULL`-able. Si es `NOT NULL` sin default, hace falta una migración extra para relajarla — y correr la suite completa *antes* de tocar producción es lo que expone esto rápido (68 fallas de golpe vs. el baseline de 37 es una señal inequívoca de que algo estructural se rompió, no solo tests desactualizados).
+
+## NT-037 — `CLAUDE.md` decía PHP 8.3 + SQLite en tests; producción real corre PHP 8.5 sobre MySQL
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 16/07/2026 |
+| **Severidad** | P3 — no rompe nada en producción, pero cualquier decisión tomada confiando en la documentación (ej. elegir una imagen Docker por versión de PHP, o intentar correr la suite contra SQLite) falla de forma confusa |
+| **Componente** | `CLAUDE.md` (secciones "Architecture → Stack" y "Testing & Linting"), imagen `estetican/app:prod` |
+
+**Síntoma:** al clonar el motor de EstetiCAN para un proyecto externo (Zeus-Estetican, sandbox de tenant "Huellitas" — ver su `docs/tecnico/NOTAS_TECNICAS.md` NT-005/NT-006) y seguir la documentación al pie de la letra ("PHP 8.3+", "tests en SQLite en memoria"), dos cosas fallaron: `composer` exigió PHP ≥8.4 real (no 8.3), y la migración `2026_03_20_000003_cleanup_phones_table` (`DROP COLUMN` sobre una columna polimórfica) truena en SQLite (`no such column` tras el drop) porque Laravel emula `DROP COLUMN` recreando la tabla completa, y esa recreación tropieza con un índice relacionado que SQLite no reconcilia solo.
+
+**Diagnóstico:** `docker exec estetican_app php -v` confirma **PHP 8.5.6** real en producción — la imagen `estetican/app:prod` se actualizó en algún punto sin que `CLAUDE.md` se actualizara junto. Y `docker exec estetican_app grep DB_CONNECTION .env` confirma `mysql`, no sqlite — los tests corren contra una BD `testing` en el mismo servidor MySQL, nunca contra SQLite; el texto original de la doc probablemente describía una intención inicial del proyecto que quedó obsoleta apenas se empezaron a escribir migraciones con `DROP COLUMN` sobre columnas polimórficas (MySQL soporta `DROP COLUMN` nativo sin tocar índices relacionados; SQLite no).
+
+**Fix:** `CLAUDE.md` corregido — Stack dice PHP 8.5 (con nota de por qué cambió), Testing dice MySQL explícitamente con la incompatibilidad de SQLite documentada.
+
+**Lección:** cuando otro proyecto (o una sesión futura) necesite tratar a EstetiCAN como una "caja negra" reproducible (clonarlo, migrarlo desde cero en un entorno nuevo), es la prueba de fuego real de si la documentación de stack sigue vigente — verificar versión real (`php -v` dentro del contenedor) y motor de BD real (`.env`) antes de confiar en lo escrito, sobre todo en proyectos que llevan meses en producción y pudieron actualizarse sin que alguien tocara `CLAUDE.md` a la par.

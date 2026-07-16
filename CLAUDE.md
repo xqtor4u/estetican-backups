@@ -101,12 +101,12 @@ Assets compile via Vite. If npm is resolved to Windows binaries from WSL, compil
 ./vendor/bin/sail php vendor/bin/pint --test      # dry run
 ```
 
-Tests use an in-memory SQLite database (`DB_DATABASE=testing`).
+Tests use a MySQL database named `testing` (`DB_DATABASE=testing`, same `DB_CONNECTION=mysql` as production) — **not SQLite** despite what this doc said until 16/07/2026. Confirmed real incompatibility: migration `2026_03_20_000003_cleanup_phones_table` (`DROP COLUMN` on a polymorphic column) fails on SQLite because Laravel emulates `DROP COLUMN` by recreating the table, which trips on a related index — MySQL supports native `DROP COLUMN` without this issue. Don't attempt to run this suite against SQLite.
 
 ## Architecture
 
 ### Stack
-- **Backend:** Laravel 13 / PHP 8.3+
+- **Backend:** Laravel 13 / PHP 8.5 (imagen `estetican/app:prod`; se documentaba como "8.3+" hasta el 16/07/2026 — quedó desactualizado desde que se actualizó la imagen sin tocar este archivo, ver NT-005 en Zeus-Estetican)
 - **Database:** MySQL 8.4 (Docker volume)
 - **Frontend:** Blade + Alpine.js 3.x + Bootstrap 5.3 + Tailwind CSS 4
 - **Assets:** Vite via `laravel-vite-plugin`
