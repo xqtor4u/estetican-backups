@@ -107,4 +107,48 @@ class ItemTest extends TestCase
             'is_external' => true,
         ]);
     }
+
+    public function test_applying_a_vaccination_with_an_item_consumes_one_unit_of_stock(): void
+    {
+        app(SystemSettings::class)->saveFields('clinical', ['clinical_module_enabled' => true]);
+        $pet = $this->pet();
+        $service = $this->vaccineService();
+        $item = Item::create(['name' => 'Vacuna Antirrábica', 'brand' => 'Nobivac']);
+        app(\App\Domain\Inventory\Contracts\ItemMovementServiceInterface::class)
+            ->record(itemId: $item->id, type: 'entrada', quantity: 5);
+
+        $this->actingAs($this->admin())->post(route('clinical.vaccinations.store', $pet), [
+            'service_id' => $service->id,
+            'item_id' => $item->id,
+        ]);
+
+        $this->assertSame(4, $item->fresh()->stock_quantity);
+        $vaccination = \App\Models\PetVaccination::where('pet_id', $pet->id)->firstOrFail();
+        $this->assertDatabaseHas('item_movements', [
+            'item_id' => $item->id,
+            'type' => 'consumo_servicio',
+            'quantity' => -1,
+            'reference_type' => \App\Models\PetVaccination::class,
+            'reference_id' => $vaccination->id,
+        ]);
+    }
+
+    public function test_applying_an_external_vaccination_with_an_item_does_not_consume_stock(): void
+    {
+        app(SystemSettings::class)->saveFields('clinical', ['clinical_module_enabled' => true]);
+        $pet = $this->pet();
+        $service = $this->vaccineService();
+        $item = Item::create(['name' => 'Vacuna Antirrábica', 'brand' => 'Nobivac']);
+        app(\App\Domain\Inventory\Contracts\ItemMovementServiceInterface::class)
+            ->record(itemId: $item->id, type: 'entrada', quantity: 5);
+
+        $this->actingAs($this->admin())->post(route('clinical.vaccinations.store', $pet), [
+            'service_id' => $service->id,
+            'item_id' => $item->id,
+            'is_external' => '1',
+        ]);
+
+        $this->assertSame(5, $item->fresh()->stock_quantity);
+        $this->assertDatabaseMissing('item_movements', ['type' => 'consumo_servicio']);
+    }
 }

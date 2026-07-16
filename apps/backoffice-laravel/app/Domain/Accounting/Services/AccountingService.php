@@ -220,7 +220,7 @@ class AccountingService implements AccountingServiceInterface
 
     /**
      * Construye las líneas de débito agrupando por cuenta contable.
-     * Si un servicio no tiene cuenta asignada usa la cuenta de respaldo 4900.
+     * Si un servicio/artículo no tiene cuenta asignada usa la cuenta de respaldo 4900.
      */
     private function buildDebitLines(JournalEntry $entry, Quote $quote, float $totalAmount): void
     {
@@ -230,14 +230,14 @@ class AccountingService implements AccountingServiceInterface
         $byAccount = [];
 
         foreach ($quote->items as $item) {
-            $accountId = $item->service->account_id ?? $fallback?->id;
+            $accountId = $item->service?->account_id ?? $item->item?->account_id ?? $fallback?->id;
 
             if (! $accountId) {
                 throw new RuntimeException('No hay cuenta contable de respaldo (4900). Ejecuta el seeder de cuentas.');
             }
 
-            $price = $item->price_override ?? $item->service->suggested_price ?? $item->service->price;
-            $byAccount[$accountId] = ($byAccount[$accountId] ?? 0) + (float) $price;
+            $price = $item->price_override ?? $item->service?->suggested_price ?? $item->service?->price ?? $item->item?->price ?? 0;
+            $byAccount[$accountId] = ($byAccount[$accountId] ?? 0) + ((float) $price * (float) $item->quantity);
         }
 
         // Si el total calculado por items no cuadra con el monto cobrado (anticipo parcial),
@@ -276,7 +276,7 @@ class AccountingService implements AccountingServiceInterface
         $fallback  = Account::where('code', self::FALLBACK_INCOME_CODE)->first();
         $byAccount = [];
 
-        $booking->load('services.service');
+        $booking->load('services.service', 'items.item');
 
         foreach ($booking->services as $bookingService) {
             $accountId = $bookingService->service?->account_id ?? $fallback?->id;
@@ -286,6 +286,17 @@ class AccountingService implements AccountingServiceInterface
             }
 
             $price = (float) ($bookingService->current_price ?? 0);
+            $byAccount[$accountId] = ($byAccount[$accountId] ?? 0) + $price;
+        }
+
+        foreach ($booking->items as $bookingItem) {
+            $accountId = $bookingItem->item?->account_id ?? $fallback?->id;
+
+            if (! $accountId) {
+                throw new RuntimeException('No hay cuenta contable de respaldo (4900). Ejecuta el seeder de cuentas.');
+            }
+
+            $price = (float) ($bookingItem->current_price ?? 0);
             $byAccount[$accountId] = ($byAccount[$accountId] ?? 0) + $price;
         }
 

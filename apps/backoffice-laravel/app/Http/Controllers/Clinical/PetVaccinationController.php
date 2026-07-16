@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Clinical;
 
+use App\Domain\Inventory\Contracts\ItemMovementServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Models\Pet;
@@ -11,9 +12,22 @@ use Illuminate\Http\Request;
 
 class PetVaccinationController extends Controller
 {
-    public function store(Request $request, Pet $pet)
+    public function store(Request $request, Pet $pet, ItemMovementServiceInterface $movements)
     {
-        $pet->vaccinations()->create($this->validatedData($request));
+        $vaccination = $pet->vaccinations()->create($this->validatedData($request));
+
+        // Vacuna aplicada en EstetiCAN con artículo ligado del maestro = consume 1 dosis de
+        // inventario. Una vacuna externa (is_external) no descuenta — no se aplicó aquí.
+        if ($vaccination->item_id && ! $vaccination->is_external) {
+            $movements->record(
+                itemId: $vaccination->item_id,
+                type: 'consumo_servicio',
+                quantity: -1,
+                notes: "Vacuna aplicada a {$pet->name} (registro #{$vaccination->id}).",
+                reference: $vaccination,
+                createdByUserId: auth()->id(),
+            );
+        }
 
         return redirect()
             ->route('clinical.pets.show', $pet)

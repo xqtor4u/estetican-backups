@@ -2,6 +2,20 @@
     $item = $item ?? null;
 @endphp
 <div class="row g-3">
+    <div class="col-12 d-flex flex-column align-items-center mb-3 pb-3 border-bottom">
+        <label class="form-label text-muted fw-bold mb-3 text-uppercase" style="letter-spacing: 1px;">Foto del artículo</label>
+        <x-image-upload name="photo" :value="$item->photo_path ?? null" previewShape="square" :aspectRatio="1" maxWidth="200px" label="Capturar foto" defaultIcon="bi-box-seam" />
+
+        @if(!empty($item?->photo_path))
+            <div class="form-check mt-3">
+                <input type="hidden" name="remove_photo" value="0">
+                <input class="form-check-input text-danger bg-danger-subtle border-danger shadow-sm" type="checkbox" value="1" id="remove_photo" name="remove_photo">
+                <label class="form-check-label small fw-bold text-danger" for="remove_photo">Quitar foto sin sustituir</label>
+            </div>
+        @endif
+        <div class="form-text text-center mt-2 w-75">Se usa en el listado de artículos y al armar Grupos — ayuda a identificar el producto de un vistazo.</div>
+    </div>
+
     <div class="col-md-6">
         <label for="name" class="form-label">Nombre</label>
         <input id="name" type="text" name="name" class="form-control" value="{{ old('name', $item->name ?? '') }}" required>
@@ -41,9 +55,15 @@
     </div>
 
     <div class="col-md-4">
-        <label for="stock_quantity" class="form-label">Existencias</label>
-        <input id="stock_quantity" type="number" name="stock_quantity" class="form-control" min="0" step="1" value="{{ old('stock_quantity', $item->stock_quantity ?? 0) }}">
-        <div class="form-text">Conteo simple, sin movimientos ni histórico (eso llega con el módulo de inventario real). Con 0, el asistente IA nunca lo mencionará.</div>
+        <label class="form-label">Existencias</label>
+        <input type="text" class="form-control" value="{{ $item->stock_quantity ?? 0 }}" disabled>
+        <div class="form-text">
+            @if(isset($item))
+                Se ajusta registrando movimientos (ver abajo), no editando este número. Con 0, el asistente IA nunca lo mencionará.
+            @else
+                Arranca en 0 — se registran movimientos después de crear el artículo.
+            @endif
+        </div>
     </div>
 
     <div class="col-md-4 d-flex align-items-end">

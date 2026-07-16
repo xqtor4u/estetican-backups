@@ -35,6 +35,7 @@
 <x-list-table :paginator="$items">
     <thead>
         <tr>
+            <th></th>
             <th><x-sortable-header-link route="items.index" column="name" label="Nombre" :sort="$sort" :direction="$direction" /></th>
             <th><x-sortable-header-link route="items.index" column="department" label="Departamento" :sort="$sort" :direction="$direction" /></th>
             <th><x-sortable-header-link route="items.index" column="brand" label="Marca" :sort="$sort" :direction="$direction" /></th>
@@ -47,6 +48,15 @@
     <tbody>
         @forelse($items as $item)
             <tr>
+                <td style="width: 48px;">
+                    @if($item->photo_path)
+                        <img src="{{ $item->photo_thumbnail_url }}" alt="" class="rounded-3" style="width: 40px; height: 40px; object-fit: cover;">
+                    @else
+                        <div class="rounded-3 bg-light d-flex align-items-center justify-content-center text-body-secondary" style="width: 40px; height: 40px;">
+                            <i class="bi bi-box-seam"></i>
+                        </div>
+                    @endif
+                </td>
                 <td>
                     <div class="fw-semibold">{{ $item->name }}</div>
                     @if($item->notes)
@@ -75,7 +85,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="7" class="py-5">
+                <td colspan="8" class="py-5">
                     <x-empty-state
                         icon="bi-box-seam"
                         title="No hay artículos"

@@ -21,6 +21,15 @@ class CatalogsNavigation
             ];
         }
 
+        if ($user?->can('ver catalogo_grupos') || $user?->is_super_admin) {
+            $items[] = [
+                'label' => 'Grupos',
+                'description' => 'Combos de Servicios + Artículos con cantidad — un clic los agrega todos a una cotización, facturados desglosados.',
+                'route' => route('groups.index'),
+                'active' => request()->routeIs('groups.*'),
+            ];
+        }
+
         if ($user?->can('ver usuarios') || $user?->is_super_admin) {
             $items[] = [
                 'label' => 'Bitácora de actividad',
@@ -32,7 +41,7 @@ class CatalogsNavigation
 
         return [
             'label' => 'Catálogos',
-            'active' => request()->routeIs('services.*', 'activity-log.*'),
+            'active' => request()->routeIs('services.*', 'groups.*', 'activity-log.*'),
             'items' => $items,
         ];
     }

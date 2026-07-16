@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GroupComponent;
 use App\Models\OperatorRole;
 use App\Models\Service;
 use App\Support\CatalogCache\OperatorRoleCatalogCache;
@@ -142,6 +143,13 @@ class ServiceController extends Controller
 
     public function destroy(Service $service): RedirectResponse
     {
+        $groupCount = GroupComponent::where('service_id', $service->id)->count();
+
+        if ($groupCount > 0) {
+            return redirect()->route('services.index')
+                ->with('error', "No se puede eliminar: es componente de {$groupCount} grupo(s). Quítalo del/de los grupo(s) primero.");
+        }
+
         $service->delete();
 
         return redirect()->route('services.index')->with('success', 'Servicio eliminado.');

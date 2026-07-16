@@ -35,8 +35,8 @@
             @if($acceptedQuote)
                 @foreach($acceptedQuote->items as $item)
                     <div class="service-item">
-                        <span class="price-box">${{ number_format($item->price_override ?? $item->service->price, 2) }}</span>
-                        <strong>{{ $item->service->name }}</strong>
+                        <span class="price-box">${{ number_format($item->lineTotal(), 2) }}</span>
+                        <strong>{{ $item->name() }}</strong>
                         @if($item->operator)
                             <br><small>Por: {{ $item->operator->full_name }} ({{ $item->operator->specialty }})</small>
                         @endif

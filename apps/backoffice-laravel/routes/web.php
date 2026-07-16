@@ -23,7 +23,10 @@ use App\Http\Controllers\Finances\CashSessionController;
 use App\Http\Controllers\Finances\DocumentSeriesController;
 use App\Http\Controllers\Finances\PaymentMethodController;
 use App\Http\Controllers\HotelReservationController;
+use App\Http\Controllers\GroupComponentController;
+use App\Http\Controllers\GroupController;
 use App\Http\Controllers\ItemController;
+use App\Http\Controllers\ItemMovementController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\MapaZonasController;
 use App\Http\Controllers\OperatorController;
@@ -82,6 +85,20 @@ Route::middleware('auth')->group(function () {
         ->middlewareFor(['create', 'store'], 'permission:crear catalogo_articulos')
         ->middlewareFor(['edit', 'update'], 'permission:editar catalogo_articulos')
         ->middlewareFor('destroy', 'permission:eliminar catalogo_articulos');
+    Route::post('items/{item}/movements', [ItemMovementController::class, 'store'])
+        ->name('items.movements.store')
+        ->middleware('permission:editar catalogo_articulos');
+    Route::resource('groups', GroupController::class)->except(['show'])
+        ->middlewareFor('index', 'permission:ver catalogo_grupos')
+        ->middlewareFor(['create', 'store'], 'permission:crear catalogo_grupos')
+        ->middlewareFor(['edit', 'update'], 'permission:editar catalogo_grupos')
+        ->middlewareFor('destroy', 'permission:eliminar catalogo_grupos');
+    Route::post('groups/{group}/components', [GroupComponentController::class, 'store'])
+        ->name('groups.components.store')
+        ->middleware('permission:editar catalogo_grupos');
+    Route::delete('groups/{group}/components/{component}', [GroupComponentController::class, 'destroy'])
+        ->name('groups.components.destroy')
+        ->middleware('permission:editar catalogo_grupos');
     Route::resource('operators', OperatorController::class);
     Route::post('operators/{operator}/duplicate', [OperatorController::class, 'duplicate'])->name('operators.duplicate');
     Route::resource('branches', BranchController::class);

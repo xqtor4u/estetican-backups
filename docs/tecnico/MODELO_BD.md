@@ -448,9 +448,34 @@ BL-051 agregó `price`, `ai_visible` y `stock_quantity` — campos mínimos para
 | `price` | decimal(10,2) nullable | BL-051 — si es null, el asistente IA dice "precio a consultar" |
 | `is_active` | boolean, default true | |
 | `ai_visible` | boolean, default false | BL-051 — controla si el asistente IA puede mencionar el artículo. Default `false`: nada se expone hasta marcarlo a mano |
-| `stock_quantity` | unsigned int, default 0 | BL-051 — existencias simples sin movimientos/almacenes. El asistente IA solo menciona artículos con `stock_quantity > 0` — con el default en 0, ningún artículo real entra al catálogo IA hasta que se capture existencia a mano |
+| `stock_quantity` | int con signo, default 0 | BL-049 — caché mantenido por `ItemMovementService` (ver `item_movements` abajo), **no editable a mano** desde el form. Puede quedar negativo (consumo sin entrada previa capturada) — es información real, no un error. El asistente IA solo menciona artículos con `stock_quantity > 0` |
+| `account_id` | bigint FK nullable → `accounts` | BL-051b (Grupos) — mismo patrón que `services.account_id`, para que `AccountingService` clasifique el ingreso por artículos vendidos dentro de un Grupo |
+| `photo_path` | string nullable | BL-051c — foto del producto (`ItemPhotoImageManager`, mismo patrón que `Operator`/`Pet`), usada en el listado de Artículos y en la tabla de componentes de Grupos |
 | `notes` | text nullable | |
 | `timestamps` | | |
+
+### `item_movements` (BL-049 "IM sencillo")
+Ledger append-only de movimientos de inventario — mismo espíritu que `cash_ledgers`/`bank_ledgers` (sin saldo cacheado por renglón; `items.stock_quantity` es el único caché, mantenido transaccionalmente con `lockForUpdate()` por `ItemMovementService::record()`).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `item_id` | FK → `items` nullable, nullOnDelete | |
+| `item_name_snapshot` | string | Nombre del artículo al momento del movimiento — sobrevive aunque se borre el artículo |
+| `branch_id` | FK → `branches` nullable, nullOnDelete | Nullable a propósito: no se fuerza sucursal hoy, pero el campo ya existe para cuando el inventario sea multi-sucursal |
+| `type` | string | `entrada`, `salida`, `consumo_servicio`, `ajuste`, `perdida` — texto libre, sin enum en BD |
+| `quantity` | int con signo | Delta: + entrada/ajuste positivo, - salida/consumo/pérdida/ajuste negativo |
+| `reference_type`/`reference_id` | morphs nullable | Origen del movimiento — hoy usado por `PetVaccinationController` (consumo automático al aplicar una vacuna con `item_id` no externa) |
+| `notes` | text nullable | |
+| `created_by_user_id` | FK → `users` nullable, nullOnDelete | Null en movimientos automáticos (ej. consumo de vacuna) |
+| `timestamps` | | |
+
+### `groups` y `group_components` (Grupos — combos de Servicios + Artículos)
+"Grupo" agrupa Servicios (mano de obra) y Artículos (insumos) con cantidad, para agregarlos todos a una cotización con un clic, facturados desglosados. Ej. "Corte de cola de perro" = 0.5 hrs de Veterinario (Service) + 5 vendas (Item). Precio del Grupo **no se cachea** — se calcula al vuelo (`Group::calculatedPrice()`, `SUM(quantity × precio vigente del catálogo)`), igual que `Account::balance()`, para que un cambio de precio en el catálogo se refleje sin invalidar nada.
+
+**`groups`**: `id`, `name`, `description` nullable, `is_active` default true, `notes` nullable, `timestamps`.
+
+**`group_components`**: `id`, `group_id` (FK, cascadeOnDelete), `service_id` (FK nullable, **restrictOnDelete**), `item_id` (FK nullable, **restrictOnDelete**), `quantity` (decimal 8,2, default 1) + CHECK constraint (exactamente uno de `service_id`/`item_id` no nulo). `restrictOnDelete` en vez de `nullOnDelete`: con el CHECK exigiendo uno no-nulo, dejar ambos en NULL rompería la restricción — en su lugar, `ItemController`/`ServiceController::destroy()` verifican primero si el registro es componente de algún Grupo y devuelven un error amigable.
 
 ---
 
@@ -519,7 +544,22 @@ Servicios incluidos en una cita (sincronizados desde el quote aceptado).
 | `id` | bigint PK | |
 | `spa_booking_id` | FK → `spa_bookings` | |
 | `service_id` | FK → `services` | |
-| `current_price` | decimal(10,2) | Precio al momento de agendar |
+| `quantity` | decimal(8,2), default 1 | Grupos — permite cantidades fraccionarias (ej. 0.5 hrs) |
+| `group_id` | FK → `groups` nullable, nullOnDelete | Trazabilidad: de qué Grupo vino esta línea (si vino de uno) |
+| `current_price` | decimal(10,2) | Precio total de la línea al momento de agendar (`quantity` ya aplicada) |
+| `timestamps` | | |
+
+### `spa_booking_items`
+Paralela a `spa_booking_services` — artículos congelados al aceptar una cotización (Grupos).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `spa_booking_id` | FK → `spa_bookings`, cascadeOnDelete | |
+| `item_id` | FK → `items`, cascadeOnDelete | |
+| `group_id` | FK → `groups` nullable, nullOnDelete | |
+| `quantity` | decimal(8,2), default 1 | |
+| `current_price` | decimal(10,2) | Total de la línea, `quantity` ya aplicada |
 | `timestamps` | | |
 
 ---
@@ -541,23 +581,28 @@ Presupuestos por cita. Una cita puede tener múltiples versiones; solo una puede
 | `notes` | text nullable | |
 | `timestamps` | | |
 
-> Al aceptar un quote: sincroniza `spa_booking_services` + `total_estimated_price`, cambia booking a `work_order`, crea ledger de anticipo.
+> Al aceptar un quote: sincroniza `spa_booking_services` + `spa_booking_items` (Grupos) + `total_estimated_price`, cambia booking a `work_order`, crea ledger de anticipo.
 
 ---
 
 ### `quote_items`
-Líneas de servicio dentro de un presupuesto.
+Líneas de servicio **o artículo** dentro de un presupuesto (Grupos).
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
 | `quote_id` | FK → `quotes` | |
-| `service_id` | FK → `services` | |
-| `operator_id` | FK → `operators` nullable | Especialista asignado |
+| `service_id` | FK → `services` nullable | Exactamente uno de `service_id`/`item_id` (CHECK constraint) |
+| `item_id` | FK → `items` nullable | |
+| `group_id` | FK → `groups` nullable, nullOnDelete | De qué Grupo vino esta línea, si vino de uno — trazabilidad, no vuelve la línea rígida (sigue siendo editable/borrable individualmente) |
+| `quantity` | decimal(8,2), default 1 | |
+| `operator_id` | FK → `operators` nullable | Especialista asignado (solo aplica a líneas de servicio) |
 | `is_external` | boolean | Proveedor externo |
-| `price_override` | decimal(10,2) nullable | Precio específico para este ítem |
+| `price_override` | decimal(10,2) nullable | Precio unitario específico para este ítem |
 | `notes` | text nullable | |
 | `timestamps` | | |
+
+> `QuoteItem::lineTotal()` = `quantity × (price_override ?? precio vigente del servicio/artículo)`. `QuoteItem::name()` = `service->name ?? item->name`.
 
 ---
 

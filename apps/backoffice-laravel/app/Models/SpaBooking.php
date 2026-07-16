@@ -57,6 +57,11 @@ class SpaBooking extends Model
         return $this->hasMany(SpaBookingService::class);
     }
 
+    public function items(): HasMany
+    {
+        return $this->hasMany(SpaBookingItem::class);
+    }
+
     public function executedServices(): HasMany
     {
         return $this->hasMany(ExecutedService::class);

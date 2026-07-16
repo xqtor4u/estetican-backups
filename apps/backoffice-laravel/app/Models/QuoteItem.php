@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'quote_id',
     'service_id',
+    'item_id',
+    'group_id',
+    'quantity',
     'operator_id',
     'is_external',
     'price_override',
@@ -20,6 +23,7 @@ class QuoteItem extends Model
     {
         return [
             'price_override' => 'decimal:2',
+            'quantity' => 'decimal:2',
             'is_external' => 'boolean',
         ];
     }
@@ -34,8 +38,33 @@ class QuoteItem extends Model
         return $this->belongsTo(Service::class);
     }
 
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(Item::class);
+    }
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class);
+    }
+
     public function operator(): BelongsTo
     {
         return $this->belongsTo(Operator::class);
+    }
+
+    public function name(): string
+    {
+        return $this->service->name ?? $this->item->name;
+    }
+
+    public function unitPrice(): float
+    {
+        return (float) ($this->price_override ?? $this->service?->price ?? $this->item?->price ?? 0);
+    }
+
+    public function lineTotal(): float
+    {
+        return (float) $this->quantity * $this->unitPrice();
     }
 }

@@ -71,12 +71,12 @@
             @foreach($acceptedQuote->items as $item)
                 <tr>
                     <td>
-                        <div style="font-weight: bold;">{{ $item->service->name }}</div>
-                        <div style="font-size: 9px; color: var(--secondary-color);">{{ $item->service->description }}</div>
+                        <div style="font-weight: bold;">{{ $item->name() }}</div>
+                        <div style="font-size: 9px; color: var(--secondary-color);">{{ $item->service?->description }}</div>
                     </td>
-                    <td>{{ $item->operator?->full_name ?? 'Pendiente de asignar' }}</td>
+                    <td>{{ $item->item_id ? '—' : ($item->operator?->full_name ?? 'Pendiente de asignar') }}</td>
                     <td class="text-center">
-                        <span class="badge">Pendiente</span>
+                        <span class="badge">{{ $item->item_id ? 'Insumo' : 'Pendiente' }}</span>
                     </td>
                 </tr>
             @endforeach

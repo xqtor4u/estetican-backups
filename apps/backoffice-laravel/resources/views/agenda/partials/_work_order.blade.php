@@ -79,9 +79,32 @@
                     @endforeach
                     <div class="d-flex justify-content-between align-items-center px-2 py-2 border-top mt-1 fw-bold">
                         <span class="text-body-secondary small text-uppercase">Total acordado</span>
-                        <span>${{ number_format($booking->services->sum('current_price'), 2) }}</span>
+                        <span>${{ number_format($booking->services->sum('current_price') + $booking->items->sum('current_price'), 2) }}</span>
                     </div>
                 </div>
+
+                @if($booking->items->isNotEmpty())
+                    <h6 class="text-uppercase small text-body-secondary fw-bold mb-3 mt-4">Artículos e insumos</h6>
+                    <div class="agenda-service-grid">
+                        @foreach($booking->items as $bookingItem)
+                            <div class="card bg-light border-0 mb-2">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                        <div>
+                                            <div class="fw-semibold text-primary">{{ $bookingItem->item->name }}</div>
+                                            @if((float) $bookingItem->quantity !== 1.0)
+                                                <small class="text-body-secondary">× {{ rtrim(rtrim(number_format($bookingItem->quantity, 2), '0'), '.') }}</small>
+                                            @endif
+                                        </div>
+                                        <div class="text-end flex-shrink-0">
+                                            <div class="fw-bold text-dark">${{ number_format($bookingItem->current_price, 2) }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
             
             <div class="col-md-5">

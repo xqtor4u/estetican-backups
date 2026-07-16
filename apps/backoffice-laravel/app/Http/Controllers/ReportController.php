@@ -22,7 +22,7 @@ class ReportController extends Controller
      */
     public function quote(Quote $quote)
     {
-        $quote->load(['spaBooking.pet.client.phones', 'items.service']);
+        $quote->load(['spaBooking.pet.client.phones', 'items.service', 'items.item']);
         $booking = $quote->spaBooking;
         $settings = $this->getReportSettings();
 
@@ -38,7 +38,9 @@ class ReportController extends Controller
             'pet.client',
             'pet.medicalAlerts',
             'quotes.items.service',
+            'quotes.items.item',
             'quotes.items.operator',
+            'items.item',
             'resourceAllocations.resource',
             'executedServices.service',
         ]);
@@ -57,6 +59,7 @@ class ReportController extends Controller
         $booking->load([
             'pet.client.phones',
             'quotes.items.service',
+            'quotes.items.item',
             'quotes.cashLedgers',
             'quotes.bankLedgers',
         ]);

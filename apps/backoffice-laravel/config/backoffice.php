@@ -107,6 +107,12 @@ return [
             'thumbnail_height' => env('BACKOFFICE_RESOURCE_THUMB_HEIGHT', 120),
             'thumbnail_quality' => env('BACKOFFICE_RESOURCE_THUMB_QUALITY', 65),
         ],
+        'items' => [
+            'main_max_size' => env('BACKOFFICE_ITEM_IMAGE_MAX_SIZE', 1200),
+            'main_quality' => env('BACKOFFICE_ITEM_IMAGE_QUALITY', 80),
+            'thumbnail_size' => env('BACKOFFICE_ITEM_THUMB_SIZE', 300),
+            'thumbnail_quality' => env('BACKOFFICE_ITEM_THUMB_QUALITY', 70),
+        ],
         'users' => [
             'main_max_size' => env('BACKOFFICE_USER_IMAGE_MAX_SIZE', 800),
             'main_quality' => env('BACKOFFICE_USER_IMAGE_QUALITY', 80),

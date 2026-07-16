@@ -36,7 +36,7 @@
                                 <td>
                                     <div class="small">
                                         @foreach($quote->items as $item)
-                                            <span class="badge bg-light text-dark border me-1">{{ $item->service->name }}</span>
+                                            <span class="badge bg-light text-dark border me-1">{{ $item->name() }}@if((float) $item->quantity !== 1.0) × {{ rtrim(rtrim(number_format($item->quantity, 2), '0'), '.') }}@endif</span>
                                         @endforeach
                                     </div>
                                 </td>
@@ -70,17 +70,48 @@
                 <h5 class="modal-title">Generar Nuevo Presupuesto</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" x-data="{ 
+            <div class="modal-body" x-data="{
                 items: [
                     @foreach($booking->services as $bs)
-                    { service_id: '{{ $bs->service_id }}', name: '{{ $bs->service->name }}', price: '{{ $bs->current_price }}' },
+                    { service_id: '{{ $bs->service_id }}', item_id: '', group_id: '', name: '{{ $bs->service->name }}', price: '{{ $bs->current_price }}', quantity: '{{ rtrim(rtrim(number_format($bs->quantity, 2), '0'), '.') ?: '1' }}' },
+                    @endforeach
+                    @foreach($booking->items as $bi)
+                    { service_id: '', item_id: '{{ $bi->item_id }}', group_id: '', name: '{{ $bi->item->name }}', price: '{{ $bi->current_price }}', quantity: '{{ rtrim(rtrim(number_format($bi->quantity, 2), '0'), '.') ?: '1' }}' },
                     @endforeach
                 ],
+                groups: @json($groups->map(fn ($g) => [
+                    'id' => $g->id,
+                    'name' => $g->name,
+                    'components' => $g->components->map(fn ($c) => [
+                        'service_id' => $c->service_id,
+                        'item_id' => $c->item_id,
+                        'name' => $c->name(),
+                        'price' => $c->unitPrice(),
+                        'quantity' => (float) $c->quantity,
+                    ]),
+                ])),
                 addService() {
                     let sel = $refs.serviceSelector;
                     let opt = sel.options[sel.selectedIndex];
                     if (!opt.value) return;
-                    this.items.push({ service_id: opt.value, name: opt.getAttribute('data-name'), price: opt.getAttribute('data-price') });
+                    this.items.push({ service_id: opt.value, item_id: '', group_id: '', name: opt.getAttribute('data-name'), price: opt.getAttribute('data-price'), quantity: 1 });
+                    sel.selectedIndex = 0;
+                },
+                addItem() {
+                    let sel = $refs.itemSelector;
+                    let opt = sel.options[sel.selectedIndex];
+                    if (!opt.value) return;
+                    this.items.push({ service_id: '', item_id: opt.value, group_id: '', name: opt.getAttribute('data-name'), price: opt.getAttribute('data-price'), quantity: 1 });
+                    sel.selectedIndex = 0;
+                },
+                addGroup() {
+                    let sel = $refs.groupSelector;
+                    if (!sel.value) return;
+                    let group = this.groups.find(g => g.id == sel.value);
+                    if (!group) return;
+                    group.components.forEach(c => {
+                        this.items.push({ service_id: c.service_id ?? '', item_id: c.item_id ?? '', group_id: group.id, name: c.name, price: c.price, quantity: c.quantity });
+                    });
                     sel.selectedIndex = 0;
                 },
                 removeItem(index) {
@@ -107,7 +138,13 @@
                                     <div class="row align-items-center">
                                         <div class="col">
                                             <input type="hidden" :name="'items['+index+'][service_id]'" :value="item.service_id">
+                                            <input type="hidden" :name="'items['+index+'][item_id]'" :value="item.item_id">
+                                            <input type="hidden" :name="'items['+index+'][group_id]'" :value="item.group_id">
                                             <div class="fw-semibold" x-text="item.name"></div>
+                                            <span class="badge bg-white text-dark border" x-show="item.item_id" x-cloak>Artículo</span>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <input type="number" :name="'items['+index+'][quantity]'" x-model="item.quantity" class="form-control form-control-sm" step="0.01" min="0.01" title="Cantidad">
                                         </div>
                                         <div class="col-md-4">
                                             <div class="input-group input-group-sm">
@@ -124,8 +161,21 @@
                 </div>
 
                 <div class="p-3 border rounded-3 bg-white mb-3">
+                    <label class="form-label small fw-bold text-uppercase text-body-secondary">Agregar grupo completo</label>
+                    <div class="input-group mb-3">
+                        <select x-ref="groupSelector" class="form-select">
+                            <option value="">Seleccionar grupo...</option>
+                            @foreach($groups as $g)
+                                <option value="{{ $g->id }}">{{ $g->name }} (${{ number_format($g->calculatedPrice(), 2) }})</option>
+                            @endforeach
+                        </select>
+                        <button type="button" @click="addGroup()" class="btn btn-outline-primary">
+                            <i class="bi bi-collection"></i> Agregar grupo
+                        </button>
+                    </div>
+
                     <label class="form-label small fw-bold text-uppercase text-body-secondary">Agregar servicio adicional</label>
-                    <div class="input-group">
+                    <div class="input-group mb-3">
                         <select x-ref="serviceSelector" class="form-select">
                             <option value="">Seleccionar servicio...</option>
                             @foreach($services as $s)
@@ -133,6 +183,19 @@
                             @endforeach
                         </select>
                         <button type="button" @click="addService()" class="btn btn-outline-primary">
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+
+                    <label class="form-label small fw-bold text-uppercase text-body-secondary">Agregar artículo suelto</label>
+                    <div class="input-group">
+                        <select x-ref="itemSelector" class="form-select">
+                            <option value="">Seleccionar artículo...</option>
+                            @foreach($items as $it)
+                                <option value="{{ $it->id }}" data-name="{{ $it->name }}" data-price="{{ $it->price ?? 0 }}">{{ $it->name }} (${{ number_format($it->price ?? 0, 2) }})</option>
+                            @endforeach
+                        </select>
+                        <button type="button" @click="addItem()" class="btn btn-outline-primary">
                             <i class="bi bi-plus-lg"></i> Agregar
                         </button>
                     </div>
@@ -160,8 +223,8 @@
             init() {
                 let s = 0;
                 @foreach($quote->items as $item)
-                    @if($item->service->requires_advance)
-                        s += {{ $item->price_override ?? $item->service->price }} * ({{ $item->service->advance_percentage ?? app(\App\Support\SystemSettings\SystemSettings::class)->all()['service_advance_percentage'] }} / 100);
+                    @if($item->service && $item->service->requires_advance)
+                        s += {{ $item->lineTotal() }} * ({{ $item->service->advance_percentage ?? app(\App\Support\SystemSettings\SystemSettings::class)->all()['service_advance_percentage'] }} / 100);
                     @endif
                 @endforeach
                 this.suggested = s.toFixed(2);

@@ -23,6 +23,7 @@ class BaseRolesSeeder extends Seeder
             'agenda',
             'catalogo_servicios',
             'catalogo_articulos',
+            'catalogo_grupos',
             'clientes',
             'configuracion_sistema',
             'hotel',

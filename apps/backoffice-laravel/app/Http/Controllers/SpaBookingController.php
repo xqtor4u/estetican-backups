@@ -16,6 +16,8 @@ use App\Models\Pet;
 use App\Models\Quote;
 use App\Models\QuoteItem;
 use App\Models\Resource;
+use App\Models\Group;
+use App\Models\Item;
 use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Support\Geo\CoverageChecker;
@@ -318,8 +320,10 @@ class SpaBookingController extends Controller
         $assignableResources = $this->loadAssignableResources();
         $operators = Operator::where('is_active', true)->orderBy('name')->get();
         $services = Service::where('is_active', true)->orderBy('name')->get();
+        $items = Item::where('is_active', true)->orderBy('name')->get(['id', 'name', 'price']);
+        $groups = Group::where('is_active', true)->with('components.service', 'components.item')->orderBy('name')->get();
 
-        return view('agenda.show', compact('page', 'booking', 'assignableResources', 'operators', 'services'));
+        return view('agenda.show', compact('page', 'booking', 'assignableResources', 'operators', 'services', 'items', 'groups'));
     }
 
     public function globalCreate(Request $request): View
@@ -644,11 +648,15 @@ class SpaBookingController extends Controller
             'pet.photos',
             'pet.primaryPhoto',
             'services.service',
+            'services.group',
+            'items.item',
+            'items.group',
             'resourceAllocations.resource:id,branch_id,code,name,resource_type',
             'resourceAllocations.childAllocations',
             'executedServices:id,spa_booking_id,executed_at,final_price,operator_id,service_summary',
             'executedServices.operator:id,first_name,apellido_paterno,apellido_materno,name',
             'quotes.items.service',
+            'quotes.items.item',
             'quotes.items.operator',
             'quotes.cashLedgers',
             'quotes.bankLedgers',
@@ -684,7 +692,10 @@ class SpaBookingController extends Controller
             'version_label' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.service_id' => 'required|exists:services,id',
+            'items.*.service_id' => 'nullable|required_without:items.*.item_id|exists:services,id',
+            'items.*.item_id' => 'nullable|required_without:items.*.service_id|exists:items,id',
+            'items.*.group_id' => 'nullable|exists:groups,id',
+            'items.*.quantity' => 'nullable|numeric|min:0.01',
             'items.*.price' => 'nullable|numeric|min:0',
             'items.*.notes' => 'nullable|string',
         ]);

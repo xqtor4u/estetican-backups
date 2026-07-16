@@ -31,23 +31,31 @@ class QuoteService implements QuoteServiceInterface
             $total = 0;
             if (!empty($data['items'])) {
                 foreach ($data['items'] as $item) {
+                    $quantity = (float) ($item['quantity'] ?? 1);
+                    $unitPrice = $item['price'] ?? (
+                        !empty($item['item_id'])
+                            ? \App\Models\Item::find($item['item_id'])->price
+                            : \App\Models\Service::find($item['service_id'])->price
+                    );
+
                     $quoteItem = new QuoteItem([
                         'quote_id' => $quote->id,
-                        'service_id' => $item['service_id'],
+                        'service_id' => $item['service_id'] ?? null,
+                        'item_id' => $item['item_id'] ?? null,
+                        'group_id' => $item['group_id'] ?? null,
+                        'quantity' => $quantity,
                         'price_override' => $item['price'] ?? null,
                         'notes' => $item['notes'] ?? null,
                     ]);
                     $quoteItem->save();
 
-                    // Calculate total
-                    $price = $item['price'] ?? \App\Models\Service::find($item['service_id'])->price;
-                    $total += $price;
+                    $total += $quantity * (float) $unitPrice;
                 }
             }
 
             $quote->update(['total_amount' => $total]);
 
-            return $quote->load('items.service');
+            return $quote->load('items.service', 'items.item');
         });
     }
 
@@ -85,15 +93,29 @@ class QuoteService implements QuoteServiceInterface
                 ]);
             }
 
-            // 4. Transform Booking status to Work Order + sync services from accepted quote
-            $quote->loadMissing('items.service');
+            // 4. Transform Booking status to Work Order + sync services/items from accepted quote
+            $quote->loadMissing('items.service', 'items.item');
             $booking = $quote->spaBooking;
             $booking->services()->delete();
+            $booking->items()->delete();
             foreach ($quote->items as $item) {
-                $booking->services()->create([
-                    'service_id'    => $item->service_id,
-                    'current_price' => $item->price_override ?? $item->service?->price ?? 0,
-                ]);
+                $lineTotal = $item->lineTotal();
+
+                if ($item->item_id) {
+                    $booking->items()->create([
+                        'item_id'       => $item->item_id,
+                        'group_id'      => $item->group_id,
+                        'quantity'      => $item->quantity,
+                        'current_price' => $lineTotal,
+                    ]);
+                } else {
+                    $booking->services()->create([
+                        'service_id'    => $item->service_id,
+                        'group_id'      => $item->group_id,
+                        'quantity'      => $item->quantity,
+                        'current_price' => $lineTotal,
+                    ]);
+                }
             }
             $booking->update([
                 'status'                  => 'work_order',

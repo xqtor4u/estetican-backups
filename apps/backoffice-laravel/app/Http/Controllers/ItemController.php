@@ -2,18 +2,27 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
+use App\Models\GroupComponent;
 use App\Models\Item;
+use App\Support\ItemPhotoImageManager;
 use App\Support\Pages\ItemsPage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Throwable;
 
 /**
- * CRUD del maestro de artículos (BL-050) — identidad de producto sin existencias/stock,
- * fundación atómica del futuro módulo de Tienda/Inventario (BL-049).
+ * CRUD del maestro de artículos (BL-050) — identidad de producto, venta e inventario
+ * (BL-051/BL-049 "IM sencillo"). `stock_quantity` es un caché mantenido por `ItemMovementService`
+ * (ver ItemMovementController) — no se edita a mano desde este controller.
  */
 class ItemController extends Controller
 {
+    public function __construct(private readonly ItemPhotoImageManager $imageManager)
+    {
+    }
+
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('search', ''));
@@ -74,8 +83,20 @@ class ItemController extends Controller
     {
         $validated = $this->validatedData($request);
         $returnToPet = $request->integer('return_to_pet');
+        $newPhotoPath = null;
 
-        Item::create($validated);
+        if ($request->hasFile('photo')) {
+            $newPhotoPath = $this->imageManager->store($request->file('photo'));
+            $validated['photo_path'] = $newPhotoPath;
+        }
+
+        try {
+            Item::create($validated);
+        } catch (Throwable $exception) {
+            $this->imageManager->deleteFiles($newPhotoPath);
+
+            throw $exception;
+        }
 
         if ($returnToPet) {
             return redirect()->route('clinical.pets.show', $returnToPet)
@@ -89,19 +110,52 @@ class ItemController extends Controller
     public function edit(Item $item): View
     {
         $page = ItemsPage::edit($item);
+        $branches = Branch::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        $movements = $item->movements()->with('branch:id,name')->latest()->limit(20)->get();
 
-        return view('items.edit', compact('item', 'page'));
+        return view('items.edit', compact('item', 'page', 'branches', 'movements'));
     }
 
     public function update(Request $request, Item $item): RedirectResponse
     {
-        $item->update($this->validatedData($request));
+        $validated = $this->validatedData($request);
+        $oldPhotoPath = $item->photo_path;
+        $newPhotoPath = null;
+
+        if ($request->boolean('remove_photo')) {
+            $validated['photo_path'] = null;
+        }
+
+        if ($request->hasFile('photo')) {
+            $newPhotoPath = $this->imageManager->store($request->file('photo'));
+            $validated['photo_path'] = $newPhotoPath;
+        }
+
+        try {
+            $item->update($validated);
+        } catch (Throwable $exception) {
+            $this->imageManager->deleteFiles($newPhotoPath);
+
+            throw $exception;
+        }
+
+        if ($oldPhotoPath && $oldPhotoPath !== $item->photo_path) {
+            $this->imageManager->deleteFiles($oldPhotoPath);
+        }
 
         return redirect()->route('items.index')->with('success', 'Artículo actualizado.');
     }
 
     public function destroy(Item $item): RedirectResponse
     {
+        $groupCount = GroupComponent::where('item_id', $item->id)->count();
+
+        if ($groupCount > 0) {
+            return redirect()->route('items.index')
+                ->with('error', "No se puede eliminar: es componente de {$groupCount} grupo(s). Quítalo del/de los grupo(s) primero.");
+        }
+
+        $this->imageManager->deleteFiles($item->photo_path);
         $item->delete();
 
         return redirect()->route('items.index')->with('success', 'Artículo eliminado.');
@@ -117,16 +171,16 @@ class ItemController extends Controller
             'price' => 'nullable|numeric|min:0',
             'is_active' => 'nullable|boolean',
             'ai_visible' => 'nullable|boolean',
-            'stock_quantity' => 'nullable|integer|min:0',
+            'photo' => 'nullable|image|max:10240',
             'notes' => 'nullable|string',
         ]);
+
+        unset($validated['photo']);
 
         // Alta rápida (mini-formulario en vacunas) no manda checkbox de "activo" — se asume activo.
         $validated['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : true;
         // Visible al asistente IA solo si se marca a mano — nada se expone por default.
         $validated['ai_visible'] = $request->boolean('ai_visible');
-        // Alta rápida no manda existencia — 0 hasta que se capture a mano (no visible para la IA).
-        $validated['stock_quantity'] = $validated['stock_quantity'] ?? 0;
 
         return $validated;
     }

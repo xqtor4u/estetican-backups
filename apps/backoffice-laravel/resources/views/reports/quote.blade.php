@@ -69,12 +69,12 @@
         @foreach($quote->items as $item)
             <tr>
                 <td>
-                    <div style="font-weight: bold;">{{ $item->service->name }}</div>
-                    <div style="font-size: 9px; color: var(--secondary-color);">{{ $item->service->description }}</div>
+                    <div style="font-weight: bold;">{{ $item->name() }}</div>
+                    <div style="font-size: 9px; color: var(--secondary-color);">{{ $item->service?->description }}</div>
                 </td>
-                <td class="text-center">1</td>
-                <td class="text-right">${{ number_format($item->price_override ?? $item->service->price, 2) }}</td>
-                <td class="text-right">${{ number_format($item->price_override ?? $item->service->price, 2) }}</td>
+                <td class="text-center">{{ rtrim(rtrim(number_format($item->quantity, 2), '0'), '.') }}</td>
+                <td class="text-right">${{ number_format($item->unitPrice(), 2) }}</td>
+                <td class="text-right">${{ number_format($item->lineTotal(), 2) }}</td>
             </tr>
         @endforeach
     </tbody>

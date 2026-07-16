@@ -50,8 +50,13 @@
         @if($acceptedQuote)
             @foreach($acceptedQuote->items as $item)
                 <tr>
-                    <td>{{ $item->service->name }}</td>
-                    <td class="text-right">${{ number_format($item->price_override ?? $item->service->price, 2) }}</td>
+                    <td>
+                        {{ $item->name() }}
+                        @if((float) $item->quantity !== 1.0)
+                            <span style="color: var(--secondary-color);">× {{ rtrim(rtrim(number_format($item->quantity, 2), '0'), '.') }}</span>
+                        @endif
+                    </td>
+                    <td class="text-right">${{ number_format($item->lineTotal(), 2) }}</td>
                 </tr>
             @endforeach
         @endif

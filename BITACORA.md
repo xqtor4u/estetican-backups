@@ -1,5 +1,52 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 15/07/2026 (cont. 4) — BL-054 "IM sencillo", BL-055 "Grupos" (combos Servicio+Artículo en cotizaciones) y BL-056 foto de artículo
+
+### ✅ Logros y Cambios
+
+Racha larga que cerró tres piezas grandes en la misma sesión.
+
+**BL-054 — "IM sencillo" (retomando el diseño pendiente de la sesión anterior):** el usuario pidió avanzar con "lo mínimo pero lo necesario que luego sea reutilizable para construir encima". Se investigó primero el patrón real que ya usa el proyecto para "ledgers" (`CashLedger`/`BankLedger`, vía un agente de exploración) — resultó ser **append-only sin saldo cacheado por renglón** (el saldo se deriva con `SUM()` al momento de consulta, ej. `Account::balance()`), no el patrón de "running balance" que se había propuesto inicialmente. Se replicó ese mismo espíritu en `item_movements` (tipo, delta con signo, `branch_id` nullable desde ya, `reference` polimórfico), con `items.stock_quantity` como único caché (mantenido transaccionalmente por `ItemMovementService::record()`, usando `lockForUpdate()` — el único precedente de locking real en el repo, `AccountingService::getNextFolio()`). Encontrado en el camino: `stock_quantity` era `unsigned`, y un consumo sin entrada previa capturada puede dejarlo negativo (información real, no error) — migración para volverlo signed. Se conectó el primer consumo automático real: aplicar una vacuna con artículo ligado (no externa) resta 1 del stock. 14 tests nuevos.
+
+**Reorganización de navegación (dentro de la misma racha, antes de Grupos):** el usuario pidió separar módulos en persianas — se armaron grupos "Inventario" y "RH" nuevos, y una persiana anidada "Administración" (Inventario/RH/Finanzas/Veterinaria). Ajuste inmediato del propio usuario: Clientes/Mascotas/Sucursales se queda como persiana propia de nivel superior (más usada a diario), fuera de Administración.
+
+**BL-055 — "Grupos" (la pieza grande):** el usuario pidió que los Artículos se pudieran "agrupar" y, en el mismo mensaje, describió algo mucho más profundo — servicios compuestos como "Cirugía" (Cirujano + Anestesista + medicamentos + curaciones) o "Corte de cola" (0.5 hrs de veterinario + 5 vendas), con precio = suma de componentes, agregables a una cotización con un clic y **facturados desglosados** (pidió explícitamente que la cuenta al cliente se vea itemizada, "da confianza y es lo más profesional"). Dado el tamaño (toca `Quote`/`QuoteItem`, congelado en orden de trabajo, `AccountingService`, facturación) se usó `EnterPlanMode` — dos agentes de exploración en paralelo (sistema de cotizaciones; Hotel/facturación/dominio Execution) + un agente `Plan` para el diseño técnico, con `AskUserQuestion` para 4 decisiones de alcance antes de escribir el plan final.
+
+**Decisiones del usuario que acotaron el alcance:** (1) solo Spa esta vez — Hotel/Hospital no tiene hoy ningún campo de precio ni pantalla de facturación, generalizar el sistema es fase 2 separada; (2) nombre "Grupo" (no "Kit" ni "Receta" — "Receta" ya es prescripción médica en el módulo clínico); (3) el consumo de inventario de los componentes de un Grupo **no se automatiza todavía** — el usuario explicó que la cotización es una "prefactura" que no debe afectar inventario ni contabilidad hasta un concepto formal de "factura → cuenta por cobrar" que hoy no existe en el sistema (es base-efectivo); diseñar eso es un proyecto aparte.
+
+**Hallazgo crítico durante la investigación, no anticipado por el usuario:** `AccountingService::buildDebitLines()`/`buildDebitLinesFromBooking()` asumían que toda línea de cotización tenía `->service` sin guardar contra null — con una sola línea de Artículo en una cotización aceptada, el cobro habría tronado con error fatal, o (el caso `buildDebitLinesFromBooking`, más grave) **prorrateado el ingreso por artículos dentro de las cuentas de servicios en silencio**, corrompiendo el libro contable sin ningún error visible. Se corrigió en el mismo cambio (no como seguimiento) — `items` ganó `account_id` (mismo patrón que `services.account_id`) para poder clasificarlo.
+
+**Diseño de datos:** `groups`/`group_components` con **FKs duales `service_id`/`item_id` + CHECK constraint** (exactamente uno no nulo) en vez de un morph como `ItemMovement` — justificado porque el universo de "tipo de componente" es cerrado (solo Servicio o Artículo, confirmado con el usuario), a diferencia del origen abierto de `ItemMovement.reference`. `restrictOnDelete` en `service_id`/`item_id` (no `nullOnDelete`, que rompería el CHECK) — requirió agregar guardas nuevas en `ItemController`/`ServiceController::destroy()` para devolver un error amigable en vez de dejar tronar la excepción de integridad referencial con 500. `quote_items` gana `item_id`/`quantity`/`group_id` (`service_id` se volvió nullable — el `->nullable()->change()` funcionó directo sin necesidad de tocar la FK existente, verificado empíricamente antes de complicar la migración). `spa_booking_services` gana `quantity`/`group_id`; tabla nueva `spa_booking_items` paralela. Precio del Grupo **no se cachea** — se calcula al vuelo con `SUM()` (mismo patrón que `Account::balance()`), justo lo opuesto al patrón de `items.stock_quantity` de BL-054, y se justificó por qué cada uno usa el patrón que le corresponde.
+
+**UI:** `_quote_manager.blade.php` gana "Agregar grupo completo" y "Agregar artículo suelto" (expansión 100% client-side en Alpine.js, reusando el mismo modelo de confianza que ya existía para `price_override` — el servidor no necesita saber qué es un Grupo, solo recibe filas ya planas). `_billing_summary.blade.php`, `_work_order.blade.php` y los 4 reportes PDF/email actualizados para no asumir `->service` en cada línea. Pantalla CRUD de Grupos (`groups/*`) con gestión de componentes inline, mismo patrón que la pantalla de movimientos de Artículos.
+
+**BL-056 — foto de artículo:** el usuario señaló "te falta la foto del producto" — se separó de BL-052 (que también incluía automatizar publicación en catálogo de WhatsApp, eso sigue pendiente). `ItemPhotoImageManager` nuevo, copia exacta del patrón ya usado por `OperatorPhotoImageManager` (recorte cuadrado, original + thumbnail vía `Spatie\Image`). Miniatura visible en el listado de Artículos y en la tabla de componentes de un Grupo.
+
+**Verificación:** suite completa sin regresiones en cada corte (37 fallidas preexistentes constantes; 151→168 pasan a lo largo de la racha, 31 tests nuevos en total). Todas las migraciones corridas en producción real con confirmación explícita del usuario antes de cada `migrate --force`. Verificación funcional end-to-end en producción real dentro de transacciones revertidas (Grupo con componentes → cotización expandida → aceptada → congelada en `spa_booking_services`/`spa_booking_items`, confirmando que `AccountingService` no truena) — sin dejar datos falsos.
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_15_000003..000011_*` (9 migraciones: `item_movements`, `stock_quantity` signed, `groups`, `group_components`, `quote_items`/`spa_booking_services`/`spa_booking_items`, `items.account_id`/`photo_path`)
+- `app/Models/{ItemMovement,Group,GroupComponent,SpaBookingItem}.php` (nuevos), `app/Models/{Item,QuoteItem,SpaBookingService,SpaBooking}.php` (actualizados)
+- `app/Domain/Inventory/{Contracts,Services}/ItemMovementService*.php` (nuevo dominio)
+- `app/Domain/Commercial/Services/QuoteService.php`, `app/Domain/Accounting/Services/AccountingService.php` (fix crítico)
+- `app/Http/Controllers/{ItemMovementController,GroupController,GroupComponentController}.php` (nuevos), `{ItemController,ServiceController,SpaBookingController,ReportController,Clinical/PetVaccinationController}.php` (actualizados)
+- `app/Support/{ItemPhotoImageManager,Pages/GroupsPage}.php` (nuevos)
+- `resources/views/{groups,items}/*`, `resources/views/agenda/partials/{_quote_manager,_billing_summary,_work_order}.blade.php`, `resources/views/reports/*.blade.php`, `resources/views/emails/service-summary.blade.php`
+- `tests/Feature/{ItemMovementTest,GroupTest,GroupComponentTest,QuoteGroupTest,AccountingServiceItemLinesTest}.php` (nuevos)
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md` (BL-054/055/056 → Completados, BL-049/052 recortados)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta racha completa (pendiente de que el usuario lo pida).
+2. BL-049 — Tienda/Inventario real (multi-sucursal de verdad, conexión con venta cobrada, almacenes/transferencias) — capa encima de BL-054, sin diseñar.
+3. BL-052 — automatizar publicación en catálogo de WhatsApp/redes (la parte de fotos ya se hizo, BL-056).
+4. BL-053 — artículos de uso interno/equipo para servicios.
+5. Hotel/Hospital: cotización y facturación itemizada paralela a Spa — fase 2 de Grupos, deliberadamente fuera de esta entrega.
+6. Concepto formal de "factura → cuenta por cobrar" — necesario antes de automatizar el consumo de inventario de componentes de Grupo.
+7. BL-047 (Fase 2 clínica).
+8. Sueltos de sesiones previas: 3 ideas del asistente de IA, Meta Business Suite, marca de agua, `/mapa-zonas`, los 4 archivos huérfanos de BL-037, SPF/DKIM.
+
+---
+
 ## 📅 Sesión: 15/07/2026 (cont. 3) — Ajuste: Clientes/Mascotas/Sucursales se queda como persiana propia, fuera de "Administración"
 
 ### ✅ Logros y Cambios
