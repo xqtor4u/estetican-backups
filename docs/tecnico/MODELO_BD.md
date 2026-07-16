@@ -445,6 +445,7 @@ BL-051 agregó `price`, `ai_visible` y `stock_quantity` — campos mínimos para
 | `department` | string nullable | "Farmacia", "Accesorios", etc. — texto libre con sugerencias, sin enum |
 | `brand` | string nullable | Marca |
 | `presentation` | string nullable | Ej. "Frasco 1 dosis", "Multidosis 10ml" |
+| `cost_price` | decimal(10,2) nullable | BL-057 — costo de compra. Base para sugerir `price` según el margen configurable (`SystemSettings` → sección `store`, campo `store_profit_margin_percentage`, default 30%): `price sugerido = cost_price × (1 + margen/100)`. Solo sugerencia (botón "usar sugerido" en el form) — `price` se puede editar libre, sin forzar el cálculo |
 | `price` | decimal(10,2) nullable | BL-051 — si es null, el asistente IA dice "precio a consultar" |
 | `is_active` | boolean, default true | |
 | `ai_visible` | boolean, default false | BL-051 — controla si el asistente IA puede mencionar el artículo. Default `false`: nada se expone hasta marcarlo a mano |

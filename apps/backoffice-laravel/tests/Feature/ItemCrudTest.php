@@ -8,6 +8,7 @@ use App\Models\Pet;
 use App\Models\PetVaccination;
 use App\Models\Service;
 use App\Models\User;
+use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
@@ -87,6 +88,28 @@ class ItemCrudTest extends TestCase
         $this->actingAs($user)->get(route('items.index'))->assertForbidden();
         $this->actingAs($user)->get(route('items.create'))->assertForbidden();
         $this->actingAs($user)->post(route('items.store'), ['name' => 'X'])->assertForbidden();
+    }
+
+    public function test_cost_price_is_saved_and_the_configured_margin_is_shown_on_create(): void
+    {
+        app(SystemSettings::class)->saveFields('store', ['store_profit_margin_percentage' => 40]);
+        $user = $this->userWithPermissions(['ver catalogo_articulos', 'crear catalogo_articulos']);
+
+        $createResponse = $this->actingAs($user)->get(route('items.create'));
+        $createResponse->assertOk()->assertSee('40%');
+
+        $storeResponse = $this->actingAs($user)->post(route('items.store'), [
+            'name' => 'Shampoo hipoalergénico',
+            'cost_price' => '50.00',
+            'price' => '70.00',
+        ]);
+        $storeResponse->assertRedirect(route('items.index'));
+
+        $this->assertDatabaseHas('items', [
+            'name' => 'Shampoo hipoalergénico',
+            'cost_price' => 50.00,
+            'price' => 70.00,
+        ]);
     }
 
     public function test_deleting_an_item_keeps_the_historical_vaccination_with_its_manufacturer_snapshot(): void

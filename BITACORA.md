@@ -1,5 +1,32 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 16/07/2026 — BL-057: costo de compra + precio de venta sugerido en Artículos
+
+### ✅ Logros y Cambios
+
+Surgió en medio de una conversación sobre Zeus-Estetican (el proyecto paralelo de renta del motor, `/opt/www/zeus-estetican/`) — al revisar el catálogo de "módulos" ahí, el usuario notó que faltaba una pieza real del lado de Tienda y la pidió "antes de que se me olvide": `items` gana `cost_price` (costo de compra), y el `price` existente (BL-051) pasa a tener un cálculo sugerido en vivo a partir de un margen de utilidad configurable.
+
+**Nueva sección de configuración "Tienda y Proyectos"** en `SystemSettings` (`store_profit_margin_percentage`, default 30%) — cero código nuevo de renderizado necesario, el sistema de secciones ya es genérico (mismo patrón que Cobertura Geográfica/Clínica): agregar la definición del campo a `SystemSettings::definitions()` fue suficiente para que apareciera en la pantalla de Configuración del sistema, con validación y persistencia automáticas.
+
+**Formulario de Artículos:** campo nuevo "Costo de compra" con un pequeño `x-data` de Alpine.js que calcula el precio sugerido en vivo (`costo × (1 + margen/100)`) mientras se escribe, más un botón "usar sugerido" que copia el valor al campo `price` — deliberadamente **no automático/forzado**: el precio final sigue siendo 100% editable a mano, el cálculo es solo una ayuda visible.
+
+**Verificación:** 1 test nuevo (`ItemCrudTest::test_cost_price_is_saved_and_the_configured_margin_is_shown_on_create`), suite completa sin regresiones (37 fallidas preexistentes, 169 pasan). Migración corrida y verificada en producción real (`/items/create` muestra el campo y el cálculo; `/system-settings` muestra la sección nueva).
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_16_000001_add_cost_price_to_items_table.php` (nuevo)
+- `app/Support/SystemSettings/SystemSettings.php` (sección `store`)
+- `app/Models/Item.php`, `app/Http/Controllers/ItemController.php`
+- `resources/views/items/partials/form.blade.php`
+- `tests/Feature/ItemCrudTest.php`
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md` (BL-057)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. Sigue pendiente lo de sesiones previas: BL-047 (clínica fase 2), BL-049 (Tienda/Inventario real, multi-sucursal), BL-052 (automatizar catálogo de WhatsApp/redes), BL-053 (artículos de uso interno).
+3. En Zeus-Estetican: definir interruptores reales para módulos combinables (Estética/Spa, Tienda, Hotel) — hoy solo Clínica tiene uno de verdad (`clinical_module_enabled`), lo cual limita qué tan útil es el catálogo de módulos del portal de Zeus.
+
+---
+
 ## 📅 Sesión: 15/07/2026 (cont. 4) — BL-054 "IM sencillo", BL-055 "Grupos" (combos Servicio+Artículo en cotizaciones) y BL-056 foto de artículo
 
 ### ✅ Logros y Cambios

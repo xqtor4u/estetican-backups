@@ -7,6 +7,7 @@ use App\Models\GroupComponent;
 use App\Models\Item;
 use App\Support\ItemPhotoImageManager;
 use App\Support\Pages\ItemsPage;
+use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -72,11 +73,12 @@ class ItemController extends Controller
         return view('items.index', compact('items', 'search', 'status', 'sort', 'direction', 'page'));
     }
 
-    public function create(): View
+    public function create(SystemSettings $settings): View
     {
         $page = ItemsPage::create();
+        $profitMargin = (float) $settings->all()['store_profit_margin_percentage'];
 
-        return view('items.create', compact('page'));
+        return view('items.create', compact('page', 'profitMargin'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -107,13 +109,14 @@ class ItemController extends Controller
         return redirect()->route('items.index')->with('success', 'Artículo creado.');
     }
 
-    public function edit(Item $item): View
+    public function edit(Item $item, SystemSettings $settings): View
     {
         $page = ItemsPage::edit($item);
         $branches = Branch::where('is_active', true)->orderBy('name')->get(['id', 'name']);
         $movements = $item->movements()->with('branch:id,name')->latest()->limit(20)->get();
+        $profitMargin = (float) $settings->all()['store_profit_margin_percentage'];
 
-        return view('items.edit', compact('item', 'page', 'branches', 'movements'));
+        return view('items.edit', compact('item', 'page', 'branches', 'movements', 'profitMargin'));
     }
 
     public function update(Request $request, Item $item): RedirectResponse
@@ -168,6 +171,7 @@ class ItemController extends Controller
             'department' => 'nullable|string|max:255',
             'brand' => 'nullable|string|max:255',
             'presentation' => 'nullable|string|max:255',
+            'cost_price' => 'nullable|numeric|min:0',
             'price' => 'nullable|numeric|min:0',
             'is_active' => 'nullable|boolean',
             'ai_visible' => 'nullable|boolean',

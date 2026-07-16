@@ -48,8 +48,28 @@
         <textarea id="notes" name="notes" class="form-control" rows="3">{{ old('notes', $item->notes ?? '') }}</textarea>
     </div>
 
+    <div class="col-md-4"
+         x-data="{
+            margin: {{ (float) $profitMargin }},
+            cost: {{ old('cost_price', $item->cost_price ?? '') !== '' ? (float) old('cost_price', $item->cost_price ?? 0) : 'null' }},
+            sugerido() {
+                if (!this.cost || this.cost <= 0) return '0.00';
+                return (this.cost * (1 + this.margin / 100)).toFixed(2);
+            }
+         }">
+        <label for="cost_price" class="form-label">Costo de compra</label>
+        <input id="cost_price" type="number" name="cost_price" class="form-control" min="0" step="0.01" placeholder="Opcional"
+               value="{{ old('cost_price', isset($item) && $item->cost_price !== null ? number_format((float) $item->cost_price, 2, '.', '') : '') }}"
+               x-model.number="cost">
+        <div class="form-text">
+            Con margen del {{ rtrim(rtrim(number_format($profitMargin, 2), '0'), '.') }}% (<a href="{{ route('system-settings.index') }}#store" target="_blank">cambiar</a>),
+            precio sugerido: $<span x-text="sugerido()">0.00</span>
+            <button type="button" class="btn btn-sm btn-link p-0 align-baseline" @click="document.getElementById('price').value = sugerido()">usar sugerido</button>
+        </div>
+    </div>
+
     <div class="col-md-4">
-        <label for="price" class="form-label">Precio</label>
+        <label for="price" class="form-label">Precio de venta</label>
         <input id="price" type="number" name="price" class="form-control" min="0" step="0.01" placeholder="Opcional" value="{{ old('price', isset($item) && $item->price !== null ? number_format((float) $item->price, 2, '.', '') : '') }}">
         <div class="form-text">Si se deja vacío, el asistente IA dirá "precio a consultar".</div>
     </div>

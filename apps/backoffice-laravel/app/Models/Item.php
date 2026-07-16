@@ -20,6 +20,7 @@ use Spatie\Activitylog\Support\LogOptions;
     'department',
     'brand',
     'presentation',
+    'cost_price',
     'price',
     'is_active',
     'ai_visible',
@@ -35,6 +36,7 @@ class Item extends Model
     protected function casts(): array
     {
         return [
+            'cost_price' => 'decimal:2',
             'price' => 'decimal:2',
             'is_active' => 'boolean',
             'ai_visible' => 'boolean',
@@ -50,7 +52,7 @@ class Item extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'department', 'brand', 'presentation', 'price', 'is_active', 'ai_visible', 'stock_quantity'])
+            ->logOnly(['name', 'department', 'brand', 'presentation', 'cost_price', 'price', 'is_active', 'ai_visible', 'stock_quantity'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->useLogName('catalogo');

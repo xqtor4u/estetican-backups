@@ -535,6 +535,19 @@ class SystemSettings
                     ],
                 ],
             ],
+            'store' => [
+                'label' => 'Tienda y Proyectos',
+                'description' => 'Configuración comercial del catálogo de Artículos y Grupos — margen de utilidad sugerido para calcular el precio de venta a partir del costo de compra.',
+                'fields' => [
+                    'store_profit_margin_percentage' => [
+                        'label' => 'Porcentaje de utilidad sugerido',
+                        'type' => 'number',
+                        'default' => 30,
+                        'rules' => ['required', 'numeric', 'min:0', 'max:1000'],
+                        'help' => 'Se usa para sugerir el precio de venta de un Artículo a partir de su costo de compra: precio = costo × (1 + porcentaje/100). Es solo una sugerencia — el precio final siempre se puede editar a mano.',
+                    ],
+                ],
+            ],
             'clinical' => [
                 'label' => 'Veterinaria (Expediente Clínico)',
                 'description' => 'Módulo de expediente clínico veterinario — otra área de negocio, independiente del spa/grooming/hotel. Se activa cuando el negocio veterinario esté listo para operar; mientras esté apagado, no aparece en la navegación ni se puede acceder a sus pantallas.',
