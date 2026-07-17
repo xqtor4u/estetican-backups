@@ -1,5 +1,21 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 16-17/07/2026 — BL-057/058/059 + 2 bugs críticos reales encontrados
+
+Sesión larga, arrancó como una aparte ("antes de que se me olvide") en medio del trabajo de Zeus-Estetican y terminó cubriendo tres backlogs completos de EstetiCAN:
+
+- **BL-057** — costo de compra + precio de venta sugerido en Artículos (`items.cost_price`, sección nueva "Tienda y Proyectos" en `SystemSettings`).
+- **BL-058** — toggle real de módulo Tienda (`store_module_enabled`), motivado directamente por una brecha de arquitectura detectada en Zeus-Estetican (su catálogo de "Módulos" era cosmético fuera de Clínica). De paso, **NT-038**: un `@json()` mal formado en `_quote_manager.blade.php` desde BL-055 causaba `ParseError` real en producción en cualquier `GET` a `agenda.show` — nadie lo había notado porque ningún test previo hacía esa petición.
+- **BL-059** — toggle real de módulo Hotel (`hotel_module_enabled`), evaluado primero como "fuera de alcance" en BL-058 por estar fusionado en la Agenda compartida, construido de todas formas a pedido del usuario. De paso, **NT-039**: el KPI "Huéspedes en Hotel" del dashboard y la fusión de Hotel en la Agenda unificada llevaban rotos — siempre en cero — desde que se construyeron, por filtrar un `status = 'active'` que nunca existió en el enum real (`scheduled`/`cancelled`/`fulfilled`).
+
+Con esto, los tres módulos de negocio reales de EstetiCAN (Clínica/Tienda/Hotel) ya tienen interruptor real y verificado en producción — Estética queda confirmada como el kernel no-togglable.
+
+**Estado al cerrar:** working tree limpio, todo commiteado y pusheado a `origin/main` (`5ea7c83` es el HEAD). Sin pendientes de push.
+
+**Pendientes activos para la próxima sesión:** BL-047 (clínica fase 2), BL-049 (Tienda/Inventario real, multi-sucursal), BL-052 (automatizar catálogo de WhatsApp/redes), BL-053 (artículos de uso interno) — ninguno tocado hoy, siguen en el mismo estado que antes de esta sesión.
+
+---
+
 ## 📅 Sesión: 16/07/2026 (cont. 2) — BL-059: toggle real de módulo "Hotel" + KPI que nunca funcionó
 
 ### ✅ Logros y Cambios
