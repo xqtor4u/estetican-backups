@@ -970,3 +970,19 @@ Verificado con `php artisan route:list --name=items.store -vv` — el middleware
 **Fix:** `CLAUDE.md` corregido — Stack dice PHP 8.5 (con nota de por qué cambió), Testing dice MySQL explícitamente con la incompatibilidad de SQLite documentada.
 
 **Lección:** cuando otro proyecto (o una sesión futura) necesite tratar a EstetiCAN como una "caja negra" reproducible (clonarlo, migrarlo desde cero en un entorno nuevo), es la prueba de fuego real de si la documentación de stack sigue vigente — verificar versión real (`php -v` dentro del contenedor) y motor de BD real (`.env`) antes de confiar en lo escrito, sobre todo en proyectos que llevan meses en producción y pudieron actualizarse sin que alguien tocara `CLAUDE.md` a la par.
+
+## NT-038 — `@json()` con array multilínea anidado en Blade truena en producción con `ParseError` (500 real en Agenda, latente desde BL-055)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 16/07/2026 |
+| **Severidad** | P1 — cualquier usuario que abriera el detalle de una cita (`agenda.show`) recibía 500 en cuanto Blade recompilaba la vista (el caché de vistas compiladas la estaba "tapando" por casualidad hasta que se invalidó) |
+| **Componente** | `resources/views/agenda/partials/_quote_manager.blade.php` |
+
+**Síntoma:** al agregar los tests de `StoreModuleToggleTest` (BL-058) — los primeros en toda la suite que hacen `GET` a `agenda.show` — la vista truena con `ParseError: Unclosed '[' on line 83 does not match ')'` al compilarse. No es un error de sintaxis Blade (`app('blade.compiler')->compileString(...)` no lanza excepción), es un `ParseError` de **PHP real** al hacer `require` del archivo ya compilado — es decir, Blade genera PHP inválido y no se da cuenta.
+
+**Diagnóstico:** el directivo `@json($groups->map(fn ($g) => [...anidado multilínea...]))` (líneas 82-92 originales) le pasaba al compilador de Blade una expresión PHP que abarca varias líneas, con un `map(fn (...) => [...])` anidado dentro de otro. El extractor de parámetros de `@json` corta la expresión de forma incorrecta a la mitad (justo después de `'service_id' => $c->service_id`), generando `<?php echo json_encode($groups->map(fn ($g) => [ 'id' => $g->id, ... 'service_id' => $c->service_id) ?>,` — el resto del array (`item_id`, `name`, `price`, `quantity`, los corchetes de cierre) queda fuera de PHP y se cuela como texto plano en medio del bloque `x-data`. Nadie lo detectó en BL-055 porque la verificación manual de esa sesión no hizo un `GET` real a `agenda.show` con datos — probó otras rutas y aceptación de cotizaciones vía POST directo. El bug estuvo agazapado en producción real desde el commit de BL-055 hasta hoy.
+
+**Fix:** la construcción del array para JS se movió del Blade al controller — `SpaBookingController::show()` arma `$groupsForQuoteManager` como una `Collection` ya lista (mismo `map()` anidado, pero en PHP puro, no dentro de un directivo Blade), y la vista queda con `@json($groupsForQuoteManager)` — una sola variable, sin anidamiento inline. Mismo patrón general: lógica de armado de datos vive en el controller, la vista solo consume variables ya resueltas.
+
+**Lección:** `@json()` (y en general cualquier directivo Blade) con una expresión PHP multilínea que anida `fn() => [...]` dentro de otro `fn() => [...]` es zona de riesgo real — el extractor de parámetros de Blade no siempre balancea correctamente paréntesis/corchetes anidados a través de varias líneas, y el error resultante es un `ParseError` en tiempo de ejecución, no en tiempo de compilación de Blade — así que `artisan view:cache`/`compileString()` no lo detectan, solo un `GET` real a la ruta lo expone. Cualquier vista con un `@json()` de más de una línea con estructuras anidadas debe moverse a una variable ya armada en el controller, nunca construirse inline en el Blade.

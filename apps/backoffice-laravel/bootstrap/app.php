@@ -3,6 +3,7 @@
 use App\Http\Middleware\ApplySystemSettings;
 use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\EnsureClinicalModuleEnabled;
+use App\Http\Middleware\EnsureStoreModuleEnabled;
 use App\Http\Middleware\HandleAssistantCors;
 use App\Http\Middleware\ProfileBackofficeRequests;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'clinical.module' => EnsureClinicalModuleEnabled::class,
+            'store.module' => EnsureStoreModuleEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -322,8 +322,20 @@ class SpaBookingController extends Controller
         $services = Service::where('is_active', true)->orderBy('name')->get();
         $items = Item::where('is_active', true)->orderBy('name')->get(['id', 'name', 'price']);
         $groups = Group::where('is_active', true)->with('components.service', 'components.item')->orderBy('name')->get();
+        $groupsForQuoteManager = $groups->map(fn (Group $g) => [
+            'id' => $g->id,
+            'name' => $g->name,
+            'components' => $g->components->map(fn ($c) => [
+                'service_id' => $c->service_id,
+                'item_id' => $c->item_id,
+                'name' => $c->name(),
+                'price' => $c->unitPrice(),
+                'quantity' => (float) $c->quantity,
+            ]),
+        ]);
+        $storeModuleEnabled = (bool) app(SystemSettings::class)->all()['store_module_enabled'];
 
-        return view('agenda.show', compact('page', 'booking', 'assignableResources', 'operators', 'services', 'items', 'groups'));
+        return view('agenda.show', compact('page', 'booking', 'assignableResources', 'operators', 'services', 'items', 'groups', 'groupsForQuoteManager', 'storeModuleEnabled'));
     }
 
     public function globalCreate(Request $request): View
@@ -699,6 +711,12 @@ class SpaBookingController extends Controller
             'items.*.price' => 'nullable|numeric|min:0',
             'items.*.notes' => 'nullable|string',
         ]);
+
+        $storeModuleEnabled = (bool) app(SystemSettings::class)->all()['store_module_enabled'];
+        if (! $storeModuleEnabled) {
+            $hasStoreLine = collect($validated['items'])->contains(fn ($line) => ! empty($line['item_id']) || ! empty($line['group_id']));
+            abort_if($hasStoreLine, 422, 'El módulo de Tienda está desactivado — no se pueden agregar artículos ni grupos a la cotización.');
+        }
 
         $this->quoteService->createQuoteFromBooking($booking, $validated);
 

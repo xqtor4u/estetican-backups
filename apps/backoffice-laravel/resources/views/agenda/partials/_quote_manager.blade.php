@@ -79,17 +79,7 @@
                     { service_id: '', item_id: '{{ $bi->item_id }}', group_id: '', name: '{{ $bi->item->name }}', price: '{{ $bi->current_price }}', quantity: '{{ rtrim(rtrim(number_format($bi->quantity, 2), '0'), '.') ?: '1' }}' },
                     @endforeach
                 ],
-                groups: @json($groups->map(fn ($g) => [
-                    'id' => $g->id,
-                    'name' => $g->name,
-                    'components' => $g->components->map(fn ($c) => [
-                        'service_id' => $c->service_id,
-                        'item_id' => $c->item_id,
-                        'name' => $c->name(),
-                        'price' => $c->unitPrice(),
-                        'quantity' => (float) $c->quantity,
-                    ]),
-                ])),
+                groups: @json($groupsForQuoteManager),
                 addService() {
                     let sel = $refs.serviceSelector;
                     let opt = sel.options[sel.selectedIndex];
@@ -161,18 +151,20 @@
                 </div>
 
                 <div class="p-3 border rounded-3 bg-white mb-3">
-                    <label class="form-label small fw-bold text-uppercase text-body-secondary">Agregar grupo completo</label>
-                    <div class="input-group mb-3">
-                        <select x-ref="groupSelector" class="form-select">
-                            <option value="">Seleccionar grupo...</option>
-                            @foreach($groups as $g)
-                                <option value="{{ $g->id }}">{{ $g->name }} (${{ number_format($g->calculatedPrice(), 2) }})</option>
-                            @endforeach
-                        </select>
-                        <button type="button" @click="addGroup()" class="btn btn-outline-primary">
-                            <i class="bi bi-collection"></i> Agregar grupo
-                        </button>
-                    </div>
+                    @if($storeModuleEnabled)
+                        <label class="form-label small fw-bold text-uppercase text-body-secondary">Agregar grupo completo</label>
+                        <div class="input-group mb-3">
+                            <select x-ref="groupSelector" class="form-select">
+                                <option value="">Seleccionar grupo...</option>
+                                @foreach($groups as $g)
+                                    <option value="{{ $g->id }}">{{ $g->name }} (${{ number_format($g->calculatedPrice(), 2) }})</option>
+                                @endforeach
+                            </select>
+                            <button type="button" @click="addGroup()" class="btn btn-outline-primary">
+                                <i class="bi bi-collection"></i> Agregar grupo
+                            </button>
+                        </div>
+                    @endif
 
                     <label class="form-label small fw-bold text-uppercase text-body-secondary">Agregar servicio adicional</label>
                     <div class="input-group mb-3">
@@ -187,18 +179,20 @@
                         </button>
                     </div>
 
-                    <label class="form-label small fw-bold text-uppercase text-body-secondary">Agregar artículo suelto</label>
-                    <div class="input-group">
-                        <select x-ref="itemSelector" class="form-select">
-                            <option value="">Seleccionar artículo...</option>
-                            @foreach($items as $it)
-                                <option value="{{ $it->id }}" data-name="{{ $it->name }}" data-price="{{ $it->price ?? 0 }}">{{ $it->name }} (${{ number_format($it->price ?? 0, 2) }})</option>
-                            @endforeach
-                        </select>
-                        <button type="button" @click="addItem()" class="btn btn-outline-primary">
-                            <i class="bi bi-plus-lg"></i> Agregar
-                        </button>
-                    </div>
+                    @if($storeModuleEnabled)
+                        <label class="form-label small fw-bold text-uppercase text-body-secondary">Agregar artículo suelto</label>
+                        <div class="input-group">
+                            <select x-ref="itemSelector" class="form-select">
+                                <option value="">Seleccionar artículo...</option>
+                                @foreach($items as $it)
+                                    <option value="{{ $it->id }}" data-name="{{ $it->name }}" data-price="{{ $it->price ?? 0 }}">{{ $it->name }} (${{ number_format($it->price ?? 0, 2) }})</option>
+                                @endforeach
+                            </select>
+                            <button type="button" @click="addItem()" class="btn btn-outline-primary">
+                                <i class="bi bi-plus-lg"></i> Agregar
+                            </button>
+                        </div>
+                    @endif
                 </div>
                 
                 <div>

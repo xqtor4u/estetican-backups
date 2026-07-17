@@ -539,6 +539,13 @@ class SystemSettings
                 'label' => 'Tienda y Proyectos',
                 'description' => 'Configuración comercial del catálogo de Artículos y Grupos — margen de utilidad sugerido para calcular el precio de venta a partir del costo de compra.',
                 'fields' => [
+                    'store_module_enabled' => [
+                        'label' => 'Módulo activo',
+                        'type' => 'boolean',
+                        'default' => true,
+                        'rules' => ['nullable', 'boolean'],
+                        'help' => 'Al desactivarlo, "Artículos" y "Grupos" dejan de aparecer en la navegación, sus pantallas dejan de ser accesibles, y desaparecen del armador de cotizaciones (el resto de la cotización — Servicios — sigue funcionando igual). No borra datos ni afecta cotizaciones/facturas ya emitidas.',
+                    ],
                     'store_profit_margin_percentage' => [
                         'label' => 'Porcentaje de utilidad sugerido',
                         'type' => 'number',

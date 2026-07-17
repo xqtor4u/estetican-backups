@@ -2,6 +2,8 @@
 
 namespace App\Support\Navigation\Groups;
 
+use App\Support\SystemSettings\SystemSettings;
+
 class CatalogsNavigation
 {
     /**
@@ -21,7 +23,9 @@ class CatalogsNavigation
             ];
         }
 
-        if ($user?->can('ver catalogo_grupos') || $user?->is_super_admin) {
+        $storeModuleEnabled = (bool) app(SystemSettings::class)->all()['store_module_enabled'];
+
+        if ($storeModuleEnabled && ($user?->can('ver catalogo_grupos') || $user?->is_super_admin)) {
             $items[] = [
                 'label' => 'Grupos',
                 'description' => 'Combos de Servicios + Artículos con cantidad — un clic los agrega todos a una cotización, facturados desglosados.',

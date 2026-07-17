@@ -1,5 +1,35 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 16/07/2026 (cont.) — BL-058: toggle real de módulo "Tienda" + bug crítico corregido en Agenda
+
+### ✅ Logros y Cambios
+
+Surgió de una conversación en Zeus-Estetican (proyecto paralelo de renta del motor): su catálogo de "Módulos" togglables por cliente era mayormente cosmético porque solo Clínica tenía un interruptor real del lado de EstetiCAN. Se investigó el código y se confirmó una asimetría real entre los candidatos (Tienda vive en pantallas propias, fácil de aislar; Hotel está fusionado dentro del calendario compartido de Agenda, mucho más invasivo). Con el usuario se confirmaron dos decisiones de arquitectura: **Estética deja de ser candidata a toggle** (es el kernel del que cuelgan Clínica y Hotel — pasa a ser Core fijo en Zeus) y se construye **Tienda primero**, mismo patrón exacto que Clínica (`SystemSettings` + middleware + gateo de navegación).
+
+**Toggle de Tienda:** `store_module_enabled` nuevo (sección "Tienda y Proyectos" de `SystemSettings`), `default => true` — a diferencia de Clínica (que nació apagada), Tienda ya está en uso real en producción, así que el flag nace prendido para no regresionar nada. Middleware `EnsureStoreModuleEnabled` (`store.module`) envolviendo todas las rutas de `items`/`groups`/movimientos/componentes. Navegación gateada en `InventoryNavigation`/`CatalogsNavigation`. El quote manager de Spa oculta los botones "Agregar grupo completo"/"Agregar artículo suelto" cuando está apagado, sin tocar "Agregar servicio adicional" (Servicios sigue siendo el flujo core). Guarda de backend en `storeQuote()` que rechaza líneas de artículo/grupo si el módulo está apagado, además del gateo de UI.
+
+**Bug crítico real encontrado y corregido en el mismo cambio (NT-038):** al escribir los tests nuevos — los primeros en toda la suite que hacen `GET` real a `agenda.show` — se descubrió que `_quote_manager.blade.php` traía un `@json()` con un array multilínea anidado (desde BL-055) que el compilador de Blade corta mal, generando un `ParseError` real de PHP. Esto significa que **cualquier usuario que abriera el detalle de una cita en producción recibía 500** en cuanto Blade recompilaba esa vista — estaba agazapado desde BL-055, tapado por casualidad por el caché de vistas compiladas hasta que se invalidó (mtime del archivo cambió al tocarlo para BL-058). Se corrigió moviendo el armado del array a `SpaBookingController::show()` (`$groupsForQuoteManager` ya resuelto, la vista solo hace `@json($groupsForQuoteManager)`) — página de Agenda verificada funcionando de nuevo.
+
+**Verificación:** 9 tests nuevos (`StoreModuleToggleTest`), suite completa sin regresiones (37 fallidas preexistentes sin cambio, 178 pasan, antes 169 — los 9 nuevos).
+
+### 📁 Archivos principales tocados
+- `app/Support/SystemSettings/SystemSettings.php` (`store_module_enabled`)
+- `app/Http/Middleware/EnsureStoreModuleEnabled.php` (nuevo), `bootstrap/app.php`
+- `routes/web.php` (bloque de Tienda envuelto en `store.module`)
+- `app/Support/Navigation/Groups/{InventoryNavigation,CatalogsNavigation}.php`
+- `resources/views/agenda/partials/_quote_manager.blade.php` (gateo + fix del bug de `@json`)
+- `app/Http/Controllers/SpaBookingController.php` (`show()`/`storeQuote()`)
+- `tests/Feature/StoreModuleToggleTest.php` (nuevo)
+- `docs/tecnico/{BACKLOG,NOTAS_TECNICAS}.md` (BL-058, NT-038)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. Zeus-Estetican: actualizar su documentación para reflejar que Estética ya no es Módulo togglable (es Core) y que Tienda ya tiene un toggle real (`code` a usar al registrar el módulo en el portal: `store`).
+3. Toggle de Hotel — evaluado y descartado para esta entrega por ser mucho más invasivo (fusionado en el calendario compartido de Agenda). Queda como candidato futuro si el negocio lo requiere.
+4. Sigue pendiente de sesiones previas: BL-047 (clínica fase 2), BL-049 (Tienda/Inventario real, multi-sucursal), BL-052 (automatizar catálogo de WhatsApp/redes), BL-053 (artículos de uso interno).
+
+---
+
 ## 📅 Sesión: 16/07/2026 — BL-057: costo de compra + precio de venta sugerido en Artículos
 
 ### ✅ Logros y Cambios
