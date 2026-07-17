@@ -275,7 +275,7 @@ Los Ítems de Configuración (CIs) clave del sistema. Actualizar esta tabla cuan
 | Hardware | Orange Pi 5 Plus | ARM64, 16GB RAM |
 | OS | Linux 6.1.x Armbian | |
 | Docker | Docker Engine + Compose v5 | Requiere buildx |
-| App Container | `estetican_app` | PHP 8.3, Laravel 13 |
+| App Container | `estetican_app` | PHP 8.5, Laravel 13 (ver NT-037 — se documentaba 8.3 hasta el 16/07/2026, la imagen se actualizó sin que la doc se actualizara junto) |
 | MySQL Container | `estetican_mysql` | MySQL 8.4 |
 | Redis Container | `estetican_redis` | |
 | Proxy | Nginx Proxy Manager | Puerto 80/443 → estetican_app:80 |
@@ -287,7 +287,7 @@ Los Ítems de Configuración (CIs) clave del sistema. Actualizar esta tabla cuan
 |---|---|---|
 | `cropperjs` | `1.6.2` (exacta) | v2 rompe toda la API de recorte (NT-001) |
 | `flatpickr` | `4.6.13` (exacta) | Cambios de API en minor versions |
-| PHP | `8.3+` | `8.5` tiene aritmética más estricta con null |
+| PHP | `8.5` (real, ver NT-037) | Producción corre 8.5.6 — cualquier código nuevo debe asumir la aritmética más estricta con null de 8.5, no la de 8.3 |
 | Laravel | `13.x` | Blade compilador cambia entre versiones |
 
 **Regla:** Las versiones exactas (`sin ^`) son ítems de configuración controlados. Cambiarlas es un **Cambio Normal** (§4) y requiere prueba explícita.

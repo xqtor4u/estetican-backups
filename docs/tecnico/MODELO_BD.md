@@ -438,6 +438,8 @@ Adjuntos clínicos (laboratorio/imagenología) — tabla creada en Fase 1, **UI/
 
 BL-051 agregó `price`, `ai_visible` y `stock_quantity` — campos mínimos para que el asistente IA (BL-042) pueda mencionar artículos (accesorios, medicinas) en venta, sin construir el módulo de inventario real. `stock_quantity` es un **contador simple editable a mano** (sin movimientos/histórico); cuando se diseñe BL-049 con tablas de movimientos reales, este campo puede pasar a ser calculado o eliminarse a favor de esas tablas — es intencionalmente el mínimo necesario para no complicarse ahora.
 
+**Módulo Tienda activable (BL-058, 16/07/2026):** todo este maestro (además de `groups`/`group_components` abajo) es alcanzable solo si `SystemSettings` → sección `store`, campo `store_module_enabled` está prendido (**default `true`** — a diferencia de Clínica, ya estaba en uso real en producción cuando se agregó el toggle). Apagado: rutas `items.*`/`groups.*`/`item-movements.*` responden 404 (`EnsureStoreModuleEnabled` middleware), desaparecen de navegación, y el armador de cotizaciones de Spa oculta "Agregar grupo completo"/"Agregar artículo suelto" (Servicios sigue siendo el flujo core, no se ve afectado).
+
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
@@ -712,10 +714,12 @@ Reservas de hospedaje por rango de fechas.
 | `pet_id` | FK → `pets` | |
 | `start_at` | datetime | |
 | `end_at` | datetime | |
-| `status` | enum | `scheduled`, `cancelled`, `fulfilled` |
+| `status` | enum | `scheduled`, `cancelled`, `fulfilled` — **no existe `'active'`** (ver NT-039: dos consultas reales del dashboard/Agenda filtraban por ese valor inexistente y nunca encontraban nada, corregido a `scheduled` + rango de fecha) |
 | `timestamps` | | |
 
 > Al crear/editar, puede asignar recurso (jaula) vía `resource_allocations`. Cancelar libera la jaula.
+
+**Módulo Hotel activable (BL-059, 16/07/2026):** alcanzable solo si `SystemSettings` → sección `hotel`, campo `hotel_module_enabled` está prendido (**default `true`**, ya en uso real). Apagado: rutas `hotel-reservations.*` responden 404 (`EnsureHotelModuleEnabled` middleware), desaparece del dashboard (KPI "Huéspedes en Hotel" y acceso rápido) y del selector "¿qué tipo de servicio?" al crear una cita nueva, y deja de sumarse a la Agenda unificada (`SpaBookingController::index()`/`buildCalendarRange()`) — Spa no se ve afectado. A diferencia de Clínica/Tienda, Hotel no tiene sección propia de navegación: está fusionado dentro del mismo calendario compartido de Agenda que usa Spa.
 
 ---
 
