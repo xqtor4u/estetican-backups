@@ -55,16 +55,18 @@
         </div>
 
         {{-- Hotel activo --}}
-        <div class="col-6 col-md-3">
-            <div class="kpi-card kpi-hotel">
-                <div class="kpi-icon"><i class="bi bi-house-heart"></i></div>
-                <div class="kpi-value">{{ $hotelActive }}</div>
-                <div class="kpi-label">Huéspedes en Hotel</div>
-                <div class="kpi-sub">
-                    <a href="{{ route('hotel-reservations.index') }}" class="text-decoration-none small">Ver estancias →</a>
+        @if($hotelModuleEnabled)
+            <div class="col-6 col-md-3">
+                <div class="kpi-card kpi-hotel">
+                    <div class="kpi-icon"><i class="bi bi-house-heart"></i></div>
+                    <div class="kpi-value">{{ $hotelActive }}</div>
+                    <div class="kpi-label">Huéspedes en Hotel</div>
+                    <div class="kpi-sub">
+                        <a href="{{ route('hotel-reservations.index') }}" class="text-decoration-none small">Ver estancias →</a>
+                    </div>
                 </div>
             </div>
-        </div>
+        @endif
 
         {{-- Clientes --}}
         <div class="col-6 col-md-3">
@@ -178,10 +180,12 @@
                             <i class="bi bi-scissors"></i>
                             <span>Nueva cita SPA</span>
                         </a>
-                        <a href="{{ route('hotel-reservations.create') }}" class="quick-link-btn quick-link-hotel">
-                            <i class="bi bi-house-heart"></i>
-                            <span>Nueva estancia Hotel</span>
-                        </a>
+                        @if($hotelModuleEnabled)
+                            <a href="{{ route('hotel-reservations.create') }}" class="quick-link-btn quick-link-hotel">
+                                <i class="bi bi-house-heart"></i>
+                                <span>Nueva estancia Hotel</span>
+                            </a>
+                        @endif
                         <a href="{{ route('clients.create') }}" class="quick-link-btn">
                             <i class="bi bi-person-plus"></i>
                             <span>Nuevo cliente</span>

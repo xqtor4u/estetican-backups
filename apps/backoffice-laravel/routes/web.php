@@ -78,7 +78,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('pets/{pet}', [PetController::class, 'destroy'])->name('pets.destroy');
 
     Route::resource('clients', ClientController::class);
-    Route::resource('hotel-reservations', HotelReservationController::class)->except(['destroy']);
+    Route::middleware('hotel.module')->group(function () {
+        Route::resource('hotel-reservations', HotelReservationController::class)->except(['destroy']);
+    });
     Route::resource('services', ServiceController::class);
     Route::middleware('store.module')->group(function () {
         Route::resource('items', ItemController::class)->except(['show'])
@@ -134,7 +136,7 @@ Route::middleware('auth')->group(function () {
     Route::post('agenda/{booking}/cancel', [SpaBookingController::class, 'cancel'])->name('agenda.cancel');
     Route::post('agenda/{booking}/no-show', [SpaBookingController::class, 'markNoShow'])->name('agenda.no-show');
     Route::post('services/{service}/duplicate', [ServiceController::class, 'duplicate'])->name('services.duplicate');
-    Route::post('hotel-reservations/{hotelReservation}/cancel', [HotelReservationController::class, 'cancel'])->name('hotel-reservations.cancel');
+    Route::post('hotel-reservations/{hotelReservation}/cancel', [HotelReservationController::class, 'cancel'])->name('hotel-reservations.cancel')->middleware('hotel.module');
 
     Route::get('pets/{pet}/bookings/create', [SpaBookingController::class, 'createForPet'])->name('pets.bookings.create');
     Route::post('pets/{pet}/bookings', [SpaBookingController::class, 'storeForPet'])->name('pets.bookings.store');

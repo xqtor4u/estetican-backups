@@ -82,19 +82,21 @@
                                 </div>
                             </button>
                         </div>
-                        <div class="col-md-6">
-                            <button 
-                                type="button" 
-                                class="card h-100 border-0 shadow-sm text-center p-4 w-100 hover-elevate transition-all"
-                                @click="goToCreate('hotel')"
-                            >
-                                <div class="card-body">
-                                    <div class="display-5 text-info mb-3"><i class="bi bi-house-heart"></i></div>
-                                    <h5 class="card-title fw-bold">Hospedaje (Hotel)</h5>
-                                    <p class="card-text text-body-secondary small">Estancias nocturnas, guardería y cuidados prolongados.</p>
-                                </div>
-                            </button>
-                        </div>
+                        @if($hotelModuleEnabled)
+                            <div class="col-md-6">
+                                <button
+                                    type="button"
+                                    class="card h-100 border-0 shadow-sm text-center p-4 w-100 hover-elevate transition-all"
+                                    @click="goToCreate('hotel')"
+                                >
+                                    <div class="card-body">
+                                        <div class="display-5 text-info mb-3"><i class="bi bi-house-heart"></i></div>
+                                        <h5 class="card-title fw-bold">Hospedaje (Hotel)</h5>
+                                        <p class="card-text text-body-secondary small">Estancias nocturnas, guardería y cuidados prolongados.</p>
+                                    </div>
+                                </button>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>

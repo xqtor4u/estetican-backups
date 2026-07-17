@@ -1,5 +1,34 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 16/07/2026 (cont. 2) — BL-059: toggle real de módulo "Hotel" + KPI que nunca funcionó
+
+### ✅ Logros y Cambios
+
+Continuación directa de BL-058: el usuario pidió construir también el toggle de Hotel, el candidato que se había descartado deliberadamente por estar mucho más fusionado que Tienda (sin sección propia de navegación, mezclado dentro del calendario/timeline compartido de Agenda, del dashboard y del selector "¿qué tipo de servicio?" al crear una cita). Se investigó el código real y se confirmó que, aunque hay más puntos de contacto, el patrón sigue siendo el mismo que Clínica/Tienda — solo aplicado a más vistas.
+
+**Toggle de Hotel:** `hotel_module_enabled` nuevo (sección "Hotel (Hospedaje)" de `SystemSettings`), `default => true` (mismo razonamiento que Tienda — ya está en uso real). Middleware `EnsureHotelModuleEnabled` (`hotel.module`) envolviendo `hotel-reservations.*`. `SpaBookingController::index()`/`buildCalendarRange()` dejan de consultar `HotelReservation` cuando está apagado, así que la Agenda unificada simplemente queda solo con SPA. `DashboardController` oculta el KPI "Huéspedes en Hotel" y el acceso rápido "Nueva estancia Hotel". El selector de creación de citas (`agenda/global-create.blade.php`) oculta la tarjeta "Hospedaje (Hotel)". El copy fijo que mencionaba "SPA y Hotel" en la Agenda pasa a condicional para no ser engañoso con el módulo apagado.
+
+**Bug crítico real encontrado y corregido en el mismo cambio (NT-039):** al escribir el test que simula "un huésped actualmente hospedado", el `INSERT` de prueba truena — el enum real de `hotel_reservations.status` es `scheduled`/`cancelled`/`fulfilled`, **`'active'` nunca existió**. Las tres consultas reales del sistema (`DashboardController`, y las dos de `SpaBookingController` para la Agenda) filtraban por `status = 'active'`, así que **el KPI "Huéspedes en Hotel" y la fusión de Hotel en la Agenda unificada llevan rotos — siempre en cero — desde que se construyeron**, sin que nadie lo notara porque cero es un resultado perfectamente creíble a simple vista. Se corrigió a `status = 'scheduled'` (el estado real que usa el resto del módulo) y de paso se acotó el KPI del dashboard a la fecha de hoy, que antes no filtraba por fecha en absoluto (habría contado *todas* las reservas agendadas alguna vez, no solo las de hoy, una vez arreglado el valor del status).
+
+**Verificación:** 8 tests nuevos (`HotelModuleToggleTest`), suite completa sin regresiones (37 fallidas preexistentes sin cambio, 186 pasan, antes 178). Verificado end-to-end en producción real: con el default (activo) las 4 pantallas afectadas responden 200 igual que antes; apagando el flag, `/hotel-reservations` → 404, el KPI desaparece del dashboard; reactivado sin dejar rastro.
+
+### 📁 Archivos principales tocados
+- `app/Support/SystemSettings/SystemSettings.php` (`hotel_module_enabled`)
+- `app/Http/Middleware/EnsureHotelModuleEnabled.php` (nuevo), `bootstrap/app.php`
+- `routes/web.php` (rutas de `hotel-reservations` envueltas en `hotel.module`)
+- `app/Http/Controllers/{SpaBookingController,DashboardController}.php` (gateo + fix del bug de `status`)
+- `resources/views/{dashboard/index,agenda/index,agenda/global-create}.blade.php`
+- `tests/Feature/HotelModuleToggleTest.php` (nuevo)
+- `docs/tecnico/{BACKLOG,NOTAS_TECNICAS}.md` (BL-059, NT-039)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. Zeus-Estetican: actualizar su documentación — Hotel deja de estar "descartado por ahora" y pasa a tener un toggle real (`code` a usar al registrar el módulo en el portal: `hotel`).
+3. Con esto, los tres candidatos de módulo evaluados en Zeus (Clínica/Tienda/Hotel) ya tienen interruptor real del lado de EstetiCAN — Estética sigue confirmada como Core no-togglable.
+4. Sigue pendiente de sesiones previas: BL-047 (clínica fase 2), BL-049 (Tienda/Inventario real, multi-sucursal), BL-052 (automatizar catálogo de WhatsApp/redes), BL-053 (artículos de uso interno).
+
+---
+
 ## 📅 Sesión: 16/07/2026 (cont.) — BL-058: toggle real de módulo "Tienda" + bug crítico corregido en Agenda
 
 ### ✅ Logros y Cambios

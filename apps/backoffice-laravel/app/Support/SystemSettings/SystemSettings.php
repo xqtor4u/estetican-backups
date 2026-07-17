@@ -555,6 +555,19 @@ class SystemSettings
                     ],
                 ],
             ],
+            'hotel' => [
+                'label' => 'Hotel (Hospedaje)',
+                'description' => 'Módulo de hospedaje/guardería — otra área de negocio, independiente del spa/grooming/clínica.',
+                'fields' => [
+                    'hotel_module_enabled' => [
+                        'label' => 'Módulo activo',
+                        'type' => 'boolean',
+                        'default' => true,
+                        'rules' => ['nullable', 'boolean'],
+                        'help' => 'Al desactivarlo, "Hotel" deja de ser accesible (rutas propias, tarjeta al crear una cita nueva, KPI y acceso rápido del dashboard, presencia en la Agenda unificada). No borra datos ni afecta estancias ya registradas.',
+                    ],
+                ],
+            ],
             'clinical' => [
                 'label' => 'Veterinaria (Expediente Clínico)',
                 'description' => 'Módulo de expediente clínico veterinario — otra área de negocio, independiente del spa/grooming/hotel. Se activa cuando el negocio veterinario esté listo para operar; mientras esté apagado, no aparece en la navegación ni se puede acceder a sus pantallas.',

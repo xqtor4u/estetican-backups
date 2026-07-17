@@ -22,7 +22,7 @@
             <article class="catalog-overview-card catalog-overview-card--primary">
                 <span class="catalog-overview-card__eyebrow">Agenda Operativa</span>
                 <div class="catalog-overview-card__value">{{ $agendaOverviewCount }}</div>
-                <p class="catalog-overview-card__text">{{ $operationalDateLabel }} con visión unificada de SPA y Hotel para coordinación centralizada.</p>
+                <p class="catalog-overview-card__text">{{ $operationalDateLabel }} con visión unificada de {{ $hotelModuleEnabled ? 'SPA y Hotel' : 'SPA' }} para coordinación centralizada.</p>
             </article>
             <article class="catalog-overview-card">
                 <span class="catalog-overview-card__eyebrow">Carga estimada</span>
@@ -49,7 +49,7 @@
         <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'tomorrow'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'tomorrow' ? 'agenda-scope-switch__item--active' : '' }}">Mañana</a>
         <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'all'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'all' ? 'agenda-scope-switch__item--active' : '' }}">Próximas</a>
         <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'full'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'full' ? 'agenda-scope-switch__item--active' : '' }}">Todas</a>
-        <span class="agenda-scope-switch__hint">Agenda unificada: SPA y Hotel integrados para lectura rápida.</span>
+        <span class="agenda-scope-switch__hint">{{ $hotelModuleEnabled ? 'Agenda unificada: SPA y Hotel integrados para lectura rápida.' : 'Agenda de SPA.' }}</span>
     </section>
     @endif
 

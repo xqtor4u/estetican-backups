@@ -127,17 +127,21 @@ class SpaBookingController extends Controller
                 return $b;
             });
 
-        $hotelForTimeline = HotelReservation::whereDate('start_at', '<=', $selectedDate)
-            ->whereDate('end_at', '>=', $selectedDate)
-            ->where('status', 'active')
-            ->with('pet.client')
-            ->get()
-            ->map(function ($h) {
-                $h->agenda_type = 'hotel';
-                $h->scheduled_at = $h->start_at;
+        $hotelModuleEnabled = (bool) app(SystemSettings::class)->all()['hotel_module_enabled'];
 
-                return $h;
-            });
+        $hotelForTimeline = $hotelModuleEnabled
+            ? HotelReservation::whereDate('start_at', '<=', $selectedDate)
+                ->whereDate('end_at', '>=', $selectedDate)
+                ->where('status', 'scheduled')
+                ->with('pet.client')
+                ->get()
+                ->map(function ($h) {
+                    $h->agenda_type = 'hotel';
+                    $h->scheduled_at = $h->start_at;
+
+                    return $h;
+                })
+            : collect();
 
         $timelineBookings = $spaForTimeline->concat($hotelForTimeline)->sortBy('scheduled_at');
 
@@ -157,7 +161,7 @@ class SpaBookingController extends Controller
             'page', 'bookings', 'timelineBookings', 'statuses', 'statusTouched', 'dateScope', 'calView',
             'selectedDate', 'selectedDateInput', 'operationalDateLabel', 'search',
             'totalEstimatedMinutes', 'scheduledCount', 'estimatedRevenue', 'petsWithAgenda',
-            'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction', 'agendaOverviewCount'
+            'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction', 'agendaOverviewCount', 'hotelModuleEnabled'
         ));
     }
 
@@ -206,6 +210,7 @@ class SpaBookingController extends Controller
         $bookings = null;
         $timelineBookings = collect();
         $agendaOverviewCount = $rangeStats['scheduledCount'] + $rangeStats['hotelCount'];
+        $hotelModuleEnabled = (bool) app(SystemSettings::class)->all()['hotel_module_enabled'];
 
         return view('agenda.index', [
             'page' => $page, 'calView' => $calView, 'statuses' => $statuses, 'statusTouched' => $statusTouched, 'dateScope' => 'custom',
@@ -221,6 +226,7 @@ class SpaBookingController extends Controller
             'lastScheduledEndAt' => $rangeStats['lastScheduledEndAt'],
             'agendaOverviewCount' => $agendaOverviewCount,
             'sort' => $sort, 'direction' => $direction,
+            'hotelModuleEnabled' => $hotelModuleEnabled,
         ]);
     }
 
@@ -241,30 +247,35 @@ class SpaBookingController extends Controller
             return $b;
         });
 
-        $hotelQuery = HotelReservation::query()
-            ->whereDate('start_at', '<=', $rangeEnd)
-            ->whereDate('end_at', '>=', $rangeStart)
-            ->where('status', 'active')
-            ->with('pet.client');
+        $hotelModuleEnabled = (bool) app(SystemSettings::class)->all()['hotel_module_enabled'];
+        $hotelReservations = collect();
 
-        if ($search !== '') {
-            $hotelQuery->whereHas('pet', function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhereHas('client', function ($q2) use ($search) {
-                        $q2->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('apellido_paterno', 'like', "%{$search}%")
-                            ->orWhere('apellido_materno', 'like', "%{$search}%")
-                            ->orWhereRaw("CONCAT(first_name, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
-                    });
+        if ($hotelModuleEnabled) {
+            $hotelQuery = HotelReservation::query()
+                ->whereDate('start_at', '<=', $rangeEnd)
+                ->whereDate('end_at', '>=', $rangeStart)
+                ->where('status', 'scheduled')
+                ->with('pet.client');
+
+            if ($search !== '') {
+                $hotelQuery->whereHas('pet', function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhereHas('client', function ($q2) use ($search) {
+                            $q2->where('first_name', 'like', "%{$search}%")
+                                ->orWhere('apellido_paterno', 'like', "%{$search}%")
+                                ->orWhere('apellido_materno', 'like', "%{$search}%")
+                                ->orWhereRaw("CONCAT(first_name, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
+                        });
+                });
+            }
+
+            $hotelReservations = $hotelQuery->get()->map(function ($h) {
+                $h->agenda_type = 'hotel';
+                $h->scheduled_at = $h->start_at;
+
+                return $h;
             });
         }
-
-        $hotelReservations = $hotelQuery->get()->map(function ($h) {
-            $h->agenda_type = 'hotel';
-            $h->scheduled_at = $h->start_at;
-
-            return $h;
-        });
 
         $itemsByDate = [];
         foreach ($spaBookings as $b) {
@@ -356,7 +367,9 @@ class SpaBookingController extends Controller
                 ],
             ]);
 
-        return view('agenda.global-create', compact('page', 'pets'));
+        $hotelModuleEnabled = (bool) app(SystemSettings::class)->all()['hotel_module_enabled'];
+
+        return view('agenda.global-create', compact('page', 'pets', 'hotelModuleEnabled'));
     }
 
     public function edit(SpaBooking $booking): View

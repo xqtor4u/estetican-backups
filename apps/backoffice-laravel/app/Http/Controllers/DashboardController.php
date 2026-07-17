@@ -8,6 +8,7 @@ use App\Models\Pet;
 use App\Models\SpaBooking;
 use App\Models\CashLedger;
 use App\Models\BankLedger;
+use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -36,7 +37,13 @@ class DashboardController extends Controller
         ];
 
         // Hotel: reservaciones activas hoy
-        $hotelActive = HotelReservation::where('status', 'active')->count();
+        $hotelModuleEnabled = (bool) app(SystemSettings::class)->all()['hotel_module_enabled'];
+        $hotelActive = $hotelModuleEnabled
+            ? HotelReservation::where('status', 'scheduled')
+                ->whereDate('start_at', '<=', $today)
+                ->whereDate('end_at', '>=', $today)
+                ->count()
+            : 0;
 
         // Clientes y mascotas totales
         $totalClients = Client::count();
@@ -66,6 +73,7 @@ class DashboardController extends Controller
         return view('dashboard.index', compact(
             'spaCounts',
             'hotelActive',
+            'hotelModuleEnabled',
             'totalClients',
             'totalPets',
             'incomeToday',
