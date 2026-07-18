@@ -21,7 +21,7 @@ class ItemMovementController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:' . implode(',', self::MANUAL_TYPES),
             'quantity' => 'required|integer|min:1',
-            'branch_id' => 'nullable|exists:branches,id',
+            'branch_id' => 'required|exists:branches,id',
             'notes' => 'nullable|string',
         ]);
 

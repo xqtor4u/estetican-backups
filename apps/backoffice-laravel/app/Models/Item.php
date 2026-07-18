@@ -68,6 +68,11 @@ class Item extends Model
         return $this->hasMany(ItemMovement::class);
     }
 
+    public function branchStocks(): HasMany
+    {
+        return $this->hasMany(ItemBranchStock::class);
+    }
+
     public function getPhotoUrlAttribute(): string
     {
         if (!$this->photo_path) {

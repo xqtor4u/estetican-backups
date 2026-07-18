@@ -41,6 +41,7 @@
             <th><x-sortable-header-link route="items.index" column="brand" label="Marca" :sort="$sort" :direction="$direction" /></th>
             <th>Presentación</th>
             <th>Estado</th>
+            <th>Stock total</th>
             <th>Vacunas registradas</th>
             <th class="text-end">Acciones</th>
         </tr>
@@ -71,6 +72,7 @@
                         {{ $item->is_active ? 'Activo' : 'Inactivo' }}
                     </span>
                 </td>
+                <td class="{{ $item->stock_quantity < 0 ? 'text-danger' : '' }}">{{ $item->stock_quantity }}</td>
                 <td>{{ $item->vaccinations_count }}</td>
                 <td class="text-end">
                     <div class="catalog-actions-cluster justify-content-end">
@@ -85,7 +87,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="8" class="py-5">
+                <td colspan="9" class="py-5">
                     <x-empty-state
                         icon="bi-box-seam"
                         title="No hay artículos"

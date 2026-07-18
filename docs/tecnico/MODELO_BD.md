@@ -473,6 +473,23 @@ Ledger append-only de movimientos de inventario — mismo espíritu que `cash_le
 | `created_by_user_id` | FK → `users` nullable, nullOnDelete | Null en movimientos automáticos (ej. consumo de vacuna) |
 | `timestamps` | | |
 
+### `item_branch_stocks` (BL-049, multi-sucursal real — 17/07/2026)
+Saldo cacheado por (artículo, sucursal), mantenido por `ItemMovementService::record()` junto con el caché global `items.stock_quantity` — recalculado con `SUM(quantity)` de `item_movements` filtrado por `branch_id`, dentro de la misma transacción con `lockForUpdate()` sobre el `Item` (mismo lock, no uno nuevo). Solo se llena cuando el movimiento trae `branch_id` — los automáticos de hoy (consumo de vacuna) siguen sin sucursal y no generan fila aquí, solo cuentan en el total global.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `item_id` | FK → `items`, **cascadeOnDelete** | A diferencia de `item_movements` (nullOnDelete, es ledger histórico), esta tabla es un caché derivado sin valor propio |
+| `branch_id` | FK → `branches`, **NOT NULL**, cascadeOnDelete | A diferencia de `item_movements.branch_id` (nullable): MySQL trata cada NULL como distinto en un índice único compuesto, así que `unique(item_id, branch_id)` no protegería contra duplicados de "sin sucursal" si se permitiera NULL aquí. El saldo "sin sucursal" se deriva por resta (`items.stock_quantity - SUM(item_branch_stocks.quantity)`) donde se necesita mostrar, sin persistirse |
+| `quantity` | int con signo, default 0 | Puede quedar negativo, mismo criterio que `items.stock_quantity` |
+| `timestamps` | | |
+
+Índice único `(item_id, branch_id)`.
+
+**Formulario manual de movimientos** (Artículos → editar → "Movimientos de inventario"): `branch_id` pasó de opcional a **obligatorio** en esta pieza — consistente con `cash_registers`/`cash_sessions`/`resources`, que ya tratan sucursal como campo estructural. Los movimientos automáticos (consumo de vacunas) no pasan por este formulario y no se vieron afectados.
+
+**Fuera de alcance de esta pieza (queda para BL-049 fase siguiente):** disparar descuento de stock al completarse una cita (trigger de venta cobrada), transferencias entre sucursales, y el filtro `stock_quantity > 0` del asistente IA (`ServiceCatalogPromptBuilder.php`) sigue leyendo el total global sin cambios.
+
 ### `groups` y `group_components` (Grupos — combos de Servicios + Artículos)
 "Grupo" agrupa Servicios (mano de obra) y Artículos (insumos) con cantidad, para agregarlos todos a una cotización con un clic, facturados desglosados. Ej. "Corte de cola de perro" = 0.5 hrs de Veterinario (Service) + 5 vendas (Item). Precio del Grupo **no se cachea** — se calcula al vuelo (`Group::calculatedPrice()`, `SUM(quantity × precio vigente del catálogo)`), igual que `Account::balance()`, para que un cambio de precio en el catálogo se refleje sin invalidar nada.
 

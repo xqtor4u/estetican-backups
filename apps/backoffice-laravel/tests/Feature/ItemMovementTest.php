@@ -39,10 +39,12 @@ class ItemMovementTest extends TestCase
     {
         $user = $this->userWithPermissions(['editar catalogo_articulos']);
         $item = Item::create(['name' => 'Shampoo hipoalergénico']);
+        $branch = Branch::create(['code' => 'SUC-1', 'name' => 'Sucursal Centro']);
 
         $response = $this->actingAs($user)->post(route('items.movements.store', $item), [
             'type' => 'entrada',
             'quantity' => 10,
+            'branch_id' => $branch->id,
         ]);
 
         $response->assertRedirect(route('items.edit', $item));
@@ -58,11 +60,13 @@ class ItemMovementTest extends TestCase
     {
         $user = $this->userWithPermissions(['editar catalogo_articulos']);
         $item = Item::create(['name' => 'Shampoo hipoalergénico']);
+        $branch = Branch::create(['code' => 'SUC-1', 'name' => 'Sucursal Centro']);
         app(ItemMovementServiceInterface::class)->record(itemId: $item->id, type: 'entrada', quantity: 5);
 
         $this->actingAs($user)->post(route('items.movements.store', $item), [
             'type' => 'perdida',
             'quantity' => 2,
+            'branch_id' => $branch->id,
         ]);
 
         $this->assertSame(3, $item->fresh()->stock_quantity);
@@ -72,12 +76,14 @@ class ItemMovementTest extends TestCase
     {
         $user = $this->userWithPermissions(['editar catalogo_articulos']);
         $item = Item::create(['name' => 'Shampoo hipoalergénico']);
+        $branch = Branch::create(['code' => 'SUC-1', 'name' => 'Sucursal Centro']);
         app(ItemMovementServiceInterface::class)->record(itemId: $item->id, type: 'entrada', quantity: 5);
 
         $this->actingAs($user)->post(route('items.movements.store', $item), [
             'type' => 'ajuste',
             'quantity' => 2,
             'direction' => 'resta',
+            'branch_id' => $branch->id,
         ]);
 
         $this->assertSame(3, $item->fresh()->stock_quantity);
@@ -86,6 +92,7 @@ class ItemMovementTest extends TestCase
             'type' => 'ajuste',
             'quantity' => 4,
             'direction' => 'suma',
+            'branch_id' => $branch->id,
         ]);
 
         $this->assertSame(7, $item->fresh()->stock_quantity);
@@ -109,14 +116,29 @@ class ItemMovementTest extends TestCase
         ]);
     }
 
-    public function test_a_user_without_the_permission_cannot_register_a_movement(): void
+    public function test_a_movement_without_branch_is_rejected_by_validation(): void
     {
-        $user = $this->userWithPermissions([]);
+        $user = $this->userWithPermissions(['editar catalogo_articulos']);
         $item = Item::create(['name' => 'Shampoo hipoalergénico']);
 
         $this->actingAs($user)->post(route('items.movements.store', $item), [
             'type' => 'entrada',
             'quantity' => 10,
+        ])->assertSessionHasErrors('branch_id');
+
+        $this->assertSame(0, $item->fresh()->stock_quantity);
+    }
+
+    public function test_a_user_without_the_permission_cannot_register_a_movement(): void
+    {
+        $user = $this->userWithPermissions([]);
+        $item = Item::create(['name' => 'Shampoo hipoalergénico']);
+        $branch = Branch::create(['code' => 'SUC-1', 'name' => 'Sucursal Centro']);
+
+        $this->actingAs($user)->post(route('items.movements.store', $item), [
+            'type' => 'entrada',
+            'quantity' => 10,
+            'branch_id' => $branch->id,
         ])->assertForbidden();
 
         $this->assertSame(0, $item->fresh()->stock_quantity);

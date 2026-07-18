@@ -115,8 +115,10 @@ class ItemController extends Controller
         $branches = Branch::where('is_active', true)->orderBy('name')->get(['id', 'name']);
         $movements = $item->movements()->with('branch:id,name')->latest()->limit(20)->get();
         $profitMargin = (float) $settings->all()['store_profit_margin_percentage'];
+        $branchStocks = $item->branchStocks()->pluck('quantity', 'branch_id');
+        $unassignedStock = $item->stock_quantity - $branchStocks->sum();
 
-        return view('items.edit', compact('item', 'page', 'branches', 'movements', 'profitMargin'));
+        return view('items.edit', compact('item', 'page', 'branches', 'movements', 'profitMargin', 'branchStocks', 'unassignedStock'));
     }
 
     public function update(Request $request, Item $item): RedirectResponse

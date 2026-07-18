@@ -37,6 +37,24 @@ class ItemMovementService implements ItemMovementServiceInterface
             $item->stock_quantity = (int) ItemMovement::where('item_id', $item->id)->sum('quantity');
             $item->save();
 
+            if ($branchId !== null) {
+                $branchQuantity = (int) ItemMovement::where('item_id', $item->id)
+                    ->where('branch_id', $branchId)
+                    ->sum('quantity');
+
+                DB::table('item_branch_stocks')->upsert(
+                    [[
+                        'item_id' => $item->id,
+                        'branch_id' => $branchId,
+                        'quantity' => $branchQuantity,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]],
+                    ['item_id', 'branch_id'],
+                    ['quantity', 'updated_at'],
+                );
+            }
+
             return $movement;
         });
     }

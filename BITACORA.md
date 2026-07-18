@@ -1,5 +1,40 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 17/07/2026 — BL-049: multi-sucursal real de Inventario (primera de tres piezas)
+
+### ✅ Logros y Cambios
+
+BL-049 ("Módulo Tienda/Inventario real") venía anotado como "sin diseñar todavía" y agrupaba tres piezas grandes: multi-sucursal real, conexión con venta cobrada, y almacenes/transferencias. Antes de escribir código se investigó el estado real (dos agentes de exploración) y se usó `EnterPlanMode` con un agente `Plan` para diseñar las tres piezas juntas — pero **el usuario acotó la sesión a construir solo la primera** ("solo multi-sucursal por ahora, lo demás después"), dejando las otras dos ya diseñadas mediante `AskUserQuestion` (decisiones registradas abajo) para retomar directo sin volver a decidir alcance.
+
+**Multi-sucursal real construida hoy:** tabla nueva `item_branch_stocks` (`item_id`, `branch_id` **NOT NULL** — a diferencia de `item_movements.branch_id`, que sigue nullable —, `quantity` con signo, único `(item_id, branch_id)`). `ItemMovementService::record()` ahora, además de recalcular el caché global `items.stock_quantity`, recalcula con `SUM()` y hace `upsert` el saldo por sucursal cuando el movimiento trae `branch_id` — reutiliza el mismo `lockForUpdate()` sobre `Item` que ya serializa toda la operación, sin lock nuevo. Los movimientos sin sucursal (consumo automático de vacunas, que no se tocó) no generan fila en la tabla nueva — solo cuentan en el total global; el saldo "sin sucursal" se deriva por resta donde se muestra, sin persistirse (evita el problema real de que MySQL trata cada NULL como distinto en un índice único compuesto).
+
+**Formulario manual de movimientos** (Artículos → editar): `branch_id` pasó de opcional a **obligatorio**, decisión explícita del usuario para consistencia con `cash_registers`/`cash_sessions`/`resources` (que ya tratan sucursal como campo estructural, no opcional). Nueva tabla "Existencia por sucursal" en la misma pantalla, y columna "Stock total" agregada al listado de Artículos (antes no mostraba stock en ningún lado del listado).
+
+**Decisiones de diseño confirmadas para las dos piezas restantes (no implementadas hoy, quedan documentadas para no re-discutir alcance):**
+1. *Trigger de descuento por venta cobrada:* cuando la cita pasa a `status='completed'` (no por monto pagado — el sistema no tiene concepto de "saldo pendiente"/"pago completo" en ningún lado, `Payment` permite parciales múltiples sin ese cálculo). Mismo criterio que ya usa el consumo automático de vacunas.
+2. *Sucursal para esos movimientos automáticos:* `Operator::primaryBranch()` del operador asignado a la cita — sin tocar el esquema de `spa_bookings` (que no tiene `branch_id` directo).
+3. *Almacenes/transferencias:* sin tabla `warehouses` nueva — "almacén" = `branch_id` ya existente; una transferencia es un par de movimientos entre dos sucursales en el mismo ledger `item_movements`.
+
+**Riesgo identificado y dejado explícitamente sin tocar:** `ServiceCatalogPromptBuilder.php:87` (filtro `stock_quantity > 0` del asistente IA) sigue leyendo el total global agregado — no cambia de significado en esta pieza. La decisión de "¿qué sucursal debe ver el asistente?" se difiere a cuando exista lógica de sucursal-por-conversación.
+
+**Verificación:** 6 tests nuevos (`ItemBranchStockTest` ×5, más un test de rechazo agregado a `ItemMovementTest`), 4 tests existentes de `ItemMovementTest` actualizados para pasar `branch_id` (ya obligatorio). Suite completa sin regresiones (37 fallidas preexistentes sin cambio, 192 pasan, antes 186). Migración corrida en producción real con confirmación explícita del usuario (aditiva, tabla nueva, sin tocar columnas existentes). Verificado end-to-end en producción real dentro de una transacción revertida (`ItemMovementService::record()` con `branchId` real, confirmando `item_branch_stocks` y `items.stock_quantity` correctos) — sin dejar datos falsos.
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_17_000001_create_item_branch_stocks_table.php` (nuevo)
+- `app/Models/ItemBranchStock.php` (nuevo), `app/Models/Item.php` (`branchStocks()`)
+- `app/Domain/Inventory/Services/ItemMovementService.php`, `app/Domain/Inventory/Contracts/ItemMovementServiceInterface.php`
+- `app/Http/Controllers/{ItemMovementController,ItemController}.php`
+- `resources/views/items/{edit,index}.blade.php`
+- `tests/Feature/{ItemBranchStockTest (nuevo),ItemMovementTest}.php`
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md` (BL-049 parcial)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-049 restante (ya diseñado, ver decisiones arriba): trigger de descuento de stock al completar cita + almacenes/transferencias.
+3. Sigue pendiente de sesiones previas: BL-047 (clínica fase 2), BL-052 (automatizar catálogo de WhatsApp/redes), BL-053 (artículos de uso interno).
+
+---
+
 ## 📅 Cierre de sesión: 16-17/07/2026 — BL-057/058/059 + 2 bugs críticos reales encontrados
 
 Sesión larga, arrancó como una aparte ("antes de que se me olvide") en medio del trabajo de Zeus-Estetican y terminó cubriendo tres backlogs completos de EstetiCAN:

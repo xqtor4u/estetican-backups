@@ -28,6 +28,25 @@
         <h2 class="h5">Movimientos de inventario</h2>
         <p class="text-muted small">Existencia actual: <strong>{{ $item->stock_quantity }}</strong>. Cada movimiento queda en el histórico, sin poder editarse ni borrarse (ver "ajuste" para corregir un conteo).</p>
 
+        <h3 class="h6 mt-3">Existencia por sucursal</h3>
+        <table class="table table-sm mb-4">
+            <thead><tr><th>Sucursal</th><th>Existencia</th></tr></thead>
+            <tbody>
+                @foreach($branches as $branch)
+                    <tr>
+                        <td>{{ $branch->name }}</td>
+                        <td class="{{ ($branchStocks[$branch->id] ?? 0) < 0 ? 'text-danger' : '' }}">{{ $branchStocks[$branch->id] ?? 0 }}</td>
+                    </tr>
+                @endforeach
+                @if($unassignedStock !== 0)
+                    <tr>
+                        <td class="text-muted">Sin sucursal / otras</td>
+                        <td class="{{ $unassignedStock < 0 ? 'text-danger' : '' }}">{{ $unassignedStock }}</td>
+                    </tr>
+                @endif
+            </tbody>
+        </table>
+
         <form action="{{ route('items.movements.store', $item) }}" method="POST" class="row g-2 align-items-end mb-4">
             @csrf
             <div class="col-md-2">
@@ -50,9 +69,9 @@
                 <input id="movement-quantity" type="number" name="quantity" class="form-control form-control-sm" min="1" step="1" required>
             </div>
             <div class="col-md-3">
-                <label for="movement-branch" class="form-label small">Sucursal (opcional)</label>
-                <select id="movement-branch" name="branch_id" class="form-select form-select-sm">
-                    <option value="">Sin especificar</option>
+                <label for="movement-branch" class="form-label small">Sucursal</label>
+                <select id="movement-branch" name="branch_id" class="form-select form-select-sm" required>
+                    <option value="" disabled selected>Elegir sucursal</option>
                     @foreach($branches as $branch)
                         <option value="{{ $branch->id }}">{{ $branch->name }}</option>
                     @endforeach
