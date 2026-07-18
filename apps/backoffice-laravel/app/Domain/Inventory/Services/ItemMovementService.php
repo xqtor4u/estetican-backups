@@ -58,4 +58,36 @@ class ItemMovementService implements ItemMovementServiceInterface
             return $movement;
         });
     }
+
+    public function transfer(
+        int $itemId,
+        int $fromBranchId,
+        int $toBranchId,
+        int $quantity,
+        ?string $notes = null,
+        ?int $createdByUserId = null,
+    ): array {
+        return DB::transaction(function () use ($itemId, $fromBranchId, $toBranchId, $quantity, $notes, $createdByUserId) {
+            $out = $this->record(
+                itemId: $itemId,
+                type: 'transferencia_salida',
+                quantity: -$quantity,
+                branchId: $fromBranchId,
+                notes: $notes,
+                createdByUserId: $createdByUserId,
+            );
+
+            $in = $this->record(
+                itemId: $itemId,
+                type: 'transferencia_entrada',
+                quantity: $quantity,
+                branchId: $toBranchId,
+                notes: $notes,
+                reference: $out,
+                createdByUserId: $createdByUserId,
+            );
+
+            return [$out, $in];
+        });
+    }
 }

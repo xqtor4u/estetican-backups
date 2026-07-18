@@ -8,9 +8,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * Registro manual de movimientos de inventario (entrada/ajuste/pérdida) sobre el
- * maestro de artículos — cimiento del IM sencillo (BL-049). El consumo automático
- * por uso en servicio (ej. vacunas) se dispara desde otros controllers, no desde aquí.
+ * Registro manual de movimientos de inventario (entrada/ajuste/pérdida/transferencia)
+ * sobre el maestro de artículos — cimiento del IM sencillo (BL-049). El consumo
+ * automático por uso en servicio (ej. vacunas, citas completadas) se dispara desde
+ * otros controllers, no desde aquí.
  */
 class ItemMovementController extends Controller
 {
@@ -19,7 +20,7 @@ class ItemMovementController extends Controller
     public function store(Request $request, Item $item, ItemMovementServiceInterface $movements): RedirectResponse
     {
         $validated = $request->validate([
-            'type' => 'required|in:' . implode(',', self::MANUAL_TYPES),
+            'type' => 'required|in:'.implode(',', self::MANUAL_TYPES),
             'quantity' => 'required|integer|min:1',
             'branch_id' => 'required|exists:branches,id',
             'notes' => 'nullable|string',
@@ -42,5 +43,26 @@ class ItemMovementController extends Controller
         );
 
         return redirect()->route('items.edit', $item)->with('success', 'Movimiento registrado.');
+    }
+
+    public function transfer(Request $request, Item $item, ItemMovementServiceInterface $movements): RedirectResponse
+    {
+        $validated = $request->validate([
+            'from_branch_id' => 'required|exists:branches,id|different:to_branch_id',
+            'to_branch_id' => 'required|exists:branches,id',
+            'quantity' => 'required|integer|min:1',
+            'notes' => 'nullable|string',
+        ]);
+
+        $movements->transfer(
+            itemId: $item->id,
+            fromBranchId: (int) $validated['from_branch_id'],
+            toBranchId: (int) $validated['to_branch_id'],
+            quantity: (int) $validated['quantity'],
+            notes: $validated['notes'] ?? null,
+            createdByUserId: auth()->id(),
+        );
+
+        return redirect()->route('items.edit', $item)->with('success', 'Transferencia registrada.');
     }
 }

@@ -25,4 +25,23 @@ interface ItemMovementServiceInterface
         ?Model $reference = null,
         ?int $createdByUserId = null,
     ): ItemMovement;
+
+    /**
+     * Transfiere existencia entre dos sucursales del mismo artículo — no hay tabla
+     * `warehouses`, la "ubicación" ya es `branch_id`. Genera un par de movimientos
+     * (`transferencia_salida` en origen, `transferencia_entrada` en destino) dentro
+     * de una sola transacción; el de entrada referencia al de salida para poder
+     * reconstruir el par. No cambia `items.stock_quantity` (el total es el mismo,
+     * solo cambia su distribución entre sucursales).
+     *
+     * @return array{0: ItemMovement, 1: ItemMovement} [$out, $in]
+     */
+    public function transfer(
+        int $itemId,
+        int $fromBranchId,
+        int $toBranchId,
+        int $quantity,
+        ?string $notes = null,
+        ?int $createdByUserId = null,
+    ): array;
 }

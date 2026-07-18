@@ -1,5 +1,35 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 18/07/2026 (cont.) — BL-049: transferencias entre sucursales (tercera y última pieza) — cierra BL-049
+
+### ✅ Logros y Cambios
+
+Última pieza de BL-049, retomando la decisión ya tomada el 17/07/2026 sin volver a discutir alcance: **sin tabla `warehouses` nueva** — `branch_id` (ya existente desde `item_branch_stocks`) es la unidad de ubicación, y una transferencia es un par de movimientos en el mismo ledger `item_movements`.
+
+**`ItemMovementServiceInterface::transfer(itemId, fromBranchId, toBranchId, quantity, notes, createdByUserId)`** — dentro de una sola transacción, llama dos veces a `record()`: `transferencia_salida` (negativo, en origen) y `transferencia_entrada` (positivo, en destino). El de entrada usa el morph `reference` que ya existía (mismo mecanismo que liga un consumo a su `SpaBookingItem`/`PetVaccination`) para apuntar al movimiento de salida — así el par queda reconstruible sin agregar ninguna columna nueva a `item_movements`. El total global (`items.stock_quantity`) no cambia, solo su distribución entre sucursales.
+
+**Decisión de consistencia (no se preguntó, se replicó el patrón ya establecido):** igual que cualquier otro movimiento en este ledger, una transferencia puede dejar la sucursal de origen en negativo sin bloquear — es la misma filosofía ya aplicada en `item_movements`/`item_branch_stocks` desde BL-054 ("negativo es información real, no un error"). Introducir una regla de bloqueo distinta solo para transferencias habría sido inconsistente sin una razón de negocio nueva.
+
+**UI:** segundo formulario "Transferir entre sucursales" en Artículos → editar, junto al de movimiento manual existente (mismo permiso `editar catalogo_articulos`, sin pantalla ni ítem de navegación nuevo). `ItemMovementController::transfer()` valida `from_branch_id` ≠ `to_branch_id`. Tabla de historial de movimientos ahora etiqueta los 6 tipos con nombres legibles (antes `ucfirst()` crudo, que hubiera mostrado "Transferencia_salida").
+
+**Verificación:** 6 tests nuevos (`ItemTransferTest`) cubriendo servicio, endpoint, par ligado, validación de sucursales iguales, saldo negativo permitido, y permiso. Sin migraciones nuevas (reutiliza columnas ya existentes de `item_movements`). Suite completa sin regresiones (37 fallidas preexistentes sin cambio, 203 pasan, antes 197).
+
+**Cierra BL-049 por completo** — las 3 piezas (IM sencillo, multi-sucursal, venta cobrada + transferencias) están en producción.
+
+### 📁 Archivos principales tocados
+- `app/Domain/Inventory/Contracts/ItemMovementServiceInterface.php`, `app/Domain/Inventory/Services/ItemMovementService.php` (`transfer()`)
+- `app/Http/Controllers/ItemMovementController.php` (`transfer()`)
+- `routes/web.php` (`items.movements.transfer`)
+- `resources/views/items/edit.blade.php` (form de transferencia + etiquetas de tipo)
+- `tests/Feature/ItemTransferTest.php` (nuevo)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md` (BL-049 movido a Completados)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (después, corregir el hash real en `BACKLOG.md`, mismo patrón que la corrección de BL-059).
+2. BL-047 (clínica fase 2), BL-052 (automatizar catálogo de WhatsApp/redes), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config).
+
+---
+
 ## 📅 Cierre de sesión: 18/07/2026 — BL-049: descuento de stock por venta cobrada (segunda de tres piezas)
 
 ### ✅ Logros y Cambios

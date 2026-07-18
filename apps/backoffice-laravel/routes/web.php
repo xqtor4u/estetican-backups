@@ -91,6 +91,9 @@ Route::middleware('auth')->group(function () {
         Route::post('items/{item}/movements', [ItemMovementController::class, 'store'])
             ->name('items.movements.store')
             ->middleware('permission:editar catalogo_articulos');
+        Route::post('items/{item}/movements/transfer', [ItemMovementController::class, 'transfer'])
+            ->name('items.movements.transfer')
+            ->middleware('permission:editar catalogo_articulos');
         Route::resource('groups', GroupController::class)->except(['show'])
             ->middlewareFor('index', 'permission:ver catalogo_grupos')
             ->middlewareFor(['create', 'store'], 'permission:crear catalogo_grupos')

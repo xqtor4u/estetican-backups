@@ -86,6 +86,40 @@
             </div>
         </form>
 
+        <h3 class="h6 mt-3">Transferir entre sucursales</h3>
+        <form action="{{ route('items.movements.transfer', $item) }}" method="POST" class="row g-2 align-items-end mb-4">
+            @csrf
+            <div class="col-md-3">
+                <label for="transfer-from-branch" class="form-label small">Sucursal origen</label>
+                <select id="transfer-from-branch" name="from_branch_id" class="form-select form-select-sm" required>
+                    <option value="" disabled selected>Elegir sucursal</option>
+                    @foreach($branches as $branch)
+                        <option value="{{ $branch->id }}">{{ $branch->name }} ({{ $branchStocks[$branch->id] ?? 0 }})</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="transfer-to-branch" class="form-label small">Sucursal destino</label>
+                <select id="transfer-to-branch" name="to_branch_id" class="form-select form-select-sm" required>
+                    <option value="" disabled selected>Elegir sucursal</option>
+                    @foreach($branches as $branch)
+                        <option value="{{ $branch->id }}">{{ $branch->name }} ({{ $branchStocks[$branch->id] ?? 0 }})</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="transfer-quantity" class="form-label small">Cantidad</label>
+                <input id="transfer-quantity" type="number" name="quantity" class="form-control form-control-sm" min="1" step="1" required>
+            </div>
+            <div class="col-md-3">
+                <label for="transfer-notes" class="form-label small">Nota</label>
+                <input id="transfer-notes" type="text" name="notes" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100">Transferir</button>
+            </div>
+        </form>
+
         @if($movements->isEmpty())
             <p class="text-muted mb-0">Sin movimientos registrados todavía.</p>
         @else
@@ -95,7 +129,15 @@
                     @foreach($movements as $movement)
                         <tr>
                             <td>{{ $movement->created_at->format('d/m/Y H:i') }}</td>
-                            <td>{{ ucfirst($movement->type) }}</td>
+                            <td>{{ match($movement->type) {
+                                'entrada' => 'Entrada',
+                                'ajuste' => 'Ajuste',
+                                'perdida' => 'Pérdida',
+                                'consumo_servicio' => 'Consumo por servicio',
+                                'transferencia_salida' => 'Transferencia (salida)',
+                                'transferencia_entrada' => 'Transferencia (entrada)',
+                                default => ucfirst($movement->type),
+                            } }}</td>
                             <td class="{{ $movement->quantity < 0 ? 'text-danger' : 'text-success' }}">{{ $movement->quantity > 0 ? '+' : '' }}{{ $movement->quantity }}</td>
                             <td>{{ $movement->branch?->name ?? '—' }}</td>
                             <td>{{ $movement->notes ?? '—' }}</td>
