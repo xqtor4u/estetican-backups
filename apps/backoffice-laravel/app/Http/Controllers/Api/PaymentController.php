@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
+use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\BankLedger;
 use App\Models\CashLedger;
@@ -22,13 +23,13 @@ class PaymentController extends Controller
             ->orderBy('created_at')
             ->get()
             ->map(fn ($p) => [
-                'id'             => $p->id,
-                'amount'         => (float) $p->amount,
+                'id' => $p->id,
+                'amount' => (float) $p->amount,
                 'payment_method' => $p->payment_method,
-                'category'       => $p->category,
-                'destination'    => $p->destination ?? 'caja',
-                'notes'          => $p->notes,
-                'created_at'     => $p->created_at,
+                'category' => $p->category,
+                'destination' => $p->destination ?? 'caja',
+                'notes' => $p->notes,
+                'created_at' => $p->created_at,
             ]);
 
         // Registros legacy de libros auxiliares (backward compat hasta BL-021)
@@ -48,7 +49,7 @@ class PaymentController extends Controller
 
         return response()->json([
             'payments' => $all,
-            'paid'     => round($all->sum('amount'), 2),
+            'paid' => round($all->sum('amount'), 2),
         ]);
     }
 
@@ -59,35 +60,35 @@ class PaymentController extends Controller
         }
 
         $data = $request->validate([
-            'amount'              => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric|min:0.01',
             'payment_method_code' => 'nullable|string|exists:payment_methods,code',
-            'payment_method'      => 'required_without:payment_method_code|string|max:50',
-            'destination'         => 'required_without:payment_method_code|in:caja,banco',
-            'reference'           => 'nullable|string|max:255',
-            'notes'               => 'nullable|string|max:500',
-            'mark_completed'      => 'boolean',
+            'payment_method' => 'required_without:payment_method_code|string|max:50',
+            'destination' => 'required_without:payment_method_code|in:caja,banco',
+            'reference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string|max:500',
+            'mark_completed' => 'boolean',
         ]);
 
         if (! empty($data['payment_method_code'])) {
             $paymentMethod = PaymentMethod::where('code', $data['payment_method_code'])->first();
-            $methodName    = $paymentMethod->name;
-            $destination   = $paymentMethod->type === 'cash' ? 'caja' : 'banco';
+            $methodName = $paymentMethod->name;
+            $destination = $paymentMethod->type === 'cash' ? 'caja' : 'banco';
         } else {
             $paymentMethod = null;
-            $methodName    = $data['payment_method'];
-            $destination   = $data['destination'];
+            $methodName = $data['payment_method'];
+            $destination = $data['destination'];
         }
 
         Payment::create([
-            'client_id'          => $booking->pet->client_id,
-            'payable_type'       => SpaBooking::class,
-            'payable_id'         => $booking->id,
-            'amount'             => $data['amount'],
-            'payment_method'     => $methodName,
-            'destination'        => $destination,
+            'client_id' => $booking->pet->client_id,
+            'payable_type' => SpaBooking::class,
+            'payable_id' => $booking->id,
+            'amount' => $data['amount'],
+            'payment_method' => $methodName,
+            'destination' => $destination,
             'external_reference' => $data['reference'] ?? null,
-            'category'           => 'liquidacion',
-            'notes'              => $data['notes'] ?? null,
+            'category' => 'liquidacion',
+            'notes' => $data['notes'] ?? null,
         ]);
 
         if ($paymentMethod?->account_id) {
@@ -106,6 +107,7 @@ class PaymentController extends Controller
 
         if ($data['mark_completed'] ?? true) {
             $booking->update(['status' => 'completed']);
+            app(BookingStockConsumptionServiceInterface::class)->consume($booking, auth()->id());
         }
 
         return $this->index($booking->fresh());

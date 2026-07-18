@@ -14,7 +14,9 @@ use App\Domain\Clinical\Services\ClinicalDiagnosisService;
 use App\Domain\Clinical\Services\ClinicalVisitService;
 use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Commercial\Services\QuoteService;
+use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Inventory\Contracts\ItemMovementServiceInterface;
+use App\Domain\Inventory\Services\BookingStockConsumptionService;
 use App\Domain\Inventory\Services\ItemMovementService;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Planning\Contracts\SpaBookingRepositoryInterface;
@@ -41,6 +43,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ClinicalVisitServiceInterface::class, ClinicalVisitService::class);
         $this->app->bind(ClinicalDiagnosisServiceInterface::class, ClinicalDiagnosisService::class);
         $this->app->bind(ItemMovementServiceInterface::class, ItemMovementService::class);
+        $this->app->bind(BookingStockConsumptionServiceInterface::class, BookingStockConsumptionService::class);
     }
 
     /**

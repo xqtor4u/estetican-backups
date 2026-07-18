@@ -5,19 +5,20 @@ namespace App\Http\Controllers;
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Commercial\Contracts\QuoteServiceInterface;
+use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Mail\ServiceSummaryMail;
 use App\Models\Client;
+use App\Models\Group;
 use App\Models\HotelReservation;
+use App\Models\Item;
 use App\Models\Operator;
 use App\Models\Pet;
 use App\Models\Quote;
 use App\Models\QuoteItem;
 use App\Models\Resource;
-use App\Models\Group;
-use App\Models\Item;
 use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Support\Geo\CoverageChecker;
@@ -394,6 +395,7 @@ class SpaBookingController extends Controller
         // Handle simple status updates (e.g. from Work Order)
         if ($request->has('status') && $request->input('status') === 'completed') {
             $booking->update(['status' => 'completed']);
+            app(BookingStockConsumptionServiceInterface::class)->consume($booking, auth()->id());
 
             // SMTP Automated Messaging
             $settings = app(SystemSettings::class)->all();

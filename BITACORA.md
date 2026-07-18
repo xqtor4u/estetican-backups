@@ -1,5 +1,36 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 18/07/2026 — BL-049: descuento de stock por venta cobrada (segunda de tres piezas)
+
+### ✅ Logros y Cambios
+
+Continuación directa de la sesión del 17/07/2026, retomando la pieza que ya había quedado diseñada y documentada (decisiones 1 y 2 de esa sesión, ver bloque anterior) sin tener que volver a decidir alcance. Investigación previa (agente `Explore`) confirmó el punto crítico: **no existe ningún Observer/evento de dominio para "cita completada"** en este código (ver NT-020) — hay 3 puntos reales, todos duplicando el mismo `$booking->update(['status' => 'completed'])` sin capa de dominio compartida: `SpaBookingController::update()` (web, "Finalizar sesión"), `Api\PaymentController::store()` (cobro móvil, `mark_completed`), `Api\BookingController::update()` (edición genérica móvil). También se confirmó que `ExecutedService`/`ExecutedServiceItem` siguen huérfanas (0 filas) — no se construyó nada sobre ellas.
+
+**Servicio nuevo:** `App\Domain\Inventory\Services\BookingStockConsumptionService` (+ `BookingStockConsumptionServiceInterface`, bindeado en `AppServiceProvider` junto a `ItemMovementServiceInterface`). `consume(SpaBooking $booking, ?int $createdByUserId)` itera `$booking->items` (`SpaBookingItem.item_id`/`quantity`, ya poblado por `QuoteService::acceptQuote()` al aceptar la cotización — **no** se pasa por `Group`/`GroupComponent` en este punto, esos ya se "aplanaron" a líneas individuales al aceptar el quote) y llama `ItemMovementServiceInterface::record()` con `type='consumo_servicio'`, `quantity` negativa, y `branchId = $booking->operator?->primaryBranch()?->id` (puede ser `null` — el consumo sigue siendo real en el caché global `items.stock_quantity`, solo no genera fila en `item_branch_stocks`).
+
+**Llamada agregada inline en los 3 puntos reales**, mismo patrón exacto que ya usa `PaymentController` para `AccountingServiceInterface::createEntryForBookingPayment()` (`app(Interface::class)->metodo(...)` justo después del cambio de estado) — se evitó introducir un Observer nuevo en un código que no usa ese patrón en ningún otro lado.
+
+**Idempotencia (riesgo real identificado, no solo teórico):** ninguno de los 3 endpoints impide reenviar `status=completed` sobre una cita ya completada (`SpaBookingController::update()` no valida el estado actual antes de aceptar `status=completed`; `PaymentController::store()` solo bloquea `cancelled`). Antes de descontar cada línea, el servicio verifica si ya existe un `item_movements` con `reference` = ese `SpaBookingItem` (`reference_type`/`reference_id`); si existe, la omite. Verificado con test dedicado (doble llamada a `agenda.update` con `status=completed`, un solo movimiento).
+
+**Limitación aceptada, no resuelta:** `item_movements.quantity` es `integer` (BL-054) pero `spa_booking_items.quantity` es `decimal:2` (permite fracciones de servicio, ej. 0.5 hrs). Se redondea con `(int) round()` al descontar — una fracción real de unidad de producto (poco común, pero posible) se trunca. Documentado en código y en `MODELO_BD.md`, no bloqueante para esta pieza.
+
+**Verificación:** 5 tests nuevos (`BookingStockConsumptionTest`) cubriendo los 3 endpoints reales + idempotencia + operador sin sucursal primaria. Sin migraciones nuevas (tablas ya existían desde el 17/07). Suite completa sin regresiones (37 fallidas preexistentes sin cambio, 197 pasan, antes 192).
+
+### 📁 Archivos principales tocados
+- `app/Domain/Inventory/Contracts/BookingStockConsumptionServiceInterface.php` (nuevo)
+- `app/Domain/Inventory/Services/BookingStockConsumptionService.php` (nuevo)
+- `app/Providers/AppServiceProvider.php` (binding)
+- `app/Http/Controllers/SpaBookingController.php`, `app/Http/Controllers/Api/PaymentController.php`, `app/Http/Controllers/Api/BookingController.php` (llamada inline tras completar)
+- `tests/Feature/BookingStockConsumptionTest.php` (nuevo)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-049 restante (última pieza, ya diseñada desde el 17/07): almacenes/transferencias entre sucursales (`branch_id` como unidad de ubicación, sin tabla `warehouses` nueva).
+3. Sigue pendiente de sesiones previas: BL-047 (clínica fase 2), BL-052 (automatizar catálogo de WhatsApp/redes), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config).
+
+---
+
 ## 📅 Cierre de sesión: 17/07/2026 — BL-049: multi-sucursal real de Inventario (primera de tres piezas)
 
 ### ✅ Logros y Cambios

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
+use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Http\Controllers\Controller;
 use App\Models\Service;
@@ -221,6 +222,10 @@ class BookingController extends Controller
             } catch (\Throwable) {
                 // No interrumpir el cambio de estado si falla la asignación del folio
             }
+        }
+
+        if (($data['status'] ?? null) === 'completed') {
+            app(BookingStockConsumptionServiceInterface::class)->consume($booking, auth()->id());
         }
 
         return response()->json($this->serialize($booking->fresh()));
