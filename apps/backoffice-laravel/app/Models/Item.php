@@ -28,6 +28,9 @@ use Spatie\Activitylog\Support\LogOptions;
     'account_id',
     'photo_path',
     'notes',
+    'meta_category',
+    'meta_variant_group',
+    'meta_color',
 ])]
 class Item extends Model
 {
@@ -52,7 +55,7 @@ class Item extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'department', 'brand', 'presentation', 'cost_price', 'price', 'is_active', 'ai_visible', 'stock_quantity'])
+            ->logOnly(['name', 'department', 'brand', 'presentation', 'cost_price', 'price', 'is_active', 'ai_visible', 'stock_quantity', 'meta_category', 'meta_variant_group', 'meta_color'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->useLogName('catalogo');

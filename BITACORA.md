@@ -1,5 +1,39 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 20/07/2026 (cont.) — BL-052b: categoría de Meta + variantes de color en Artículos
+
+### ✅ Logros y Cambios
+
+Continuación directa de la sesión de hoy (BL-052 recién cerrado): al revisar el primer artículo real publicado ("ID TAG Colores 38mm"), el usuario notó que en realidad se vende en 8 colores y que no había forma de capturar la categoría de producto de Facebook/Google — ninguna de las dos cosas estaba en el diseño original de BL-052. Se usó `EnterPlanMode` (2 agentes `Explore` en paralelo — schema/CRUD de `Item`, y el patrón "Grupos" de BL-055 para confirmar que no era reutilizable — más 1 agente `Plan`) para diseñar la solución antes de tocar código, dado que implicaba una decisión de modelo de datos.
+
+**Decisión de diseño:** cada variante de color es su propia fila de `Item` (ya es una entidad completa — stock, precio y foto por-fila desde BL-049/054) enlazada a sus hermanas por una clave de texto libre compartida (`meta_variant_group`), que se manda tal cual como `retailer_product_group_id` a Meta — mismo criterio ya usado con `retailer_id = "item-{id}"` (nosotros elegimos el valor, Meta no devuelve nada que guardar). Se descartó explícitamente un sub-modelo de variantes/tabla nueva por duplicar lo que `Item` ya es. Se confirmó contra la documentación real de Meta (no de memoria, por la lección del `price` de hoy mismo) que el endpoint de creación individual usa `retailer_product_group_id` — **no** `item_group_id`, que es el nombre del feed CSV, la misma trampa feed-vs-endpoint que ya mordió una vez hoy.
+
+**3 columnas nuevas en `items`** (migración aditiva, corrida en producción real): `meta_category`, `meta_variant_group` (indexado), `meta_color`. Prefijo `meta_` a propósito — son campos que existen para el contrato de una API externa, no taxonomía de negocio propia (no contradice la decisión de BL-051 de no construir taxonomía estructurada real, el propósito es distinto). `size` quedó fuera a propósito — sin necesidad real hoy, trivial de agregar después con el mismo patrón (documentado en `IDEAS_FUTURO.md`).
+
+Formulario de Artículos: `meta_category` con datalist de ~15 categorías reales de la taxonomía de Google (rama "Animals & Pet Supplies", relevantes al giro veterinario/grooming) — mismo patrón visual que `department`. `meta_variant_group` con datalist **dinámico** (valores ya usados en la BD, vía `Item::whereNotNull('meta_variant_group')->distinct()`) para mitigar que un typo en la clave deje dos variantes sin agrupar. `meta_color` texto simple, sin datalist (abierto, sin precedente de lista cerrada para esto).
+
+`MetaCatalogSyncService::buildPayload()`: agrega `category` cuando `meta_category` está presente; agrega `retailer_product_group_id`+`color` **solo si ambos** `meta_variant_group`/`meta_color` están presentes en la misma fila — regla de "omisión suave": si falta uno de los dos, el artículo se publica igual, sin agrupar (a diferencia del skip por falta de foto/precio, que sí excluye el artículo — aquí no le falta nada esencial).
+
+**Verificado contra la API real** (no solo `Http::fake()`): se actualizó el artículo real #10 con `meta_category`, `meta_variant_group='id-tag-38mm'`, `meta_color='Negro'` (renombrado a "ID TAG 38mm — Negro" — es el único color con existencia física confirmada hoy), se corrió el sync real, y se consultó de vuelta contra la Graph API (`GET /{catalog_id}/products?fields=...`). Meta aceptó y devolvió los 3 campos tal cual, incluyendo el `&` literal del formato de taxonomía de Google — resuelve el riesgo principal que traía el plan. **No verificado todavía:** el comportamiento de agrupación visual en Commerce Manager con 2+ variantes reales, porque solo existe 1 color con inventario confirmado — el usuario no tiene el conteo de los otros 7 colores todavía (queda como pendiente real, no inventado).
+
+**Verificación:** 5 tests nuevos (`MetaCatalogSyncTest`, 12 en total: category presente/ausente, grupo+color agrupados correctamente en 2 artículos distintos, omisión suave en ambos sentidos). Suite completa sin regresiones (37 fallidas preexistentes sin cambio, 215 pasan, antes 210).
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_20_041408_add_meta_category_and_variant_fields_to_items_table.php` (nuevo, corrida en producción)
+- `app/Models/Item.php` (Fillable + activity log)
+- `app/Http/Controllers/ItemController.php` (validación + `existingVariantGroups`)
+- `app/Domain/MetaCatalog/Services/MetaCatalogSyncService.php` (`buildPayload()`, comentario con verificación fechada)
+- `resources/views/items/partials/form.blade.php` (3 campos nuevos)
+- `tests/Feature/MetaCatalogSyncTest.php` (5 tests nuevos)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md`, `docs/architecture/IDEAS_FUTURO.md` (idea de `meta_size` para el futuro)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (BL-052b completo, sin commitear todavía).
+2. **Pendiente real, fuera de este repo:** el usuario debe contar físicamente el inventario de los otros 7 colores del ID TAG y capturarlos como artículos nuevos (mismo `meta_variant_group='id-tag-38mm'`, su propio `meta_color`) — en ese momento, revisar visualmente en Commerce Manager que las variantes queden agrupadas como un solo producto (hoy solo se confirmó que Meta acepta los campos, no el comportamiento de agrupación con 2+ variantes reales).
+3. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 20/07/2026 — BL-052: cierre real — token generado, primer artículo publicado en Meta, 2 bugs reales corregidos
 
 ### ✅ Logros y Cambios

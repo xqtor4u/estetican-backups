@@ -13,6 +13,7 @@
 - [ ] **Gestión de Stock:** Control de inventarios para productos de tienda.
 - [ ] **Lead Time:** Tiempos de entrega para pedidos especiales de tienda.
 - [ ] **Kits de Productos:** Paquetes que incluyan servicio + producto (ej. Baño + Collar Antipulgas).
+- [ ] **Variantes por talla en Artículos (idea surgida 20/07/2026, ver BL-052b).** BL-052b agregó `meta_variant_group`/`meta_color` a `items` para representar el mismo producto en varios colores hacia el catálogo de Meta (cada color = su propia fila de `Item`, enlazadas por una clave compartida). Si algún producto futuro necesita variar por **talla** en vez de (o además de) color, el mecanismo es directamente extensible: una columna `meta_size` más, un `if` más en `MetaCatalogSyncService::buildPayload()` que mande `size` cuando esté presente, mismo `meta_variant_group` compartido. No construir hasta que exista un producto real que lo necesite.
 
 ## 💳 Pasarelas de Pago
 - [ ] **Mercado Pago / Stripe:** Generación de links de pago y QR dinámicos.

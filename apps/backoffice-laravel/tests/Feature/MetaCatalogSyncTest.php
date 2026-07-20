@@ -139,6 +139,71 @@ class MetaCatalogSyncTest extends TestCase
         $this->assertSame([['item' => 'Shampoo hipoalergénico', 'reason' => 'Invalid parameter']], $result['failed']);
     }
 
+    public function test_sync_includes_category_when_set(): void
+    {
+        $this->configureCatalog();
+        $this->eligibleItem(['meta_category' => 'Animals & Pet Supplies > Pet Supplies > Pet ID Tags']);
+        Http::fake(['graph.facebook.com/*' => Http::response(['id' => 'meta-product-1'], 200)]);
+
+        app(MetaCatalogSyncServiceInterface::class)->sync();
+
+        Http::assertSent(fn ($request) => $request['category'] === 'Animals & Pet Supplies > Pet Supplies > Pet ID Tags');
+    }
+
+    public function test_sync_omits_category_when_not_set(): void
+    {
+        $this->configureCatalog();
+        $this->eligibleItem();
+        Http::fake(['graph.facebook.com/*' => Http::response(['id' => 'meta-product-1'], 200)]);
+
+        app(MetaCatalogSyncServiceInterface::class)->sync();
+
+        Http::assertSent(fn ($request) => ! array_key_exists('category', $request->data()));
+    }
+
+    public function test_sync_includes_variant_group_and_color_when_both_set(): void
+    {
+        $this->configureCatalog();
+        $red = $this->eligibleItem(['name' => 'ID TAG Rojo', 'meta_variant_group' => 'id-tag-38mm', 'meta_color' => 'Rojo']);
+        $blue = $this->eligibleItem(['name' => 'ID TAG Azul', 'meta_variant_group' => 'id-tag-38mm', 'meta_color' => 'Azul']);
+        Http::fake(['graph.facebook.com/*' => Http::response(['id' => 'meta-product-1'], 200)]);
+
+        app(MetaCatalogSyncServiceInterface::class)->sync();
+
+        Http::assertSent(fn ($request) => $request['retailer_id'] === "item-{$red->id}"
+            && $request['retailer_product_group_id'] === 'id-tag-38mm'
+            && $request['color'] === 'Rojo');
+        Http::assertSent(fn ($request) => $request['retailer_id'] === "item-{$blue->id}"
+            && $request['retailer_product_group_id'] === 'id-tag-38mm'
+            && $request['color'] === 'Azul');
+    }
+
+    public function test_sync_omits_variant_fields_when_group_set_without_color(): void
+    {
+        $this->configureCatalog();
+        $this->eligibleItem(['meta_variant_group' => 'id-tag-38mm', 'meta_color' => null]);
+        Http::fake(['graph.facebook.com/*' => Http::response(['id' => 'meta-product-1'], 200)]);
+
+        $result = app(MetaCatalogSyncServiceInterface::class)->sync();
+
+        $this->assertSame(['Shampoo hipoalergénico'], $result['published']);
+        Http::assertSent(fn ($request) => ! array_key_exists('retailer_product_group_id', $request->data())
+            && ! array_key_exists('color', $request->data()));
+    }
+
+    public function test_sync_omits_variant_fields_when_color_set_without_group(): void
+    {
+        $this->configureCatalog();
+        $this->eligibleItem(['meta_variant_group' => null, 'meta_color' => 'Rojo']);
+        Http::fake(['graph.facebook.com/*' => Http::response(['id' => 'meta-product-1'], 200)]);
+
+        $result = app(MetaCatalogSyncServiceInterface::class)->sync();
+
+        $this->assertSame(['Shampoo hipoalergénico'], $result['published']);
+        Http::assertSent(fn ($request) => ! array_key_exists('retailer_product_group_id', $request->data())
+            && ! array_key_exists('color', $request->data()));
+    }
+
     public function test_the_sync_button_requires_catalog_credentials_to_be_configured(): void
     {
         $user = $this->userWithPermissions(['editar catalogo_articulos']);

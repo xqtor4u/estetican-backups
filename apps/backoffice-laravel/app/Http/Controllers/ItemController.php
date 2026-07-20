@@ -77,8 +77,9 @@ class ItemController extends Controller
     {
         $page = ItemsPage::create();
         $profitMargin = (float) $settings->all()['store_profit_margin_percentage'];
+        $existingVariantGroups = Item::whereNotNull('meta_variant_group')->distinct()->pluck('meta_variant_group');
 
-        return view('items.create', compact('page', 'profitMargin'));
+        return view('items.create', compact('page', 'profitMargin', 'existingVariantGroups'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -117,8 +118,9 @@ class ItemController extends Controller
         $profitMargin = (float) $settings->all()['store_profit_margin_percentage'];
         $branchStocks = $item->branchStocks()->pluck('quantity', 'branch_id');
         $unassignedStock = $item->stock_quantity - $branchStocks->sum();
+        $existingVariantGroups = Item::whereNotNull('meta_variant_group')->distinct()->pluck('meta_variant_group');
 
-        return view('items.edit', compact('item', 'page', 'branches', 'movements', 'profitMargin', 'branchStocks', 'unassignedStock'));
+        return view('items.edit', compact('item', 'page', 'branches', 'movements', 'profitMargin', 'branchStocks', 'unassignedStock', 'existingVariantGroups'));
     }
 
     public function update(Request $request, Item $item): RedirectResponse
@@ -179,6 +181,9 @@ class ItemController extends Controller
             'ai_visible' => 'nullable|boolean',
             'photo' => 'nullable|image|max:10240',
             'notes' => 'nullable|string',
+            'meta_category' => 'nullable|string|max:255',
+            'meta_variant_group' => 'nullable|string|max:255',
+            'meta_color' => 'nullable|string|max:100',
         ]);
 
         unset($validated['photo']);

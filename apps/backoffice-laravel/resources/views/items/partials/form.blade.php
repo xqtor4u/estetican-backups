@@ -34,6 +34,31 @@
     </div>
 
     <div class="col-md-6">
+        <label for="meta_category" class="form-label">Categoría (Meta / Google)</label>
+        <input id="meta_category" type="text" name="meta_category" class="form-control" list="meta-category-suggestions" value="{{ old('meta_category', $item->meta_category ?? '') }}" placeholder="Ej. Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Pet ID Tags">
+        <datalist id="meta-category-suggestions">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Pet ID Tags">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Pet Collars &amp; Harnesses">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Pet Leashes">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Pet Grooming Supplies">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Pet Grooming Supplies &gt; Pet Shampoo &amp; Conditioner">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Pet Grooming Supplies &gt; Pet Hair Clippers &amp; Trimmers">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Pet Grooming Supplies &gt; Pet Combs &amp; Brushes">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Pet Grooming Supplies &gt; Pet Nail Tools">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Dog Supplies &gt; Dog Food">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Dog Supplies &gt; Dog Apparel">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Dog Supplies &gt; Dog Beds">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Dog Supplies &gt; Dog Toys">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Dog Supplies &gt; Dog Treats">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Cat Supplies &gt; Cat Food">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Cat Supplies &gt; Cat Litter">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Cat Supplies &gt; Cat Toys">
+            <option value="Animals &amp; Pet Supplies &gt; Pet Supplies &gt; Cat Supplies &gt; Cat Treats">
+        </datalist>
+        <div class="form-text">Opcional — categoría de Google/Meta para el catálogo de WhatsApp. <strong>Formato aún no verificado contra la API real de Meta.</strong></div>
+    </div>
+
+    <div class="col-md-6">
         <label for="brand" class="form-label">Marca</label>
         <input id="brand" type="text" name="brand" class="form-control" value="{{ old('brand', $item->brand ?? '') }}">
     </div>
@@ -41,6 +66,23 @@
     <div class="col-md-6">
         <label for="presentation" class="form-label">Presentación</label>
         <input id="presentation" type="text" name="presentation" class="form-control" placeholder="Ej. Frasco 1 dosis, Multidosis 10ml" value="{{ old('presentation', $item->presentation ?? '') }}">
+    </div>
+
+    <div class="col-md-6">
+        <label for="meta_variant_group" class="form-label">Grupo de variante (Meta)</label>
+        <input id="meta_variant_group" type="text" name="meta_variant_group" class="form-control" list="meta-variant-group-suggestions" value="{{ old('meta_variant_group', $item->meta_variant_group ?? '') }}" placeholder="Ej. id-tag-38mm">
+        <datalist id="meta-variant-group-suggestions">
+            @foreach($existingVariantGroups as $group)
+                <option value="{{ $group }}">
+            @endforeach
+        </datalist>
+        <div class="form-text">Opcional — usa el <strong>mismo texto exacto</strong> en cada color de un mismo producto para que Meta los agrupe como variantes.</div>
+    </div>
+
+    <div class="col-md-6">
+        <label for="meta_color" class="form-label">Color</label>
+        <input id="meta_color" type="text" name="meta_color" class="form-control" value="{{ old('meta_color', $item->meta_color ?? '') }}" placeholder="Ej. Rojo">
+        <div class="form-text">Solo necesario si este artículo forma parte de un grupo de variante por color.</div>
     </div>
 
     <div class="col-12">
