@@ -1,5 +1,26 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 20/07/2026 (cont. 2) — BL-052b: cierre real de los 8 colores + incidente de cuenta Meta (NT-040)
+
+### ✅ Logros y Cambios
+
+Continuación directa de la sesión anterior (BL-052b dejó pendiente el conteo físico de 7 colores y la verificación de agrupación visual en Commerce Manager). El usuario dio el conteo real: Azul Oscuro (2), Dorado (2), Azul Turquesa (1), Magenta (1), Morado (1), Verde (1), Rojo (1) — mismo precio/costo/foto que el Negro ya publicado (misma foto porque muestra los 8 colores). Altas #11–17 en `items`, mismo `meta_variant_group='id-tag-38mm'` que el #10.
+
+**Incidente real durante el primer intento de sync de los 8 artículos:** falló con `"API access blocked"` (`OAuthException code 200`) en los 8, incluido el #10 que había publicado bien horas antes — no era el bug de `price`/formato ya resuelto en BL-052 (ese log era de pruebas viejas del 18-19/07). Diagnóstico hecho con **Claude en Chrome** (no disponible vía terminal — requiere sesión de navegador autenticada contra Meta): la cuenta de developer de la app "EstetiCAN Catálogo" estaba bloqueada por el antiabuso de Meta ("actividad inusual" — probablemente disparado por crear 7 artículos casi idénticos y sincronizar poco después), redirigiendo a `developers.facebook.com/r/user/error/` con aviso de "Confirmación de la cuenta requerida". El usuario completó la confirmación manualmente; el sync funcionó de inmediato después, **sin ningún cambio de código** — confirma que el payload/código de BL-052/052b estaba correcto desde el principio. Documentado en **NT-040** para que si vuelve a pasar no se pierda tiempo depurando `MetaCatalogSyncService`.
+
+Sync final: **8 publicados, 0 errores**. Verificación pendiente de BL-052b (agrupación visual en Commerce Manager) confirmada con Claude en Chrome: las 8 variantes aparecen agrupadas como un solo producto colapsable ("Variantes: 8") bajo `retailer_product_group_id=id-tag-38mm`, no como productos sueltos — cierra la única duda real que quedaba abierta de todo el trabajo de BL-052/052b.
+
+### 📁 Archivos principales tocados
+- `app/Domain/MetaCatalog/Services/MetaCatalogSyncService.php` (comentario actualizado: agrupación confirmada, ya no "no verificado todavía")
+- `docs/tecnico/BACKLOG.md` (BL-052b actualizado con cierre real + referencia a NT-040)
+- `docs/tecnico/NOTAS_TECNICAS.md` (NT-040 nueva)
+- Datos de producción: `items` #11–17 (7 variantes de color nuevas del ID TAG 38mm)
+
+### 🛑 Pendientes activos
+- BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 20/07/2026 (cont.) — BL-052b: categoría de Meta + variantes de color en Artículos
 
 ### ✅ Logros y Cambios

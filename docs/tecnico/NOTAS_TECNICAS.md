@@ -1002,3 +1002,21 @@ Verificado con `php artisan route:list --name=items.store -vv` — el middleware
 **Fix:** las tres consultas cambiaron su filtro de `where('status', 'active')` a `where('status', 'scheduled')` (el estado real que usa todo el resto del módulo — ver `HotelReservationController`, `hotel-reservations/{index,show}.blade.php`, que solo conocen `scheduled`/`cancelled`). El KPI del dashboard, que no tenía ningún filtro de fecha, se corrigió además para acotar a hoy (`whereDate('start_at', '<=', hoy)->whereDate('end_at', '>=', hoy)`), igual que ya hacían las dos consultas de Agenda — sin este acotamiento, "Huéspedes en Hotel" habría contado *todas* las reservas agendadas alguna vez, no solo las de hoy.
 
 **Lección:** cuando un enum de estado y el código que lo consulta se escriben en momentos distintos (o por separado), un valor de filtro que "suena correcto" (`'active'` para "huésped actualmente hospedado") puede no existir nunca en los datos reales — y si el resultado de "cero coincidencias" es un valor de negocio plausible (a diferencia de un error), el bug no se manifiesta como falla visible, solo como una métrica perpetuamente en cero. Vale la pena, al construir cualquier KPI o conteo nuevo, verificar el valor real contra el enum de la migración (`grep` directo a la migración que crea la columna), no solo confiar en que el nombre del estado usado en la query "suena" correcto.
+
+---
+
+## NT-040 — "API access blocked" (OAuthException code 200) en `MetaCatalogSyncService` no era un bug de payload — Meta bloqueó la cuenta de developer por "actividad inusual" (BL-052b)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 20/07/2026 |
+| **Severidad** | P2 — bloquea por completo el sync a Meta (0 publicados de 8), pero es un bloqueo externo temporal, no corrompe datos ni afecta el resto del sistema |
+| **Componente** | `App\Domain\MetaCatalog\Services\MetaCatalogSyncService::sync()` — ninguno, el código estaba correcto |
+
+**Síntoma:** al dar de alta 7 artículos nuevos (variantes de color de "ID TAG 38mm", ver BL-052b) y correr el sync, los 8 artículos —incluido el #10 que había publicado bien horas antes— fallaron con `"(#200) API access blocked."` (`OAuthException`, `status 400`). El Backoffice solo reporta el conteo agregado ("8 con error, ver logs"), así que el mensaje real de Meta solo aparece en `storage/logs/laravel.log` (`Log::error` en `MetaCatalogSyncService::sync()`).
+
+**Diagnóstico:** el mensaje `code: 200` de la Graph API generalmente indica un problema de permisos/token, no de payload — pero el payload ya estaba probado y funcionando el mismo día. Investigado con Claude en Chrome directo en `business.facebook.com`/`developers.facebook.com` (no hay forma de verificar esto desde la terminal): la cuenta de developer dueña de la app "EstetiCAN Catálogo" estaba bloqueada por el sistema antiabuso de Meta ("Confirmación de la cuenta requerida" — actividad inusual detectada), redirigiendo cualquier acceso a `developers.facebook.com/r/user/error/`. Mientras ese bloqueo está activo, **cualquier** llamada de la Graph API con tokens de esa app se rechaza con `code: 200`, sin importar qué tan bien formado esté el request. Causa probable del disparo: crear 7 artículos casi idénticos y correr el sync poco después puede leerse como actividad automatizada sospechosa para el antiabuso de Meta.
+
+**Fix:** ninguno en código. El usuario completó la confirmación de identidad manualmente en `developers.facebook.com` ("Confirmar cuenta"); el sync funcionó de inmediato después, sin regenerar el token ni tocar `MetaCatalogSyncService`.
+
+**Lección:** cuando la Graph API de Meta devuelve `code: 200` / "API access blocked" y el payload ya se había verificado funcionando antes, no seguir depurando el código — es casi seguro un bloqueo de cuenta/app del lado de Meta. Revisar primero `developers.facebook.com` (aviso de "actividad inusual") y `Configuración empresarial → Centro de seguridad` en Business Manager antes de tocar `MetaCatalogSyncService`. Como este entorno no tiene sesión de navegador autenticada contra Meta, este tipo de diagnóstico requiere Claude en Chrome (o al usuario directamente) — no es verificable por API/terminal.

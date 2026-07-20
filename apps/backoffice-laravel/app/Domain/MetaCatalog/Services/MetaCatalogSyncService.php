@@ -21,12 +21,11 @@ use Illuminate\Support\Facades\Log;
  * "(#100) Param price must be a number".
  *
  * `category`/`color`/`retailer_product_group_id` (BL-052b) verificados contra la API real
- * el 20/07/2026 con una sola variante real (#10, "ID TAG 38mm — Negro") — Meta aceptó y
- * devolvió los 3 campos tal cual se mandaron, incluyendo el string de categoría con "&"
- * literal (formato de la taxonomía de Google). **No verificado todavía:** el comportamiento
- * de agrupación visible en Commerce Manager con 2+ variantes reales compartiendo
- * `retailer_product_group_id` — pendiente hasta que existan más colores reales del mismo
- * producto (ver BACKLOG BL-052b).
+ * el 20/07/2026 con las 8 variantes reales del ID TAG 38mm — Meta aceptó y devolvió los
+ * 3 campos tal cual se mandaron, incluyendo el string de categoría con "&" literal (formato
+ * de la taxonomía de Google). Agrupación visible confirmada en Commerce Manager: las 8
+ * variantes aparecen como un solo producto colapsable ("Variantes: 8") bajo el mismo
+ * `retailer_product_group_id`, no como productos sueltos.
  */
 class MetaCatalogSyncService implements MetaCatalogSyncServiceInterface
 {
