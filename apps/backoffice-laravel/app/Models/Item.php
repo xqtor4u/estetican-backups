@@ -79,7 +79,7 @@ class Item extends Model
             return '';
         }
 
-        return Storage::disk('public')->url($this->photo_path);
+        return url(Storage::disk('public')->url($this->photo_path));
     }
 
     public function getPhotoThumbnailPathAttribute(): ?string
@@ -101,6 +101,6 @@ class Item extends Model
             return $this->photo_url;
         }
 
-        return Storage::disk('public')->url($this->photo_thumbnail_path);
+        return url(Storage::disk('public')->url($this->photo_thumbnail_path));
     }
 }

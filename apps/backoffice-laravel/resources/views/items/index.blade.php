@@ -13,6 +13,10 @@
     :subtitle="$page['header']['subtitle']"
 >
     <x-slot:actions>
+        <form action="{{ route('items.catalog-sync') }}" method="POST" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-outline-secondary">Sincronizar catálogo WhatsApp</button>
+        </form>
         <a href="{{ route('items.create') }}" class="btn btn-primary">Crear artículo</a>
     </x-slot:actions>
 </x-page-header>

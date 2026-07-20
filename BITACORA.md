@@ -1,5 +1,87 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 20/07/2026 — BL-052: cierre real — token generado, primer artículo publicado en Meta, 2 bugs reales corregidos
+
+### ✅ Logros y Cambios
+
+Retomando exactamente donde quedó la sesión del 18/07/2026 (código listo, configuración de Meta atorada en "Generar identificador"). Se guió al usuario paso a paso por chat (sin `claude-in-chrome` disponible en esta sesión) hasta completar el token del usuario de sistema "Sync Catalogo Backoffice", con permiso **único** `catalog_management` — se decidió explícitamente no incluir los 4 permisos de mensajería/WhatsApp que el usuario propuso adelantar ("luego será para confirmar citas en automático y enviar promociones"), porque los permisos de un token quedan fijos al generarse y no hay costo real en esperar: cuando exista código real de mensajería automática (BL-024b, sin diseñar todavía) se genera un token nuevo con esos permisos en ese momento.
+
+Catalog ID (`2121927028717553`) y Access Token capturados en Configuración → "Catálogo de WhatsApp/Meta".
+
+**Antes de la primera prueba real, se verificó qué artículo calificaría** (evitar que el primer clic publicara todo el catálogo real de golpe sin querer) — de 7 artículos activos, 6 son vacunas sin sentido para venta directa y ninguno calificaba (`ai_visible`/`stock`/`price` en 0 o vacío). Se completó **#10 "ID TAG Colores 38mm"** (ya tenía `ai_visible=true`) con stock real, precio de compra/venta y foto, vía el flujo normal del backoffice.
+
+**2 bugs reales encontrados y corregidos en la primera sincronización real (no en `Http::fake()`):**
+1. **`price` rechazado por Meta** (`(#100) Param price must be a number`): el endpoint de creación individual de producto (`POST /{catalog_id}/products`) exige `price` como **entero en la unidad mínima de la moneda** (centavos) — a diferencia del feed CSV/batch de Meta, que sí usa un string `"9.99 USD"` y fue la referencia (incorrecta para este endpoint) que se usó al escribir el código el 18/07. Corregido a `(int) round($item->price * 100)` en `MetaCatalogSyncService::buildPayload()`.
+2. **`Item::getPhotoUrlAttribute()`/`getPhotoThumbnailUrlAttribute()` devolvían ruta relativa** (`/storage/...`), no URL absoluta — `Storage::disk('public')->url()` no antepone `APP_URL` por sí solo. Nunca fue un bug visible porque todo consumidor previo (vistas Blade) resuelve rutas relativas contra el dominio de la página actual; Meta es el primer consumidor externo que necesita URL absoluta para poder descargar la imagen del producto. Corregido envolviendo con el helper `url()`. **Mismo patrón sigue presente en `Pet`/`Operator`/`User`/`Resource`/etc.** — dejado sin tocar a propósito, no está roto en su contexto actual (fuera de alcance de BL-052).
+
+Tras ambos fixes, sincronización real: **1 publicado, 0 errores** — primer artículo real de EstetiCAN visible en el catálogo de Meta Commerce Manager.
+
+**Verificación:** `MetaCatalogSyncTest` actualizado (aserción de `price` ahora espera entero en centavos), 7 tests pasan. Suite completa sin regresiones (37 fallidas preexistentes sin cambio, 210 pasan — mismo conteo que dejó la sesión del 18/07).
+
+**Cierra BL-052 por completo** — movido a Completados en `BACKLOG.md`.
+
+### 📁 Archivos principales tocados
+- `app/Domain/MetaCatalog/Services/MetaCatalogSyncService.php` (formato `price`, comentario actualizado)
+- `app/Models/Item.php` (`getPhotoUrlAttribute()`/`getPhotoThumbnailUrlAttribute()` → URL absoluta)
+- `tests/Feature/MetaCatalogSyncTest.php` (aserción de `price` actualizada)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md` (BL-052 movido a Completados, sección de Meta actualizada con los 2 bugs)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión, incluyendo lo que ya venía sin commitear del 18/07/2026 (BL-052 completo).
+2. Considerar (no decidido, no urgente) aplicar el mismo fix de URL absoluta a `Pet`/`Operator`/`User`/`Resource` si en el futuro algún consumidor externo (no-Blade) los necesita — hoy no hace falta.
+3. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API — permisos de WhatsApp quedaron deliberadamente fuera del token de hoy).
+
+---
+
+## 📅 Cierre de sesión: 18/07/2026 (cont. 2) — BL-052: publicación en catálogo de Meta/WhatsApp — código listo, bloqueado en credenciales
+
+### ✅ Logros y Cambios
+
+BL-052 llevaba desde el 14-15/07/2026 anotado como "sin acotar todavía" (no se había decidido el mecanismo de publicación). Investigación previa (agente `Explore`) confirmó que **no existe ninguna integración real con APIs de Meta** en el proyecto — todo WhatsApp (BL-024) es un link `wa.me` abierto a mano por el operador, cero tokens/webhooks — y que "catálogo de WhatsApp Business" (Commerce Manager/Catalog API) es un producto de Meta completamente distinto al de mensajería, sin nada reutilizable.
+
+**Decisión del usuario vía `AskUserQuestion` (3 preguntas):** (1) mecanismo = integración real vía Meta Catalog API (no export manual, no página pública propia); (2) ni el catálogo en Commerce Manager ni la Meta App de desarrollador existen todavía — ambas hay que crearlas del lado de Meta; (3) disparo = botón manual "Sincronizar ahora" (no scheduler — no hay cron corriendo en la OPi).
+
+**Construido hoy (sin poder probarlo contra la API real, por falta de credenciales):**
+- Sección nueva `whatsapp_catalog` en `SystemSettings` (`whatsapp_catalog_id` texto, `whatsapp_catalog_access_token` cifrado — mismo patrón `type: 'password'` que `ai_assistant_api_key`, incluye el "dejar en blanco conserva lo guardado" gratis).
+- `App\Domain\MetaCatalog\Services\MetaCatalogSyncService` (+ interfaz, bindeada en `AppServiceProvider`): filtra `Item` con `is_active && ai_visible && stock_quantity > 0` (mismo filtro que ya usa `ServiceCatalogPromptBuilder` para el asistente de IA), omite (sin error) los que no tienen foto o precio, y hace `POST /{catalog_id}/products` por artículo vía la Graph API de Meta.
+- **Decisión de diseño clave:** cada producto usa `retailer_id = "item-{id}"` como identificador — Meta hace upsert sobre ese campo, así que **no hace falta guardar** el ID que Meta le asigna internamente al producto (se evitó agregar una columna nueva a `items` solo para trackear ese mapeo). Esto también evita la complejidad de la Batch API asíncrona de Meta (que requiere sondear un `handle_id`) — llamadas individuales síncronas por artículo dan el resultado inmediato por artículo que pidió el usuario ("cuántos subieron, errores si los hubo"), razonable para un catálogo de decenas de artículos, no miles.
+- El campo `url` del producto (obligatorio en el feed de Meta, pensado para "página del producto") no existe como tal en este negocio (sin sitio de e-commerce) — se resolvió con un link `wa.me` prellenado ("Hola, me interesa: {nombre}"), reusando `PhoneNormalizer`/`brand_whatsapp_number` ya existentes. Decisión tomada sin preguntar (encaja con el patrón ya establecido en todo el proyecto), no hizo falta construir nada nuevo.
+- Botón "Sincronizar catálogo WhatsApp" en Artículos → índice (`items.catalog-sync`, permiso `editar catalogo_articulos`, junto al botón "Crear artículo").
+
+**Limitación explícita, no resuelta:** el formato exacto de algunos campos del payload de Meta (`price` como string `"150.00 MXN"`, `category`) se tomó de memoria/documentación de Meta, **no verificado contra la API real** — no hay forma de confirmarlo sin credenciales reales. Primer paso al retomar: en cuanto el usuario tenga `catalog_id`/token, hacer un envío de prueba con 1 artículo real y ajustar formato si Meta lo rechaza (el código ya captura y muestra el mensaje de error exacto que devuelva Meta).
+
+**Verificación:** 7 tests nuevos (`MetaCatalogSyncTest`) vía `Http::fake()` — fijan la forma del request saliente (sí se puede probar sin credenciales), cobertura de artículos sin foto/precio/no visibles, error de Meta capturado como "falló", credenciales faltantes bloquean sin llamar a Meta, permiso requerido. Suite completa sin regresiones (37 fallidas preexistentes sin cambio, 210 pasan, antes 203).
+
+**Pendiente real, fuera de mi control:** el usuario debe crear en Meta (fuera de este repo) — un catálogo en Commerce Manager (business.facebook.com/commerce) y una Meta App de desarrollador con permiso `catalog_management` y un access token de larga duración. Sin eso, el botón queda bloqueado con mensaje de error (ya construido, probado).
+
+**Actualización — configuración del lado de Meta, avanzada el mismo día (guiada paso a paso por chat, sin código nuevo):**
+- Porfolio empresarial **"Estetican"** creado (no verificado — suficiente para seguir, la verificación solo se necesita más adelante si Meta la exige para el token).
+- App de Meta **"EstetiCAN Catálogo"** creada, con los 2 casos de uso: "Administra los productos con la API de catálogo" + "Conecta con los clientes a través de WhatsApp" (el segundo se agregó a pedido del usuario, sin necesidad real para BL-052 hoy — deja la puerta abierta a automatizar mensajería real por API en el futuro, en vez del `wa.me` manual de BL-024, ver idea nueva en `IDEAS_FUTURO.md`).
+- Catálogo en Commerce Manager **"EstetiCAN Productos"** creado, vinculado al porfolio "Estetican" — **Catalog ID real: `2121927028717553`**.
+- Usuario del sistema **"Sync Catalogo Backoffice"** (id `61592149287929`) creado con rol Administrador, con acceso total asignado a los 2 activos (catálogo + app).
+- **Pendiente exacto donde se interrumpió la sesión:** el paso de "Generar identificador" (token) con permiso `catalog_management` — se pidió y se dio confirmación explícita para proceder, pero el navegador se atoró antes de completarlo. Retomar ahí, no desde cero.
+
+⚠️ **Nota de seguridad para retomar:** el Access Token, cuando se genere, **nunca debe pegarse en este archivo, en BACKLOG.md, ni en ningún archivo versionado con git** — va directo al campo cifrado "Access Token" en Configuración del backoffice → "Catálogo de WhatsApp/Meta" (`whatsapp_catalog_access_token`, `type: password`, ya cifrado por `SystemSettings`). Si en algún momento quedó pegado en el chat o en un archivo temporal, considerarlo expuesto y regenerarlo desde Meta.
+
+### 📁 Archivos principales tocados
+- `app/Domain/MetaCatalog/Contracts/MetaCatalogSyncServiceInterface.php`, `app/Domain/MetaCatalog/Services/MetaCatalogSyncService.php` (nuevos)
+- `app/Http/Controllers/MetaCatalogSyncController.php` (nuevo)
+- `app/Providers/AppServiceProvider.php` (binding)
+- `app/Support/SystemSettings/SystemSettings.php` (sección `whatsapp_catalog`)
+- `routes/web.php` (`items.catalog-sync`)
+- `resources/views/items/index.blade.php` (botón)
+- `tests/Feature/MetaCatalogSyncTest.php` (nuevo)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md`
+
+### 🛑 Pendientes activos
+1. **Retomar en Meta:** completar "Generar identificador" del Usuario del sistema "Sync Catalogo Backoffice" con permiso `catalog_management` (se atoró el navegador, sin generar todavía).
+2. Capturar Catalog ID (`2121927028717553`) + Access Token en Configuración → "Catálogo de WhatsApp/Meta", y hacer la primera sincronización real de prueba.
+3. Commit y push de esta sesión (código ya escrito y probado con `Http::fake()`, sigue sin commitear).
+2. **BL-052 real, fuera de este repo:** el usuario crea el catálogo en Meta Commerce Manager + la Meta App/token. En cuanto los tenga, retomar con un envío de prueba de 1 artículo.
+3. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config).
+
+---
+
 ## 📅 Cierre de sesión: 18/07/2026 (cont.) — BL-049: transferencias entre sucursales (tercera y última pieza) — cierra BL-049
 
 ### ✅ Logros y Cambios

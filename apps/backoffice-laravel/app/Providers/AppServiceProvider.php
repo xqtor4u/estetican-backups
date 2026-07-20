@@ -18,6 +18,8 @@ use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Inventory\Contracts\ItemMovementServiceInterface;
 use App\Domain\Inventory\Services\BookingStockConsumptionService;
 use App\Domain\Inventory\Services\ItemMovementService;
+use App\Domain\MetaCatalog\Contracts\MetaCatalogSyncServiceInterface;
+use App\Domain\MetaCatalog\Services\MetaCatalogSyncService;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Planning\Contracts\SpaBookingRepositoryInterface;
 use App\Domain\Planning\Repositories\SpaBookingRepository;
@@ -44,6 +46,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ClinicalDiagnosisServiceInterface::class, ClinicalDiagnosisService::class);
         $this->app->bind(ItemMovementServiceInterface::class, ItemMovementService::class);
         $this->app->bind(BookingStockConsumptionServiceInterface::class, BookingStockConsumptionService::class);
+        $this->app->bind(MetaCatalogSyncServiceInterface::class, MetaCatalogSyncService::class);
     }
 
     /**

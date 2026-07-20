@@ -691,6 +691,26 @@ class SystemSettings
                     ],
                 ],
             ],
+            'whatsapp_catalog' => [
+                'label' => 'Catálogo de WhatsApp/Meta',
+                'description' => 'Publica los Artículos marcados como "visibles para IA" con existencia real hacia el catálogo de Meta Commerce Manager (visible en WhatsApp Business, Facebook e Instagram Shop). Requiere un catálogo creado en Commerce Manager y un access token con permiso catalog_management.',
+                'fields' => [
+                    'whatsapp_catalog_id' => [
+                        'label' => 'Catalog ID',
+                        'type' => 'text',
+                        'default' => '',
+                        'rules' => ['nullable', 'string'],
+                        'help' => 'Se encuentra en Commerce Manager → Configuración del catálogo.',
+                    ],
+                    'whatsapp_catalog_access_token' => [
+                        'label' => 'Access Token',
+                        'type' => 'password',
+                        'default' => '',
+                        'rules' => ['nullable', 'string'],
+                        'help' => 'Se guarda cifrado. Dejar en blanco al editar la sección para conservar el guardado.',
+                    ],
+                ],
+            ],
             'finanzas' => [
                 'label' => 'Finanzas',
                 'description' => 'Configuración del módulo contable, caja y documentos.',
