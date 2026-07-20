@@ -26,4 +26,6 @@
         </form>
     </div>
 </div>
+
+@include('operators.partials.unavailabilities', ['operator' => $operator])
 @endsection

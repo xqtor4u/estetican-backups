@@ -5,6 +5,8 @@ namespace Tests\Feature\Api;
 use App\Models\ApiToken;
 use App\Models\Client;
 use App\Models\Operator;
+use App\Models\OperatorUnavailability;
+use App\Models\OperatorWeeklySchedule;
 use App\Models\Pet;
 use App\Models\SpaBooking;
 use App\Models\User;
@@ -139,6 +141,52 @@ class BookingSchedulingValidationTest extends TestCase
             'pet_id' => $pet->id,
             'operator_id' => $operator->id,
         ]);
+    }
+
+    public function test_rejects_booking_outside_operator_weekly_schedule(): void
+    {
+        $pet = $this->pet();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $scheduledAt = now()->addDay()->setTime(11, 0);
+
+        OperatorWeeklySchedule::create([
+            'operator_id' => $operator->id,
+            'day_of_week' => $scheduledAt->dayOfWeek,
+            'start_time' => '15:00',
+            'end_time' => '18:00',
+        ]);
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $operator->id,
+            'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseCount('spa_bookings', 0);
+    }
+
+    public function test_rejects_booking_during_operator_time_off(): void
+    {
+        $pet = $this->pet();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $scheduledAt = now()->addDay()->setTime(11, 0);
+
+        OperatorUnavailability::create([
+            'operator_id' => $operator->id,
+            'starts_at' => $scheduledAt->copy()->startOfDay(),
+            'ends_at' => $scheduledAt->copy()->endOfDay(),
+            'reason' => 'Vacaciones',
+        ]);
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $operator->id,
+            'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseCount('spa_bookings', 0);
     }
 
     public function test_records_the_authenticated_user_as_creator(): void

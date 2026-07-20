@@ -31,6 +31,7 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\MapaZonasController;
 use App\Http\Controllers\MetaCatalogSyncController;
 use App\Http\Controllers\OperatorController;
+use App\Http\Controllers\OperatorUnavailabilityController;
 use App\Http\Controllers\OperatorRoleController;
 use App\Http\Controllers\PetController;
 use App\Http\Controllers\PetMedicalAlertController;
@@ -112,6 +113,8 @@ Route::middleware('auth')->group(function () {
     });
     Route::resource('operators', OperatorController::class);
     Route::post('operators/{operator}/duplicate', [OperatorController::class, 'duplicate'])->name('operators.duplicate');
+    Route::post('operators/{operator}/unavailabilities', [OperatorUnavailabilityController::class, 'store'])->name('operators.unavailabilities.store');
+    Route::delete('operators/{operator}/unavailabilities/{unavailability}', [OperatorUnavailabilityController::class, 'destroy'])->name('operators.unavailabilities.destroy');
     Route::resource('branches', BranchController::class);
 
     Route::get('mapa-zonas', [MapaZonasController::class, 'index'])->name('mapa-zonas.index');

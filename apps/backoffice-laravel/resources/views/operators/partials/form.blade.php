@@ -154,6 +154,53 @@
     </div>
 
     <div class="col-12">
+        <label class="form-label d-block">Horario de trabajo semanal</label>
+        <p class="text-muted small mb-2">Opcional. Si no configuras ningún día, el operador podrá agendarse a cualquier hora dentro del horario operativo del negocio (comportamiento actual).</p>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>Día</th>
+                        <th>Trabaja</th>
+                        <th>Hora inicio</th>
+                        <th>Hora fin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @php($dayLabels = [0 => 'Domingo', 1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado'])
+                    @php($existingSchedule = isset($operator) ? $operator->weeklySchedules->keyBy('day_of_week') : collect())
+                    @foreach ($dayLabels as $dayOfWeek => $label)
+                        @php($daySchedule = $existingSchedule->get($dayOfWeek))
+                        @php($oldDay = old("weekly_schedule.$dayOfWeek"))
+                        <tr>
+                            <td>{{ $label }}</td>
+                            <td>
+                                <input type="hidden" name="weekly_schedule[{{ $dayOfWeek }}][enabled]" value="0">
+                                <input type="checkbox" class="form-check-input" name="weekly_schedule[{{ $dayOfWeek }}][enabled]" value="1"
+                                    @checked($oldDay['enabled'] ?? (bool) $daySchedule)>
+                            </td>
+                            <td>
+                                <input type="time" class="form-control form-control-sm" name="weekly_schedule[{{ $dayOfWeek }}][start_time]"
+                                    value="{{ $oldDay['start_time'] ?? ($daySchedule?->start_time ? substr($daySchedule->start_time, 0, 5) : '') }}">
+                            </td>
+                            <td>
+                                <input type="time" class="form-control form-control-sm" name="weekly_schedule[{{ $dayOfWeek }}][end_time]"
+                                    value="{{ $oldDay['end_time'] ?? ($daySchedule?->end_time ? substr($daySchedule->end_time, 0, 5) : '') }}">
+                            </td>
+                        </tr>
+                        @error("weekly_schedule.$dayOfWeek.start_time")
+                            <tr><td colspan="4"><small class="text-danger">{{ $message }}</small></td></tr>
+                        @enderror
+                        @error("weekly_schedule.$dayOfWeek.end_time")
+                            <tr><td colspan="4"><small class="text-danger">{{ $message }}</small></td></tr>
+                        @enderror
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="col-12">
         <div class="form-check form-switch">
             <input type="hidden" name="is_active" value="0">
             <input id="is_active" class="form-check-input" type="checkbox" name="is_active" value="1" @checked((bool) old('is_active', $operator->is_active ?? true))>

@@ -432,6 +432,14 @@ class SpaBookingController extends Controller
             return redirect()->back()->withInput()->with('error', 'El operador seleccionado ya tiene una cita en ese horario.');
         }
 
+        if ($this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
+            return redirect()->back()->withInput()->with('error', 'El operador seleccionado no labora en el horario indicado.');
+        }
+
+        if ($this->operatorAvailabilityChecker->hasTimeOff((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
+            return redirect()->back()->withInput()->with('error', 'El operador seleccionado no está disponible en ese periodo (vacaciones/permiso).');
+        }
+
         $this->bookingService->rescheduleBooking($booking->id, $validated['scheduled_at'], $validated['notes'] ?? null, (int) $validated['operator_id']);
 
         // Sync services only when still in scheduled state (not yet a work order)
@@ -560,6 +568,14 @@ class SpaBookingController extends Controller
 
         if ($this->operatorAvailabilityChecker->hasConflict((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
             return redirect()->back()->withInput()->with('error', 'El operador seleccionado ya tiene una cita en ese horario.');
+        }
+
+        if ($this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
+            return redirect()->back()->withInput()->with('error', 'El operador seleccionado no labora en el horario indicado.');
+        }
+
+        if ($this->operatorAvailabilityChecker->hasTimeOff((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
+            return redirect()->back()->withInput()->with('error', 'El operador seleccionado no está disponible en ese periodo (vacaciones/permiso).');
         }
 
         $booking = $this->bookingService->scheduleSpaSession(

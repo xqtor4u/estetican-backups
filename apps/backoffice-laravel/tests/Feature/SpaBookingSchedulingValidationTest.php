@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\Operator;
+use App\Models\OperatorUnavailability;
+use App\Models\OperatorWeeklySchedule;
 use App\Models\Pet;
 use App\Models\Service;
 use App\Models\SpaBooking;
@@ -93,6 +95,54 @@ class SpaBookingSchedulingValidationTest extends TestCase
 
         $response->assertSessionHas('error');
         $this->assertDatabaseCount('spa_bookings', 1);
+    }
+
+    public function test_rejects_booking_outside_operator_weekly_schedule(): void
+    {
+        $pet = $this->pet();
+        $service = $this->service();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $scheduledAt = now()->addDay()->setTime(11, 0);
+
+        OperatorWeeklySchedule::create([
+            'operator_id' => $operator->id,
+            'day_of_week' => $scheduledAt->dayOfWeek,
+            'start_time' => '15:00',
+            'end_time' => '18:00',
+        ]);
+
+        $response = $this->actingAs($this->admin())->post(route('pets.bookings.store', $pet), [
+            'operator_id' => $operator->id,
+            'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+            'services' => [$service->id],
+        ]);
+
+        $response->assertSessionHas('error');
+        $this->assertDatabaseCount('spa_bookings', 0);
+    }
+
+    public function test_rejects_booking_during_operator_time_off(): void
+    {
+        $pet = $this->pet();
+        $service = $this->service();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $scheduledAt = now()->addDay()->setTime(11, 0);
+
+        OperatorUnavailability::create([
+            'operator_id' => $operator->id,
+            'starts_at' => $scheduledAt->copy()->startOfDay(),
+            'ends_at' => $scheduledAt->copy()->endOfDay(),
+            'reason' => 'Vacaciones',
+        ]);
+
+        $response = $this->actingAs($this->admin())->post(route('pets.bookings.store', $pet), [
+            'operator_id' => $operator->id,
+            'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+            'services' => [$service->id],
+        ]);
+
+        $response->assertSessionHas('error');
+        $this->assertDatabaseCount('spa_bookings', 0);
     }
 
     public function test_accepts_a_valid_booking(): void

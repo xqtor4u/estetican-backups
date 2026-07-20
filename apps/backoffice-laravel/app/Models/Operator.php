@@ -110,6 +110,16 @@ class Operator extends Model
         return $this->hasMany(OperatorCompensationProfile::class);
     }
 
+    public function weeklySchedules(): HasMany
+    {
+        return $this->hasMany(OperatorWeeklySchedule::class);
+    }
+
+    public function unavailabilities(): HasMany
+    {
+        return $this->hasMany(OperatorUnavailability::class);
+    }
+
     public function activeRoles(): Collection
     {
         return $this->roles

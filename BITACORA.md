@@ -1,5 +1,41 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 20/07/2026 (cont. 3) — BL-060: horario semanal + bloqueos de no-disponibilidad por operador
+
+### ✅ Logros y Cambios
+
+El usuario preguntó si los operadores ya tenían horario de trabajo personal y bloqueos de no-disponibilidad configurables. No existía nada: solo el horario operativo *general* del negocio (`BusinessHours`, único y global, sin distinción por operador ni día) y el traslape de citas por operador (`OperatorAvailabilityChecker::hasConflict()`, BL-025). Se usó `EnterPlanMode` (2 agentes `Explore` en paralelo para mapear el estado actual y los puntos de integración exactos, más 1 agente `Plan`) antes de tocar código, dado que implicaba decisiones de modelo de datos y de dónde vivía la validación.
+
+**2 tablas nuevas**: `operator_weekly_schedules` (día 0-6 alineado a `Carbon::SUNDAY..SATURDAY` + hora inicio/fin, único por operador+día) y `operator_unavailabilities` (rango datetime + motivo libre). Ambas con `#[Fillable]` (atributo nativo de Laravel, mismo patrón que `ResourceAllocation`).
+
+**Decisión de compatibilidad confirmada con el usuario:** el horario semanal es **opt-in** — un operador sin ninguna fila capturada sigue agendable a cualquier hora, cero regresión sobre los operadores existentes hoy. Las no-disponibilidades **no son opt-in**: si existen y se traslapan con el rango solicitado, siempre bloquean — mismo nivel de "hard block" que el traslape de citas, no un aviso (a diferencia de la cobertura geográfica de BL-043).
+
+**2 métodos nuevos en `OperatorAvailabilityChecker`** (`isOutsideWorkingHours()`, `hasTimeOff()`) — se agregaron a la clase existente en vez de crear una nueva, siguiendo su mismo patrón (clase concreta sin interfaz, sin binding en `AppServiceProvider`), para no tocar los constructores de los 2 controllers que ya la inyectan. Integrados en los **4 puntos reales** donde se valida `operator_id` al agendar/reprogramar una cita SPA (`Api\BookingController::store()`/`update()`, `SpaBookingController::update()`/`storeForPet()`), justo después del traslape de citas existente y antes de guardar — mismo formato de respuesta que cada uno ya usaba (JSON 422 en API, `redirect()->back()->with('error', ...)` en web).
+
+**CRUD**: horario semanal integrado al formulario de operador ya existente (`OperatorController::store()/update()`, patrón "borrar y recrear" igual que `syncRoles`/`syncPrimaryBranch`/`syncCompensation`) — tabla de 7 días en `operators/partials/form.blade.php`. Bloqueos de no-disponibilidad en un controller nuevo y minimalista (`OperatorUnavailabilityController`, solo store/destroy) con su propia partial (`operators/partials/unavailabilities.blade.php`), incluida en `edit.blade.php`. Captura exclusiva desde Backoffice web — ni la app móvil ni el propio operador la tocan, a pedido del usuario. Sin permiso Spatie nuevo (consistente con que `operators` hoy tampoco tiene uno).
+
+**Reincidencia real de NT-010** (ya documentada en el proyecto): la tabla de 7 días en `form.blade.php` usó primero un bloque `@php ... @endphp` multilínea dentro del `@foreach`, y disparó de inmediato el bug de compilador Blade ya conocido ("Undefined variable $dayLabels" al renderizar, no un `ParseError` obvio). Corregido con la forma de una sola línea `@php($var = expr)` que la propia NT-010 recomienda para este caso. Atrapado por un test de humo (`GET operators.edit`/`operators.create`) agregado específicamente para esto — vale la pena tenerlo como regla: cualquier vista Blade con loops nuevos necesita al menos un test que la renderice de verdad, no solo tests de submit.
+
+**Verificación:** 18 tests nuevos — 6 en `OperatorAvailabilityCheckerTest` (checker aislado), 2 en `Api/BookingSchedulingValidationTest` + 2 en `SpaBookingSchedulingValidationTest` (integración real de bloqueo en los 4 call-sites), 8 en `OperatorWeeklyScheduleAndUnavailabilityTest` (CRUD + 2 de humo de render). Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 233 pasan (antes 215).
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_20_100000_create_operator_weekly_schedules_table.php`, `2026_07_20_100001_create_operator_unavailabilities_table.php` (nuevas)
+- `app/Models/OperatorWeeklySchedule.php`, `OperatorUnavailability.php` (nuevos), `Operator.php` (2 relaciones nuevas)
+- `app/Domain/Planning/Services/OperatorAvailabilityChecker.php` (`isOutsideWorkingHours()`, `hasTimeOff()`)
+- `app/Http/Controllers/Api/BookingController.php`, `SpaBookingController.php` (4 call-sites)
+- `app/Http/Controllers/OperatorController.php` (`rules()`, `validateWeeklyScheduleRanges()`, `syncWeeklySchedule()`, `edit()`)
+- `app/Http/Controllers/OperatorUnavailabilityController.php` (nuevo)
+- `routes/web.php` (2 rutas nuevas)
+- `resources/views/operators/partials/form.blade.php`, `unavailabilities.blade.php` (nueva), `edit.blade.php`
+- `tests/Feature/Planning/OperatorAvailabilityCheckerTest.php`, `tests/Feature/Api/BookingSchedulingValidationTest.php`, `tests/Feature/SpaBookingSchedulingValidationTest.php`, `tests/Feature/OperatorWeeklyScheduleAndUnavailabilityTest.php` (nuevo)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (BL-060 completo, sin commitear todavía).
+2. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 20/07/2026 (cont. 2) — BL-052b: cierre real de los 8 colores + incidente de cuenta Meta (NT-040)
 
 ### ✅ Logros y Cambios

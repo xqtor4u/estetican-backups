@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
 
@@ -128,6 +129,7 @@ class OperatorController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate($this->rules());
+        $this->validateWeeklyScheduleRanges($validated);
         $newPhotoPath = null;
 
         if ($request->hasFile('profile_photo')) {
@@ -142,6 +144,7 @@ class OperatorController extends Controller
                 $this->syncRoles($operator, $validated['role_ids'] ?? []);
                 $this->syncPrimaryBranch($operator, $validated['branch_id'] ?? null);
                 $this->syncCompensation($operator, $validated['hourly_rate'] ?? null);
+                $this->syncWeeklySchedule($operator, $validated['weekly_schedule'] ?? []);
             });
         } catch (Throwable $exception) {
             $this->imageManager->deleteFiles($newPhotoPath);
@@ -170,7 +173,7 @@ class OperatorController extends Controller
 
     public function edit(Operator $operator, SystemSettings $systemSettings): View
     {
-        $operator->load(['roles', 'branches', 'compensationProfiles']);
+        $operator->load(['roles', 'branches', 'compensationProfiles', 'weeklySchedules', 'unavailabilities']);
 
         $availableRoles = OperatorRole::query()
             ->where('is_active', true)
@@ -202,6 +205,7 @@ class OperatorController extends Controller
     public function update(Request $request, Operator $operator): RedirectResponse
     {
         $validated = $request->validate($this->rules($operator));
+        $this->validateWeeklyScheduleRanges($validated);
         $oldPhotoPath = $operator->profile_photo_path;
         $newPhotoPath = null;
 
@@ -221,6 +225,7 @@ class OperatorController extends Controller
                 $this->syncRoles($operator, $validated['role_ids'] ?? []);
                 $this->syncPrimaryBranch($operator, $validated['branch_id'] ?? null);
                 $this->syncCompensation($operator, $validated['hourly_rate'] ?? null);
+                $this->syncWeeklySchedule($operator, $validated['weekly_schedule'] ?? []);
             });
         } catch (Throwable $exception) {
             $this->imageManager->deleteFiles($newPhotoPath);
@@ -318,7 +323,36 @@ class OperatorController extends Controller
             'hourly_rate' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'is_active' => 'nullable|boolean',
+            'weekly_schedule' => 'nullable|array',
+            'weekly_schedule.*.enabled' => 'nullable|boolean',
+            'weekly_schedule.*.start_time' => 'nullable|date_format:H:i',
+            'weekly_schedule.*.end_time' => 'nullable|date_format:H:i',
         ];
+    }
+
+    private function validateWeeklyScheduleRanges(array $validated): void
+    {
+        $errors = [];
+
+        foreach (($validated['weekly_schedule'] ?? []) as $dayOfWeek => $day) {
+            if (empty($day['enabled'])) {
+                continue;
+            }
+
+            if (blank($day['start_time'] ?? null) || blank($day['end_time'] ?? null)) {
+                $errors["weekly_schedule.$dayOfWeek.start_time"] = 'Debes capturar hora de inicio y fin para el día seleccionado.';
+
+                continue;
+            }
+
+            if ($day['end_time'] <= $day['start_time']) {
+                $errors["weekly_schedule.$dayOfWeek.end_time"] = 'La hora de fin debe ser posterior a la hora de inicio.';
+            }
+        }
+
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 
     private function preparePayload(array $validated, ?Operator $operator = null): array
@@ -424,6 +458,25 @@ class OperatorController extends Controller
             'hourly_rate' => $normalizedRate,
             'effective_from' => now()->toDateString(),
         ]);
+    }
+
+    private function syncWeeklySchedule(Operator $operator, array $weeklySchedule): void
+    {
+        $operator->weeklySchedules()->delete();
+
+        foreach (range(0, 6) as $dayOfWeek) {
+            $day = $weeklySchedule[$dayOfWeek] ?? null;
+
+            if (! $day || empty($day['enabled']) || blank($day['start_time'] ?? null) || blank($day['end_time'] ?? null)) {
+                continue;
+            }
+
+            $operator->weeklySchedules()->create([
+                'day_of_week' => $dayOfWeek,
+                'start_time' => $day['start_time'],
+                'end_time' => $day['end_time'],
+            ]);
+        }
     }
 
 }

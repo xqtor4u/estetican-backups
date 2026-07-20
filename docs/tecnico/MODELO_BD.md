@@ -19,7 +19,7 @@
 | **Ejecución** | `executed_services`, `executed_service_items` |
 | **Hotel** | `hotel_reservations`, `stays` |
 | **Recursos físicos** | `resources`, `resource_allocations`, `resource_photos`, `resource_events`, `resource_event_updates`, `resource_event_photos` |
-| **Operadores — estructura** | `operator_role_assignments`, `operator_branch_assignments`, `operator_compensation_profiles`, `operator_checkins` |
+| **Operadores — estructura** | `operator_role_assignments`, `operator_branch_assignments`, `operator_compensation_profiles`, `operator_checkins`, `operator_weekly_schedules`, `operator_unavailabilities` |
 | **Comunicaciones** | `whatsapp_templates`, `booking_messages`, `recurrence_messages` |
 | **Mapa y cobertura espacial** | `vehicles` |
 | **Sistema** | `system_settings`, `api_tokens`, `activity_log` |
@@ -943,6 +943,38 @@ Registro de entradas y salidas de operadores por sucursal (app móvil).
 | `auto_checkout` | boolean | True = fue por cambio de sucursal |
 | `transgression_note` | text nullable | Nota si cambió de sucursal sin checkout |
 | `timestamps` | | |
+
+---
+
+### `operator_weekly_schedules` (BL-060)
+Horario de trabajo semanal recurrente por operador. **Opt-in**: si un operador no tiene ninguna fila, `OperatorAvailabilityChecker::isOutsideWorkingHours()` no restringe nada (compatibilidad con operadores existentes que nunca configuraron horario). Si tiene al menos una fila, el día agendado debe existir y la hora caer dentro del rango de ese día.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `operator_id` | FK → `operators`, cascade delete | |
+| `day_of_week` | tinyint unsigned | 0=domingo..6=sábado, alineado a `Carbon::SUNDAY..SATURDAY` |
+| `start_time` | time | |
+| `end_time` | time | |
+| `timestamps` | | |
+
+Unique en (`operator_id`, `day_of_week`) — una sola fila por día.
+
+---
+
+### `operator_unavailabilities` (BL-060)
+Bloqueos de no-disponibilidad (vacaciones/permisos) por operador. **No es opt-in**: cualquier fila que se traslape con el rango solicitado bloquea el agendado (`OperatorAvailabilityChecker::hasTimeOff()`), a diferencia del horario semanal.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `operator_id` | FK → `operators`, cascade delete | |
+| `starts_at` | datetime | |
+| `ends_at` | datetime | |
+| `reason` | string nullable | Motivo libre (ej. "Vacaciones") |
+| `timestamps` | | |
+
+Ambas tablas se capturan solo desde Backoffice web (ficha del operador), no desde la app móvil ni por el propio operador. Los checks se integran en los 4 puntos donde se valida `operator_id` al agendar/reprogramar una cita SPA (`Api\BookingController::store()/update()`, `SpaBookingController::update()/storeForPet()`), justo después del traslape de citas (BL-025) y antes de guardar.
 
 ---
 

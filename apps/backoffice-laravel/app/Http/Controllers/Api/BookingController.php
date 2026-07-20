@@ -110,6 +110,14 @@ class BookingController extends Controller
             return response()->json(['message' => 'El operador seleccionado ya tiene una cita en ese horario.'], 422);
         }
 
+        if ($this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
+            return response()->json(['message' => 'El operador seleccionado no labora en el horario indicado.'], 422);
+        }
+
+        if ($this->operatorAvailabilityChecker->hasTimeOff((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
+            return response()->json(['message' => 'El operador seleccionado no está disponible en ese periodo (vacaciones/permiso).'], 422);
+        }
+
         $serviceIds = $data['services'] ?? [];
         $prices = $serviceIds ? Service::whereIn('id', $serviceIds)->pluck('price', 'id') : collect();
         $estimatedTotal = $prices->sum();
@@ -184,6 +192,14 @@ class BookingController extends Controller
 
             if ($this->operatorAvailabilityChecker->hasConflict((int) $resolvedOperatorId, $scheduledAt, $durationMinutes, $booking->id)) {
                 return response()->json(['message' => 'El operador seleccionado ya tiene una cita en ese horario.'], 422);
+            }
+
+            if ($this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $resolvedOperatorId, $scheduledAt, $durationMinutes)) {
+                return response()->json(['message' => 'El operador seleccionado no labora en el horario indicado.'], 422);
+            }
+
+            if ($this->operatorAvailabilityChecker->hasTimeOff((int) $resolvedOperatorId, $scheduledAt, $durationMinutes)) {
+                return response()->json(['message' => 'El operador seleccionado no está disponible en ese periodo (vacaciones/permiso).'], 422);
             }
         }
 
