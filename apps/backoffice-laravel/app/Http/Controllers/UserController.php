@@ -13,6 +13,18 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
+    /**
+     * "Disponibilidad propia" se maneja como un switch simple en vez de exponerse en la
+     * matriz CRUD genérica — ver/crear/eliminar se otorgan siempre juntos (no hay acción
+     * de "editar" un bloqueo, solo alta/borrado, ver NT-041) y un checkbox por acción
+     * confundía más de lo que ayudaba.
+     */
+    private const OWN_AVAILABILITY_PERMISSIONS = [
+        'ver disponibilidad_propia',
+        'crear disponibilidad_propia',
+        'eliminar disponibilidad_propia',
+    ];
+
     protected UserPhotoImageManager $imageManager;
 
     public function __construct(UserPhotoImageManager $imageManager)
@@ -54,7 +66,6 @@ class UserController extends Controller
             'catalogo_servicios' => ['label' => 'Catálogos', 'code' => 'CATALL'],
             'configuracion_sistema' => ['label' => 'Configuración', 'code' => 'SYSSET'],
             'usuarios' => ['label' => 'Usuarios', 'code' => 'USRIND'],
-            'disponibilidad_propia' => ['label' => 'Disponibilidad propia (autoservicio operador)', 'code' => 'OPRDISP'],
         ];
         
         $actions = [
@@ -110,10 +121,12 @@ class UserController extends Controller
         $user->save();
         $this->syncOperatorRecord($user);
 
-        // Sincronizar Permisos Granulares
-        if ($request->has('permissions')) {
-            $user->syncPermissions($request->permissions);
+        // Sincronizar Permisos Granulares (matriz CRUD + switch de disponibilidad propia)
+        $permissions = (array) $request->input('permissions', []);
+        if ($request->boolean('can_manage_own_availability')) {
+            $permissions = array_values(array_unique(array_merge($permissions, self::OWN_AVAILABILITY_PERMISSIONS)));
         }
+        $user->syncPermissions($permissions);
 
         // Sincronizar sistema de roles (Spatie + Legacy)
         if ($validated['role'] === 'admin') {
@@ -146,7 +159,6 @@ class UserController extends Controller
             'catalogo_servicios' => ['label' => 'Catálogos', 'code' => 'CATALL'],
             'configuracion_sistema' => ['label' => 'Configuración', 'code' => 'SYSSET'],
             'usuarios' => ['label' => 'Usuarios', 'code' => 'USRIND'],
-            'disponibilidad_propia' => ['label' => 'Disponibilidad propia (autoservicio operador)', 'code' => 'OPRDISP'],
         ];
         
         $actions = [
@@ -157,8 +169,9 @@ class UserController extends Controller
         ];
 
         $userPermissions = $user->getPermissionNames()->toArray();
-            
-        return view('user.edit', compact('user', 'operatorRoles', 'modules', 'actions', 'userPermissions'));
+        $canManageOwnAvailability = $user->hasPermissionTo('crear disponibilidad_propia');
+
+        return view('user.edit', compact('user', 'operatorRoles', 'modules', 'actions', 'userPermissions', 'canManageOwnAvailability'));
     }
 
     // Actualizar usuario (Fusión 14-Abr)
@@ -214,12 +227,12 @@ class UserController extends Controller
         $user->save();
         $this->syncOperatorRecord($user);
 
-        // Sincronizar Permisos Granulares
-        if ($request->has('permissions')) {
-            $user->syncPermissions($request->permissions);
-        } else {
-            $user->syncPermissions([]);
+        // Sincronizar Permisos Granulares (matriz CRUD + switch de disponibilidad propia)
+        $permissions = (array) $request->input('permissions', []);
+        if ($request->boolean('can_manage_own_availability')) {
+            $permissions = array_values(array_unique(array_merge($permissions, self::OWN_AVAILABILITY_PERMISSIONS)));
         }
+        $user->syncPermissions($permissions);
 
         // Sincronizar roles (Spatie + Legacy)
         if ($validated['role'] === 'admin') {

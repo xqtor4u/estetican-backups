@@ -213,7 +213,7 @@
                         <input type="text" class="form-control font-monospace" id="operator_code" name="operator_code" value="{{ old('operator_code') }}" placeholder="Ej: GRO-001">
                     </div>
 
-                    <div class="mb-0">
+                    <div class="mb-4">
                         <label for="operator_role_id" class="form-label">Tipo de Operador</label>
                         <select class="form-select" id="operator_role_id" name="operator_role_id">
                             <option value="">Sin asignar</option>
@@ -224,6 +224,13 @@
                             @endforeach
                         </select>
                     </div>
+
+                    <div class="form-check form-switch mb-0">
+                        <input type="hidden" name="can_manage_own_availability" value="0">
+                        <input class="form-check-input" type="checkbox" id="can_manage_own_availability" name="can_manage_own_availability" value="1" @checked(old('can_manage_own_availability'))>
+                        <label class="form-check-label fw-bold" for="can_manage_own_availability">Puede bloquear su propia disponibilidad</label>
+                    </div>
+                    <small class="text-muted d-block lh-sm">Permite que este usuario marque vacaciones/permisos desde la app móvil (menú "+" de la Agenda) sin depender de un administrador.</small>
                 </div>
             </div>
 

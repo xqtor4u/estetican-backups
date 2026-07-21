@@ -219,15 +219,22 @@
                     </div>
 
                     @if($user->operator_id)
-                        <div class="alert alert-success py-2 px-3 mb-0 small">
+                        <div class="alert alert-success py-2 px-3 mb-3 small">
                             Vinculado al operador <strong>#{{ $user->operator_id }}</strong>
                             — los cambios aquí se sincronizan automáticamente.
                         </div>
                     @elseif($user->is_operator)
-                        <div class="alert alert-warning py-2 px-3 mb-0 small">
+                        <div class="alert alert-warning py-2 px-3 mb-3 small">
                             Sin registro de operador aún. Se creará al guardar.
                         </div>
                     @endif
+
+                    <div class="form-check form-switch mb-0">
+                        <input type="hidden" name="can_manage_own_availability" value="0">
+                        <input class="form-check-input" type="checkbox" id="can_manage_own_availability" name="can_manage_own_availability" value="1" @checked(old('can_manage_own_availability', $canManageOwnAvailability))>
+                        <label class="form-check-label fw-bold" for="can_manage_own_availability">Puede bloquear su propia disponibilidad</label>
+                    </div>
+                    <small class="text-muted d-block lh-sm">Permite que este usuario marque vacaciones/permisos desde la app móvil (menú "+" de la Agenda) sin depender de un administrador.</small>
                 </div>
             </div>
 

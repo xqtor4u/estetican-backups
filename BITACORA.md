@@ -1,5 +1,27 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 21/07/2026 (cont. 2) — BL-065: switch simple para asignar "disponibilidad propia"
+
+### ✅ Logros y Cambios
+
+El usuario pidió "arreglarlo en el backlog" para que dar el permiso de disponibilidad propia (BL-061) fuera más fácil de asignar. Tras aclarar qué quería decir con eso (arreglar la usabilidad de la asignación, no solo documentarlo), se quitó `disponibilidad_propia` de la matriz CRUD genérica de Usuarios (era una fila de 4 checkboxes poco intuitiva, donde "Editar" ni siquiera hace nada — ver NT-041) y se reemplazó por un **switch único** ("Puede bloquear su propia disponibilidad") en la tarjeta "Perfil de Operador" del formulario de Usuario, junto al resto de campos de operador.
+
+Activar el switch otorga `ver/crear/eliminar disponibilidad_propia` juntos; desactivarlo los revoca — sin afectar el resto de permisos que ya estén marcados en la matriz CRUD normal (`UserController@store()`/`@update()` fusionan ambas fuentes antes de `syncPermissions()`). De paso se corrigió una inconsistencia real que ya existía entre `store()` (nunca sincronizaba permisos si el campo venía vacío en el alta) y `update()` (los borraba todos en ese caso) — ahora ambos se comportan igual.
+
+**Verificación:** 5 tests nuevos (`UserOwnAvailabilityToggleTest`). Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 264 pasan (antes 259). Confirmado contra la BD real de producción que el permiso ya asignado a `tomasmg` (BL-061) sigue intacto tras el cambio.
+
+### 📁 Archivos principales tocados
+- `app/Http/Controllers/UserController.php` (quita `disponibilidad_propia` de `$modules`, switch nuevo en `store()`/`update()`/`edit()`)
+- `resources/views/user/{create,edit}.blade.php` (switch nuevo en "Perfil de Operador")
+- `tests/Feature/UserOwnAvailabilityToggleTest.php` (nuevo)
+- `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 21/07/2026 (cont.) — BL-064: preseleccionar al operador logueado en "Nueva cita"
 
 ### ✅ Logros y Cambios
