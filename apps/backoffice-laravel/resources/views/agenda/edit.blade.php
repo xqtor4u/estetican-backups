@@ -61,6 +61,7 @@
                                            data-max-time="{{ $closingTime }}">
                                 </div>
                                 <div class="form-text">Horario operativo: {{ $openingTime }}–{{ $closingTime }}.</div>
+                                <div id="availability_warning" class="form-text text-danger d-none"></div>
                             </div>
                             <div class="col-md-4">
                                 <label for="resource_id" class="form-label fw-semibold">Jaula / recurso físico</label>
@@ -167,14 +168,38 @@
     document.addEventListener('DOMContentLoaded', function () {
         var operatorSelect = document.getElementById('operator_id');
         var wrapper = document.getElementById('scheduled_at_wrapper');
+        var scheduledAtInput = document.getElementById('scheduled_at');
+        var warningEl = document.getElementById('availability_warning');
         if (!operatorSelect || !wrapper) return;
 
         function syncScheduledAtState() {
             wrapper.classList.toggle('is-locked', !operatorSelect.value);
         }
 
-        operatorSelect.addEventListener('change', syncScheduledAtState);
+        function checkAvailability() {
+            if (!warningEl) return;
+            if (!operatorSelect.value || !scheduledAtInput.value) {
+                warningEl.classList.add('d-none');
+                return;
+            }
+            var params = new URLSearchParams({
+                operator_id: operatorSelect.value,
+                scheduled_at: scheduledAtInput.value.replace('T', ' '),
+                exclude_booking_id: '{{ $booking->id }}',
+            });
+            fetch('{{ route('agenda.check-availability') }}?' + params.toString(), { headers: { 'Accept': 'application/json' } })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    warningEl.textContent = data.reason || '';
+                    warningEl.classList.toggle('d-none', data.available !== false);
+                })
+                .catch(function () { warningEl.classList.add('d-none'); });
+        }
+
+        operatorSelect.addEventListener('change', function () { syncScheduledAtState(); checkAvailability(); });
+        scheduledAtInput && scheduledAtInput.addEventListener('change', checkAvailability);
         syncScheduledAtState();
+        checkAvailability();
     });
 </script>
 @endpush

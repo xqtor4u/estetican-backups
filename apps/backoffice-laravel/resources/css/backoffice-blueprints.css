@@ -955,6 +955,10 @@ body.catalog-resize-active {
     background: #dc3545;
 }
 
+.bandeja-calendar-dot--bloqueo {
+    background: #6c757d;
+}
+
 .catalog-row--muted {
     background: rgba(108, 117, 125, 0.03);
 }

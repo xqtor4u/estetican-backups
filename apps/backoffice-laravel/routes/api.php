@@ -62,6 +62,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
 
     Route::get('/agenda', [AgendaController::class, 'index']);
     Route::get('/agenda/vencidas', [AgendaController::class, 'vencidas']);
+    Route::get('/agenda/unavailabilities', [AgendaController::class, 'unavailabilities']);
     Route::get('/operators', [OperatorController::class, 'index']);
     Route::get('/team', [OperatorController::class, 'team']);
     Route::get('/branches', [OperatorController::class, 'branches']);

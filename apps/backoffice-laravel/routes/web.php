@@ -136,6 +136,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('agenda/create', [SpaBookingController::class, 'globalCreate'])->name('agenda.create');
     Route::get('agenda', [SpaBookingController::class, 'index'])->name('agenda.index');
+    Route::get('agenda/check-availability', [SpaBookingController::class, 'checkAvailability'])->name('agenda.check-availability');
     Route::get('agenda/{booking}', [SpaBookingController::class, 'show'])->name('agenda.show');
     Route::get('agenda/{booking}/edit', [SpaBookingController::class, 'edit'])->name('agenda.edit');
     Route::put('agenda/{booking}', [SpaBookingController::class, 'update'])->name('agenda.update');

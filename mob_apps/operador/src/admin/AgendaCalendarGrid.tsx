@@ -25,10 +25,11 @@ interface WeekGridProps {
   today: Date;
   onSelectBooking: (id: number) => void;
   onSelectDay: (date: Date) => void;
+  blockedDates?: Set<string>;
 }
 
 /** Grid semanal estilo Google Calendar: 7 columnas (lun-dom) con scroll horizontal, cada una con sus citas del día. */
-export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelectDay }: WeekGridProps) {
+export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelectDay, blockedDates }: WeekGridProps) {
   const todayStr = toDateStr(today);
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory hide-scrollbar">
@@ -36,6 +37,7 @@ export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelec
         const ds = toDateStr(d);
         const items = bookingsByDate.get(ds) ?? [];
         const isToday = ds === todayStr;
+        const isBlocked = blockedDates?.has(ds) ?? false;
         return (
           <div
             key={ds}
@@ -49,8 +51,13 @@ export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelec
                 isToday ? 'border-primary/30' : 'border-outline-variant'
               }`}
             >
-              <span className="text-[10px] font-semibold uppercase text-on-surface-variant">
-                {d.toLocaleDateString('es-MX', { weekday: 'short' })}
+              <span className="flex items-center gap-1">
+                <span className="text-[10px] font-semibold uppercase text-on-surface-variant">
+                  {d.toLocaleDateString('es-MX', { weekday: 'short' })}
+                </span>
+                {isBlocked && (
+                  <span className="material-symbols-outlined text-[11px] text-on-surface-variant" title="Operador no disponible">event_busy</span>
+                )}
               </span>
               <span
                 className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${
@@ -93,10 +100,11 @@ interface MonthGridProps {
   bookingsByDate: Map<string, GridBooking[]>;
   today: Date;
   onSelectDay: (date: Date) => void;
+  blockedDates?: Set<string>;
 }
 
 /** Grid mensual estilo Google Calendar: 7x5/6 celdas con puntos de color por cita; tocar un día abre su vista Día. */
-export function MonthGrid({ days, bookingsByDate, today, onSelectDay }: MonthGridProps) {
+export function MonthGrid({ days, bookingsByDate, today, onSelectDay, blockedDates }: MonthGridProps) {
   const todayStr = toDateStr(today);
   return (
     <div>
@@ -112,6 +120,7 @@ export function MonthGrid({ days, bookingsByDate, today, onSelectDay }: MonthGri
           const ds = toDateStr(date);
           const items = bookingsByDate.get(ds) ?? [];
           const isToday = ds === todayStr;
+          const isBlocked = blockedDates?.has(ds) ?? false;
           return (
             <button
               key={ds}
@@ -120,12 +129,17 @@ export function MonthGrid({ days, bookingsByDate, today, onSelectDay }: MonthGri
                 outside ? 'border-transparent opacity-35' : 'border-outline-variant'
               } ${isToday ? 'bg-primary/10 border-primary' : 'bg-surface'}`}
             >
-              <span
-                className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${
-                  isToday ? 'bg-primary text-on-primary' : 'text-on-surface'
-                }`}
-              >
-                {date.getDate()}
+              <span className="flex items-center gap-0.5">
+                <span
+                  className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${
+                    isToday ? 'bg-primary text-on-primary' : 'text-on-surface'
+                  }`}
+                >
+                  {date.getDate()}
+                </span>
+                {isBlocked && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant" title="Operador no disponible" />
+                )}
               </span>
               {items.length > 0 && (
                 <span className="flex items-center gap-0.5">

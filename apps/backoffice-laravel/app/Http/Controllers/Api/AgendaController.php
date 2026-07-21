@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Http\Controllers\Controller;
 use App\Models\SpaBooking;
 use Illuminate\Http\Request;
@@ -10,16 +11,9 @@ use Illuminate\Support\Facades\Storage;
 
 class AgendaController extends Controller
 {
-    public function index(Request $request)
+    /** @return array{0: Carbon, 1: Carbon} */
+    private function resolveRange(string $view, Carbon $anchor): array
     {
-        $view = $request->query('view', 'day');
-        if (! in_array($view, ['day', 'week', 'month'], true)) {
-            $view = 'day';
-        }
-
-        $anchor = Carbon::parse($request->query('date', now()->toDateString()));
-        $operatorId = $request->query('operator_id');
-
         if ($view === 'week') {
             $rangeStart = $anchor->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
             $rangeEnd = $rangeStart->copy()->addDays(6)->endOfDay();
@@ -30,6 +24,21 @@ class AgendaController extends Controller
             $rangeStart = $anchor->copy()->startOfDay();
             $rangeEnd = $anchor->copy()->endOfDay();
         }
+
+        return [$rangeStart, $rangeEnd];
+    }
+
+    public function index(Request $request)
+    {
+        $view = $request->query('view', 'day');
+        if (! in_array($view, ['day', 'week', 'month'], true)) {
+            $view = 'day';
+        }
+
+        $anchor = Carbon::parse($request->query('date', now()->toDateString()));
+        $operatorId = $request->query('operator_id');
+
+        [$rangeStart, $rangeEnd] = $this->resolveRange($view, $anchor);
 
         $bookings = SpaBooking::whereBetween('scheduled_at', [$rangeStart, $rangeEnd])
             ->whereNotIn('status', ['cancelled'])
@@ -107,6 +116,30 @@ class AgendaController extends Controller
                 'operators' => $operators,
             ];
         }));
+    }
+
+    /** Bloqueos de no-disponibilidad de operador que se traslapan con el rango pedido */
+    public function unavailabilities(Request $request, OperatorAvailabilityChecker $checker)
+    {
+        $view = $request->query('view', 'day');
+        if (! in_array($view, ['day', 'week', 'month'], true)) {
+            $view = 'day';
+        }
+
+        $anchor = Carbon::parse($request->query('date', now()->toDateString()));
+        $operatorId = $request->query('operator_id') ? (int) $request->query('operator_id') : null;
+
+        [$rangeStart, $rangeEnd] = $this->resolveRange($view, $anchor);
+
+        $windows = $checker->unavailabilityWindows($rangeStart, $rangeEnd, $operatorId);
+
+        return response()->json($windows->map(fn ($w) => [
+            'operator_id' => $w->operator_id,
+            'operator_name' => $w->operator?->full_name,
+            'starts_at' => $w->starts_at->format('Y-m-d H:i:s'),
+            'ends_at' => $w->ends_at->format('Y-m-d H:i:s'),
+            'reason' => $w->reason,
+        ]));
     }
 
     /** Citas abiertas de días anteriores sin resolver (scheduled/work_order) */

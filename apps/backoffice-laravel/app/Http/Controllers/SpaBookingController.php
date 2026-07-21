@@ -25,6 +25,7 @@ use App\Support\Geo\CoverageChecker;
 use App\Support\Pages\AgendaPage;
 use App\Support\SystemSettings\BusinessHours;
 use App\Support\SystemSettings\SystemSettings;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -158,12 +159,43 @@ class SpaBookingController extends Controller
         $operationalDateLabel = $this->formatOperationalDateLabel($selectedDate, $dateScope);
         $agendaOverviewCount = $bookings->total() + $timelineBookings->where('agenda_type', 'hotel')->count();
 
+        $blockedToday = $this->operatorAvailabilityChecker->unavailabilityWindows(
+            $selectedDate->copy()->startOfDay(),
+            $selectedDate->copy()->endOfDay()
+        );
+
         return view('agenda.index', compact(
             'page', 'bookings', 'timelineBookings', 'statuses', 'statusTouched', 'dateScope', 'calView',
             'selectedDate', 'selectedDateInput', 'operationalDateLabel', 'search',
             'totalEstimatedMinutes', 'scheduledCount', 'estimatedRevenue', 'petsWithAgenda',
-            'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction', 'agendaOverviewCount', 'hotelModuleEnabled'
+            'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction', 'agendaOverviewCount', 'hotelModuleEnabled',
+            'blockedToday'
         ));
+    }
+
+    public function checkAvailability(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'operator_id' => 'required|integer|exists:operators,id',
+            'scheduled_at' => 'required|date',
+            'duration_minutes' => 'nullable|integer|min:1',
+            'exclude_booking_id' => 'nullable|integer',
+        ]);
+
+        $scheduledAt = Carbon::parse($validated['scheduled_at']);
+        $duration = (int) ($validated['duration_minutes'] ?? 30);
+        $operatorId = (int) $validated['operator_id'];
+        $excludeId = $validated['exclude_booking_id'] ?? null;
+
+        $reason = match (true) {
+            ! $this->businessHours->isWithin($scheduledAt) => 'Fuera del horario operativo del negocio ('.$this->businessHours->openingTime().'–'.$this->businessHours->closingTime().').',
+            $this->operatorAvailabilityChecker->hasConflict($operatorId, $scheduledAt, $duration, $excludeId) => 'El operador ya tiene una cita en ese horario.',
+            $this->operatorAvailabilityChecker->isOutsideWorkingHours($operatorId, $scheduledAt, $duration) => 'El operador no labora en el horario indicado.',
+            $this->operatorAvailabilityChecker->hasTimeOff($operatorId, $scheduledAt, $duration) => 'El operador no está disponible en ese periodo (vacaciones/permiso).',
+            default => null,
+        };
+
+        return response()->json(['available' => $reason === null, 'reason' => $reason]);
     }
 
     private function applyBookingFilters($query, array $statuses, string $search): void
@@ -295,6 +327,17 @@ class SpaBookingController extends Controller
             $itemsByDate[$key] = collect($items);
         }
 
+        $blockedWindows = $this->operatorAvailabilityChecker->unavailabilityWindows($rangeStart, $rangeEnd);
+        $blockedByDate = [];
+        foreach ($blockedWindows as $w) {
+            $cursor = $w->starts_at->copy()->startOfDay()->max($rangeStart->copy()->startOfDay());
+            $stop = $w->ends_at->copy()->startOfDay()->min($rangeEnd->copy()->startOfDay());
+            while ($cursor->lte($stop)) {
+                $blockedByDate[$cursor->format('Y-m-d')][] = $w;
+                $cursor->addDay();
+            }
+        }
+
         $calendarDays = [];
         $cursor = $rangeStart->copy()->startOfDay();
         $stop = $rangeEnd->copy()->startOfDay();
@@ -303,6 +346,7 @@ class SpaBookingController extends Controller
             $calendarDays[] = [
                 'date' => $cursor->copy(),
                 'items' => $itemsByDate[$key] ?? collect(),
+                'blocked' => collect($blockedByDate[$key] ?? []),
                 'is_today' => $cursor->isToday(),
                 'is_outside_month' => $monthAnchor ? ! $cursor->isSameMonth($monthAnchor) : false,
             ];

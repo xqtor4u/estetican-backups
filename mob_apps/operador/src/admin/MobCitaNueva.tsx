@@ -80,7 +80,8 @@ export function MobCitaNueva() {
   const [selDate,   setSelDate]   = useState<Date>(() =>
     new Date(today.getFullYear(), today.getMonth(), today.getDate())
   );
-  const [occupied,  setOccupied]  = useState<Set<string>>(new Set());
+  const [occupied,     setOccupied]     = useState<Set<string>>(new Set());
+  const [blockedSlots, setBlockedSlots] = useState<Set<string>>(new Set());
   const [loadSlots, setLoadSlots] = useState(false);
   const [businessHours, setBusinessHours] = useState({ start: DEFAULT_OPEN_MIN, end: DEFAULT_CLOSE_MIN });
   const [selSlot,      setSelSlot]      = useState<string | null>(null);
@@ -130,6 +131,7 @@ export function MobCitaNueva() {
   const loadOccupied = useCallback((date: Date, operatorId: number | null) => {
     if (!operatorId) {
       setOccupied(new Set());
+      setBlockedSlots(new Set());
       setLoadSlots(false);
       return;
     }
@@ -149,6 +151,22 @@ export function MobCitaNueva() {
       })
       .catch(() => setOccupied(new Set()))
       .finally(() => setLoadSlots(false));
+
+    const dayStr = localDateStr(date);
+    fetch(`/api/agenda/unavailabilities?date=${dayStr}&operator_id=${operatorId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((windows: { starts_at: string; ends_at: string }[]) => {
+        const blocked = new Set<string>();
+        windows.forEach(w => {
+          const startDay = w.starts_at.slice(0, 10);
+          const endDay = w.ends_at.slice(0, 10);
+          const startMin = startDay < dayStr ? 0 : hhmmToMinutes(w.starts_at.slice(11, 16));
+          const endMin = endDay > dayStr ? 24 * 60 : hhmmToMinutes(w.ends_at.slice(11, 16));
+          buildSlots(startMin, Math.max(endMin, startMin + STEP)).forEach(s => blocked.add(s));
+        });
+        setBlockedSlots(blocked);
+      })
+      .catch(() => setBlockedSlots(new Set()));
   }, []);
 
   useEffect(() => { loadOccupied(selDate, selOp); }, [selDate, selOp, loadOccupied]);
@@ -207,12 +225,12 @@ export function MobCitaNueva() {
     return selSlotIdx >= 0 && idx >= selSlotIdx && idx < selSlotIdx + slotsNeeded;
   };
 
-  /* Un slot es inválido si alguno de los slots que ocuparía está taken */
+  /* Un slot es inválido si alguno de los slots que ocuparía está taken u ocupado por otra cita */
   const isSlotInvalid = (slot: string) => {
     const idx = ALL_SLOTS.indexOf(slot);
     for (let i = 0; i < slotsNeeded; i++) {
       const s = ALL_SLOTS[idx + i];
-      if (!s || occupied.has(s)) return true;
+      if (!s || occupied.has(s) || blockedSlots.has(s)) return true;
     }
     return false;
   };
@@ -602,19 +620,25 @@ export function MobCitaNueva() {
                   <span className="w-3 h-3 rounded bg-error/20 inline-block" />
                   Ocupado
                 </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded bg-on-surface-variant/20 inline-block" />
+                  Bloqueado
+                </span>
               </div>
 
               <div className="grid grid-cols-4 gap-2">
                 {ALL_SLOTS.map(slot => {
-                  const occ   = occupied.has(slot);
+                  const occ     = occupied.has(slot);
+                  const blocked = !occ && blockedSlots.has(slot);
                   const isSel = selSlot === slot;
                   const inRng = isInRange(slot) && !isSel;
-                  const inv   = !occ && selSlot === null && isSlotInvalid(slot) && slotsNeeded > 1;
+                  const inv   = !occ && !blocked && selSlot === null && isSlotInvalid(slot) && slotsNeeded > 1;
 
                   return (
                     <button
                       key={slot}
-                      disabled={occ}
+                      disabled={occ || blocked}
+                      title={blocked ? 'Operador no disponible (vacaciones/permiso)' : undefined}
                       onClick={() => {
                         if (isSlotInvalid(slot)) {
                           // Slot válido para empezar pero su rango se choca → mostrar igualmente, el usuario elige
@@ -624,11 +648,13 @@ export function MobCitaNueva() {
                       className={`py-2.5 rounded-xl text-sm font-mono font-semibold transition-all ${
                         occ
                           ? 'bg-error/8 text-error/40 border border-error/20 cursor-not-allowed line-through'
-                          : isSel
-                            ? 'bg-primary text-on-primary shadow-md scale-105'
-                            : inRng
-                              ? 'bg-primary/25 text-primary border border-primary/30'
-                              : 'bg-surface-container text-on-surface border border-outline-variant active:scale-95 hover:border-primary/40'
+                          : blocked
+                            ? 'bg-on-surface-variant/10 text-on-surface-variant/50 border border-outline-variant cursor-not-allowed line-through'
+                            : isSel
+                              ? 'bg-primary text-on-primary shadow-md scale-105'
+                              : inRng
+                                ? 'bg-primary/25 text-primary border border-primary/30'
+                                : 'bg-surface-container text-on-surface border border-outline-variant active:scale-95 hover:border-primary/40'
                       }`}
                     >
                       {slot}

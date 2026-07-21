@@ -4,7 +4,7 @@ import { useAuth } from '../AuthContext';
 import { clearNavCrumbs, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
-  CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap,
+  CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap, expandDateRange,
 } from './agendaViews';
 import { WeekGrid, MonthGrid } from './AgendaCalendarGrid';
 
@@ -33,6 +33,13 @@ interface Vencida {
   client: { id: number; name: string } | null;
   services: { name: string }[];
 }
+interface Unavailability {
+  operator_id: number;
+  operator_name: string | null;
+  starts_at: string;
+  ends_at: string;
+  reason: string | null;
+}
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: 'Programada',
@@ -57,6 +64,7 @@ export function GlobalAgenda() {
   const [operators,    setOperators]    = useState<Operator[]>([]);
   const [branches,     setBranches]     = useState<Branch[]>([]);
   const [bookings,     setBookings]     = useState<Booking[]>([]);
+  const [blocked,      setBlocked]      = useState<Unavailability[]>([]);
   const [loadingAg,    setLoadingAg]    = useState(true);
   const [filterOp,     setFilterOp]     = useState<number | null>(null);
   const [vencidas,          setVencidas]          = useState<Vencida[]>([]);
@@ -78,6 +86,10 @@ export function GlobalAgenda() {
       .then(setBookings)
       .catch(() => setBookings([]))
       .finally(() => setLoadingAg(false));
+    fetch(`/api/agenda/unavailabilities?date=${toDateStr(date)}&view=${view}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setBlocked)
+      .catch(() => setBlocked([]));
   }, []);
 
   useEffect(() => { loadAgenda(selectedDate, calView); }, [selectedDate, calView, loadAgenda]);
@@ -86,6 +98,11 @@ export function GlobalAgenda() {
   const visibleBookings = filterOp == null
     ? bookings
     : bookings.filter(b => b.operators.some(o => o.id === filterOp));
+  const visibleBlocked = filterOp == null
+    ? blocked
+    : blocked.filter(w => w.operator_id === filterOp);
+  const blockedDates: Set<string> = new Set(visibleBlocked.flatMap((w): string[] => expandDateRange(w.starts_at, w.ends_at)));
+  const blockedForSelectedDay = visibleBlocked.filter(w => expandDateRange(w.starts_at, w.ends_at).includes(toDateStr(selectedDate)));
 
   const isSameDay = (a: Date, b: Date) => toDateStr(a) === toDateStr(b);
   const isToday    = isSameDay(selectedDate, today);
@@ -388,6 +405,20 @@ export function GlobalAgenda() {
           )}
         </div>
 
+        {/* Aviso de operadores no disponibles (bloqueos de vacaciones/permiso) */}
+        {calView === 'day' && blockedForSelectedDay.length > 0 && (
+          <div className="mx-4 mb-2 px-3 py-2 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-1">
+            <p className="text-xs font-semibold text-on-surface-variant">Operadores no disponibles hoy</p>
+            {blockedForSelectedDay.map((w, i) => (
+              <p key={i} className="text-xs text-on-surface-variant flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">event_busy</span>
+                {w.operator_name ?? `Operador #${w.operator_id}`} — {w.starts_at.slice(11, 16)}–{w.ends_at.slice(11, 16)}
+                {w.reason ? ` (${w.reason})` : ''}
+              </p>
+            ))}
+          </div>
+        )}
+
         {/* Lista de citas (Día) / Grid tipo calendario (Semana/Mes) */}
         <div className="flex-1 px-4 pb-4 flex flex-col gap-3">
 
@@ -416,6 +447,7 @@ export function GlobalAgenda() {
               today={today}
               onSelectBooking={id => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate(`/citas/${id}`); }}
               onSelectDay={date => { setSelectedDate(date); setCalView('day'); }}
+              blockedDates={blockedDates}
             />
           ) : (
             <MonthGrid
@@ -423,6 +455,7 @@ export function GlobalAgenda() {
               bookingsByDate={groupByDateMap(visibleBookings)}
               today={today}
               onSelectDay={date => { setSelectedDate(date); setCalView('day'); }}
+              blockedDates={blockedDates}
             />
           )}
         </div>

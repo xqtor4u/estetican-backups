@@ -1,5 +1,38 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 20/07/2026 (cont. 7) — BL-062: mostrar horas bloqueadas en la Agenda (móvil + web)
+
+### ✅ Logros y Cambios
+
+Continuación directa de BL-060/061: el usuario probó agendar una cita en un día con horas bloqueadas y la Agenda simplemente decía "sin citas para ese día", sin ninguna pista de la no-disponibilidad, y el formulario seguía ofreciendo esa hora como libre. Pidió mostrar los bloqueos visualmente (banner "Bloqueada" en día, punto de color en semana/mes) tanto en **móvil como en Backoffice web**, y que el flujo de crear cita deje de ofrecer esas horas. Se usó `EnterPlanMode` (2 agentes `Explore` en paralelo — backend/API de agenda por un lado, renderizado móvil por otro) más una revisión directa de archivos (Blade de agenda web, CSS) antes de codificar, dado el tamaño real del cambio.
+
+**Hallazgo central:** hasta hoy nada leía `OperatorUnavailability` salvo el rechazo 422 al guardar (BL-060) — había 3 fuentes independientes y desincronizadas de "qué hay agendado" (el checker de guardado, la API de agenda móvil, el controller de agenda web), ninguna tocaba los bloqueos para lectura/visualización. Se resolvió con **un solo método compartido** nuevo, `OperatorAvailabilityChecker::unavailabilityWindows()`, consumido por los 3.
+
+**Decisión de alcance clave (confirmada con el usuario):** el Backoffice web nunca tuvo un selector visual de horarios (solo un campo de fecha/hora libre + validación al enviar) — en vez de construir un grid nuevo desde cero ahí, se extendió el `<script>` vanilla JS que ya existía en `create.blade.php`/`edit.blade.php` para hacer un chequeo en vivo (nuevo endpoint `GET /agenda/check-availability`, reusa los 4 checks que ya existían sin duplicar lógica) que muestra una advertencia inline. La app móvil, que ya tenía un selector de horarios real (`MobCitaNueva.tsx`), sí excluye los slots bloqueados directamente del grid (no selectionables), mismo tratamiento que ya tenían los slots ocupados por otra cita.
+
+**Móvil:** nuevo endpoint `GET /api/agenda/unavailabilities`; banner "Operadores no disponibles" en vista Día de `GlobalAgenda.tsx`/`GroomerAgenda.tsx` (visible siempre que aplique, no solo si no hay citas); indicador nuevo y distinto de los puntos de estado de cita en semana/mes (`AgendaCalendarGrid.tsx`); 4to estado visual "Bloqueado" en el grid de horario de `MobCitaNueva.tsx`.
+
+**Web:** banner igual en vista Día de `agenda/index.blade.php`; punto gris nuevo (`bandeja-calendar-dot--bloqueo`) en semana/mes — reusa por primera vez fuera de WhatsApp la clase base de "dots" que ya existía para la Bandeja Diaria (BL-030), portada a la Agenda general.
+
+**Verificación:** 18 tests nuevos (lectura de ventanas por vista/operador, los 4 casos de `check-availability` + exclusión de la propia cita al reprogramar, banner/dot en las 3 vistas web). Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 257 pasan (antes 243). App móvil verificada con `tsc --noEmit` + `npm run build`, mismos 2 errores preexistentes de siempre (ajenos a este cambio).
+
+### 📁 Archivos principales tocados
+- `app/Domain/Planning/Services/OperatorAvailabilityChecker.php` (`unavailabilityWindows()`)
+- `app/Http/Controllers/Api/AgendaController.php` (`resolveRange()`, `unavailabilities()`)
+- `app/Http/Controllers/SpaBookingController.php` (`checkAvailability()`, `blockedToday`/`blocked` en `buildCalendarRange()`)
+- `routes/api.php`, `routes/web.php` (2 rutas nuevas)
+- `resources/views/agenda/{create,edit,index}.blade.php`, `agenda/partials/{_calendar_week,_calendar_month}.blade.php`
+- `resources/css/backoffice-blueprints.css` (`.bandeja-calendar-dot--bloqueo`)
+- `mob_apps/operador/src/admin/{GlobalAgenda,GroomerAgenda,AgendaCalendarGrid,MobCitaNueva}.tsx`, `agendaViews.ts` (`expandDateRange()`)
+- `tests/Feature/Api/AgendaUnavailabilitiesTest.php`, `tests/Feature/Agenda/{CheckAvailabilityTest,AgendaBlockedDisplayTest}.php` (nuevos)
+- `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 20/07/2026 (cont. 6) — BL-061: fix de permisos + ajuste de UX (menú de Agenda + confirmación con contraseña)
 
 ### ✅ Logros y Cambios

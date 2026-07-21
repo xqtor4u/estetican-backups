@@ -87,3 +87,17 @@ export function groupByDateMap<T extends { date: string }>(items: T[]): Map<stri
   }
   return map;
 }
+
+/** Expande un rango datetime ("YYYY-MM-DD HH:MM:SS") a la lista de fechas ("YYYY-MM-DD") que toca — usado para marcar bloqueos de disponibilidad que abarcan varios días en los grids de semana/mes. */
+export function expandDateRange(startsAt: string, endsAt: string): string[] {
+  const start = new Date(startsAt.replace(' ', 'T'));
+  const end = new Date(endsAt.replace(' ', 'T'));
+  const dates: string[] = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const stop = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  while (cursor <= stop) {
+    dates.push(toDateStr(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+}

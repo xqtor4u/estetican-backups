@@ -19,6 +19,9 @@
             <div class="agenda-calendar-week__day-header">
                 <span class="agenda-calendar-week__day-name">{{ $day['date']->translatedFormat('D') }}</span>
                 <span class="agenda-calendar-week__day-number">{{ $day['date']->format('d') }}</span>
+                @if(($day['blocked'] ?? collect())->isNotEmpty())
+                    <span class="bandeja-calendar-dot bandeja-calendar-dot--bloqueo" title="{{ $day['blocked']->map(fn ($w) => $w->operator?->full_name ?? 'Operador #'.$w->operator_id)->unique()->implode(', ') }} no disponible"></span>
+                @endif
             </div>
             <div class="agenda-calendar-week__day-body">
                 @forelse($day['items'] as $item)

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
-  CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap,
+  CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap, expandDateRange,
 } from './agendaViews';
 import { WeekGrid, MonthGrid } from './AgendaCalendarGrid';
 
@@ -21,6 +21,13 @@ interface Booking {
   client: { id: number; name: string } | null;
   services: { id: number | null; name: string; type: string | null }[];
   operators: { id: number; name: string; photo_url: string | null }[];
+}
+interface Unavailability {
+  operator_id: number;
+  operator_name: string | null;
+  starts_at: string;
+  ends_at: string;
+  reason: string | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -46,6 +53,7 @@ export function GroomerAgenda() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calView,      setCalView]      = useState<CalView>('day');
   const [bookings,     setBookings]     = useState<Booking[]>([]);
+  const [blocked,      setBlocked]      = useState<Unavailability[]>([]);
   const [loadingAg,    setLoadingAg]    = useState(true);
 
   // Cargar info del operador
@@ -69,9 +77,16 @@ export function GroomerAgenda() {
       })
       .catch(() => setBookings([]))
       .finally(() => setLoadingAg(false));
+    fetch(`/api/agenda/unavailabilities?date=${toDateStr(date)}&view=${view}&operator_id=${operatorId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setBlocked)
+      .catch(() => setBlocked([]));
   }, [operatorId]);
 
   useEffect(() => { loadAgenda(selectedDate, calView); }, [selectedDate, calView, loadAgenda]);
+
+  const blockedDates: Set<string> = new Set(blocked.flatMap((w): string[] => expandDateRange(w.starts_at, w.ends_at)));
+  const blockedForSelectedDay = blocked.filter(w => expandDateRange(w.starts_at, w.ends_at).includes(toDateStr(selectedDate)));
 
   const isSameDay = (a: Date, b: Date) => toDateStr(a) === toDateStr(b);
   const isToday    = isSameDay(selectedDate, today);
@@ -294,6 +309,19 @@ export function GroomerAgenda() {
           )}
         </div>
 
+        {/* Aviso de no-disponibilidad (bloqueos de vacaciones/permiso) */}
+        {calView === 'day' && blockedForSelectedDay.length > 0 && (
+          <div className="mx-4 mb-2 px-3 py-2 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-1">
+            {blockedForSelectedDay.map((w, i) => (
+              <p key={i} className="text-xs text-on-surface-variant flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">event_busy</span>
+                No disponible {w.starts_at.slice(11, 16)}–{w.ends_at.slice(11, 16)}
+                {w.reason ? ` (${w.reason})` : ''}
+              </p>
+            ))}
+          </div>
+        )}
+
         {/* Lista de citas (Día) / Grid tipo calendario (Semana/Mes) */}
         <div className="flex-1 px-4 pb-4 flex flex-col gap-3 mt-2">
           {loadingAg ? (
@@ -339,6 +367,7 @@ export function GroomerAgenda() {
                 navigate(`/citas/${id}`);
               }}
               onSelectDay={date => { setSelectedDate(date); setCalView('day'); }}
+              blockedDates={blockedDates}
             />
           ) : (
             <MonthGrid
@@ -346,6 +375,7 @@ export function GroomerAgenda() {
               bookingsByDate={groupByDateMap(bookings)}
               today={today}
               onSelectDay={date => { setSelectedDate(date); setCalView('day'); }}
+              blockedDates={blockedDates}
             />
           )}
         </div>

@@ -6,6 +6,7 @@ use App\Models\OperatorUnavailability;
 use App\Models\OperatorWeeklySchedule;
 use App\Models\SpaBooking;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class OperatorAvailabilityChecker
 {
@@ -63,5 +64,20 @@ class OperatorAvailabilityChecker
         return OperatorUnavailability::where('operator_id', $operatorId)
             ->overlapping($start, $end)
             ->exists();
+    }
+
+    /**
+     * Fuente única de lectura de bloqueos para pintar agendas (día/semana/mes, web y móvil).
+     * A diferencia de hasTimeOff() (que solo bloquea al guardar), este método expone las
+     * ventanas reales para mostrarlas visualmente. $operatorId null = todos los operadores.
+     */
+    public function unavailabilityWindows(Carbon $rangeStart, Carbon $rangeEnd, ?int $operatorId = null): Collection
+    {
+        return OperatorUnavailability::query()
+            ->when($operatorId, fn ($q) => $q->where('operator_id', $operatorId))
+            ->overlapping($rangeStart, $rangeEnd)
+            ->with('operator:id,first_name,apellido_paterno,apellido_materno,name')
+            ->orderBy('starts_at')
+            ->get();
     }
 }

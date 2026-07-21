@@ -21,7 +21,12 @@
         <a href="{{ $dayHref }}" class="agenda-calendar-month__cell
             {{ $day['is_outside_month'] ? 'agenda-calendar-month__cell--muted' : '' }}
             {{ $day['is_today'] ? 'agenda-calendar-month__cell--today' : '' }}">
-            <span class="agenda-calendar-month__cell-number">{{ $day['date']->format('d') }}</span>
+            <span class="agenda-calendar-month__cell-number">
+                {{ $day['date']->format('d') }}
+                @if(($day['blocked'] ?? collect())->isNotEmpty())
+                    <span class="bandeja-calendar-dot bandeja-calendar-dot--bloqueo" title="{{ $day['blocked']->map(fn ($w) => $w->operator?->full_name ?? 'Operador #'.$w->operator_id)->unique()->implode(', ') }} no disponible"></span>
+                @endif
+            </span>
             <div class="agenda-calendar-month__chips">
                 @foreach($day['items']->take(3) as $item)
                     @php $isHotel = $item->agenda_type === 'hotel'; @endphp
