@@ -40,6 +40,8 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
   );
 }
 
+const LOCK_TIMEOUT_OPTIONS = [1, 2, 5, 10, 15, 30];
+
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: string }[] = [
   { value: 'light',  label: 'Claro',   icon: 'light_mode' },
   { value: 'dark',   label: 'Oscuro',  icon: 'dark_mode' },
@@ -271,9 +273,20 @@ export function MobUserConfig() {
               <p className="text-xs text-on-surface-variant mt-0.5">Tu navegador no lo soporta — se usará la contraseña</p>
             </div>
           )}
-          <div className="px-4 py-3.5">
-            <p className="text-sm font-medium text-on-surface">Bloqueo automático</p>
-            <p className="text-xs text-on-surface-variant mt-0.5">La app se bloquea sola tras 5 minutos sin uso, o al cambiar de aplicación</p>
+          <div className="px-4 py-3.5 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-on-surface">Bloqueo automático</p>
+              <p className="text-xs text-on-surface-variant mt-0.5">La app se bloquea sola tras este tiempo sin uso, o al cambiar de aplicación</p>
+            </div>
+            <select
+              value={prefs.lockTimeoutMinutes}
+              onChange={e => update({ lockTimeoutMinutes: Number(e.target.value) })}
+              className="bg-surface-container-high border border-outline-variant rounded-lg px-2 py-1.5 text-sm text-on-surface shrink-0"
+            >
+              {LOCK_TIMEOUT_OPTIONS.map(m => (
+                <option key={m} value={m}>{m} min</option>
+              ))}
+            </select>
           </div>
         </div>
         {biometricError && <p className="text-xs text-error mt-2 px-1">{biometricError}</p>}

@@ -1,5 +1,30 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 21/07/2026 — BL-063: fix de bloqueo falso al cambiar de pantalla + timeout configurable
+
+### ✅ Logros y Cambios
+
+El usuario reportó que la app móvil a veces se bloqueaba sola al cambiar de pantalla (no al cambiar de app real), y pidió de paso que el tiempo de inactividad antes de bloquear fuera configurable por usuario en vez de fijo.
+
+**Causa raíz del bug** (`AppLockContext.tsx`): el listener `visibilitychange` bloqueaba de inmediato en cuanto `document.hidden` pasaba a `true`, sin ningún margen. Algunos WebView de Android disparan `hidden` momentáneamente durante navegación interna o al abrir un picker nativo (fecha, foto) sin que el usuario haya salido de la app de verdad — eso disparaba el bloqueo por error. Corregido con un margen de gracia de 1.5s: se arma un timer corto al ocultarse; si la pestaña vuelve a ser visible antes de cumplirse (típico de un picker), se cancela; un cambio real de app dura mucho más que eso, así que sigue bloqueando en ese caso real.
+
+**Timeout configurable:** nuevo campo `lockTimeoutMinutes` en `useUserPrefs` (mismo patrón 100% cliente/`localStorage` que ya usan tema y breadcrumbs — el candado de sesión es inherentemente por-dispositivo, no tiene sentido guardarlo en el servidor). Selector nuevo (1/2/5/10/15/30 min) en Configuración personal → Seguridad.
+
+Cambio 100% en `mob_apps/operador`, sin tocar backend. Verificado con `tsc --noEmit` + `npm run build`.
+
+### 📁 Archivos principales tocados
+- `mob_apps/operador/src/AppLockContext.tsx` (margen de gracia en `visibilitychange`, timeout dinámico vía `getIdleTimeoutMs()`)
+- `mob_apps/operador/src/hooks/useUserPrefs.ts` (`lockTimeoutMinutes`)
+- `mob_apps/operador/src/admin/MobUserConfig.tsx` (selector nuevo en Seguridad)
+- `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. Confirmar con el usuario que el bloqueo falso ya no ocurre al probarlo en producción real.
+3. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 20/07/2026 (cont. 7) — BL-062: mostrar horas bloqueadas en la Agenda (móvil + web)
 
 ### ✅ Logros y Cambios

@@ -1,10 +1,22 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
+import { getUserPrefs } from './hooks/useUserPrefs';
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos sin actividad
+const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // fallback si la preferencia no es válida
 const ACTIVITY_EVENTS = ['touchstart', 'mousedown', 'keydown', 'scroll'] as const;
 const STORAGE_KEY = 'estetican_lock_state';
 const ACTIVITY_WRITE_THROTTLE_MS = 5000;
+// Al ocultarse la pestaña (visibilitychange), algunos WebView de Android disparan
+// `hidden` momentáneamente durante navegación interna o al abrir un picker nativo
+// (fecha, foto) sin que el usuario haya salido de verdad de la app. Se espera este
+// margen antes de bloquear — un cambio real de app dura muchísimo más que esto.
+const HIDDEN_GRACE_MS = 1500;
+
+function getIdleTimeoutMs(): number {
+  const minutes = getUserPrefs().lockTimeoutMinutes;
+
+  return Number.isFinite(minutes) && minutes > 0 ? minutes * 60 * 1000 : DEFAULT_IDLE_TIMEOUT_MS;
+}
 
 interface StoredLockState {
   locked: boolean;
@@ -47,7 +59,7 @@ function computeLockedFromStorage(): boolean {
   const stored = readStoredState();
   if (!stored) return false;
   if (stored.locked) return true;
-  return Date.now() - stored.lastActivity > IDLE_TIMEOUT_MS;
+  return Date.now() - stored.lastActivity > getIdleTimeoutMs();
 }
 
 interface AppLockContextType {
@@ -71,6 +83,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const enabled = !!user;
   const [locked, setLockedState] = useState<boolean>(() => computeLockedFromStorage());
   const timerRef = useRef<number | null>(null);
+  const hiddenTimerRef = useRef<number | null>(null);
   const lastWriteRef = useRef(0);
   // Refleja `locked` de forma síncrona para leer dentro de `resetTimer` sin
   // recrear ese callback (y sin re-suscribir los listeners de actividad) cada
@@ -88,7 +101,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const resetTimer = useCallback(() => {
     if (timerRef.current) window.clearTimeout(timerRef.current);
     if (!enabled) return;
-    timerRef.current = window.setTimeout(() => setLocked(true), IDLE_TIMEOUT_MS);
+    timerRef.current = window.setTimeout(() => setLocked(true), getIdleTimeoutMs());
 
     // Los eventos de actividad (touch/click/tecla/scroll) burbujean hasta acá
     // incluso cuando el toque/tecleo ocurrió DENTRO de la pantalla de bloqueo
@@ -126,8 +139,17 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
     ACTIVITY_EVENTS.forEach(ev => document.addEventListener(ev, resetTimer, { passive: true }));
 
     const onVisibilityChange = () => {
-      if (document.hidden) setLocked(true);
-      else resetTimer();
+      if (document.hidden) {
+        // No bloquear de inmediato — ver HIDDEN_GRACE_MS. Si la pestaña vuelve a
+        // ser visible antes de que se cumpla el margen, se cancela más abajo.
+        hiddenTimerRef.current = window.setTimeout(() => setLocked(true), HIDDEN_GRACE_MS);
+      } else {
+        if (hiddenTimerRef.current) {
+          window.clearTimeout(hiddenTimerRef.current);
+          hiddenTimerRef.current = null;
+        }
+        resetTimer();
+      }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
@@ -144,6 +166,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pageshow', onPageShow);
       if (timerRef.current) window.clearTimeout(timerRef.current);
+      if (hiddenTimerRef.current) window.clearTimeout(hiddenTimerRef.current);
     };
   }, [authLoading, enabled, resetTimer, setLocked]);
 

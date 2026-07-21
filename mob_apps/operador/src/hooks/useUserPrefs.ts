@@ -5,10 +5,11 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export interface UserPrefs {
   showBreadcrumbs: boolean;
   theme: ThemeMode;
+  lockTimeoutMinutes: number;
 }
 
 const STORAGE_KEY = 'estetican:prefs';
-const DEFAULTS: UserPrefs = { showBreadcrumbs: true, theme: 'system' };
+const DEFAULTS: UserPrefs = { showBreadcrumbs: true, theme: 'system', lockTimeoutMinutes: 5 };
 
 function readPrefs(): UserPrefs {
   try {
