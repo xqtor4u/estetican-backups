@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../AuthContext';
 import { clearNavCrumbs, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
@@ -48,6 +49,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export function GlobalAgenda() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [today]        = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -59,6 +61,7 @@ export function GlobalAgenda() {
   const [filterOp,     setFilterOp]     = useState<number | null>(null);
   const [vencidas,          setVencidas]          = useState<Vencida[]>([]);
   const [showVencidasModal, setShowVencidasModal]  = useState(false);
+  const [showAddMenu,       setShowAddMenu]        = useState(false);
 
   // Carga inicial: operadores, sucursales y citas vencidas
   useEffect(() => {
@@ -173,7 +176,7 @@ export function GlobalAgenda() {
               <span className="material-symbols-outlined text-on-surface-variant text-xl">person_search</span>
             </button>
             <button
-              onClick={() => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate('/mascotas'); }}
+              onClick={() => setShowAddMenu(true)}
               className="flex items-center gap-1 bg-primary text-on-primary px-3 py-1.5 rounded-full text-xs font-semibold active:scale-95 transition-transform ml-1"
             >
               <span className="material-symbols-outlined text-base">add</span>
@@ -182,6 +185,44 @@ export function GlobalAgenda() {
           </div>
         }
       />
+
+      {showAddMenu && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddMenu(false)} />
+          <div className="fixed left-0 right-0 bottom-0 z-50 bg-surface rounded-t-3xl shadow-2xl">
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-outline-variant" />
+            </div>
+            <div className="px-4 pb-8 pt-2 flex flex-col gap-2">
+              <button
+                onClick={() => { setShowAddMenu(false); setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate('/mascotas'); }}
+                className="flex items-center gap-3 px-4 py-3.5 bg-surface-container rounded-2xl text-left active:scale-[0.98] transition-transform"
+              >
+                <span className="material-symbols-outlined text-2xl text-primary">event</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-on-surface">Nueva cita</p>
+                  <p className="text-xs text-on-surface-variant">Agendar servicio para una mascota</p>
+                </div>
+                <span className="material-symbols-outlined text-base text-on-surface-variant">chevron_right</span>
+              </button>
+
+              {user?.operator_role && (
+                <button
+                  onClick={() => { setShowAddMenu(false); navigate('/configuracion/disponibilidad'); }}
+                  className="flex items-center gap-3 px-4 py-3.5 bg-surface-container rounded-2xl text-left active:scale-[0.98] transition-transform"
+                >
+                  <span className="material-symbols-outlined text-2xl text-error">event_busy</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-on-surface">Bloquear mi horario</p>
+                    <p className="text-xs text-on-surface-variant">Vacaciones o permiso — no se te podrá agendar</p>
+                  </div>
+                  <span className="material-symbols-outlined text-base text-on-surface-variant">chevron_right</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       <main className="flex-1 flex flex-col">
 

@@ -26,20 +26,38 @@ interface FormSheetProps {
   onSaved: (u: Unavailability) => void;
 }
 
+function fmtRange(startsAt: string, endsAt: string) {
+  const fmt = (v: string) => new Date(v).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return `${fmt(startsAt)} → ${fmt(endsAt)}`;
+}
+
 function UnavailabilityFormSheet({ onClose, onSaved }: FormSheetProps) {
+  const [step, setStep] = useState<'form' | 'confirm'>('form');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [reason, setReason] = useState('');
+  const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = startsAt !== '' && endsAt !== '' && !saving;
+  const canContinue = startsAt !== '' && endsAt !== '';
+  const canConfirm = password !== '' && !saving;
 
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
+  const handleConfirm = async () => {
+    if (!canConfirm) return;
     setSaving(true);
     setError(null);
     try {
+      const verifyRes = await fetch('/api/me/verify-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (!verifyRes.ok) {
+        const verifyData = await verifyRes.json().catch(() => ({}));
+        throw new Error(verifyData.errors ? Object.values<string[]>(verifyData.errors).flat().join(' ') : 'Contraseña incorrecta.');
+      }
+
       const res = await fetch('/api/me/unavailabilities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,53 +87,94 @@ function UnavailabilityFormSheet({ onClose, onSaved }: FormSheetProps) {
           <div className="w-10 h-1 rounded-full bg-outline-variant" />
         </div>
 
-        <div className="px-4 pb-8 pt-2 flex flex-col gap-4">
-          <h2 className="text-base font-semibold text-on-surface">Nuevo bloqueo</h2>
+        {step === 'form' ? (
+          <div className="px-4 pb-8 pt-2 flex flex-col gap-4">
+            <h2 className="text-base font-semibold text-on-surface">Nuevo bloqueo</h2>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-on-surface-variant font-medium">Desde</label>
-            <input
-              type="datetime-local"
-              value={startsAt}
-              onChange={e => setStartsAt(e.target.value)}
-              className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
-            />
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-on-surface-variant font-medium">Desde</label>
+              <input
+                type="datetime-local"
+                value={startsAt}
+                onChange={e => setStartsAt(e.target.value)}
+                className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-on-surface-variant font-medium">Hasta</label>
+              <input
+                type="datetime-local"
+                value={endsAt}
+                onChange={e => setEndsAt(e.target.value)}
+                className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-on-surface-variant font-medium">Motivo (opcional)</label>
+              <input
+                type="text"
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder="Vacaciones, permiso..."
+                maxLength={255}
+                className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+              />
+            </div>
+
+            <button
+              onClick={() => setStep('confirm')}
+              disabled={!canContinue}
+              className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-primary text-on-primary active:scale-[0.98] transition-transform disabled:opacity-40"
+            >
+              Continuar
+            </button>
           </div>
+        ) : (
+          <div className="px-4 pb-8 pt-2 flex flex-col gap-4">
+            <h2 className="text-base font-semibold text-on-surface">Confirma con tu contraseña</h2>
+            <p className="text-sm text-on-surface-variant bg-surface-container rounded-xl px-3 py-2.5">
+              Vas a bloquear: <strong className="text-on-surface">{fmtRange(startsAt, endsAt)}</strong>
+              {reason.trim() && <> — {reason.trim()}</>}
+            </p>
+            <p className="text-xs text-on-surface-variant">
+              Es un paso extra para evitar bloqueos accidentales — no cambia tu contraseña ni tu sesión.
+            </p>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-on-surface-variant font-medium">Hasta</label>
-            <input
-              type="datetime-local"
-              value={endsAt}
-              onChange={e => setEndsAt(e.target.value)}
-              className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
-            />
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-on-surface-variant font-medium">Contraseña</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                autoFocus
+                className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+              />
+            </div>
+
+            {error && (
+              <p className="text-sm text-error bg-error/10 rounded-xl px-3 py-2">{error}</p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setStep('form'); setError(null); }}
+                disabled={saving}
+                className="flex-1 py-3.5 rounded-2xl font-semibold text-sm border border-outline-variant text-on-surface active:scale-[0.98] transition-transform disabled:opacity-40"
+              >
+                Atrás
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={!canConfirm}
+                className="flex-1 py-3.5 rounded-2xl font-semibold text-sm bg-primary text-on-primary active:scale-[0.98] transition-transform disabled:opacity-40"
+              >
+                {saving ? 'Confirmando…' : 'Confirmar bloqueo'}
+              </button>
+            </div>
           </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-on-surface-variant font-medium">Motivo (opcional)</label>
-            <input
-              type="text"
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              placeholder="Vacaciones, permiso..."
-              maxLength={255}
-              className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-error bg-error/10 rounded-xl px-3 py-2">{error}</p>
-          )}
-
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-primary text-on-primary active:scale-[0.98] transition-transform disabled:opacity-40"
-          >
-            {saving ? 'Guardando…' : 'Registrar bloqueo'}
-          </button>
-        </div>
+        )}
       </div>
     </>
   );

@@ -1,5 +1,29 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 20/07/2026 (cont. 6) — BL-061: fix de permisos + ajuste de UX (menú de Agenda + confirmación con contraseña)
+
+### ✅ Logros y Cambios
+
+Continuación inmediata de BL-061: al probar la feature recién cerrada, el usuario reportó que seguía sin poder bloquear horas. Se verificó directo contra la BD real: su usuario (`tomasmg`, único operador real vinculado con permisos capturados) tenía marcado por error el checkbox **"Editar"** en la matriz de Usuarios en vez de "Ver"/"Crear"/"Eliminar" — esa pantalla no tiene ninguna acción de "editar" un bloqueo (solo ver/crear/eliminar), así que ese checkbox no hace nada para esta feature. Corregido directo en producción (`givePermissionTo`, acción aditiva) tras confirmar con el usuario que él mismo lo arreglara.
+
+Tras confirmar que ya funcionaba, el usuario dio feedback de UX: la pantalla enterrada en "Configuración personal" no era práctica, y pidió (1) que viviera como opción en la Agenda junto a crear una cita, y (2) un paso de confirmación con contraseña antes de bloquear, para evitar que sea accidental.
+
+**Cambios:** el botón "+ Cita" del header de `GlobalAgenda.tsx` (antes navegaba directo a elegir mascota) ahora abre un bottom-sheet con 2 opciones — "Nueva cita" (comportamiento de siempre) y "Bloquear mi horario" (nueva, visible solo si `user.operator_role` existe, navega a la pantalla ya construida). El formulario de alta en `MobUnavailability.tsx` ahora es de 2 pasos: (1) fecha/hora/motivo, (2) pantalla de confirmación que pide contraseña antes de guardar — reutiliza `POST /api/me/verify-password` (el mismo endpoint ya construido en BL-038 para desbloquear la app; solo confirma identidad, no cambia contraseña ni token) y solo llama a `POST /api/me/unavailabilities` si la verificación es exitosa.
+
+**Verificación:** sin tests backend nuevos (no se tocó ningún endpoint, solo el flujo de UI que ya consume endpoints existentes). App móvil verificada con `tsc --noEmit` + `npm run build`, mismos 2 errores preexistentes de siempre (ajenos a este cambio).
+
+### 📁 Archivos principales tocados
+- `mob_apps/operador/src/admin/GlobalAgenda.tsx` (menú "+" con 2 opciones)
+- `mob_apps/operador/src/admin/MobUnavailability.tsx` (formulario de 2 pasos con confirmación por contraseña)
+- Datos de producción: permisos corregidos para `tomasmg`
+- `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 20/07/2026 (cont. 5) — BL-061: autoservicio de disponibilidad para operadores (app móvil)
 
 ### ✅ Logros y Cambios
