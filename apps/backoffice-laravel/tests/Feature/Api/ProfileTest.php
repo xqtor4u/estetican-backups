@@ -146,4 +146,27 @@ class ProfileTest extends TestCase
         $delete->assertOk();
         $this->assertNull($user->fresh()->profile_photo_path);
     }
+
+    public function test_me_exposes_linked_operator_id(): void
+    {
+        $operator = \App\Models\Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $user = $this->makeUser(['operator_id' => $operator->id]);
+        $headers = $this->loginAs($user);
+
+        $response = $this->getJson('/api/me', $headers);
+
+        $response->assertOk();
+        $response->assertJson(['operator_id' => $operator->id]);
+    }
+
+    public function test_me_exposes_null_operator_id_when_not_linked(): void
+    {
+        $user = $this->makeUser();
+        $headers = $this->loginAs($user);
+
+        $response = $this->getJson('/api/me', $headers);
+
+        $response->assertOk();
+        $response->assertJson(['operator_id' => null]);
+    }
 }

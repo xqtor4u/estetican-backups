@@ -10,6 +10,7 @@ interface AuthUser {
   email: string;
   roles: string[];
   is_admin: boolean;
+  operator_id: number | null;
   operator_role: string | null;
   photo_url: string | null;
 }

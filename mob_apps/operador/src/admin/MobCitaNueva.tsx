@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
+import { useAuth } from '../AuthContext';
 import { ScreenHeader } from '../ScreenHeader';
 
 /* ── Tipos ────────────────────────────────────────────────── */
@@ -70,6 +71,7 @@ export function MobCitaNueva() {
   const navigate = useNavigate();
   const crumbs = getNavCrumbs();
   const { showBreadcrumbs } = getUserPrefs();
+  const { user } = useAuth();
 
   const today = useMemo(() => new Date(), []);
 
@@ -121,6 +123,15 @@ export function MobCitaNueva() {
       })
       .catch(() => {});
   }, [id]);
+
+  /* Preseleccionar al operador logueado (si es operador) en cuanto llega la lista,
+     para que ya salga con su propia agenda de disponibilidad sin tener que elegirse a sí mismo. */
+  useEffect(() => {
+    if (selOp !== null || !user?.operator_id) return;
+    if (operators.some(o => o.id === user.operator_id)) {
+      setSelOp(user.operator_id);
+    }
+  }, [operators, user, selOp]);
 
   const ALL_SLOTS = useMemo(
     () => buildSlots(businessHours.start, businessHours.end),

@@ -1,5 +1,30 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 21/07/2026 (cont.) — BL-064: preseleccionar al operador logueado en "Nueva cita"
+
+### ✅ Logros y Cambios
+
+El usuario pidió que, al dar de alta una cita, el operador logueado ya salga seleccionado por default (para ver de una vez su propia agenda de disponibilidad, en vez de tener que buscarse a sí mismo en la lista cada vez).
+
+**Hallazgo:** `User::toApiArray()` (consumido por `GET /api/me`, la única fuente del usuario logueado en el cliente móvil) exponía `operator_role` (nombre del puesto) pero no el FK real `operator_id` hacia `Operator` — sin eso, el cliente no tenía forma de saber cuál operador de la lista corresponde al usuario logueado. Se agregó `operator_id` al array.
+
+**`MobCitaNueva.tsx`:** nuevo efecto que, en cuanto llega la lista de operadores desde `/api/operators`, si `user.operator_id` existe y aparece en esa lista, preselecciona ese operador — sin pisar una selección manual que el usuario ya haya hecho (guard `if (selOp !== null) return`). Un admin sin `operator_id` vinculado no ve cambio de comportamiento (sigue sin preselección).
+
+**Verificación:** 2 tests nuevos en `ProfileTest` (confirman que `GET /api/me` expone `operator_id`, tanto vinculado como `null`). Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 259 pasan (antes 257). App móvil verificada con `tsc --noEmit` + `npm run build`.
+
+### 📁 Archivos principales tocados
+- `app/Models/User.php` (`toApiArray()` gana `operator_id`)
+- `mob_apps/operador/src/AuthContext.tsx` (`AuthUser.operator_id`)
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx` (efecto de preselección)
+- `tests/Feature/Api/ProfileTest.php` (2 tests nuevos)
+- `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 21/07/2026 — BL-063: fix de bloqueo falso al cambiar de pantalla + timeout configurable
 
 ### ✅ Logros y Cambios
