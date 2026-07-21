@@ -1020,3 +1020,21 @@ Verificado con `php artisan route:list --name=items.store -vv` — el middleware
 **Fix:** ninguno en código. El usuario completó la confirmación de identidad manualmente en `developers.facebook.com` ("Confirmar cuenta"); el sync funcionó de inmediato después, sin regenerar el token ni tocar `MetaCatalogSyncService`.
 
 **Lección:** cuando la Graph API de Meta devuelve `code: 200` / "API access blocked" y el payload ya se había verificado funcionando antes, no seguir depurando el código — es casi seguro un bloqueo de cuenta/app del lado de Meta. Revisar primero `developers.facebook.com` (aviso de "actividad inusual") y `Configuración empresarial → Centro de seguridad` en Business Manager antes de tocar `MetaCatalogSyncService`. Como este entorno no tiene sesión de navegador autenticada contra Meta, este tipo de diagnóstico requiere Claude en Chrome (o al usuario directamente) — no es verificable por API/terminal.
+
+---
+
+## NT-041 — La matriz de permisos de `Usuarios → editar` sobrescribe (`syncPermissions()`) cualquier permiso que no esté en su lista de módulos — un permiso granular asignado por fuera se autorrevoca en la siguiente edición
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 20/07/2026 |
+| **Severidad** | P2 — no truena nada, pero un permiso nuevo puede parecer asignado y dejar de funcionar solo por editar al usuario por cualquier otro motivo, sin que nadie lo note de inmediato |
+| **Componente** | `UserController@create()`/`@edit()`/`@store()`/`@update()`, `resources/views/user/edit.blade.php` |
+
+**Síntoma esperado si no se sabe esto:** al diseñar un permiso Spatie nuevo (ej. `disponibilidad_propia`, BL-061) y asignarlo directo a un usuario vía `$user->givePermissionTo(...)` (o vía un rol), el permiso funciona... hasta que un admin edita a ese mismo usuario desde `Usuarios → editar` por cualquier motivo ajeno (cambiar teléfono, foto, etc.) y le da "Guardar" — el permiso desaparece sin ningún error ni aviso.
+
+**Causa raíz:** `UserController@store()`/`@update()` (líneas ~113-114 y ~216-219) hacen `$user->syncPermissions($request->permissions)` — `syncPermissions()` de Spatie **reemplaza** todos los permisos directos del usuario por exactamente lo que venga en ese array, no los agrega. El array `$request->permissions` sale de una matriz de checkboxes módulo×acción (`$modules`/`$actions` definidos en `UserController@create()`/`@edit()`, renderizada en `resources/views/user/edit.blade.php`) que **solo conoce el patrón CRUD** (`"{$action} {$module}"`, ej. `"ver operadores"`). Los permisos "granulares" fuera de ese patrón (`alergias.administrar`, `clinico.firmar`, `cobros.registrar`, etc.) **nunca aparecen como checkbox** — si un usuario los tenía asignados directo (no vía rol), la matriz los ignora al construir `$request->permissions`, y `syncPermissions()` los borra en la siguiente edición.
+
+**Cómo se evitó en BL-061:** en vez de crear el permiso nuevo (`disponibilidad_propia`) como granular suelto, se agregó como una entrada más de `$modules` en `BaseRolesSeeder.php` **y** en los dos arrays `$modules` de `UserController` — así generó los 4 permisos estándar (`ver/crear/editar/eliminar disponibilidad_propia`) y quedó representado en la matriz de checkboxes, sobreviviendo cualquier edición futura del usuario.
+
+**Lección:** cualquier permiso Spatie que se vaya a asignar **directo a un usuario** (no solo vía rol) debe seguir el patrón CRUD y aparecer en los arrays `$modules` de `UserController@create()`/`@edit()` — nunca asumir que `givePermissionTo()` "simplemente funciona" para un permiso fuera de esa matriz, porque la próxima edición del usuario por cualquier otro campo lo borra en silencio. Los permisos granulares (`alergias.administrar` y similares) solo son seguros si se asignan **exclusivamente vía rol** (`Role::syncPermissions()`), nunca como permiso directo de un usuario individual.
