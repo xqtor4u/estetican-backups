@@ -947,7 +947,7 @@ Registro de entradas y salidas de operadores por sucursal (app móvil).
 ---
 
 ### `operator_weekly_schedules` (BL-060)
-Horario de trabajo semanal recurrente por operador. **Opt-in**: si un operador no tiene ninguna fila, `OperatorAvailabilityChecker::isOutsideWorkingHours()` no restringe nada (compatibilidad con operadores existentes que nunca configuraron horario). Si tiene al menos una fila, el día agendado debe existir y la hora caer dentro del rango de ese día.
+Horario de trabajo semanal recurrente por operador. **Opt-in a nivel de checker** (`OperatorAvailabilityChecker::isOutsideWorkingHours()` no restringe nada si un operador no tiene ninguna fila), pero **no opt-in a nivel de UI**: el formulario de alta/edición de operador (`operators/partials/form.blade.php`) precarga los 7 días marcados con el horario operativo general del negocio (`BusinessHours`) en cuanto el operador no tiene ninguna fila capturada todavía — el staff ajusta o desmarca desde ahí, no parte de una tabla vacía. En cuanto el operador tiene al menos una fila real, el formulario deja de aplicar ese default y respeta exactamente lo capturado (días sin fila = día libre). Los 2 operadores reales existentes al momento de esta feature se corrigieron con un backfill de una sola vez (7 filas c/u = horario general, vía tinker, no un comando permanente).
 
 | Columna | Tipo | Notas |
 |---|---|---|

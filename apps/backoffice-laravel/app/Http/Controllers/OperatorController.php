@@ -7,6 +7,7 @@ use App\Models\Operator;
 use App\Models\OperatorCompensationProfile;
 use App\Models\OperatorRole;
 use App\Support\OperatorPhotoImageManager;
+use App\Support\SystemSettings\BusinessHours;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,8 +19,10 @@ use Throwable;
 
 class OperatorController extends Controller
 {
-    public function __construct(private readonly OperatorPhotoImageManager $imageManager)
-    {
+    public function __construct(
+        private readonly OperatorPhotoImageManager $imageManager,
+        private readonly BusinessHours $businessHours,
+    ) {
     }
 
     public function index(Request $request): View
@@ -123,6 +126,8 @@ class OperatorController extends Controller
             'copySource' => $copySource,
             'suggestAreaCode' => $systemSettings->all()['commercial_clients_suggest_area_code'] ?? false,
             'defaultAreaCode' => $systemSettings->all()['commercial_clients_default_area_code'] ?? '',
+            'defaultScheduleStartTime' => $this->businessHours->openingTime(),
+            'defaultScheduleEndTime' => $this->businessHours->closingTime(),
         ]);
     }
 
@@ -199,6 +204,8 @@ class OperatorController extends Controller
             'availableBranches' => $availableBranches,
             'suggestAreaCode' => $systemSettings->all()['commercial_clients_suggest_area_code'] ?? false,
             'defaultAreaCode' => $systemSettings->all()['commercial_clients_default_area_code'] ?? '',
+            'defaultScheduleStartTime' => $this->businessHours->openingTime(),
+            'defaultScheduleEndTime' => $this->businessHours->closingTime(),
         ]);
     }
 

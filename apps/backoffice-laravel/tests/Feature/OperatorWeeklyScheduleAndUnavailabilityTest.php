@@ -44,6 +44,38 @@ class OperatorWeeklyScheduleAndUnavailabilityTest extends TestCase
         $response->assertDontSee('Bloqueos de no disponibilidad');
     }
 
+    public function test_create_page_prefills_weekly_schedule_with_business_hours(): void
+    {
+        $response = $this->actingAs($this->admin())->get(route('operators.create'));
+        $content = $response->getContent();
+
+        $response->assertOk();
+        // Horario general por default (sin SystemSettings capturado): 09:00-19:00.
+        $this->assertSame(7, substr_count($content, 'value="09:00"'));
+        $this->assertSame(7, substr_count($content, 'value="19:00"'));
+        // Los 7 días + el switch "Operador activo" quedan marcados por default.
+        $this->assertSame(8, substr_count($content, 'checked>'));
+    }
+
+    public function test_edit_page_does_not_default_days_when_operator_already_has_a_partial_schedule(): void
+    {
+        $operator = $this->operator();
+        $operator->weeklySchedules()->create([
+            'day_of_week' => 1,
+            'start_time' => '10:00',
+            'end_time' => '14:00',
+        ]);
+
+        $response = $this->actingAs($this->admin())->get(route('operators.edit', $operator));
+        $content = $response->getContent();
+
+        $response->assertOk();
+        $this->assertSame(1, substr_count($content, 'value="10:00"'));
+        $this->assertSame(1, substr_count($content, 'value="14:00"'));
+        // Solo lunes (ya configurado) + el switch "Operador activo" quedan marcados, no los otros 6 días.
+        $this->assertSame(2, substr_count($content, 'checked>'));
+    }
+
     public function test_edit_page_renders_weekly_schedule_and_unavailability_blocks(): void
     {
         $operator = $this->operator();

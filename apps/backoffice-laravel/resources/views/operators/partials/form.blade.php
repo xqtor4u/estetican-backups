@@ -155,7 +155,7 @@
 
     <div class="col-12">
         <label class="form-label d-block">Horario de trabajo semanal</label>
-        <p class="text-muted small mb-2">Opcional. Si no configuras ningún día, el operador podrá agendarse a cualquier hora dentro del horario operativo del negocio (comportamiento actual).</p>
+        <p class="text-muted small mb-2">Por default se precarga con el horario operativo general del negocio para los 7 días — ajusta o desmarca los días que necesites que sean distintos para este operador.</p>
         <div class="table-responsive">
             <table class="table table-sm align-middle">
                 <thead>
@@ -169,6 +169,9 @@
                 <tbody>
                     @php($dayLabels = [0 => 'Domingo', 1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado'])
                     @php($existingSchedule = isset($operator) ? $operator->weeklySchedules->keyBy('day_of_week') : collect())
+                    @php($noScheduleYet = $existingSchedule->isEmpty())
+                    @php($defaultStartTime = $defaultScheduleStartTime ?? '09:00')
+                    @php($defaultEndTime = $defaultScheduleEndTime ?? '19:00')
                     @foreach ($dayLabels as $dayOfWeek => $label)
                         @php($daySchedule = $existingSchedule->get($dayOfWeek))
                         @php($oldDay = old("weekly_schedule.$dayOfWeek"))
@@ -177,15 +180,15 @@
                             <td>
                                 <input type="hidden" name="weekly_schedule[{{ $dayOfWeek }}][enabled]" value="0">
                                 <input type="checkbox" class="form-check-input" name="weekly_schedule[{{ $dayOfWeek }}][enabled]" value="1"
-                                    @checked($oldDay['enabled'] ?? (bool) $daySchedule)>
+                                    @checked($oldDay['enabled'] ?? ($daySchedule ? true : $noScheduleYet))>
                             </td>
                             <td>
                                 <input type="time" class="form-control form-control-sm" name="weekly_schedule[{{ $dayOfWeek }}][start_time]"
-                                    value="{{ $oldDay['start_time'] ?? ($daySchedule?->start_time ? substr($daySchedule->start_time, 0, 5) : '') }}">
+                                    value="{{ $oldDay['start_time'] ?? ($daySchedule?->start_time ? substr($daySchedule->start_time, 0, 5) : ($noScheduleYet ? $defaultStartTime : '')) }}">
                             </td>
                             <td>
                                 <input type="time" class="form-control form-control-sm" name="weekly_schedule[{{ $dayOfWeek }}][end_time]"
-                                    value="{{ $oldDay['end_time'] ?? ($daySchedule?->end_time ? substr($daySchedule->end_time, 0, 5) : '') }}">
+                                    value="{{ $oldDay['end_time'] ?? ($daySchedule?->end_time ? substr($daySchedule->end_time, 0, 5) : ($noScheduleYet ? $defaultEndTime : '')) }}">
                             </td>
                         </tr>
                         @error("weekly_schedule.$dayOfWeek.start_time")

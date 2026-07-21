@@ -1,5 +1,31 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 20/07/2026 (cont. 4) — BL-060: fix real en producción — horario por default con el horario general del negocio
+
+### ✅ Logros y Cambios
+
+Continuación inmediata de BL-060 (cont. 3): el usuario probó la feature recién cerrada en producción real y reportó "ya los cambié pero no guarda los cambios". Se verificó directo contra la BD real: el operador sí se había actualizado (`updated_at` recién tocado), pero `operator_weekly_schedules` seguía en 0 filas para toda la tabla — el usuario había llenado horas en algunos días sin marcar la casilla "Trabaja" de esos días, y el diseño original (tabla vacía, opt-in explícito por checkbox) descartaba esas filas en silencio, sin ningún error visible.
+
+**Decisión del usuario:** en vez de solo explicar el checkbox, cambiar el default — el formulario debe **precargar los 7 días con el horario operativo general del negocio** (`BusinessHours`, la única referencia de horario que existe hoy en el sistema) en vez de partir vacío, y el staff ajusta/desmarca desde ahí si un operador necesita algo distinto. Arreglar además los operadores que ya existen.
+
+**Cambios:** `OperatorController` inyecta `BusinessHours` (mismo patrón ya usado en `SpaBookingController`/`Api\BookingController`) y pasa `defaultScheduleStartTime`/`defaultScheduleEndTime` a `create()`/`edit()`. En `form.blade.php`, cuando el operador **no tiene ninguna fila** de horario capturada (`$existingSchedule->isEmpty()`), los 7 días se muestran marcados con el horario general por default; en cuanto el operador ya tiene al menos una fila real, el formulario deja de aplicar ese default y respeta exactamente lo capturado (sin fila = día libre, como antes). **Backfill de una sola vez** (vía tinker, no un comando permanente) para los 2 operadores reales existentes — ambos quedaron con 7 filas = horario general (09:00–19:00), verificado directo contra la BD real de producción, no solo en tests.
+
+**Verificación:** 2 tests nuevos (`test_create_page_prefills_weekly_schedule_with_business_hours`, `test_edit_page_does_not_default_days_when_operator_already_has_a_partial_schedule` — confirma que el default deja de aplicar en cuanto hay al menos una fila real). Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 235 pasan (antes 233).
+
+### 📁 Archivos principales tocados
+- `app/Http/Controllers/OperatorController.php` (inyecta `BusinessHours`, pasa defaults a `create()`/`edit()`)
+- `resources/views/operators/partials/form.blade.php` (lógica de default cuando no hay horario capturado)
+- `tests/Feature/OperatorWeeklyScheduleAndUnavailabilityTest.php` (2 tests nuevos)
+- Datos de producción: backfill de `operator_weekly_schedules` para los 2 operadores reales existentes (7 filas c/u)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. Confirmar con el usuario que ahora sí guarda correctamente al probarlo de nuevo en producción.
+3. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 20/07/2026 (cont. 3) — BL-060: horario semanal + bloqueos de no-disponibilidad por operador
 
 ### ✅ Logros y Cambios
