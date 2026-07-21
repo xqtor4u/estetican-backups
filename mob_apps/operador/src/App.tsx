@@ -19,6 +19,7 @@ import { MobCitaDet } from './admin/MobCitaDet';
 import { MobCobro }      from './admin/MobCobro';
 import { MobPetJobs }    from './admin/MobPetJobs';
 import { MobUserConfig } from './admin/MobUserConfig';
+import { MobUnavailability } from './admin/MobUnavailability';
 import { MobCaja }             from './admin/MobCaja';
 import { MobCajaMovimientos } from './admin/MobCajaMovimientos';
 import { clearNavCrumbs } from './navState';
@@ -416,6 +417,7 @@ export default function App() {
             <Route path="/caja"                 element={<AdminLayout><MobCaja /></AdminLayout>} />
             <Route path="/caja/movimientos"    element={<AdminLayout><MobCajaMovimientos /></AdminLayout>} />
             <Route path="/configuracion"        element={<AdminLayout><MobUserConfig /></AdminLayout>} />
+            <Route path="/configuracion/disponibilidad" element={<AdminLayout><MobUnavailability /></AdminLayout>} />
           </Routes>
         </AuthGuard>
       </Router>

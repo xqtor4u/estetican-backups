@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\PetController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\UnavailabilityController;
 use App\Http\Middleware\ApiAuthenticate;
 use App\Http\Middleware\VerifyAssistantSiteToken;
 use App\Models\DocumentSeries;
@@ -42,6 +43,10 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/me/verify-password', [ProfileController::class, 'verifyPassword']);
     Route::post('/me/photo', [ProfileController::class, 'updatePhoto']);
     Route::delete('/me/photo', [ProfileController::class, 'deletePhoto']);
+
+    Route::get('/me/unavailabilities', [UnavailabilityController::class, 'index'])->middleware('permission:ver disponibilidad_propia');
+    Route::post('/me/unavailabilities', [UnavailabilityController::class, 'store'])->middleware('permission:crear disponibilidad_propia');
+    Route::delete('/me/unavailabilities/{unavailability}', [UnavailabilityController::class, 'destroy'])->middleware('permission:eliminar disponibilidad_propia');
 
     Route::get('/pets', [PetController::class, 'index']);
     Route::post('/pets', [PetController::class, 'store']);

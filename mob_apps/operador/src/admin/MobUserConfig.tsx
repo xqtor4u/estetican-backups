@@ -279,6 +279,24 @@ export function MobUserConfig() {
         {biometricError && <p className="text-xs text-error mt-2 px-1">{biometricError}</p>}
       </div>
 
+      {/* Sección: Disponibilidad (solo operadores) */}
+      {user?.operator_role && (
+        <div className="mx-4 mt-6">
+          <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 px-1">Disponibilidad</p>
+          <button
+            onClick={() => navigate('/configuracion/disponibilidad')}
+            className="w-full flex items-center gap-3 px-4 py-3.5 bg-surface-container border border-outline-variant rounded-2xl text-left active:bg-surface-container-high transition-colors"
+          >
+            <span className="material-symbols-outlined text-xl text-primary">event_busy</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-on-surface">Bloquear horas de vacaciones/permiso</p>
+              <p className="text-xs text-on-surface-variant mt-0.5">Marca periodos en los que no se te debe agendar</p>
+            </div>
+            <span className="material-symbols-outlined text-base text-on-surface-variant">chevron_right</span>
+          </button>
+        </div>
+      )}
+
       {/* Sección: Tema */}
       <div className="mx-4 mt-6">
         <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 px-1">Tema</p>

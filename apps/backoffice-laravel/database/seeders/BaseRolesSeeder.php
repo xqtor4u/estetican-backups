@@ -33,6 +33,7 @@ class BaseRolesSeeder extends Seeder
             'usuarios',
             'whatsapp',
             'clinico',
+            'disponibilidad_propia',
         ];
 
         $actions = ['ver', 'crear', 'editar', 'eliminar'];

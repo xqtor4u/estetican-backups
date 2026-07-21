@@ -54,6 +54,7 @@ class UserController extends Controller
             'catalogo_servicios' => ['label' => 'Catálogos', 'code' => 'CATALL'],
             'configuracion_sistema' => ['label' => 'Configuración', 'code' => 'SYSSET'],
             'usuarios' => ['label' => 'Usuarios', 'code' => 'USRIND'],
+            'disponibilidad_propia' => ['label' => 'Disponibilidad propia (autoservicio operador)', 'code' => 'OPRDISP'],
         ];
         
         $actions = [
@@ -145,6 +146,7 @@ class UserController extends Controller
             'catalogo_servicios' => ['label' => 'Catálogos', 'code' => 'CATALL'],
             'configuracion_sistema' => ['label' => 'Configuración', 'code' => 'SYSSET'],
             'usuarios' => ['label' => 'Usuarios', 'code' => 'USRIND'],
+            'disponibilidad_propia' => ['label' => 'Disponibilidad propia (autoservicio operador)', 'code' => 'OPRDISP'],
         ];
         
         $actions = [

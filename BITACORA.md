@@ -1,5 +1,39 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 20/07/2026 (cont. 5) — BL-061: autoservicio de disponibilidad para operadores (app móvil)
+
+### ✅ Logros y Cambios
+
+Continuación directa de BL-060: el usuario pidió que un operador pueda bloquear sus propias horas sin depender del administrador, gateado por un permiso asignable. Se usó `EnterPlanMode` (2 agentes `Explore` en paralelo — vínculo `User`↔`Operator`/convención de permisos Spatie por un lado, estructura de la app móvil por otro — más diseño directo sin agente `Plan` dado que la investigación ya dejó el diseño casi completo) para decidir arquitectura antes de tocar código. Dos decisiones confirmadas con el usuario antes de diseñar: la pantalla vive en la **app móvil** (no Backoffice web), y el permiso solo deja tocar el propio registro de `Operator`, nunca el de otro.
+
+**Hallazgo clave que cambió el diseño original:** la matriz de permisos de `Usuarios → editar` (Backoffice) hace `syncPermissions()` con solo lo que está marcado en su checkbox — cualquier permiso fuera de esa matriz (como los granulares `alergias.administrar`/`clinico.firmar`) se borraría solo en la siguiente edición del usuario. Por eso el permiso nuevo (`disponibilidad_propia`) se diseñó **estilo CRUD** (`ver/crear/editar/eliminar`) y se agregó a esa misma matriz, en vez de un granular suelto como se había planteado al inicio — sin esto, el permiso se habría auto-revocado la primera vez que un admin editara al operador por cualquier otro motivo.
+
+**Backend:** `disponibilidad_propia` agregado al array de módulos de `BaseRolesSeeder` (genera los 4 permisos) y a `UserController@create()`/`@edit()` (misma matriz de checkboxes ya existente, sin rol operador nuevo). Controller API nuevo `Api\UnavailabilityController` (`index`/`store`/`destroy`, JSON puro) que resuelve siempre el operador vía `$request->user()->operator` (relación ya existente `users.operator_id`) — nunca lee `operator_id` del body, así que no importa qué mande el cliente, la fila queda ligada al operador del usuario autenticado; `destroy()` compara `operator_id` antes de borrar. 3 rutas nuevas bajo `/api/me/unavailabilities`, primer uso de `middleware('permission:...')` en `routes/api.php` (funciona sin fricción porque `ApiAuthenticate` hace login sobre el guard `web`, el mismo de Spatie).
+
+**App móvil:** pantalla nueva `MobUnavailability.tsx` (lista + FAB + bottom-sheet de alta, mismo patrón visual que `MobCaja.tsx`; borrado real por fila vía `DELETE`, no en memoria como `ClientDetail.tsx`), ruta `/configuracion/disponibilidad`, enlazada desde una sección nueva en `MobUserConfig.tsx` — visible solo si `user.operator_role` existe (limpieza de UI nada más, el gate real de seguridad lo resuelve el servidor con el permiso).
+
+**Verificación:** 8 tests nuevos (`OperatorSelfServiceUnavailabilityTest` — incluye confirmar que `BaseRolesSeeder` sigue generando los 4 permisos limpio), suite sin regresiones (37 fallidas preexistentes, 243 pasan, antes 235). App móvil sin infraestructura de test de UI en este entorno — verificada con `tsc --noEmit` + `npm run build`; los 2 errores de `tsc` que aparecen son preexistentes y ajenos a este cambio (`ActiveService.tsx`, huérfano ya documentado en BL-037; un tipo `key` en `MobCajaMovimientos.tsx`).
+
+**Producción:** corrido `db:seed --class=BaseRolesSeeder --force` en el contenedor real — confirmados los 4 permisos nuevos en la BD real.
+
+### 📁 Archivos principales tocados
+- `database/seeders/BaseRolesSeeder.php` (módulo `disponibilidad_propia`)
+- `app/Http/Controllers/UserController.php` (matriz de permisos en `create()`/`edit()`)
+- `app/Http/Controllers/Api/UnavailabilityController.php` (nuevo)
+- `routes/api.php` (3 rutas nuevas + import)
+- `tests/Feature/Api/OperatorSelfServiceUnavailabilityTest.php` (nuevo)
+- `mob_apps/operador/src/admin/MobUnavailability.tsx` (nuevo)
+- `mob_apps/operador/src/App.tsx` (ruta + import)
+- `mob_apps/operador/src/admin/MobUserConfig.tsx` (sección/link nuevo)
+- `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. Desde Backoffice web, ir a Usuarios → editar el operador real que se quiera habilitar (ej. Jose Mendez Pérez) y marcar "Crear"/"Eliminar" en la fila "Disponibilidad propia" de la matriz — el permiso existe en la BD pero todavía no está asignado a ningún usuario real.
+3. BL-047 (clínica fase 2), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 20/07/2026 (cont. 4) — BL-060: fix real en producción — horario por default con el horario general del negocio
 
 ### ✅ Logros y Cambios
