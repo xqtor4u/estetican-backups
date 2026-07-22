@@ -119,5 +119,11 @@ return [
             'thumbnail_size' => env('BACKOFFICE_USER_THUMB_SIZE', 160),
             'thumbnail_quality' => env('BACKOFFICE_USER_THUMB_QUALITY', 65),
         ],
+        'clinical_attachments' => [
+            // Sin thumbnail ni recorte: un adjunto clínico (laboratorio/imagenología)
+            // debe conservarse legible completo, no en un cuadro cropeado.
+            'main_max_size' => env('BACKOFFICE_CLINICAL_ATTACHMENT_IMAGE_MAX_SIZE', 1800),
+            'main_quality' => env('BACKOFFICE_CLINICAL_ATTACHMENT_IMAGE_QUALITY', 88),
+        ],
     ],
 ];

@@ -3,26 +3,26 @@
 namespace App\Models;
 
 use App\Support\CatalogCache\PetCatalogCache;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
-use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class Pet extends Model
 {
-    use HasFactory, SoftDeletes, LogsActivity;
+    use HasFactory, LogsActivity, SoftDeletes;
 
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
             ->logOnly(['client_id', 'name', 'species', 'breed', 'birth_date', 'death_date',
-                       'microchip_code', 'tattoo_code', 'sex', 'coat_color', 'size',
-                       'is_sterilized', 'notes'])
+                'microchip_code', 'tattoo_code', 'sex', 'coat_color', 'size',
+                'is_sterilized', 'notes'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->useLogName('mascotas');
@@ -60,8 +60,8 @@ class Pet extends Model
     ];
 
     protected $casts = [
-        'birth_date'           => 'date',
-        'death_date'           => 'date',
+        'birth_date' => 'date',
+        'death_date' => 'date',
         'flagged_for_deletion' => 'boolean',
         'is_sterilized' => 'boolean',
         'lat' => 'decimal:8',
@@ -106,6 +106,11 @@ class Pet extends Model
     public function clinicalVisits()
     {
         return $this->hasMany(ClinicalVisit::class);
+    }
+
+    public function attachments()
+    {
+        return $this->hasMany(ClinicalAttachment::class);
     }
 
     public function spaBookings(): HasMany
@@ -159,6 +164,7 @@ class Pet extends Model
             if (str_contains($this->profile_photo_path, '/original/')) {
                 return Storage::disk('public')->url(str_replace('/original/', '/thumbs/', $this->profile_photo_path));
             }
+
             return Storage::disk('public')->url($this->profile_photo_path);
         }
 
@@ -174,39 +180,45 @@ class Pet extends Model
         return $this->catalog_photo?->photo_file_url;
     }
 
-    public function getLastServiceAtAttribute(): ?\Carbon\Carbon
+    public function getLastServiceAtAttribute(): ?Carbon
     {
         $lastSpa = $this->spaBookings()->where('scheduled_at', '<=', now())->max('scheduled_at');
         $lastHotel = $this->hotelReservations()->where('start_at', '<=', now())->max('start_at');
 
-        if (!$lastSpa && !$lastHotel) return null;
-        if (!$lastSpa) return \Carbon\Carbon::parse($lastHotel);
-        if (!$lastHotel) return \Carbon\Carbon::parse($lastSpa);
+        if (! $lastSpa && ! $lastHotel) {
+            return null;
+        }
+        if (! $lastSpa) {
+            return Carbon::parse($lastHotel);
+        }
+        if (! $lastHotel) {
+            return Carbon::parse($lastSpa);
+        }
 
-        return \Carbon\Carbon::parse($lastSpa)->max($lastHotel);
+        return Carbon::parse($lastSpa)->max($lastHotel);
     }
 
     public function getAgeDescriptionAttribute(): ?string
     {
-        if (!$this->birth_date) {
+        if (! $this->birth_date) {
             return null;
         }
 
         $endDate = $this->death_date ?: now();
         $parts = $this->formatAgeParts($this->birth_date, $endDate);
 
-        if (!$parts) {
+        if (! $parts) {
             return null;
         }
 
         return $this->death_date
-            ? 'Edad al fallecer: ' . implode(' y ', $parts)
-            : 'Edad actual: ' . implode(' y ', $parts);
+            ? 'Edad al fallecer: '.implode(' y ', $parts)
+            : 'Edad actual: '.implode(' y ', $parts);
     }
 
     public function getSpeciesLabelAttribute(): ?string
     {
-        if (!$this->species) {
+        if (! $this->species) {
             return null;
         }
 
@@ -223,18 +235,18 @@ class Pet extends Model
         $parts = [];
 
         if ($diff->y > 0) {
-            $parts[] = $diff->y . ' ' . ($diff->y === 1 ? 'año' : 'años');
+            $parts[] = $diff->y.' '.($diff->y === 1 ? 'año' : 'años');
         }
 
         if ($diff->m > 0 && count($parts) < 2) {
-            $parts[] = $diff->m . ' ' . ($diff->m === 1 ? 'mes' : 'meses');
+            $parts[] = $diff->m.' '.($diff->m === 1 ? 'mes' : 'meses');
         }
 
-        if (!$parts && $diff->d > 0) {
-            $parts[] = $diff->d . ' ' . ($diff->d === 1 ? 'dia' : 'dias');
+        if (! $parts && $diff->d > 0) {
+            $parts[] = $diff->d.' '.($diff->d === 1 ? 'dia' : 'dias');
         }
 
-        if (!$parts) {
+        if (! $parts) {
             $parts[] = 'menos de un dia';
         }
 

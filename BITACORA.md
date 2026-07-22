@@ -1,5 +1,35 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 21/07/2026 (cont. 3) — BL-047 (parcial): adjuntos clínicos reales
+
+### ✅ Logros y Cambios
+
+El usuario pidió avanzar BL-047 (Fase 2 del módulo clínico veterinario), que agrupa 5 piezas independientes entre sí (adjuntos reales, PDF del expediente, espejo alergia→alerta, soporte móvil, catálogo `icd_code`). Se verificó el estado real de cada una antes de proponer nada y se preguntó al usuario cuál priorizar — eligió **adjuntos clínicos reales**.
+
+**Hallazgo:** la tabla `clinical_attachments` y el modelo `ClinicalAttachment` ya existían completos desde BL-046 (Fase 1) — incluyendo `#[Fillable]`, relaciones y `LogsActivity` — pero no había controller, rutas ni vista: nadie podía subir nada todavía.
+
+**Diseño:** a diferencia de los `*ImageManager` existentes (fotos de identidad/galería, todos con recorte vía `x-image-upload`/cropperjs), un adjunto clínico puede ser una radiografía/foto de resultado **o** un PDF de laboratorio — recortar no aplica. Se creó `ClinicalAttachmentManager` nuevo: si el archivo es imagen, la optimiza completa sin recorte (`Fit::Max`, sin thumbnail, nueva sección de config `backoffice.images.clinical_attachments`); si es PDF, lo guarda tal cual sin tocar sus bytes. `ClinicalAttachmentController` (store/destroy) vive a nivel **mascota** (no nivel visita, aunque `clinical_visit_id` queda como enlace opcional) — permisos `crear clinico`/`editar clinico`, consistente con diagnósticos/recetas (no `alergias.administrar`, que es para el otro grupo de datos tipo antecedentes). Nueva sección "Adjuntos clínicos" en `clinical/pets/show.blade.php`, mismo patrón visual (form + listado con botón "Ver"/"Eliminar") que alergias/condiciones/vacunas ya existentes en la misma vista.
+
+**Verificación:** 6 tests nuevos (`ClinicalAttachmentTest`) — sube imagen (confirma que se optimiza sin recortar y que la página realmente la muestra tras subir, no solo que exista en BD), sube PDF (confirma que el mime/bytes no se tocan), permiso requerido, `clinical_visit_id` debe pertenecer a la misma mascota, destroy borra archivo+registro, destroy rechaza adjunto de otra mascota. Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 270 pasan (antes 264). Verificado además que la vista real renderiza correctamente contra el flujo HTTP completo (no solo aserciones de BD).
+
+### 📁 Archivos principales tocados
+- `app/Models/ClinicalAttachment.php`, `app/Models/Pet.php` (relación `attachments()` nueva)
+- `app/Support/ClinicalAttachmentManager.php` (nuevo)
+- `app/Http/Controllers/Clinical/ClinicalAttachmentController.php` (nuevo)
+- `app/Http/Controllers/Clinical/ClinicalVisitController.php` (`showPet()` carga `attachments`)
+- `config/backoffice.php` (sección `images.clinical_attachments`)
+- `routes/web.php` (2 rutas nuevas: `clinical.attachments.store`/`.destroy`)
+- `resources/views/clinical/pets/show.blade.php` (sección "Adjuntos clínicos")
+- `tests/Feature/Clinical/ClinicalAttachmentTest.php` (nuevo)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 resto: PDF/impresión oficial del expediente (requiere instalar `barryvdh/laravel-dompdf`), espejo automático alergia severa→alerta, soporte en app móvil, catálogo real de `icd_code`.
+3. BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 21/07/2026 (cont. 2) — BL-065: switch simple para asignar "disponibilidad propia"
 
 ### ✅ Logros y Cambios

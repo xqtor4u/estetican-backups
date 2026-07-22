@@ -311,7 +311,92 @@
         'signed' => 'Firmada',
         'amended' => 'Corregida (ver nota aclaratoria)',
     ];
+    $attachmentTypeLabels = [
+        'lab_result' => 'Resultado de laboratorio',
+        'xray' => 'Radiografía',
+        'ultrasound' => 'Ultrasonido',
+        'other_imaging' => 'Otra imagenología',
+        'referral_letter' => 'Carta de referencia',
+        'other' => 'Otro',
+    ];
 @endphp
+
+{{-- Adjuntos clínicos --}}
+<section id="attachments" class="mb-5">
+    <h2 class="h4 mb-3">Adjuntos clínicos</h2>
+    <div class="card mb-3">
+        <div class="card-body">
+            <h3 class="h6">Nuevo adjunto</h3>
+            <form action="{{ route('clinical.attachments.store', $pet) }}" method="POST" enctype="multipart/form-data" class="row g-3 mt-1">
+                @csrf
+                <div class="col-md-3">
+                    <label class="form-label">Tipo</label>
+                    <select name="attachment_type" class="form-select" required>
+                        @foreach($attachmentTypeLabels as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Archivo (imagen o PDF)</label>
+                    <input type="file" name="file" class="form-control" accept=".jpg,.jpeg,.png,.pdf" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Realizado</label>
+                    <input type="date" name="performed_at" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Realizado por</label>
+                    <input type="text" name="performed_by" class="form-control" placeholder="Laboratorio/clínica externa">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Visita relacionada</label>
+                    <select name="clinical_visit_id" class="form-select">
+                        <option value="">Sin especificar</option>
+                        @foreach($pet->clinicalVisits as $visit)
+                            <option value="{{ $visit->id }}">{{ $visit->visited_at->format('d/m/Y') }} — {{ $visitTypeLabels[$visit->visit_type] ?? $visit->visit_type }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Descripción</label>
+                    <textarea name="description" class="form-control" rows="2"></textarea>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Subir adjunto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            @if($pet->attachments->isEmpty())
+                <p class="text-muted mb-0">Sin adjuntos registrados.</p>
+            @else
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Tipo</th><th>Realizado</th><th>Realizado por</th><th>Descripción</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach($pet->attachments as $attachment)
+                            <tr>
+                                <td>{{ $attachmentTypeLabels[$attachment->attachment_type] ?? $attachment->attachment_type }}</td>
+                                <td>{{ $attachment->performed_at?->format('d/m/Y') ?? '—' }}</td>
+                                <td>{{ $attachment->performed_by ?? '—' }}</td>
+                                <td>{{ $attachment->description ?? '—' }}</td>
+                                <td class="text-end text-nowrap">
+                                    <a href="{{ Storage::disk('public')->url($attachment->file_path) }}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver</a>
+                                    <form action="{{ route('clinical.attachments.destroy', [$pet, $attachment]) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar este adjunto?');">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+        </div>
+    </div>
+</section>
 
 {{-- Historial de visitas --}}
 <section id="visits" class="mb-5">

@@ -33,7 +33,7 @@
 | BL-002 | Favicon & Empresa: subida de favicon + datos generales del negocio | Feature | `SystemSetting` — branding básico |
 | ~~BL-003~~ | ~~Email Avanzado: credenciales SMTP (usuario/password, puertos, SSL/TLS)~~ **COMPLETADO** — cumplido por BL-040 (ver Completados) | Feature | |
 | BL-004 | Zonas Horarias: reemplazar selector UTC por selector completo | Feature | Selector actual solo muestra offsets UTC, no nombres de zona |
-| BL-047 | Módulo Clínico Veterinario — Fase 2 (diferida a propósito, ver BL-046 en Completados): `clinical_attachments` real (subida de laboratorio/imagenología, generalizar `PetPhotoImageManager` para PDF), PDF/impresión oficial del expediente y receta (requiere instalar `barryvdh/laravel-dompdf`), espejo automático "alergia severa → `pet_medical_alerts`", soporte en app móvil, catálogo real de `icd_code` | Feature | El módulo sigue apagado por defecto (`clinical_module_enabled=false`) hasta que el usuario decida arrancar ese lado del negocio |
+| BL-047 | Módulo Clínico Veterinario — Fase 2 (diferida a propósito, ver BL-046 en Completados). Pendiente: PDF/impresión oficial del expediente y receta (requiere instalar `barryvdh/laravel-dompdf`), espejo automático "alergia severa → `pet_medical_alerts`", soporte en app móvil, catálogo real de `icd_code`. ~~`clinical_attachments` real~~ **COMPLETADO** 21/07/2026 — ver Completados | Feature | El módulo sigue apagado por defecto (`clinical_module_enabled=false`) hasta que el usuario decida arrancar ese lado del negocio |
 | BL-053 | Artículos de uso interno / equipo para servicios (máquinas, rasuradoras, herramientas) — concepto nuevo, distinto de `items` (catálogo de venta, BL-050/051) y de `Resources` (jaulas/cuartos vía `ResourceAllocation`, ya existe). Sin diseñar: ¿necesita mantenimiento/vida útil?, ¿se asigna a un operador?, ¿bitácora de uso? | Feature | Anotado el 15/07/2026 durante la conversación de reorganización de navegación (Inventario/RH); no se ha definido ni el modelo de datos ni si amerita su propio módulo de navegación |
 ### Prioridad Alta — Módulo Financiero (sprint actual)
 
@@ -56,6 +56,7 @@
 
 | ID | Ítem | Sesión | Commit |
 |---|---|---|---|
+| BL-047 (parcial) | Adjuntos clínicos reales: `ClinicalAttachmentController` (store/destroy) + `ClinicalAttachmentManager` (imagen optimizada sin recorte o PDF sin tocar bytes) + sección "Adjuntos clínicos" en `clinical/pets/show.blade.php`. Tabla/modelo ya existían desde BL-046 (Fase 1), solo faltaba la UI/upload real | 21/07/2026 | — |
 | — | Fix subida de fotos: cropperjs v2→v1.6.2 | 25/05/2026 | `d1e4fdd` |
 | — | Fix inicialización Cropper: shown.bs.modal + rAF | 25/05/2026 | `8c9a7e5` |
 | — | Documentación técnica ITIL: NOTAS_TECNICAS, image-upload-system, ESTRATEGIA | 25/05/2026 | `0a593d4` |

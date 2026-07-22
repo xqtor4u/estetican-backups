@@ -31,6 +31,7 @@ class ClinicalVisitController extends Controller
             'conditions' => fn ($q) => $q->orderBy('status')->orderByDesc('created_at'),
             'vaccinations' => fn ($q) => $q->orderByDesc('expires_at'),
             'clinicalVisits' => fn ($q) => $q->with('operator', 'signedBy')->orderByDesc('visited_at'),
+            'attachments' => fn ($q) => $q->orderByDesc('performed_at'),
         ]);
 
         $operators = Operator::where('is_active', true)->orderBy('name')->get(['id', 'name', 'operator_role_id']);

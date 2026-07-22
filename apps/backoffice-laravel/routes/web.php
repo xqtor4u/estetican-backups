@@ -7,6 +7,7 @@ use App\Http\Controllers\BookingMessageController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPreferencesController;
+use App\Http\Controllers\Clinical\ClinicalAttachmentController;
 use App\Http\Controllers\Clinical\ClinicalController;
 use App\Http\Controllers\Clinical\ClinicalDiagnosisController;
 use App\Http\Controllers\Clinical\ClinicalPrescriptionController;
@@ -31,8 +32,8 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\MapaZonasController;
 use App\Http\Controllers\MetaCatalogSyncController;
 use App\Http\Controllers\OperatorController;
-use App\Http\Controllers\OperatorUnavailabilityController;
 use App\Http\Controllers\OperatorRoleController;
+use App\Http\Controllers\OperatorUnavailabilityController;
 use App\Http\Controllers\PetController;
 use App\Http\Controllers\PetMedicalAlertController;
 use App\Http\Controllers\PetPhotoController;
@@ -245,6 +246,9 @@ Route::middleware('auth')->group(function () {
         Route::post('mascotas/{pet}/condiciones', [PetConditionController::class, 'store'])->middleware('permission:alergias.administrar')->name('conditions.store');
         Route::put('mascotas/{pet}/condiciones/{condition}', [PetConditionController::class, 'update'])->middleware('permission:alergias.administrar')->name('conditions.update');
         Route::delete('mascotas/{pet}/condiciones/{condition}', [PetConditionController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('conditions.destroy');
+
+        Route::post('mascotas/{pet}/adjuntos', [ClinicalAttachmentController::class, 'store'])->middleware('permission:crear clinico')->name('attachments.store');
+        Route::delete('mascotas/{pet}/adjuntos/{attachment}', [ClinicalAttachmentController::class, 'destroy'])->middleware('permission:editar clinico')->name('attachments.destroy');
     });
 
     Route::scopeBindings()->group(function () {

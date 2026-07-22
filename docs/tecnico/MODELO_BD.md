@@ -418,7 +418,7 @@ Recetas — encabezado/líneas, mismo patrón que `executed_services`/`executed_
 | `special_instructions` | text nullable | |
 
 ### `clinical_attachments`
-Adjuntos clínicos (laboratorio/imagenología) — tabla creada en Fase 1, **UI/upload real diferido a Fase 2** (generalizar `PetPhotoImageManager` para aceptar PDF).
+Adjuntos clínicos (laboratorio/imagenología). Tabla creada en Fase 1 (BL-046); UI/upload real (BL-047) vía `ClinicalAttachmentController` (`clinico/mascotas/{pet}/adjuntos`, permisos `crear clinico`/`editar clinico`) + `ClinicalAttachmentManager` — a diferencia de los `*ImageManager` de fotos de identidad/galería, **no recorta**: una imagen se optimiza completa (`Fit::Max`, sin thumbnail, config `backoffice.images.clinical_attachments`) y un PDF se guarda tal cual. Sección "Adjuntos clínicos" en `clinical/pets/show.blade.php`, nivel mascota (no nivel visita) con `clinical_visit_id` opcional.
 
 | Columna | Tipo | Notas |
 |---|---|---|
