@@ -1,5 +1,34 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 24/07/2026 (cont. 2) — BL-047 (resto): PDF del expediente clínico y receta
+
+### ✅ Logros y Cambios
+
+Con BL-066 ya cerrado, se retomó BL-047: "PDF/impresión oficial del expediente y receta", pendiente desde que se cerró la Fase 1 del módulo clínico. Antes de codificar se investigó a fondo (2 agentes en paralelo) el estado real del módulo clínico y se confirmó que el proyecto no tenía ninguna librería de PDF — todo lo "imprimible" (cotizaciones, órdenes, la ficha resumen clínica ya existente) usa HTML + `window.print()` del navegador. Se preguntó al usuario si construir sobre ese mismo patrón (cero dependencias nuevas) o instalar `barryvdh/laravel-dompdf` para un PDF binario real — eligió instalar dompdf, y pidió cubrir en la misma pasada tanto el expediente completo como una receta individual.
+
+**Riesgo validado primero:** el proyecto corre Laravel 13 (muy reciente); se confirmó que `barryvdh/laravel-dompdf` ya declara compatibilidad (`composer require` resolvió v3.1.2 sin fricción, dompdf v3.1.6) — no hizo falta el plan de respaldo (dompdf directo sin el wrapper de Laravel).
+
+**Diseño:** el layout de reportes ya existente (`layouts/report.blade.php`) usa `display: flex`/`grid`, que dompdf no soporta de forma confiable — se creó `layouts/pdf.blade.php` nuevo, con la misma identidad visual pero CSS basado en tablas/bloques. El logo se pasa como ruta absoluta de archivo (`Storage::disk('public')->path()`), no como URL, para que dompdf no dependa de `isRemoteEnabled`. `ClinicalRecordPdfController` nuevo con dos métodos: `pet()` descarga el expediente completo de una mascota (identidad, alergias, condiciones, vacunas, historial de peso, adjuntos por metadata, e historial de visitas con SOAP/diagnósticos/recetas completo — no solo el resumen que ya usa la ficha imprimible); `prescription()` descarga una receta individual (fármacos, dosis, operador prescriptor + cédula, línea de firma). Ambas rutas usan el permiso `ver clinico` ya existente (mismo nivel que la ficha resumen), sin crear permisos nuevos.
+
+**Verificación:** 5 tests nuevos (`ClinicalRecordPdfTest`) — expediente con historial completo (visita+diagnóstico+receta+alergia+peso+vacuna) devuelve 200 + `Content-Type: application/pdf`, permiso requerido, gate del módulo clínico respetado, receta individual igual. Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 280 pasan (antes 275). Verificado además renderizando el PDF real contra una mascota real de producción (solo lectura, vía tinker) — logo, acentos en español y tablas se ven correctos.
+
+### 📁 Archivos principales tocados
+- `composer.json`/`composer.lock` (`barryvdh/laravel-dompdf` nuevo)
+- `resources/views/layouts/pdf.blade.php` (nuevo)
+- `app/Http/Controllers/Clinical/ClinicalRecordPdfController.php` (nuevo)
+- `resources/views/clinical/pets/record-pdf.blade.php`, `resources/views/clinical/prescriptions/pdf.blade.php` (nuevos)
+- `routes/web.php` (2 rutas nuevas: `clinical.pets.record.pdf`, `clinical.prescriptions.pdf`)
+- `resources/views/clinical/pets/show.blade.php`, `resources/views/clinical/visits/show.blade.php` (botones/enlaces nuevos)
+- `tests/Feature/Clinical/ClinicalRecordPdfTest.php` (nuevo)
+- `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 resto: espejo automático alergia severa→alerta, soporte en app móvil, catálogo real de `icd_code`.
+3. BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 24/07/2026 — BL-066: borrado de usuarios respeta historial
 
 ### ✅ Logros y Cambios

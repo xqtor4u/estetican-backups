@@ -11,6 +11,7 @@ use App\Http\Controllers\Clinical\ClinicalAttachmentController;
 use App\Http\Controllers\Clinical\ClinicalController;
 use App\Http\Controllers\Clinical\ClinicalDiagnosisController;
 use App\Http\Controllers\Clinical\ClinicalPrescriptionController;
+use App\Http\Controllers\Clinical\ClinicalRecordPdfController;
 use App\Http\Controllers\Clinical\ClinicalVisitController;
 use App\Http\Controllers\Clinical\PetAllergyController;
 use App\Http\Controllers\Clinical\PetConditionController;
@@ -220,6 +221,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('mascotas/{pet}', [ClinicalVisitController::class, 'showPet'])->middleware('permission:ver clinico')->name('pets.show');
         Route::get('mascotas/{pet}/ficha', [PetFolderController::class, 'print'])->middleware('permission:ver clinico')->name('pets.folder');
+        Route::get('mascotas/{pet}/expediente.pdf', [ClinicalRecordPdfController::class, 'pet'])->middleware('permission:ver clinico')->name('pets.record.pdf');
 
         Route::get('mascotas/{pet}/visitas/crear', [ClinicalVisitController::class, 'create'])->middleware('permission:crear clinico')->name('visits.create');
         Route::post('mascotas/{pet}/visitas', [ClinicalVisitController::class, 'store'])->middleware('permission:crear clinico')->name('visits.store');
@@ -234,6 +236,7 @@ Route::middleware('auth')->group(function () {
         Route::post('diagnosticos/{diagnosis}/promover', [ClinicalDiagnosisController::class, 'promote'])->middleware('permission:editar clinico')->name('diagnoses.promote');
 
         Route::post('visitas/{visit}/recetas', [ClinicalPrescriptionController::class, 'store'])->middleware('permission:editar clinico')->name('prescriptions.store');
+        Route::get('recetas/{prescription}/pdf', [ClinicalRecordPdfController::class, 'prescription'])->middleware('permission:ver clinico')->name('prescriptions.pdf');
 
         Route::post('mascotas/{pet}/vacunas', [PetVaccinationController::class, 'store'])->middleware('permission:alergias.administrar')->name('vaccinations.store');
         Route::put('mascotas/{pet}/vacunas/{vaccination}', [PetVaccinationController::class, 'update'])->middleware('permission:alergias.administrar')->name('vaccinations.update');

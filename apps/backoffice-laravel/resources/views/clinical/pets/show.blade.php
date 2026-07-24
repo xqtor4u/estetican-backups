@@ -12,6 +12,7 @@
     <x-slot:actions>
         <div class="d-flex gap-2 flex-wrap justify-content-end">
             <a href="{{ route('clinical.pets.folder', $pet) }}" target="_blank" class="btn btn-outline-secondary">Ficha imprimible</a>
+            <a href="{{ route('clinical.pets.record.pdf', $pet) }}" class="btn btn-outline-primary">Descargar expediente (PDF)</a>
         </div>
     </x-slot:actions>
 </x-page-header>

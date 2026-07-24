@@ -153,6 +153,7 @@
                 @if($prescription->general_instructions)
                     <p class="text-muted small mb-0">{{ $prescription->general_instructions }}</p>
                 @endif
+                <a href="{{ route('clinical.prescriptions.pdf', $prescription) }}" class="btn btn-sm btn-outline-primary mt-1">Imprimir receta (PDF)</a>
             </div>
         @empty
             <p class="text-muted">Sin recetas.</p>
