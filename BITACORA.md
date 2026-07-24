@@ -1,5 +1,30 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 24/07/2026 — BL-066: borrado de usuarios respeta historial
+
+### ✅ Logros y Cambios
+
+El usuario preguntó por qué no se podían borrar usuarios "en ningún lado". Investigación real: **sí existía** `UserController::destroy()` (hard-delete), pero solo era visible en la ficha individual (`user/show.blade.php`), no en el listado, y solo para `super_admin` — de ahí la confusión. De paso se encontró un gap real: el borrado no validaba ninguna dependencia (a diferencia de `Pet`, que usa soft-delete y valida citas activas). El usuario decidió el diseño: si el usuario tiene historial asociado, debe quedar **inactivo** en vez de borrarse, para no perder ese historial.
+
+**Implementación:** `User::hasHistoricalDependencies()` (nuevo) revisa `operator_id` vinculado, causante en `activity_log` (Spatie), y referencias en 13 tablas operativas/financieras (`audit_logs`, `operator_checkins`, `spa_bookings`, `cash_sessions`, `cash_movements`, `whatsapp_templates`, `booking_messages`, `recurrence_messages`, `resource_events`, `resource_event_updates`, `item_movements`, `documents`, `journal_entries`) — el mapeo completo de FKs hacia `users` en todo el esquema. `UserController::destroy()` ahora marca `is_active=false`/`can_login=false` en vez de borrar si encuentra alguna; si no hay ninguna, borra en duro como antes. El candado de "no puedes eliminarte a ti mismo" no cambió.
+
+**Hallazgo colateral resuelto de paso:** el listado de usuarios (`user/index.blade.php`) no mostraba el estado (`is_active`) de forma explícita — solo atenuaba la fila con CSS (`opacity-75 grayscale`), sin badge ni texto, a diferencia de la ficha individual que sí tenía un badge "Activo"/"Baja". Se agregó una columna "Estado" nueva con el mismo badge, necesaria ahora que desactivar (en vez de borrar) es un resultado real y frecuente de esta pantalla.
+
+**Verificación:** 5 tests nuevos (`UserDestroyTest`) — borrado duro sin historial, desactivación por operador vinculado, por `activity_log`, por `audit_logs`, candado de auto-eliminación. Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 275 pasan (antes 270).
+
+### 📁 Archivos principales tocados
+- `app/Models/User.php` (`hasHistoricalDependencies()`, `HISTORY_TABLES`)
+- `app/Http/Controllers/UserController.php` (`destroy()`)
+- `resources/views/user/{index,show}.blade.php` (columna "Estado" en listado, texto de confirmación actualizado)
+- `tests/Feature/UserDestroyTest.php` (nuevo)
+- `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 (resto: PDF/expediente, espejo alergia→alerta, móvil, `icd_code`), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 21/07/2026 (cont. 3) — BL-047 (parcial): adjuntos clínicos reales
 
 ### ✅ Logros y Cambios

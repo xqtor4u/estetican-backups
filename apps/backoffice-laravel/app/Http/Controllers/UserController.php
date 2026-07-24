@@ -282,19 +282,26 @@ class UserController extends Controller
         }
     }
 
-    // Eliminar usuario
+    // Eliminar usuario (o desactivar si tiene historial asociado, ver BL-066)
     public function destroy(User $user)
     {
         // Candado: No eliminarse a sí mismo
         if (Auth::id() === $user->id) {
             return back()->with('error', 'No puedes eliminar tu propia cuenta administrativa.');
         }
-        
+
+        if ($user->hasHistoricalDependencies()) {
+            $user->update(['is_active' => false, 'can_login' => false]);
+
+            return redirect()->route('users.index')
+                ->with('success', 'El usuario tiene historial asociado (citas, movimientos de caja, registros de actividad, etc.), así que se marcó como inactivo en vez de eliminarlo para no perder ese historial.');
+        }
+
         // Cleanup photos
         $this->imageManager->deleteFiles($user->profile_photo_path);
-        
+
         $user->delete();
-        
+
         return redirect()->route('users.index')
             ->with('success', 'El usuario ha sido eliminado permanentemente del sistema.');
     }

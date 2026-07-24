@@ -26,6 +26,7 @@
                 <th>ID</th>
                 <th>Usuario</th>
                 <th>Identidad</th>
+                <th>Estado</th>
                 <th>Acceso</th>
                 <th>Perfil</th>
                 <th title="Tipo de Operador">Tipo</th>
@@ -44,6 +45,11 @@
                     <td>
                         <div class="fw-semibold">{{ $user->first_name }} {{ $user->last_name }}</div>
                         <div class="text-body-secondary small">{{ $user->phone ?: 'Sin teléfono' }}</div>
+                    </td>
+                    <td>
+                        <span class="badge {{ $user->is_active ? 'text-bg-success' : 'text-bg-secondary' }} rounded-pill">
+                            {{ $user->is_active ? 'Activo' : 'Baja' }}
+                        </span>
                     </td>
                     <td>
                         <span class="badge {{ $user->can_login ? 'text-bg-success' : 'text-bg-danger' }} rounded-pill">
@@ -71,7 +77,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="py-5">
+                    <td colspan="9" class="py-5">
                         <x-empty-state 
                             icon="bi-people-fill"
                             title="No hay usuarios registrados"

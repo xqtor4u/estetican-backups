@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\CausesActivity;
@@ -109,6 +110,60 @@ class User extends Authenticatable
         }
 
         return Storage::disk('public')->url($this->profile_photo_path);
+    }
+
+    /**
+     * Tablas (nullOnDelete/cascadeOnDelete) que quedarían huérfanas o perderían trazabilidad
+     * si el usuario se borra en duro. `operator_checkins` incluso cascadea el borrado real
+     * de los check-ins (BL-066).
+     */
+    private const HISTORY_TABLES = [
+        'audit_logs'             => ['user_id'],
+        'operator_checkins'      => ['user_id'],
+        'spa_bookings'           => ['created_by_user_id'],
+        'cash_sessions'          => ['opened_by_user_id', 'closed_by_user_id'],
+        'cash_movements'         => ['created_by_user_id'],
+        'whatsapp_templates'     => ['created_by_user_id'],
+        'booking_messages'       => ['sent_by_user_id'],
+        'recurrence_messages'    => ['sent_by_user_id'],
+        'resource_events'        => ['detected_by_user_id', 'responsible_user_id', 'closed_by_user_id'],
+        'resource_event_updates' => ['created_by_user_id'],
+        'item_movements'         => ['created_by_user_id'],
+        'documents'              => ['issued_by_user_id'],
+        'journal_entries'        => ['created_by_user_id', 'posted_by_user_id'],
+    ];
+
+    /**
+     * True si borrar este usuario perdería historial real (BL-066): tiene un Operator
+     * vinculado, aparece como causante en el activity log, o es referenciado desde
+     * cualquier tabla operativa/financiera de HISTORY_TABLES.
+     */
+    public function hasHistoricalDependencies(): bool
+    {
+        if (! is_null($this->operator_id)) {
+            return true;
+        }
+
+        if (DB::table('activity_log')
+            ->where('causer_type', self::class)
+            ->where('causer_id', $this->id)
+            ->exists()) {
+            return true;
+        }
+
+        foreach (self::HISTORY_TABLES as $table => $columns) {
+            $exists = DB::table($table)->where(function ($query) use ($columns) {
+                foreach ($columns as $column) {
+                    $query->orWhere($column, $this->id);
+                }
+            })->exists();
+
+            if ($exists) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Forma compartida del usuario para respuestas de la API móvil (login/me/perfil) */

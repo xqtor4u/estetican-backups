@@ -24,7 +24,7 @@
         <a href="{{ route('users.edit', $user) }}" class="btn btn-primary">Editar usuario</a>
         
         @if(auth()->user()->is_super_admin && auth()->id() !== $user->id)
-            <form action="{{ route('users.destroy', $user) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar permanentemente a este usuario? Esta acción no se puede deshacer.')">
+            <form action="{{ route('users.destroy', $user) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar a este usuario? Si tiene historial asociado (citas, caja, actividad, etc.) se marcará como inactivo en vez de borrarse, para no perder ese historial.')">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="btn btn-outline-danger">Eliminar Usuario</button>

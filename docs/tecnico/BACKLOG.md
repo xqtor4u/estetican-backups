@@ -16,6 +16,7 @@
 | BL-006 | ~~Bloquear endpoint `/up`~~ **COMPLETADO** — movido a sección Completados | Seguridad | |
 | ~~BL-007~~ | ~~Verificar Transform Rules Cloudflare: X-Frame-Options, Referrer-Policy, Permissions-Policy~~ **COMPLETADO** | Seguridad | Headers en nginx de mob; backoffice ya los tenía vía middleware Laravel |
 | BL-028 | Diseñar estrategia de defensa por firewall (ufw) para el servidor OPi | Seguridad | Estado actual verificado 03/07/2026: ufw y fail2ban activos/habilitados (jail sshd: maxretry=4, findtime=10min, bantime=1h); SSH permite password además de pubkey (`PasswordAuthentication yes`); puerto 22 y SMB (139/445) escuchan en `0.0.0.0` en ambas LAN; Portainer/NPM admin ya restringidos a `192.168.100.250`. Definir reglas ufw explícitas por servicio/red y evaluar desactivar auth por password en SSH |
+| ~~BL-066~~ | ~~Borrado de usuarios: validar dependencias antes de eliminar~~ **COMPLETADO** | Bug/Seguridad | Ver Completados |
 
 ### Prioridad Alta — App Móvil (operador)
 
@@ -56,6 +57,7 @@
 
 | ID | Ítem | Sesión | Commit |
 |---|---|---|---|
+| BL-066 | Borrado de usuarios: `UserController::destroy()` hacía hard-delete sin validar dependencias. Nuevo `User::hasHistoricalDependencies()` chequea `operator_id`, causante en `activity_log`, y referencias en 13 tablas operativas/financieras (`audit_logs`, `operator_checkins`, `spa_bookings`, `cash_sessions`, `cash_movements`, `whatsapp_templates`, `booking_messages`, `recurrence_messages`, `resource_events`, `resource_event_updates`, `item_movements`, `documents`, `journal_entries`). Si tiene alguna, `destroy()` ahora marca `is_active=false`/`can_login=false` en vez de borrar; si no tiene ninguna, borra en duro como antes | 24/07/2026 | — |
 | BL-047 (parcial) | Adjuntos clínicos reales: `ClinicalAttachmentController` (store/destroy) + `ClinicalAttachmentManager` (imagen optimizada sin recorte o PDF sin tocar bytes) + sección "Adjuntos clínicos" en `clinical/pets/show.blade.php`. Tabla/modelo ya existían desde BL-046 (Fase 1), solo faltaba la UI/upload real | 21/07/2026 | — |
 | — | Fix subida de fotos: cropperjs v2→v1.6.2 | 25/05/2026 | `d1e4fdd` |
 | — | Fix inicialización Cropper: shown.bs.modal + rAF | 25/05/2026 | `8c9a7e5` |
