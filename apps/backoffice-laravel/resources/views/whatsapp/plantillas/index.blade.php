@@ -62,10 +62,10 @@
                             </td>
                             <td class="text-end">
                                 <a href="{{ route('whatsapp.plantillas.edit', $template) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
-                                <form action="{{ route('whatsapp.plantillas.destroy', $template) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar esta plantilla?');">
+                                <form action="{{ route('whatsapp.plantillas.destroy', $template) }}" method="POST" class="d-inline">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="¿Eliminar esta plantilla?">Eliminar</button>
                                 </form>
                             </td>
                         </tr>

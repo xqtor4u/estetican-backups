@@ -15,6 +15,7 @@ class ClinicalPrescriptionController extends Controller
         $validated = $request->validate([
             'general_instructions' => 'nullable|string',
             'items' => 'required|array|min:1',
+            'items.*.item_id' => 'nullable|exists:items,id',
             'items.*.drug_name' => 'required|string|max:255',
             'items.*.concentration' => 'nullable|string|max:255',
             'items.*.dose' => 'required|string|max:255',

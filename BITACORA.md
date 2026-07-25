@@ -1,5 +1,150 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 24/07/2026 (cont. 7) — BL-070: filtrar artículos por categoría (Vacunas/Farmacia)
+
+### ✅ Logros y Cambios
+
+El usuario reportó que en Vacunas el selector "Artículo (producto/marca)" mostraba todos los artículos del catálogo sin filtrar, y pidió que solo aparecieran vacunas ahí — y que la captura de recetas tuviera su propio selector limitado a artículos de farmacia (medicinas, curaciones, vendas). Se usó `EnterPlanMode` dado el tamaño (schema nuevo + 2 vistas + 2 controllers) y se confirmaron 2 decisiones con el usuario antes de codificar.
+
+**Hallazgo antes de diseñar nada:** el campo correcto para esta categorización ya existía — `items.department` (texto libre con sugerencias, documentado desde antes explícitamente con el ejemplo "Farmacia", "Accesorios", etc.) — no hacía falta ninguna columna nueva, solo *usarlo* para filtrar. `ClinicalVisitController::showPet()` cargaba `$items` sin ningún `where()`; se cambió a `$vaccineItems` filtrado por `department = 'Vacunas'`. Se agregó "Vacunas" como sugerencia en el datalist del catálogo de artículos, y un `<input type="hidden" name="department" value="Vacunas">` al alta rápida ("+ Nuevo") de esa misma sección — si no, un artículo creado ahí quedaría fuera del filtro que se acababa de imponer.
+
+**Recetas (nuevo):** `clinical_prescription_items` gana `item_id` nullable (FK → `items`, `nullOnDelete`, mismo patrón exacto que `pet_vaccinations.item_id`). `ClinicalVisitController::show()` ahora carga `$pharmacyItems` (`department = 'Farmacia'`). En `clinical/visits/show.blade.php`, el selector nuevo usa Alpine.js (`x-data`/`x-ref`/`@change`, mismo patrón ligero ya usado en el formulario de vacunas — nada de `onclick=`/`onchange=` inline, ver NT-042 de esta misma sesión) para autocompletar fármaco/concentración al elegir un artículo, sin bloquear la edición manual — el texto libre sigue siendo la fuente real para fármacos compuestos o fuera de catálogo. A propósito **sin descuento de inventario** (a diferencia de vacunas, que siempre descuentan 1 dosis fija): la dosis de una receta es texto libre ("1 tableta"), no hay cantidad estructurada que descontar de forma confiable todavía.
+
+**Verificación:** 5 tests nuevos (`ClinicalItemCatalogFilterTest`) — selector de vacunas solo muestra `department=Vacunas`, selector de recetas solo muestra `department=Farmacia`, `item_id` opcional se liga correctamente, la receta sigue funcionando sin `item_id` (texto libre), y un `item_id` inexistente falla validación. Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 295 pasan (antes 290).
+
+**Ajuste inmediato pedido por el usuario:** el filtro por texto libre invita a errores de dedo silenciosos (mayúscula/minúscula, "Vacuna" sin la "s") que rompen el match exacto sin avisar nada. Se cambió el campo "Departamento" del formulario de Artículos (`items/partials/form.blade.php`, pantallas `ArtCre`/`ArtEdi`) de `<input list>` con `<datalist>` a un `<select>` cerrado a las 5 opciones conocidas — si un artículo ya tenía un valor fuera de esa lista, se agrega como opción extra dinámicamente para no perderlo/sobrescribirlo sin querer al guardar. Verificado con `ItemCrudTest` (sin regresiones) y suite completa otra vez en 295/295.
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_24_000002_add_item_id_to_clinical_prescription_items_table.php` (nueva)
+- `app/Models/ClinicalPrescriptionItem.php` (`item_id`, relación `item()`)
+- `app/Http/Controllers/Clinical/ClinicalVisitController.php` (`$vaccineItems` filtrado, `$pharmacyItems` nuevo)
+- `app/Http/Controllers/Clinical/ClinicalPrescriptionController.php` (valida `items.*.item_id`)
+- `resources/views/clinical/pets/show.blade.php` (selector filtrado, hint, alta rápida con `department` fijo)
+- `resources/views/clinical/visits/show.blade.php` (selector de Farmacia + autocompletar Alpine)
+- `resources/views/items/partials/form.blade.php` ("Vacunas" en el datalist)
+- `tests/Feature/Clinical/ClinicalItemCatalogFilterTest.php` (nuevo)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (BL-066 a BL-070, NT-042/043) — sesión larga, varios items acumulados sin subir todavía.
+2. Recategorizar a mano en el catálogo de Artículos los artículos existentes que correspondan a "Vacunas"/"Farmacia" — el fix no los recategoriza solos.
+3. Evaluar si `docs/OPI_PRODUCCION.md` debe actualizarse dado que se compiló JS directo en la OPi 3 veces hoy (fuera del proceso documentado de WSL→git).
+4. BL-047 resto: espejo automático alergia severa→alerta, soporte en app móvil, catálogo real de `icd_code`.
+5. BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
+## 📅 Cierre de sesión: 24/07/2026 (cont. 6) — BL-069/NT-043: cierre real del flujo "Nueva mascota"
+
+### ✅ Logros y Cambios
+
+Continuación directa de BL-069/NT-043 de esta misma sesión. Tras conectar el flujo `mode=pet_creation` (búsqueda de cliente → "Agregar mascota aquí" → modal auto-abierto en `clients/edit`), el usuario probó en el navegador real y encontró dos problemas más, ambos con causa raíz no obvia:
+
+1. **El modal aparecía vacío/sin efecto** ("me lleva a la edición del cliente, está mal"): condición de carrera entre mi script de auto-apertura (empujado desde la vista, corría en `DOMContentLoaded`) y `client-form.js` (módulo ES vía Vite, diferido) — mi listener se registraba primero y disparaba el clic antes de que `initClientEditForm()` alcanzara a enganchar el listener real que abre el modal. Resuelto moviendo la lectura de `open_pet_modal` *dentro* de `initClientEditForm()` mismo, en el mismo tick que ya inicializó todo — se quitó el script empujado desde la vista.
+
+2. **La mascota "no aparecía" después de darla de alta**: el botón "OK" del modal nunca guardó nada — solo arma una fila pendiente en el formulario grande de `clients/edit`; hacía falta bajar y presionar "Actualizar" para persistirla de verdad (comportamiento correcto para *editar* un cliente existente, donde acumular cambios antes de un solo guardado tiene sentido, pero rompe la promesa de alta directa de "Agregar mascota aquí"). Resuelto: cuando la página se abrió vía `?open_pet_modal=1`, `confirmAddPetModal()` llama a `form.requestSubmit()` de inmediato tras armar la fila — la mascota queda guardada sin pasos manuales adicionales.
+
+**Limitación conocida, dejada fuera de esta pasada a propósito:** el modal solo captura datos generales, sin foto (`PetPhotoImageManager` necesita un `pet_id` real que no existe hasta guardar). Con el auto-guardado, la mascota nueva ya aparece de inmediato en el panel "Seleccionar mascota para gestionar tablas dependientes" — un clic más lleva a su ficha para agregar la foto. Documentado en NT-043 como limitación conocida, no como bug.
+
+**Verificación:** cambios 100% JS (`client-form.js`), no probables con PHPUnit — se verificó a mano contra el bundle recompilado (`grep` confirma `requestSubmit` presente) y se corrió la suite completa dos veces (una por cada fix) sin regresiones: 37 fallidas preexistentes sin cambio, 290 pasan.
+
+### 📁 Archivos principales tocados
+- `resources/js/modules/client-form.js` (auto-apertura sin condición de carrera + auto-guardado en modo alta rápida)
+- `resources/views/clients/edit.blade.php` (se quitó el script frágil que ya no hace falta)
+- `public/build/` (recompilado 2 veces más)
+- `tests/Feature/ClientPetCreationModeTest.php` (assertion actualizada, ya no hay diferencia de HTML servido)
+- `docs/tecnico/NOTAS_TECNICAS.md` (NT-043 ampliada con las 2 adendas)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (BL-066 a BL-069, NT-042/043).
+2. Evaluar si `docs/OPI_PRODUCCION.md` debe actualizarse dado que se compiló JS directo en la OPi 3 veces hoy (fuera del proceso documentado de WSL→git).
+3. BL-047 resto: espejo automático alergia severa→alerta, soporte en app móvil, catálogo real de `icd_code`.
+4. BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
+## 📅 Cierre de sesión: 24/07/2026 (cont. 5) — BL-069/NT-043: flujo "Nueva mascota" y bug real de búsqueda de clientes
+
+### ✅ Logros y Cambios
+
+El usuario reportó que no podía dar de alta una mascota desde "PetInd" ni buscar un cliente. Investigación (agente en paralelo): el botón "Nueva mascota" enlaza a `clients.index?mode=pet_creation` desde hace tiempo (confirmado por `git log`, no es de esta sesión), pero `ClientController@index()` nunca leyó ese parámetro y `clients/index.blade.php` no tenía ninguna continuación — un enlace a una función que quedó a medias.
+
+Al pedirle al usuario que describiera el síntoma exacto para diseñar el fix, reveló algo más grave: al escribir en el buscador y presionar "Aplicar", aparecía "No se pudo crear el cliente" — un mensaje sin sentido en una pantalla de búsqueda. **Causa raíz real (NT-043):** `client-form.js` localiza el formulario de alta de cliente con `document.querySelector('form[action$="/clients"]')` (selector por atributo, no por ID). El formulario de búsqueda del listado (`route('clients.index')`) **también termina en `/clients`**, igual que el de alta (`route('clients.store')`). Como este JS corre en todas las páginas (importado globalmente), en el listado de clientes enganchaba la validación completa de alta de cliente al formulario de búsqueda, bloqueando cualquier envío. Esto rompía la búsqueda de clientes **en general**, no solo en el flujo de nueva mascota — probablemente lleva rota bastante tiempo. Corregido a `document.getElementById('client-create-form')` (mismo patrón ya usado bien para el formulario de edición). Requirió recompilar assets (`npm run build` dentro de `estetican_app` — nota: esto se hizo directo en la OPi, desviación del proceso documentado de compilar en WSL y subir vía git; revisar si vale la pena actualizar esa guía) y borrar vistas compiladas.
+
+Con la búsqueda ya funcionando, se conectó el flujo real: `ClientController@index()` expone `$petCreationMode`; en ese modo cada cliente muestra "Agregar mascota aquí" en vez de Ver/Editar/Eliminar (tarjetas y tabla), que lleva a `clients.edit?open_pet_modal=1`. Un script nuevo en `clients/edit.blade.php` (gatillado solo si viene ese query param) simula un clic sobre el botón "Agregar Mascota" ya existente, reutilizando 100% el modal/JS que ya funcionaba — sin duplicar lógica.
+
+**Verificación:** 5 tests nuevos (`ClientPetCreationModeTest`) — botón correcto con/sin el modo, sobrevive un submit de búsqueda, vista de tabla, auto-apertura del modal solo con el flag. El fix de `client-form.js` no se puede probar con PHPUnit (es JS puro sin backend); se verificó a mano que el bundle recompilado ya no contiene el selector viejo (`grep` sobre el archivo compilado). Suite completa sin regresiones: 37 fallidas preexistentes sin cambio (3 de ellas, en `ClientLivePetsCatalogTest`, ya fallaban por falta de `actingAs` desde antes de esta sesión — no relacionado), 290 pasan (antes 285).
+
+### 📁 Archivos principales tocados
+- `resources/js/modules/client-form.js` (selector de formulario corregido)
+- `public/build/` (recompilado)
+- `app/Http/Controllers/ClientController.php` (`$petCreationMode`)
+- `resources/views/clients/index.blade.php`, `clients/partials/index-table.blade.php`, `clients/edit.blade.php`
+- `tests/Feature/ClientPetCreationModeTest.php` (nuevo)
+- `docs/tecnico/{NOTAS_TECNICAS,BACKLOG}.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. Evaluar si `docs/OPI_PRODUCCION.md` debe actualizarse dado que se compiló JS directo en la OPi hoy (fuera del proceso documentado de WSL→git).
+3. BL-047 resto: espejo automático alergia severa→alerta, soporte en app móvil, catálogo real de `icd_code`.
+4. BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
+## 📅 Cierre de sesión: 24/07/2026 (cont. 4) — NT-042: el botón "Inactivar" no hacía nada (CSP bloqueaba onclick inline)
+
+### ✅ Logros y Cambios
+
+Al agregarle texto visible al botón "Inactivar" de mascotas (parte de BL-067, cerrado minutos antes), el usuario reportó que el botón "no hace ni dice nada al hacer clic". Investigando se encontró la causa raíz real, más grave que el propio botón: la CSP del proyecto (`ContentSecurityPolicy.php`, `script-src` con nonce pero sin `unsafe-inline`) bloquea **cualquier atributo de evento inline** (`onclick=`, `onsubmit=`) en todo el sistema — los nonces solo cubren etiquetas `<script>` completas, no atributos. El navegador los descarta sin ningún error visible al usuario.
+
+Hay dos variantes del síntoma según el tipo de botón: uno que usa `type="button"` + `onclick` (como el de mascotas) simplemente no hace nada; otro que usa `<form onsubmit="return confirm(...)">` con `type="submit"` dentro (como el de usuarios, tocado hoy mismo en BL-066) es más peligroso — el formulario se envía igual, **sin pedir confirmación**, porque el navegador nunca llega a ejecutar el `onsubmit` bloqueado.
+
+El proyecto ya tenía el patrón correcto resuelto desde antes (`resources/js/modules/confirm-actions.js`, atributo `data-confirm` + listener global, sin inline) usado correctamente en `groups/`, `resources/`, `branches/`, `finances/`, entre otros — las vistas de mascotas y usuarios simplemente no lo seguían. Se migraron al patrón correcto las vistas de mascotas/usuarios primero, y a pedido del usuario se completó el barrido a los 4 archivos restantes con el mismo problema en la misma sesión: `operators/partials/unavailabilities.blade.php`, `whatsapp/plantillas/index.blade.php`, `clinical/visits/show.blade.php`, `clinical/pets/show.blade.php` (4 casos en este último). `grep -rn` confirmó cero ocurrencias restantes de `onclick=`/`onsubmit=` en todo el proyecto. `user/show.blade.php` en particular corrige una regresión de seguridad real que se había introducido sin saberlo en BL-066 de esta misma sesión (el formulario de borrado de usuario se enviaba sin pedir confirmación).
+
+**Verificación:** suite completa sin regresiones (37 fallidas preexistentes sin cambio, 285 pasan — sin cambio en el conteo, ya que el fix es puramente de atributos Blade/JS, no de lógica PHP).
+
+### 📁 Archivos principales tocados
+- `resources/views/pets/partials/{index-blocks,index-table}.blade.php`, `pets/show.blade.php`, `pets/index.blade.php` (se quitó el JS muerto `confirmPetDelete`)
+- `resources/views/user/show.blade.php`
+- `resources/views/operators/partials/unavailabilities.blade.php`, `resources/views/whatsapp/plantillas/index.blade.php`, `resources/views/clinical/visits/show.blade.php`, `resources/views/clinical/pets/show.blade.php`
+- `docs/tecnico/NOTAS_TECNICAS.md` (NT-042), `docs/tecnico/BACKLOG.md` (BL-068)
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 resto: espejo automático alergia severa→alerta, soporte en app móvil, catálogo real de `icd_code`.
+3. BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
+## 📅 Cierre de sesión: 24/07/2026 (cont. 3) — BL-067: mascotas ya no se eliminan, se marcan inactivas
+
+### ✅ Logros y Cambios
+
+El usuario reportó que en el listado de mascotas ("PETIND", vista de tarjetas) el cuarto botón de cada ficha "no se lee" — resultó ser el botón de eliminar, que solo tenía un ícono de bote de basura sin `title` ni texto, a diferencia de los otros tres (Detalle/Editar/Programar). Al ir a corregirlo, el usuario pidió algo más de fondo: que borrar una mascota no la elimine, sino que quede **inactiva** (por dos motivos típicos: el dueño ya no es cliente, o la mascota falleció), conservando siempre su historial.
+
+**Hallazgo antes de tocar nada:** las mascotas ya usaban soft-delete (`SoftDeletes`, `$pet->delete()` solo llenaba `deleted_at`) — el historial técnicamente ya no se perdía. Se le explicó esto al usuario y se preguntó qué le faltaba entonces; su respuesta aclaró el problema real: el filtro del listado solo tenía Todas/Activas/Fallecidas — una mascota "eliminada" (soft-deleted) desaparecía por completo, sin ninguna forma de verla ni reactivarla desde la UI.
+
+**Diseño:** columna nueva `pets.is_active` (boolean, default true), independiente de `death_date` (una mascota puede estar inactiva sin haber fallecido, o fallecida sin haber sido nunca marcada inactiva). `PetController::destroy()`/`destroyFromClient()` ahora hacen `$pet->update(['is_active' => false])` en vez de `delete()` — el candado existente de "no borrar con citas activas" se mantiene igual (y se agregó también a `destroyFromClient()`, que antes no lo tenía). El filtro de estado del listado gana "Inactivas"; el badge combina las tres señales con prioridad Fallecida > Inactiva > Activa. La ficha de edición gana un checkbox "Mascota activa" (mismo patrón hidden+checkbox que ya usa Operador) para poder reactivar.
+
+**Bug preexistente encontrado de paso:** la vista de tabla (`index-table.blade.php`) tenía un encabezado "Estado" (ordenable) sin ninguna celda `<td>` real debajo — 6 encabezados contra 5 celdas por fila, columnas desalineadas. Se agregó la celda faltante con el badge (aprovechando que ya hacía falta un lugar para mostrar Inactiva), y se corrigió el `colspan` del estado vacío de 5 a 6.
+
+**Verificación:** 5 tests nuevos (`PetDeactivateTest`) — destroy marca inactiva sin borrar (ni soft-delete), bloqueo por citas activas se mantiene, `destroyFromClient` igual, filtro "inactive" del listado, reactivación vía edición. Suite completa sin regresiones: 37 fallidas preexistentes sin cambio, 285 pasan (antes 280).
+
+### 📁 Archivos principales tocados
+- `database/migrations/2026_07_24_000001_add_is_active_to_pets_table.php` (nueva)
+- `app/Models/Pet.php` (`is_active` en fillable/casts/activity log)
+- `app/Http/Controllers/PetController.php` (`destroy()`, `destroyFromClient()`, `index()`, `validatedPetData()`)
+- `resources/views/pets/index.blade.php`, `pets/partials/{index-blocks,index-table}.blade.php`, `pets/show.blade.php`
+- `tests/Feature/PetDeactivateTest.php` (nuevo)
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión.
+2. BL-047 resto: espejo automático alergia severa→alerta, soporte en app móvil, catálogo real de `icd_code`.
+3. BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 24/07/2026 (cont. 2) — BL-047 (resto): PDF del expediente clínico y receta
 
 ### ✅ Logros y Cambios

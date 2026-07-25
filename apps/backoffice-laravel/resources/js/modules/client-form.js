@@ -129,7 +129,7 @@ const getAddressCaptureDefaults = () => ({
 });
 
 const initClientCreateForm = () => {
-    const form = document.querySelector('form[action$="/clients"]');
+    const form = document.getElementById('client-create-form');
 
     if (!form || form.dataset.clientCreateInitialized === 'true') {
         return;
@@ -519,6 +519,15 @@ const initClientEditForm = () => {
         petIndex += 1;
         hideModalInstance('petModal');
         markFormChanged();
+
+        // Flujo de alta rápida ("Nueva mascota" → clients.index?mode=pet_creation → aquí con
+        // ?open_pet_modal=1): a diferencia de editar un cliente existente, donde tiene sentido
+        // acumular varios cambios antes de un solo "Actualizar", aquí el botón promete un alta
+        // directa — se guarda de inmediato para que la mascota exista de verdad y aparezca en
+        // el panel de abajo ("Seleccionar mascota para gestionar tablas dependientes").
+        if (new URLSearchParams(window.location.search).get('open_pet_modal')) {
+            form.requestSubmit();
+        }
     };
 
     form.addEventListener('input', markFormChanged, true);
@@ -556,6 +565,11 @@ const initClientEditForm = () => {
             confirmAddPetModal();
         }
     });
+
+    if (new URLSearchParams(window.location.search).get('open_pet_modal')) {
+        showPetModal();
+    }
+
     form.addEventListener('submit', (event) => {
         const warnings = collectClientFormWarnings(form);
 

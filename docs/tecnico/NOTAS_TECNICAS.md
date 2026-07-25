@@ -31,6 +31,65 @@
 
 ---
 
+## NT-043 — La búsqueda de clientes no se podía enviar ("No se pudo crear el cliente")
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-24 |
+| **Severidad** | P1 — Crítico (bloqueaba buscar cualquier cliente desde el listado, no solo en el flujo de alta de mascota) |
+| **Componente** | `resources/js/modules/client-form.js` (`initClientCreateForm()`) |
+| **Impacto** | El botón "Aplicar" del filtro de búsqueda en `clients/index.blade.php` no funcionaba nunca — mostraba "No se pudo crear el cliente" y no enviaba la búsqueda |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+El usuario reportó que al intentar dar de alta una mascota nueva (botón "Nueva mascota" en el listado de mascotas → lo lleva a buscar el cliente dueño), escribía parte del nombre, presionaba "Aplicar" y en vez de filtrar aparecía el mensaje "No se pudo crear el cliente" — un mensaje sin sentido en una pantalla de búsqueda.
+
+**Causa raíz:**
+`initClientCreateForm()` localizaba el formulario de alta de cliente con `document.querySelector('form[action$="/clients"]')` — un selector por atributo, no por ID. El formulario de búsqueda de `clients/index.blade.php` (componente `x-list-filters`, método GET) apunta a `route('clients.index')`, cuya URL **también termina en `/clients`** — igual que `route('clients.store')`, el destino real del formulario de alta. Como `client-form.js` se importa globalmente en `app.js` y corre en **todas** las páginas, en el listado de clientes el selector encontraba el formulario de búsqueda (el único que hace match ahí) y le enganchaba toda la validación pensada para crear un cliente completo (nombre, dirección, teléfono) — validación que siempre falla en un formulario de búsqueda, bloqueando el envío con `event.preventDefault()`.
+
+**Solución definitiva:** cambiar el selector a `document.getElementById('client-create-form')`, igual patrón ya usado correctamente para el formulario de edición (`document.getElementById('client-edit-form')`, línea 308 del mismo archivo). Requirió recompilar assets (`npm run build` dentro de `estetican_app`) y borrar vistas compiladas.
+
+**Lección:** nunca seleccionar formularios por `action` (atributo `[action$="..."]`/`[action^="..."]`) cuando dos formularios distintos de la misma pantalla pueden compartir la misma URL base (típico entre un formulario GET de búsqueda hacia `index` y un formulario POST de alta hacia `store`, ambos con la misma ruta raíz). Usar siempre `id` único por formulario.
+
+**Adenda — condición de carrera al auto-abrir el modal "Agregar Mascota" (BL-069):** el primer intento de conectar `clients.edit?open_pet_modal=1` con la apertura automática del modal usó un `<script nonce>` empujado desde la vista (`@push('scripts')`) que hacía `document.querySelector('[data-client-edit-action="show-pet-modal"]')?.click()` en `DOMContentLoaded`. Fallaba silenciosamente: ese script clásico (no-módulo) se ejecuta *durante* el parseo del HTML, mientras que `client-form.js` se carga como módulo ES (vía Vite) y se difiere hasta *después* de terminar el parseo — así que el listener `DOMContentLoaded` de la vista se registraba primero y disparaba el clic **antes** de que `initClientEditForm()` (que vive en `client-form.js`) alcanzara a enganchar el listener de clics que abre el modal. El usuario solo veía la página de edición cruda, sin modal, como si el botón lo hubiera mandado a "editar cliente" sin más. **Solución real:** mover la lectura de `open_pet_modal` (vía `URLSearchParams(window.location.search)`) *dentro* de `initClientEditForm()` mismo, justo después de registrar los listeners de acciones — se ejecuta en el mismo tick que ya inicializó todo lo necesario, sin depender del orden de carga entre script clásico y módulo. Se quitó por completo el script empujado desde la vista.
+
+**Adenda 2 — el modal "OK" no guardaba nada, solo armaba una fila pendiente:** con el modal ya abriendo bien, el usuario reportó que tras completarlo la mascota "no aparecía" en el panel "Seleccionar mascota para gestionar tablas dependientes" de `clients/edit.blade.php`. Causa: `confirmAddPetModal()` solo inserta un `<tr>` nuevo en la tabla `#pets` del formulario grande y marca `formChanged` — **no envía nada al servidor**; el usuario debe además bajar y presionar "Actualizar" para que `ClientController@update()` recién cree el registro real. Ese paso extra tiene sentido cuando se edita un cliente existente (uno puede acumular varios cambios antes de guardar todos juntos), pero rompe la promesa del botón "Agregar mascota aquí" del flujo `mode=pet_creation`, que se supone hace un alta directa.
+
+**Solución:** en `confirmAddPetModal()`, si la página se abrió con `?open_pet_modal=1`, se llama a `form.requestSubmit()` inmediatamente después de armar la fila — dispara el mismo evento `submit` real (con su validación existente, `collectClientFormWarnings`) que ya usa el botón "Actualizar" manual, así que la mascota queda guardada de verdad sin pasos adicionales. Fuera de ese modo (uso normal de "Editar cliente"), el comportamiento de acumular cambios sigue igual.
+
+**Limitación conocida, no resuelta hoy:** el modal solo captura datos generales (nombre, especie, raza, etc.) — no hay campo de foto, porque `PetPhotoImageManager` requiere un `pet_id` real que no existe hasta que la mascota se guarda. Tras el auto-guardado, la mascota nueva sí aparece de inmediato en el panel "Seleccionar mascota" — desde ahí, un clic más lleva a su ficha (`clients.pets.show`) donde sí se puede subir la foto. Es un paso adicional, no un bug; unificar esto en un solo paso implicaría rediseñar el modal para subir la foto después de crear el registro (tipo "guardar y continuar"), evaluado como fuera de alcance de esta sesión.
+
+---
+
+## NT-042 — `onclick=`/`onsubmit=` inline no funcionan bajo la CSP del proyecto
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-24 |
+| **Severidad** | P2 — Alto (silencioso: no lanza error visible, algunos casos ejecutan la acción SIN pedir confirmación) |
+| **Componente** | `app/Http/Middleware/ContentSecurityPolicy.php` + cualquier vista con atributos de evento inline |
+| **Impacto** | Botones de confirmación rotos en 8 vistas — las 8 corregidas en esta sesión: `pets/partials/{index-blocks,index-table}.blade.php`, `pets/show.blade.php`, `user/show.blade.php`, `operators/partials/unavailabilities.blade.php`, `whatsapp/plantillas/index.blade.php`, `clinical/visits/show.blade.php`, `clinical/pets/show.blade.php` (4 casos en este último) |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+El botón "Inactivar" de mascotas (tarjetas/tabla) no hacía absolutamente nada al hacer clic — ni confirmación, ni error visible. Reportado por el usuario tras agregarle texto/tooltip a un botón que antes solo tenía un ícono (por eso nunca se había notado que además estaba roto).
+
+**Causa raíz:**
+`ContentSecurityPolicy.php` define `script-src 'self' 'nonce-{$nonce}' 'unsafe-eval'` — sin `'unsafe-inline'` y sin `script-src-attr` propio. Por spec de CSP, el nonce solo autoriza etiquetas `<script nonce="...">` completas; **no autoriza atributos de evento inline** (`onclick="..."`, `onsubmit="..."`) — esos se rigen por `script-src-attr`, que al no estar declarado hereda de `script-src` (sin `unsafe-inline` → bloqueado). El navegador los descarta silenciosamente, sin lanzar ningún error visible al usuario (solo aparece en la consola de DevTools).
+
+Dos variantes del síntoma, según el tipo de botón:
+- `<button type="button" onclick="...">` (mascotas, tarjetas/tabla): el clic **no hace nada** — no hay otra forma de disparar el submit.
+- `<form onsubmit="return confirm(...)">` con `<button type="submit">` dentro (mascotas ficha, usuarios ficha): el `onsubmit` nunca corre, así que el navegador **envía el formulario igual, sin pedir confirmación** — más peligroso que el primer caso porque la acción sí ocurre, solo que sin el paso de seguridad.
+
+**Solución definitiva:**
+El proyecto ya tenía el patrón correcto resuelto desde antes (`resources/js/modules/confirm-actions.js`): un listener global en `document` que escucha clics en cualquier elemento con el atributo `data-confirm="mensaje"`, sin usar atributos inline. Requiere que el botón sea `type="submit"` dentro del `<form>` a enviar (no `type="button"` con JS custom). Ya lo usan correctamente `groups/`, `resources/`, `branches/`, `finances/`, `hotel-reservations/`, entre otros.
+
+**Lección:** nunca usar `onclick=`/`onsubmit=` (ni ningún atributo `on*=`) en vistas nuevas de este proyecto — la CSP los bloquea sin avisar. Usar siempre `data-confirm="mensaje"` en un `<button type="submit">` dentro del `<form>` real a enviar.
+
+Barrido completo del proyecto (`grep -rn 'onsubmit=\|onclick="confirm'`) confirmó cero ocurrencias restantes tras corregir los 4 archivos pendientes.
+
+---
+
 ## NT-001 — cropperjs v2 incompatible con código v1
 
 | Campo | Valor |

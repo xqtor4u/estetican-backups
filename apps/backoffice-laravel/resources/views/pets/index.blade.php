@@ -43,6 +43,7 @@
                 <select name="status" class="form-select">
                     <option value="all" @selected($status === 'all')>Todas</option>
                     <option value="active" @selected($status === 'active')>Activas</option>
+                    <option value="inactive" @selected($status === 'inactive')>Inactivas</option>
                     <option value="deceased" @selected($status === 'deceased')>Fallecidas</option>
                 </select>
             </div>
@@ -75,14 +76,3 @@
 @endif
 </div>
 @endsection
-
-@push('scripts')
-<script nonce="{{ csp_nonce() }}">
-    function confirmPetDelete(button) {
-        const form = button.closest('form');
-        window.premiumConfirm('¿Estás seguro de que deseas eliminar esta mascota? Se aplicará un borrado lógico (Soft Delete) y la información se conservará para fines de marketing histórico.', () => {
-            form.submit();
-        });
-    }
-</script>
-@endpush

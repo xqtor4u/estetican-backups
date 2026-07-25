@@ -20,8 +20,15 @@
     </x-slot:actions>
 </x-page-header>
 
+@if($petCreationMode)
+    <div class="alert alert-info">Busca al cliente dueño de la mascota nueva y presiona "Agregar mascota aquí" en su tarjeta.</div>
+@endif
+
 <div class="catalog-content-wide">
 <x-list-filters :action="route('clients.index')" :view-mode="$viewMode" :reset-url="route('clients.index', ['view' => $viewMode])">
+    @if($petCreationMode)
+        <input type="hidden" name="mode" value="pet_creation">
+    @endif
     <div class="col-lg-4 col-md-6">
         <label class="form-label">Buscar</label>
         <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Cliente, email, telefono o mascota">
@@ -54,7 +61,7 @@
 </x-list-filters>
 
 @if($viewMode === 'table')
-    @include('clients.partials.index-table', ['clients' => $clients, 'sort' => $sort, 'direction' => $direction, 'viewMode' => $viewMode])
+    @include('clients.partials.index-table', ['clients' => $clients, 'sort' => $sort, 'direction' => $direction, 'viewMode' => $viewMode, 'petCreationMode' => $petCreationMode])
 @else
     @forelse($clients as $client)
         <div class="card mb-3">
@@ -91,13 +98,17 @@
                     <p>No hay mascotas vivas.</p>
                 @endif
 
-                <a href="{{ route('clients.show', $client) }}" class="btn btn-info">Ver</a>
-                <a href="{{ route('clients.edit', $client) }}" class="btn btn-warning">Editar</a>
-                <form action="{{ route('clients.destroy', $client) }}" method="POST" class="d-inline">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger" data-confirm="¿Eliminar?">Eliminar</button>
-                </form>
+                @if($petCreationMode)
+                    <a href="{{ route('clients.edit', ['client' => $client, 'open_pet_modal' => 1]) }}" class="btn btn-primary">Agregar mascota aquí</a>
+                @else
+                    <a href="{{ route('clients.show', $client) }}" class="btn btn-info">Ver</a>
+                    <a href="{{ route('clients.edit', $client) }}" class="btn btn-warning">Editar</a>
+                    <form action="{{ route('clients.destroy', $client) }}" method="POST" class="d-inline">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-danger" data-confirm="¿Eliminar?">Eliminar</button>
+                    </form>
+                @endif
             </div>
         </div>
     @empty

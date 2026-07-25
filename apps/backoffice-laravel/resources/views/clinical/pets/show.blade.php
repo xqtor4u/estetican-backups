@@ -105,9 +105,9 @@
                             @if(!$allergy->is_active) <span class="badge text-bg-secondary ms-1">Inactiva</span> @endif
                             @if($allergy->reaction_description) <p class="text-muted small mb-0">{{ $allergy->reaction_description }}</p> @endif
                         </div>
-                        <form action="{{ route('clinical.allergies.destroy', [$pet, $allergy]) }}" method="POST" onsubmit="return confirm('¿Eliminar esta alergia?');">
+                        <form action="{{ route('clinical.allergies.destroy', [$pet, $allergy]) }}" method="POST">
                             @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="¿Eliminar esta alergia?">Eliminar</button>
                         </form>
                     </div>
                 @endforeach
@@ -117,8 +117,17 @@
 </section>
 
 {{-- Condiciones crónicas --}}
+@php
+    $conditionStatusLabels = [
+        'active' => 'Activa',
+        'controlled' => 'Controlada',
+        'chronic_monitoring' => 'Monitoreo crónico',
+        'resolved' => 'Resuelta',
+    ];
+@endphp
 <section id="conditions" class="mb-5">
-    <h2 class="h4 mb-3">Condiciones crónicas (problem list)</h2>
+    <h2 class="h4 mb-3">Condiciones crónicas</h2>
+    <p class="text-muted small mb-3">Padecimientos de fondo, permanentes o de largo plazo (no un diagnóstico de una sola consulta) — ej. insuficiencia renal crónica, diabetes, displasia de cadera. También pueden generarse "promoviendo" un diagnóstico puntual desde una visita.</p>
     <div class="card mb-3">
         <div class="card-body">
             <h3 class="h6">Nueva condición</h3>
@@ -126,7 +135,7 @@
                 @csrf
                 <div class="col-md-5">
                     <label class="form-label">Nombre</label>
-                    <input type="text" name="name" class="form-control" required>
+                    <input type="text" name="name" class="form-control" placeholder="Ej. Insuficiencia renal crónica" required>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Estado</label>
@@ -156,14 +165,14 @@
                     <div class="d-flex justify-content-between align-items-start border-bottom py-2">
                         <div>
                             <span class="fw-semibold">{{ $condition->name }}</span>
-                            <span class="badge text-bg-info ms-2">{{ $condition->status }}</span>
+                            <span class="badge text-bg-info ms-2">{{ $conditionStatusLabels[$condition->status] ?? $condition->status }}</span>
                             @if($condition->promoted_from_diagnosis_id)
                                 <span class="badge text-bg-light border ms-1">Promovida desde diagnóstico</span>
                             @endif
                         </div>
-                        <form action="{{ route('clinical.conditions.destroy', [$pet, $condition]) }}" method="POST" onsubmit="return confirm('¿Eliminar esta condición?');">
+                        <form action="{{ route('clinical.conditions.destroy', [$pet, $condition]) }}" method="POST">
                             @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="¿Eliminar esta condición?">Eliminar</button>
                         </form>
                     </div>
                 @endforeach
@@ -197,12 +206,13 @@
                     <div class="d-flex gap-2">
                         <select name="item_id" class="form-select">
                             <option value="">Sin especificar</option>
-                            @foreach($items as $item)
-                                <option value="{{ $item->id }}">{{ $item->name }}@if($item->brand) — {{ $item->brand }}@endif @if($item->presentation) ({{ $item->presentation }})@endif</option>
+                            @foreach($vaccineItems as $vaccineItem)
+                                <option value="{{ $vaccineItem->id }}">{{ $vaccineItem->name }}@if($vaccineItem->brand) — {{ $vaccineItem->brand }}@endif @if($vaccineItem->presentation) ({{ $vaccineItem->presentation }})@endif</option>
                             @endforeach
                         </select>
                         <button type="button" class="btn btn-outline-secondary text-nowrap" @click="showNewItem = !showNewItem">+ Nuevo</button>
                     </div>
+                    <div class="form-text">Solo artículos del catálogo con departamento "Vacunas".</div>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Aplicada</label>
@@ -245,6 +255,7 @@
                 <form action="{{ route('items.store') }}" method="POST" class="row g-2 mt-1">
                     @csrf
                     <input type="hidden" name="return_to_pet" value="{{ $pet->id }}">
+                    <input type="hidden" name="department" value="Vacunas">
                     <div class="col-md-4">
                         <input type="text" name="name" class="form-control form-control-sm" placeholder="Nombre del artículo" required>
                     </div>
@@ -285,9 +296,9 @@
                                     @endif
                                 </td>
                                 <td class="text-end">
-                                    <form action="{{ route('clinical.vaccinations.destroy', [$pet, $vaccination]) }}" method="POST" onsubmit="return confirm('¿Eliminar esta vacuna?');">
+                                    <form action="{{ route('clinical.vaccinations.destroy', [$pet, $vaccination]) }}" method="POST">
                                         @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="¿Eliminar esta vacuna?">Eliminar</button>
                                     </form>
                                 </td>
                             </tr>
@@ -385,9 +396,9 @@
                                 <td>{{ $attachment->description ?? '—' }}</td>
                                 <td class="text-end text-nowrap">
                                     <a href="{{ Storage::disk('public')->url($attachment->file_path) }}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver</a>
-                                    <form action="{{ route('clinical.attachments.destroy', [$pet, $attachment]) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar este adjunto?');">
+                                    <form action="{{ route('clinical.attachments.destroy', [$pet, $attachment]) }}" method="POST" class="d-inline">
                                         @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="¿Eliminar este adjunto?">Eliminar</button>
                                     </form>
                                 </td>
                             </tr>

@@ -19,7 +19,7 @@
     </thead>
     <tbody>
         @forelse($pets as $pet)
-            <tr class="{{ $pet->death_date ? 'table-secondary' : '' }}">
+            <tr class="{{ ($pet->death_date || !$pet->is_active) ? 'table-secondary' : '' }}">
                 <td>
                     <div class="fw-semibold">{{ $pet->name }}</div>
                     <div class="text-body-secondary small">
@@ -43,6 +43,11 @@
                     <div class="text-body-secondary small">Chip: {{ $pet->microchip_code ?: 'Sin dato' }}</div>
                 </td>
                 <td>
+                    <span class="badge {{ $pet->death_date ? 'text-bg-secondary' : ($pet->is_active ? 'text-bg-success' : 'text-bg-warning') }}">
+                        {{ $pet->death_date ? 'Fallecida' : ($pet->is_active ? 'Activa' : 'Inactiva') }}
+                    </span>
+                </td>
+                <td>
                     @php
                         $lastVisit = $pet->last_spa_at ? \Carbon\Carbon::parse($pet->last_spa_at) : null;
                         if ($pet->last_hotel_at) {
@@ -64,11 +69,11 @@
                         <a href="{{ route('pets.bookings.create', ['pet' => $pet, 'return_view_mode' => $viewMode]) }}" class="btn btn-sm btn-outline-dark catalog-action-upcoming">
                             Programar
                         </a>
-                        <form action="{{ route('pets.destroy', ['pet' => $pet, 'view' => $viewMode]) }}" method="POST" class="d-inline pet-delete-form">
+                        <form action="{{ route('pets.destroy', ['pet' => $pet, 'view' => $viewMode]) }}" method="POST" class="d-inline">
                             @csrf
                             @method('DELETE')
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmPetDelete(this)">
-                                <i class="bi bi-trash"></i>
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="No elimina, conserva historial" data-confirm="¿Marcar a {{ $pet->name }} como inactiva? No se elimina — su historial (citas, pagos, expediente) se conserva completo y puede reactivarse después desde su ficha.">
+                                <i class="bi bi-trash"></i> Inactivar
                             </button>
                         </form>
                     </div>
@@ -76,7 +81,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="5" class="py-5">
+                <td colspan="6" class="py-5">
                     <x-empty-state 
                         icon="bi-qr-code-scan"
                         title="No hay mascotas registradas"

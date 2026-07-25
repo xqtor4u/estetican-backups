@@ -21,7 +21,7 @@ class Pet extends Model
     {
         return LogOptions::defaults()
             ->logOnly(['client_id', 'name', 'species', 'breed', 'birth_date', 'death_date',
-                'microchip_code', 'tattoo_code', 'sex', 'coat_color', 'size',
+                'is_active', 'microchip_code', 'tattoo_code', 'sex', 'coat_color', 'size',
                 'is_sterilized', 'notes'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
@@ -46,6 +46,7 @@ class Pet extends Model
         'breed',
         'birth_date',
         'death_date',
+        'is_active',
         'microchip_code',
         'tattoo_code',
         'sex',
@@ -62,6 +63,7 @@ class Pet extends Model
     protected $casts = [
         'birth_date' => 'date',
         'death_date' => 'date',
+        'is_active' => 'boolean',
         'flagged_for_deletion' => 'boolean',
         'is_sterilized' => 'boolean',
         'lat' => 'decimal:8',

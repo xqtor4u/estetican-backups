@@ -36,9 +36,9 @@ class ClinicalVisitController extends Controller
 
         $operators = Operator::where('is_active', true)->orderBy('name')->get(['id', 'name', 'operator_role_id']);
         $vaccineServices = Service::where('type', 'vaccine')->where('is_active', true)->orderBy('name')->get(['id', 'name']);
-        $items = Item::where('is_active', true)->orderBy('name')->get(['id', 'name', 'brand', 'presentation']);
+        $vaccineItems = Item::where('is_active', true)->where('department', 'Vacunas')->orderBy('name')->get(['id', 'name', 'brand', 'presentation']);
 
-        return view('clinical.pets.show', compact('page', 'pet', 'operators', 'vaccineServices', 'items'));
+        return view('clinical.pets.show', compact('page', 'pet', 'operators', 'vaccineServices', 'vaccineItems'));
     }
 
     public function create(Pet $pet): View
@@ -67,7 +67,9 @@ class ClinicalVisitController extends Controller
 
         $visit->load(['pet', 'operator', 'signedBy', 'diagnoses', 'prescriptions.items', 'amendsVisit', 'amendments']);
 
-        return view('clinical.visits.show', compact('page', 'visit'));
+        $pharmacyItems = Item::where('is_active', true)->where('department', 'Farmacia')->orderBy('name')->get(['id', 'name', 'brand', 'presentation']);
+
+        return view('clinical.visits.show', compact('page', 'visit', 'pharmacyItems'));
     }
 
     public function edit(ClinicalVisit $visit): View

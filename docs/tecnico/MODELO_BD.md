@@ -221,6 +221,7 @@ Entidad operativa principal. Separa **identidad** (esta tabla) de **trazabilidad
 | `breed` | string nullable | |
 | `birth_date` | date nullable | |
 | `death_date` | date nullable | Nulo = viva |
+| `is_active` | boolean, default true | BL-067: "Eliminar mascota" ya no borra ni hace soft-delete — marca `is_active=false` para no perder historial (citas, pagos, expediente). Estado independiente de `death_date`; badge/filtro del listado combina ambos (Fallecida > Inactiva > Activa) |
 | `microchip_code` | string nullable | |
 | `tattoo_code` | string nullable | |
 | `sex` | string nullable | |
@@ -229,7 +230,7 @@ Entidad operativa principal. Separa **identidad** (esta tabla) de **trazabilidad
 | `is_sterilized` | boolean | |
 | `flagged_for_deletion` | boolean | Marcada para eliminar desde app móvil |
 | `notes` | text nullable | |
-| `deleted_at` | timestamp nullable | Soft delete |
+| `deleted_at` | timestamp nullable | Soft delete (trait `SoftDeletes` sigue en el modelo, pero desde BL-067 ningún flujo de la UI lo dispara — "Eliminar mascota" ahora marca `is_active=false` en vez de borrar) |
 | `timestamps` | | |
 
 > `profile_photo_path` se sincroniza automáticamente cuando se marca una foto de `pet_photos` como `perfil`.
@@ -411,6 +412,7 @@ Recetas — encabezado/líneas, mismo patrón que `executed_services`/`executed_
 |---|---|---|
 | `id` | bigint PK | |
 | `clinical_prescription_id` | FK → `clinical_prescriptions` | |
+| `item_id` | FK → `items` nullable (nullOnDelete) | BL-070 — liga opcional al maestro de artículos (`department = 'Farmacia'`) para autocompletar `drug_name`/`concentration` desde un selector; el texto libre sigue siendo la fuente real (fármacos compuestos o fuera de catálogo no requieren `item_id`). Sin descuento de inventario todavía — la dosis es texto libre, no hay cantidad estructurada que descontar de forma confiable |
 | `drug_name`, `concentration` | string | |
 | `dose`, `frequency` | string | |
 | `route` | enum | `oral`/`topical`/`subcutaneous`/`intramuscular`/`intravenous`/`ophthalmic`/`otic`/`other` |
@@ -444,7 +446,7 @@ BL-051 agregó `price`, `ai_visible` y `stock_quantity` — campos mínimos para
 |---|---|---|
 | `id` | bigint PK | |
 | `name` | string | |
-| `department` | string nullable | "Farmacia", "Accesorios", etc. — texto libre con sugerencias, sin enum |
+| `department` | string nullable | "Farmacia", "Vacunas", "Accesorios", "Grooming", "Hospedaje" — sin enum a nivel de columna, pero el formulario (`items/partials/form.blade.php`) captura con un `<select>` cerrado a esa lista desde BL-070 (antes era texto libre con `<datalist>`, cambiado a pedido del usuario para evitar errores de dedo que rompían el filtro en silencio). Si un artículo ya tenía un valor fuera de esa lista, el formulario lo agrega como opción extra para no perderlo/sobrescribirlo sin querer. Es la taxonomía real que filtra los selectores de artículo en Vacunas (`department = 'Vacunas'`) y Recetas (`department = 'Farmacia'`) del módulo clínico — artículos ya existentes no se recategorizan solos, hay que editarlos a mano en el catálogo |
 | `meta_category` | string nullable | BL-052b — categoría de producto de Facebook/Google para el catálogo de Meta. Texto libre con sugerencias (datalist), no enum — la taxonomía real de Google tiene miles de nodos. Prefijo `meta_` porque existe para satisfacer el contrato de esa API externa, no es taxonomía de negocio propia (distinto de `department`) |
 | `meta_variant_group` | string nullable, indexado | BL-052b — clave de texto compartida entre artículos que son variantes del mismo producto físico (ej. mismo ID TAG en distintos colores). Se manda tal cual como `retailer_product_group_id` a Meta — sin FK real, Meta no devuelve nada que guardar (mismo criterio que `retailer_id = "item-{id}"`, no persistido) |
 | `meta_color` | string(100) nullable | BL-052b — color de esta variante específica. Solo tiene efecto en el payload de Meta si `meta_variant_group` también está presente (ver `MetaCatalogSyncService::buildPayload()`) — si falta uno de los dos, el artículo se publica igual, solo sin agrupar como variante |

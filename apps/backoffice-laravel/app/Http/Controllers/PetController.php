@@ -22,7 +22,7 @@ class PetController extends Controller
         $sort = $request->query('sort');
         $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
 
-        if (! in_array($status, ['all', 'active', 'deceased'], true)) {
+        if (! in_array($status, ['all', 'active', 'inactive', 'deceased'], true)) {
             $status = 'all';
         }
 
@@ -39,6 +39,7 @@ class PetController extends Controller
                 'pets.breed',
                 'pets.birth_date',
                 'pets.death_date',
+                'pets.is_active',
                 'pets.microchip_code',
                 'pets.notes',
             ])
@@ -79,7 +80,9 @@ class PetController extends Controller
         }
 
         if ($status === 'active') {
-            $pets->whereNull('pets.death_date');
+            $pets->whereNull('pets.death_date')->where('pets.is_active', true);
+        } elseif ($status === 'inactive') {
+            $pets->whereNull('pets.death_date')->where('pets.is_active', false);
         } elseif ($status === 'deceased') {
             $pets->whereNotNull('pets.death_date');
         }
@@ -224,16 +227,16 @@ class PetController extends Controller
 
         if ($activeBookings) {
             return redirect()->back()
-                ->with('error', 'No se puede eliminar la mascota porque tiene citas activas. Cancélalas primero.');
+                ->with('error', 'No se puede desactivar la mascota porque tiene citas activas. Cancélalas primero.');
         }
 
-        $pet->delete();
+        $pet->update(['is_active' => false]);
 
         $viewMode = $request->query('view') === 'table' ? 'table' : 'blocks';
 
         return redirect()
             ->route('pets.index', ['view' => $viewMode])
-            ->with('success', 'Mascota eliminada correctamente.');
+            ->with('success', 'Mascota marcada como inactiva. Su historial se conserva completo.');
     }
 
     public function updateProfilePhoto(Request $request, Pet $pet, ?string $redirectRoute = null)
@@ -288,11 +291,20 @@ class PetController extends Controller
 
     public function destroyFromClient(Client $client, Pet $pet)
     {
-        $pet->delete();
+        $activeBookings = $pet->spaBookings()
+            ->whereIn('status', ['scheduled', 'work_order'])
+            ->exists();
+
+        if ($activeBookings) {
+            return redirect()->back()
+                ->with('error', 'No se puede desactivar la mascota porque tiene citas activas. Cancélalas primero.');
+        }
+
+        $pet->update(['is_active' => false]);
 
         return redirect()
             ->route('clients.show', $client)
-            ->with('success', 'Mascota eliminada correctamente.');
+            ->with('success', 'Mascota marcada como inactiva. Su historial se conserva completo.');
     }
 
     private function validatedPetData(Request $request): array
@@ -303,6 +315,7 @@ class PetController extends Controller
             'breed' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['nullable', 'date'],
             'death_date' => ['nullable', 'date', 'after_or_equal:birth_date'],
+            'is_active' => ['nullable', 'boolean'],
             'microchip_code' => ['nullable', 'string', 'max:255'],
             'tattoo_code' => ['nullable', 'string', 'max:255'],
             'sex' => ['nullable', 'in:male,female,unknown'],

@@ -26,13 +26,13 @@
         <a href="{{ route('clients.show', $client) }}" class="btn btn-outline-secondary">Ver cliente</a>
         <a href="{{ route('clients.edit', $client) }}" class="btn btn-secondary">Editar cliente</a>
         <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#modalChangeOwner">Cambiar dueño</button>
-        <form action="{{ $isRootView ? route('pets.destroy', $pet) : route('clients.pets.destroy', [$client, $pet]) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de que deseas eliminar permanentemente a esta mascota? Esta acción no se puede deshacer.')">
+        <form action="{{ $isRootView ? route('pets.destroy', $pet) : route('clients.pets.destroy', [$client, $pet]) }}" method="POST" class="d-inline">
             @csrf
             @method('DELETE')
             @if($isRootView)
                 <input type="hidden" name="view" value="{{ $returnViewMode }}">
             @endif
-            <button type="submit" class="btn btn-outline-danger">Eliminar Mascota</button>
+            <button type="submit" class="btn btn-outline-danger" title="No elimina, conserva historial" data-confirm="¿Estás seguro de que deseas marcar esta mascota como inactiva? No se elimina — su historial (citas, pagos, expediente) se conserva completo y puede reactivarse después desde esta misma ficha.">Marcar como inactiva</button>
         </form>
     </x-slot:actions>
 </x-page-header>
@@ -149,6 +149,13 @@
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <div class="form-check mb-2">
+                        <input type="hidden" name="is_active" value="0">
+                        <input class="form-check-input" type="checkbox" name="is_active" value="1" id="pet-is-active" @checked(old('is_active', $pet->is_active))>
+                        <label class="form-check-label" for="pet-is-active">Mascota activa</label>
+                    </div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check mb-2">
                         <input type="hidden" name="is_sterilized" value="0">
                         <input class="form-check-input" type="checkbox" name="is_sterilized" value="1" id="pet-is-sterilized" @checked(old('is_sterilized', $pet->is_sterilized))>
                         <label class="form-check-label" for="pet-is-sterilized">Esterilizada</label>
@@ -195,7 +202,7 @@
     </div>
 </div>
 
-<div class="card mb-4 {{ $pet->death_date ? 'border-secondary' : '' }}">
+<div class="card mb-4 {{ ($pet->death_date || !$pet->is_active) ? 'border-secondary' : '' }}">
     <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between gap-3">
             <div>
@@ -215,6 +222,8 @@
                 <span class="badge text-bg-dark">{{ $pet->photos->count() }} fotos</span>
                 @if($pet->death_date)
                     <span class="badge text-bg-secondary">Fallecida</span>
+                @elseif(!$pet->is_active)
+                    <span class="badge text-bg-warning">Inactiva</span>
                 @endif
             </div>
         </div>

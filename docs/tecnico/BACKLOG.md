@@ -17,6 +17,7 @@
 | ~~BL-007~~ | ~~Verificar Transform Rules Cloudflare: X-Frame-Options, Referrer-Policy, Permissions-Policy~~ **COMPLETADO** | Seguridad | Headers en nginx de mob; backoffice ya los tenía vía middleware Laravel |
 | BL-028 | Diseñar estrategia de defensa por firewall (ufw) para el servidor OPi | Seguridad | Estado actual verificado 03/07/2026: ufw y fail2ban activos/habilitados (jail sshd: maxretry=4, findtime=10min, bantime=1h); SSH permite password además de pubkey (`PasswordAuthentication yes`); puerto 22 y SMB (139/445) escuchan en `0.0.0.0` en ambas LAN; Portainer/NPM admin ya restringidos a `192.168.100.250`. Definir reglas ufw explícitas por servicio/red y evaluar desactivar auth por password en SSH |
 | ~~BL-066~~ | ~~Borrado de usuarios: validar dependencias antes de eliminar~~ **COMPLETADO** | Bug/Seguridad | Ver Completados |
+| ~~BL-068~~ | ~~Corregir `onclick=`/`onsubmit=` inline restantes (NT-042)~~ **COMPLETADO** | Bug | Ver Completados |
 
 ### Prioridad Alta — App Móvil (operador)
 
@@ -54,6 +55,13 @@
 ---
 
 ## Completados
+
+| ID | Ítem | Sesión | Commit |
+|---|---|---|---|
+| BL-070 | El selector de "Artículo" en Vacunas mostraba todos los artículos activos sin filtrar por categoría. Se reusó `items.department` (ya existente, documentado para esto — "Farmacia", "Accesorios", etc.) para filtrar: Vacunas ahora exige `department = 'Vacunas'`; nueva sección de Recetas gana selector opcional de artículos con `department = 'Farmacia'` (autocompleta fármaco/concentración vía Alpine.js, sin bloquear texto libre para compuestos/fuera de catálogo). `clinical_prescription_items` gana `item_id` nullable (FK → `items`, sin descuento de inventario todavía). A pedido del usuario, el campo "Departamento" del formulario de Artículos (`ArtEdi`/`ArtCre`) pasó de texto libre con sugerencias a un `<select>` cerrado (persiana) para eliminar errores de dedo que rompían el filtro en silencio | 24/07/2026 | — |
+| BL-069 | Cerrar el flujo "Nueva mascota" (`pets/index.blade.php` → `clients.index?mode=pet_creation`): el `mode` nunca se leía ni tenía continuación. De paso se encontró y corrigió NT-043 (bug real y más grave: la búsqueda de clientes estaba rota en general, no solo en este flujo). `ClientController@index()` ahora expone `$petCreationMode`; en ese modo, cada cliente muestra "Agregar mascota aquí" en vez de Ver/Editar/Eliminar, que lleva a `clients.edit?open_pet_modal=1` y auto-abre el modal "Agregar Mascota" ya existente (reutiliza 100% la infraestructura de `client-form.js`, sin duplicar lógica) | 24/07/2026 | — |
+| BL-068 | `onclick=`/`onsubmit=` inline bloqueados por la CSP (NT-042) en 8 vistas — algunos ejecutaban la acción **sin pedir confirmación** al estar el `onsubmit` bloqueado. Migrados todos al patrón `data-confirm` + `type="submit"` ya usado en `groups/`, `resources/`, `branches/`, `finances/`: `pets/partials/{index-blocks,index-table}.blade.php`, `pets/show.blade.php`, `user/show.blade.php`, `operators/partials/unavailabilities.blade.php`, `whatsapp/plantillas/index.blade.php`, `clinical/visits/show.blade.php`, `clinical/pets/show.blade.php` (4 casos) | 24/07/2026 | — |
+| BL-067 | Mascotas: "Eliminar" ya no borra (ni soft-delete) — marca `is_active=false` para no perder historial (citas, pagos, expediente clínico). Detectado a partir de una queja de UX ("el botón de 4 no se lee", el ícono de basura no tenía `title`). Nueva columna `pets.is_active`; filtro del listado gana "Inactivas" (antes solo Todas/Activas/Fallecidas — el filtro de "Estado" en la vista de tabla tampoco tenía celda real, bug preexistente corregido de paso); badge combina Fallecida (`death_date`) > Inactiva (`is_active=false`) > Activa; checkbox "Mascota activa" en la ficha permite reactivar | 24/07/2026 | — |
 
 | ID | Ítem | Sesión | Commit |
 |---|---|---|---|

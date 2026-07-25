@@ -22,10 +22,10 @@
                             <td>{{ $unavailability->ends_at->format('d/m/Y H:i') }}</td>
                             <td>{{ $unavailability->reason ?? '—' }}</td>
                             <td class="text-end">
-                                <form action="{{ route('operators.unavailabilities.destroy', [$operator, $unavailability]) }}" method="POST" onsubmit="return confirm('¿Eliminar este bloqueo?');">
+                                <form action="{{ route('operators.unavailabilities.destroy', [$operator, $unavailability]) }}" method="POST">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="¿Eliminar este bloqueo?">Eliminar</button>
                                 </form>
                             </td>
                         </tr>

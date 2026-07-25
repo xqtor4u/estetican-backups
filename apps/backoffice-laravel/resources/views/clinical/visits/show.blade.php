@@ -14,9 +14,9 @@
             @if($visit->status === 'draft')
                 <a href="{{ route('clinical.visits.edit', $visit) }}" class="btn btn-outline-secondary">Editar</a>
                 @if(!$visit->is_external)
-                    <form action="{{ route('clinical.visits.sign', $visit) }}" method="POST" onsubmit="return confirm('¿Firmar esta visita? Quedará inmutable.');">
+                    <form action="{{ route('clinical.visits.sign', $visit) }}" method="POST">
                         @csrf
-                        <button type="submit" class="btn btn-success">Firmar</button>
+                        <button type="submit" class="btn btn-success" data-confirm="¿Firmar esta visita? Quedará inmutable.">Firmar</button>
                     </form>
                 @endif
             @elseif($visit->status === 'signed')
@@ -163,9 +163,23 @@
             <form action="{{ route('clinical.prescriptions.store', $visit) }}" method="POST" class="mt-3">
                 @csrf
                 <h5 class="h6">Nueva receta</h5>
-                <div class="row g-2 mb-2">
-                    <div class="col-md-3"><input type="text" name="items[0][drug_name]" class="form-control" placeholder="Fármaco" required></div>
-                    <div class="col-md-2"><input type="text" name="items[0][concentration]" class="form-control" placeholder="Concentración"></div>
+                <div class="row g-2 mb-2" x-data="{
+                    pharmacyItems: {{ \Illuminate\Support\Js::from($pharmacyItems->map(fn ($i) => ['id' => (string) $i->id, 'name' => $i->name, 'presentation' => $i->presentation])->values()) }},
+                }">
+                    <div class="col-md-3">
+                        <select name="items[0][item_id]" class="form-select mb-1" @change="
+                            const item = pharmacyItems.find(i => i.id === $event.target.value);
+                            if (item) { $refs.drugName.value = item.name; $refs.concentration.value = item.presentation || ''; }
+                        ">
+                            <option value="">Sin especificar (farmacia)</option>
+                            @foreach($pharmacyItems as $pharmacyItem)
+                                <option value="{{ $pharmacyItem->id }}">{{ $pharmacyItem->name }}@if($pharmacyItem->presentation) ({{ $pharmacyItem->presentation }})@endif</option>
+                            @endforeach
+                        </select>
+                        <input type="text" name="items[0][drug_name]" x-ref="drugName" class="form-control" placeholder="Fármaco" required>
+                        <div class="form-text">El selector solo lista artículos con departamento "Farmacia"; el nombre se puede escribir/editar libre.</div>
+                    </div>
+                    <div class="col-md-2"><input type="text" name="items[0][concentration]" x-ref="concentration" class="form-control" placeholder="Concentración"></div>
                     <div class="col-md-2"><input type="text" name="items[0][dose]" class="form-control" placeholder="Dosis" required></div>
                     <div class="col-md-2">
                         <select name="items[0][route]" class="form-select">

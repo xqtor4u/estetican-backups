@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'clinical_prescription_id',
+    'item_id',
     'drug_name',
     'concentration',
     'dose',
@@ -28,5 +29,10 @@ class ClinicalPrescriptionItem extends Model
     public function prescription(): BelongsTo
     {
         return $this->belongsTo(ClinicalPrescription::class, 'clinical_prescription_id');
+    }
+
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(Item::class);
     }
 }

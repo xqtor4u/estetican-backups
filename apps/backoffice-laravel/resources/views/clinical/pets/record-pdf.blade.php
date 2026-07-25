@@ -19,6 +19,12 @@
         'referral_letter' => 'Carta de referencia',
         'other' => 'Otro',
     ];
+    $conditionStatusLabels = [
+        'active' => 'Activa',
+        'controlled' => 'Controlada',
+        'chronic_monitoring' => 'Monitoreo crónico',
+        'resolved' => 'Resuelta',
+    ];
 @endphp
 
 @section('content')
@@ -54,7 +60,7 @@
 
 <h3 class="section-title">Condiciones crónicas</h3>
 @forelse($pet->conditions as $condition)
-    <p>{{ $condition->name }} — {{ $condition->status }}@if($condition->icd_code) ({{ $condition->icd_code }}) @endif</p>
+    <p>{{ $condition->name }} — {{ $conditionStatusLabels[$condition->status] ?? $condition->status }}@if($condition->icd_code) ({{ $condition->icd_code }}) @endif</p>
 @empty
     <p class="muted">Ninguna registrada.</p>
 @endforelse

@@ -48,11 +48,15 @@
                 </td>
                 <td class="text-end">
                     <div class="catalog-actions-cluster justify-content-end">
-                        <a href="{{ route('clients.show', $client) }}" class="btn btn-sm btn-outline-info">Cliente</a>
-                        @if($livePets->isNotEmpty())
-                            <a href="{{ route('clients.pets.show', [$client, $livePets->first()]) }}" class="btn btn-sm btn-outline-primary">Mascota</a>
+                        @if($petCreationMode ?? false)
+                            <a href="{{ route('clients.edit', ['client' => $client, 'open_pet_modal' => 1]) }}" class="btn btn-sm btn-outline-primary">Agregar mascota aquí</a>
+                        @else
+                            <a href="{{ route('clients.show', $client) }}" class="btn btn-sm btn-outline-info">Cliente</a>
+                            @if($livePets->isNotEmpty())
+                                <a href="{{ route('clients.pets.show', [$client, $livePets->first()]) }}" class="btn btn-sm btn-outline-primary">Mascota</a>
+                            @endif
+                            <a href="{{ route('clients.edit', $client) }}" class="btn btn-sm btn-outline-warning">Editar</a>
                         @endif
-                        <a href="{{ route('clients.edit', $client) }}" class="btn btn-sm btn-outline-warning">Editar</a>
                     </div>
                 </td>
             </tr>

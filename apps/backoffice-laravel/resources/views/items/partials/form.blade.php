@@ -21,16 +21,22 @@
         <input id="name" type="text" name="name" class="form-control" value="{{ old('name', $item->name ?? '') }}" required>
     </div>
 
+    @php
+        $departmentOptions = ['Farmacia', 'Vacunas', 'Accesorios', 'Grooming', 'Hospedaje'];
+        $currentDepartment = old('department', $item->department ?? '');
+        if ($currentDepartment !== '' && ! in_array($currentDepartment, $departmentOptions, true)) {
+            $departmentOptions[] = $currentDepartment;
+        }
+    @endphp
     <div class="col-md-6">
         <label for="department" class="form-label">Departamento</label>
-        <input id="department" type="text" name="department" class="form-control" list="department-suggestions" value="{{ old('department', $item->department ?? '') }}" placeholder="Ej. Farmacia, Accesorios...">
-        <datalist id="department-suggestions">
-            <option value="Farmacia">
-            <option value="Accesorios">
-            <option value="Grooming">
-            <option value="Hospedaje">
-        </datalist>
-        <div class="form-text">Opcional — sugerencia para agrupar en el futuro módulo de inventario.</div>
+        <select id="department" name="department" class="form-select">
+            <option value="" @selected($currentDepartment === '')>Sin departamento</option>
+            @foreach($departmentOptions as $departmentOption)
+                <option value="{{ $departmentOption }}" @selected($currentDepartment === $departmentOption)>{{ $departmentOption }}</option>
+            @endforeach
+        </select>
+        <div class="form-text">Determina en qué selectores clínicos aparece este artículo — "Vacunas" en el módulo de Vacunas, "Farmacia" en Recetas.</div>
     </div>
 
     <div class="col-md-6">

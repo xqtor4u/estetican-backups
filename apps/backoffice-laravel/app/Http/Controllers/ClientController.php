@@ -15,6 +15,7 @@ class ClientController extends Controller
     {
         $viewMode = $request->query('view') === 'table' ? 'table' : 'blocks';
         $search = trim((string) $request->query('search', ''));
+        $petCreationMode = $request->query('mode') === 'pet_creation';
         $petsFilter = $request->query('pets_filter');
         $sort = $request->query('sort');
         $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
@@ -94,7 +95,7 @@ class ClientController extends Controller
 
         $clients = $clients->paginate(10)->withQueryString();
 
-        return view('clients.index', compact('clients', 'viewMode', 'search', 'petsFilter', 'sort', 'direction'));
+        return view('clients.index', compact('clients', 'viewMode', 'search', 'petsFilter', 'sort', 'direction', 'petCreationMode'));
     }
 
     /**
