@@ -1,5 +1,28 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 24/07/2026 (cont. 8) — Recategorización de catálogo + demo de Farmacia (sin código)
+
+### ✅ Logros y Cambios
+
+Cierre de la sesión larga de BL-066 a BL-070: el usuario pidió recategorizar los artículos reales del catálogo (14 en total) para que el filtro de BL-070 tuviera datos con qué trabajar. Revisado uno por uno: 8 "ID TAG" ya estaban bien como "Accesorios"; 5 vacunas reales ya estaban bien como "Vacunas"; **"Simparica Trio canino" estaba mal etiquetado como "Vacunas"** — es un antiparasitario oral (sarolaner + moxidectina + pirantel, tabletas masticables mensuales), no una vacuna inyectable. Verificado que no tenía historial de aplicación ni movimientos de inventario antes de recategorizarlo a "Farmacia" (cambio de datos, sin riesgo).
+
+El usuario pidió además dar de alta 8 medicamentos veterinarios reales (Rimadyl, Metacam, Clavamox, Cerenia oral e inyectable, Apoquel, Revolution, Revolution Plus) para tener una demo real del selector de Farmacia, con su ficha técnica completa (principio activo, presentación, dosis de referencia por especie). De paso propuso un rediseño real: separar la dosis en campos estructurados (`principio_activo`, `concentracion`, `forma_farmaceutica`, `especie`, `via`, `mg_kg`, `frecuencia`, `duracion`, `restricciones`, `requiere_receta`) en vez de texto libre, con el objetivo final de sugerir la dosis calculada (peso de la mascota × mg/kg) al recetar. Se le preguntó el alcance: confirmó dar de alta los medicamentos ahora con los campos existentes (dosis de referencia en `notes`, como texto), dejando el rediseño estructurado completo — incluyendo el cálculo automático — como **BL-071**, diferido a propósito para otra sesión.
+
+Sesión de datos/documentación, sin cambios de código — no genera commit.
+
+### 📁 Cambios de datos (no código)
+- `items`: `Simparica Trio canino` recategorizado de "Vacunas" a "Farmacia".
+- `items`: 8 medicamentos nuevos creados (department=Farmacia) — Rimadyl, Metacam, Clavamox, Cerenia, Cerenia inyectable, Apoquel, Revolution, Revolution Plus.
+- `docs/tecnico/BACKLOG.md`: BL-071 nuevo (formulario/vademécum estructurado, diferido).
+
+### 🛑 Pendientes activos
+1. BL-071: formulario/vademécum veterinario estructurado + cálculo automático de dosis — diseño ya anotado, sin construir.
+2. Evaluar si `docs/OPI_PRODUCCION.md` debe actualizarse dado que se compiló JS directo en la OPi 3 veces en esta sesión (fuera del proceso documentado de WSL→git).
+3. BL-047 resto: espejo automático alergia severa→alerta, soporte en app móvil, catálogo real de `icd_code`.
+4. BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 24/07/2026 (cont. 7) — BL-070: filtrar artículos por categoría (Vacunas/Farmacia)
 
 ### ✅ Logros y Cambios
