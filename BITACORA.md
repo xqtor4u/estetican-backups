@@ -1,5 +1,34 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 24/07/2026 (cont. 9) — Cierre general: resumen consolidado del día
+
+### ✅ Resumen del día
+
+Sesión larga con 9 tramos de trabajo, todos ya commiteados y pusheados (`b15d676`, `5d5d3b2`, `b54a1b2`, `80ccd91`). De un vistazo:
+
+| ID | Qué se hizo |
+|---|---|
+| BL-066 | Borrado de usuarios ya no borra si tiene historial — lo marca inactivo |
+| BL-047 (resto) | PDF real del expediente clínico completo y de recetas individuales (`barryvdh/laravel-dompdf`, primera dependencia de PDF del proyecto) |
+| BL-067 | Mascotas: "Eliminar" ya no borra (ni soft-delete) — marca `is_active=false` |
+| NT-042/BL-068 | La CSP bloqueaba `onclick=`/`onsubmit=` inline sin avisar — 8 vistas migradas a `data-confirm`; una de ellas (usuarios) tenía una regresión de seguridad real (se enviaba sin confirmar) |
+| BL-069/NT-043 | Flujo "Nueva mascota" conectado de punta a punta; de paso se encontró y corrigió un bug real que rompía la búsqueda de clientes en general |
+| BL-070 | Selectores de artículo en Vacunas/Recetas filtrados por `items.department`; campo "Departamento" del catálogo pasó de texto libre a `<select>` cerrado |
+| — | Recategorización real del catálogo (14 artículos: Simparica Trio corregido de Vacunas→Farmacia) + 8 medicamentos de demo dados de alta en Farmacia con ficha técnica |
+| BL-071 (nuevo, diferido) | Formulario/vademécum veterinario estructurado — diseño propuesto por el usuario, sin construir todavía |
+
+Verificado el selector de Recetas contra producción real vía HTTP (login temporal + curl, sin navegador disponible en este entorno) — los 9 artículos de Farmacia aparecen correctamente, sin errores PHP. Usuario y visita de prueba borrados después.
+
+### 🛑 Pendientes reales para la próxima sesión
+
+1. **BL-071** — formulario/vademécum estructurado (`principio_activo`, `concentracion`, `forma_farmaceutica`, `especie`, `via`, `mg_kg`, `frecuencia`, `duracion`, `restricciones`, `requiere_receta`) + cálculo automático de dosis (peso de la mascota × mg/kg) al recetar. Los 8 medicamentos de demo de hoy solo tienen la dosis de referencia como texto en `notes`, sin estructurar. Incluye descuento de inventario al recetar (hoy solo vacunas descuentan).
+2. **Verificación manual en navegador real** del autocompletado Alpine.js del selector de Farmacia (BL-070) — se confirmó el HTML/datos vía HTTP directo, pero no la interacción de clic real (elegir un artículo → se rellenan Fármaco/Concentración). Sin herramienta de navegador en este entorno.
+3. Evaluar si `docs/OPI_PRODUCCION.md` debe documentar que hoy se compiló JS directo en la OPi 3 veces (`npm run build` dentro de `estetican_app`), fuera del proceso documentado de WSL→git.
+4. BL-047 resto: espejo automático "alergia severa → `pet_medical_alerts`", soporte en app móvil, catálogo real de `icd_code`.
+5. Sin relación con lo de hoy: BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API).
+
+---
+
 ## 📅 Cierre de sesión: 24/07/2026 (cont. 8) — Recategorización de catálogo + demo de Farmacia (sin código)
 
 ### ✅ Logros y Cambios
