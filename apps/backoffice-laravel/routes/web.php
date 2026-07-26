@@ -45,6 +45,7 @@ use App\Http\Controllers\ResourceEventController;
 use App\Http\Controllers\ResourceEventPhotoController;
 use App\Http\Controllers\ResourceEventUpdateController;
 use App\Http\Controllers\ResourcePhotoController;
+use App\Http\Controllers\ScreenLockController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SpaBookingController;
 use App\Http\Controllers\SystemSettingController;
@@ -70,7 +71,16 @@ Route::middleware('signed')->group(function () {
     Route::post('preferencias/{client}', [ClientPreferencesController::class, 'update'])->name('client-preferences.update');
 });
 
+// Bloqueo de pantalla — deliberadamente fuera de `screen.lock` para no auto-bloquearse.
 Route::middleware('auth')->group(function () {
+    Route::get('bloqueo', [ScreenLockController::class, 'show'])->name('screen-lock.show');
+    Route::post('bloqueo', [ScreenLockController::class, 'lock'])->name('screen-lock.lock');
+    Route::post('bloqueo/desbloquear', [ScreenLockController::class, 'unlock'])
+        ->middleware('throttle:5,1')
+        ->name('screen-lock.unlock');
+});
+
+Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
 
     // PETS CRUD & Shortcuts
@@ -208,6 +218,7 @@ Route::middleware('auth')->group(function () {
         Route::get('user/settings', 'index')->name('user.settings');
         Route::put('user/settings', 'update')->name('user.settings.update');
         Route::put('user/settings/password', 'updatePassword')->name('user.settings.password');
+        Route::put('user/settings/preferences', 'updatePreferences')->name('user.settings.preferences');
     });
 
     // Reportes de Impresión

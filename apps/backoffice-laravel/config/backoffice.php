@@ -84,6 +84,7 @@ return [
     'security' => [
         'confirm_destructive_actions' => true,
         'session_idle_minutes' => env('BACKOFFICE_SESSION_IDLE_MINUTES', env('SESSION_LIFETIME', 120)),
+        'screen_lock_idle_minutes' => env('BACKOFFICE_SCREEN_LOCK_IDLE_MINUTES', 15),
     ],
 
     'images' => [

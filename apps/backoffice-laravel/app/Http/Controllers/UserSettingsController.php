@@ -97,4 +97,15 @@ class UserSettingsController extends Controller
 
         return redirect()->back()->with('success', 'Contraseña actualizada correctamente.');
     }
+
+    public function updatePreferences(Request $request)
+    {
+        $validated = $request->validate([
+            'screen_lock_idle_minutes' => 'required|integer|min:1|max:120',
+        ]);
+
+        Auth::user()->update($validated);
+
+        return redirect()->back()->with('success', 'Preferencias actualizadas correctamente.');
+    }
 }

@@ -1,5 +1,45 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 26/07/2026 — BL-072: bloqueo de pantalla del backoffice
+
+### ✅ Logros y Cambios
+
+El usuario pidió un bloqueo de pantalla tipo POS para el backoffice (terminal compartida con datos financieros/clínicos delicados): botón manual "Bloquear pantalla" en el header + auto-bloqueo por inactividad, desbloqueo solo con el password de quien bloqueó, y cualquier otra persona en el mismo equipo solo puede cerrar sesión (no desbloquear). A pedido explícito del usuario, el timeout de inactividad **no quedó fijo**: es una preferencia personal editable por cada operador en `user/settings` (`screen_lock_idle_minutes`, nullable en `users`, cae al default global `config('backoffice.security.screen_lock_idle_minutes')` = 15 min si el usuario no lo personalizó).
+
+Diseño: el estado de "bloqueado ahora mismo" vive en la sesión de Laravel (driver `database`), no en `users` ni en tabla nueva — así el bloqueo sobrevive a un refresh o a otra pestaña con la misma cookie, algo que la app móvil (BL-038/BL-063, bloqueo 100% client-side con localStorage) no necesita resolver porque no comparte sesión de navegador entre personas. Nuevo middleware `screen.lock` (alias, sigue el patrón de `Ensure{Name}ModuleEnabled`) envuelve el mismo grupo grande de rutas protegidas; las 3 rutas de bloqueo (`screen-lock.show/lock/unlock`) viven en un grupo aparte solo con `auth` para no auto-bloquearse. Desbloqueo usa la regla nativa `current_password` de Laravel (mismo mecanismo que `UserSettingsController::updatePassword`), con `throttle:5,1` contra fuerza bruta. `redirect_url` se sanea contra open redirect (debe ser ruta relativa simple).
+
+10 tests de Feature nuevos (`ScreenLockTest`) cubren: bloqueo manual, bloqueo bloquea rutas protegidas, logout sigue funcionando estando bloqueado, desbloqueo correcto/incorrecto, rate limit, open redirect, preferencia por usuario sin afectar a otros. Los 10 pasan. Al correr la suite completa aparecieron 37 fallos preexistentes (no causados por este cambio — confirmado con un test de diagnóstico: redirigen a `/login`, no a `/bloqueo`, porque esos tests nunca llaman `actingAs()`; el diff de `routes/web.php` prueba que el grupo ya exigía `auth` antes de tocar nada). Se descarta arreglarlos aquí, es deuda preexistente sin relación con BL-072.
+
+De paso se disparó otra vez **NT-019** (`public/build` queda `root:root` tras `npm run build` dentro de `estetican_app`) — se le pidió al usuario correr el `sudo chown` documentado, ya conocido, no es nuevo.
+
+### 📁 Archivos Creados/Modificados
+- `app/Http/Middleware/EnsureScreenIsUnlocked.php` — nuevo, alias `screen.lock`
+- `app/Http/Controllers/ScreenLockController.php` — nuevo (`show`/`lock`/`unlock`)
+- `app/Http/Controllers/UserSettingsController.php` — nuevo método `updatePreferences()`
+- `app/Models/User.php` — `screen_lock_idle_minutes` en `#[Fillable]` + cast `integer`
+- `database/migrations/2026_07_26_000000_add_screen_lock_idle_minutes_to_users_table.php` — nuevo
+- `routes/web.php` — grupo de rutas de bloqueo + `screen.lock` en el grupo grande + `user.settings.preferences`
+- `bootstrap/app.php` — alias `screen.lock`
+- `config/backoffice.php` — `security.screen_lock_idle_minutes` (default global, `.env`)
+- `resources/views/auth/locked.blade.php` — nuevo, standalone (sin nav)
+- `resources/views/user/settings.blade.php` — tarjeta "Bloqueo de Pantalla"
+- `resources/views/layouts/app.blade.php` — data-attributes de config para el JS
+- `resources/views/components/main-navigation.blade.php` — botón "Bloquear pantalla" (desktop + mobile)
+- `resources/js/modules/screen-lock.js` — nuevo, timer de inactividad
+- `resources/js/app.js` — import del módulo nuevo
+- `tests/Feature/ScreenLockTest.php` — nuevo, 10 tests
+- `docs/tecnico/MODELO_BD.md` — columna nueva documentada en `users`
+- `docs/tecnico/BACKLOG.md` — BL-072 movido a Completados
+
+### 🛑 Pendientes activos
+1. **NT-019 recurrente**: confirmar que el usuario corrió `sudo chown -R tomas:tomas apps/backoffice-laravel/public/build` — sin eso, el próximo `git add`/`npm run build` puede volver a chocar con permisos.
+2. **37 tests preexistentes fallando** (no relacionados a BL-072) — nunca llaman `actingAs()`, listados en `ClientAddressHarmonizationTest`, `ClientLivePetsCatalogTest`, `HotelReservationResourceBlockingTest`, `OperatorBranchSelectionTest`, `OperatorPhotoUploadTest`, `PetCatalogRootViewsTest`, `PetDependenciesCrudTest`, `ResourceDuplicationTest`, `ResourceEventCrudTest`, `ResourcePhotoCrudTest`, `ServiceOperatorRoleLinkTest`, `ExampleTest`. Vale la pena decidir si se arreglan en una sesión dedicada — es deuda técnica real de cobertura.
+3. **Verificación manual en navegador real** del flujo completo (login → bloquear → desbloquear → auto-bloqueo por inactividad) — sin herramienta de navegador en este entorno, solo se verificó vía tests HTTP automatizados.
+4. Commit y push de esta sesión.
+5. Sin relación con lo de hoy: BL-071 (vademécum estructurado), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API), BL-047 resto (espejo alergia→alerta, app móvil, `icd_code`).
+
+---
+
 ## 📅 Cierre de sesión: 24/07/2026 (cont. 9) — Cierre general: resumen consolidado del día
 
 ### ✅ Resumen del día

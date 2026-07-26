@@ -61,6 +61,11 @@
                         @if(auth()->user()->is_super_admin)
                             <a href="{{ route('users.index') }}" class="app-mobile-link">Administrar usuarios</a>
                         @endif
+                        <form method="POST" action="{{ route('screen-lock.lock') }}" class="d-inline">
+                            @csrf
+                            <input type="hidden" name="redirect_url" value="{{ request()->getRequestUri() }}">
+                            <button type="submit" class="app-mobile-link" style="background:none;border:none;padding:0;margin:0;">Bloquear pantalla</button>
+                        </form>
                         <form method="POST" action="{{ route('logout') }}" class="d-inline">
                             @csrf
                             <button type="submit" class="app-mobile-link" style="background:none;border:none;padding:0;margin:0;">Cerrar sesión</button>
@@ -138,6 +143,11 @@
                             @if(auth()->user()->is_super_admin)
                                 <a href="{{ route('users.index') }}" class="dropdown-item">Administrar usuarios</a>
                             @endif
+                            <form method="POST" action="{{ route('screen-lock.lock') }}" class="d-inline">
+                                @csrf
+                                <input type="hidden" name="redirect_url" value="{{ request()->getRequestUri() }}">
+                                <button type="submit" class="dropdown-item">Bloquear pantalla</button>
+                            </form>
                             <form method="POST" action="{{ route('logout') }}" class="d-inline">
                                 @csrf
                                 <button type="submit" class="dropdown-item">Cerrar sesión</button>

@@ -41,6 +41,7 @@ use Spatie\Permission\Traits\HasRoles;
     'operator_role_id',
     'operator_id',
     'notes',
+    'screen_lock_idle_minutes',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -74,6 +75,7 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'is_operator' => 'boolean',
             'hire_date' => 'date',
+            'screen_lock_idle_minutes' => 'integer',
         ];
     }
 

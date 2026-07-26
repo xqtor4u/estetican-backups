@@ -179,6 +179,32 @@
                 </div>
             </div>
 
+            {{-- Tarjeta Bloqueo de Pantalla --}}
+            <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+                <div class="card-header bg-white py-3 border-bottom-0">
+                    <h5 class="card-title mb-0 h6 text-uppercase letter-spacing-1 fw-bold text-secondary">Bloqueo de Pantalla</h5>
+                </div>
+                <div class="card-body p-4 pt-0">
+                    <p class="text-muted small mb-3">Minutos de inactividad antes de bloquear tu sesión automáticamente. Solo tu contraseña la desbloquea.</p>
+                    <form action="{{ route('user.settings.preferences') }}" method="POST">
+                        @csrf
+                        @method('PUT')
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Minutos de inactividad</label>
+                            <input type="number" name="screen_lock_idle_minutes" min="1" max="120"
+                                   value="{{ old('screen_lock_idle_minutes', $user->screen_lock_idle_minutes ?? config('backoffice.security.screen_lock_idle_minutes', 15)) }}"
+                                   class="form-control rounded-3" required>
+                            @error('screen_lock_idle_minutes') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-outline-secondary rounded-pill fw-bold">Guardar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             {{-- Tarjeta Datos Técnicos (Solo lectura) --}}
             <div class="card shadow-sm border-0 rounded-4 bg-light border-start border-primary border-4">
                 <div class="card-body p-4">

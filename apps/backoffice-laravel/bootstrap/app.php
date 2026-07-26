@@ -4,6 +4,7 @@ use App\Http\Middleware\ApplySystemSettings;
 use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\EnsureClinicalModuleEnabled;
 use App\Http\Middleware\EnsureHotelModuleEnabled;
+use App\Http\Middleware\EnsureScreenIsUnlocked;
 use App\Http\Middleware\EnsureStoreModuleEnabled;
 use App\Http\Middleware\HandleAssistantCors;
 use App\Http\Middleware\ProfileBackofficeRequests;
@@ -36,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'clinical.module' => EnsureClinicalModuleEnabled::class,
             'store.module' => EnsureStoreModuleEnabled::class,
             'hotel.module' => EnsureHotelModuleEnabled::class,
+            'screen.lock' => EnsureScreenIsUnlocked::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

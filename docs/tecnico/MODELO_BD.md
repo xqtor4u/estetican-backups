@@ -57,6 +57,7 @@ Usuarios del backoffice. También representan operadores cuando `is_operator = t
 | `operator_code` | string unique nullable | Código operativo (ej. `GRO-JMP`) |
 | `operator_role_id` | FK → `operator_roles` nullable | Tipo de operador principal |
 | `notes` | text nullable | |
+| `screen_lock_idle_minutes` | unsignedSmallInteger nullable | BL-072 — minutos de inactividad antes de auto-bloquear pantalla, editable por el propio usuario en `user/settings`. `null` = usar `config('backoffice.security.screen_lock_idle_minutes')` (default 15) |
 | `remember_token` | string nullable | |
 | `email_verified_at` | timestamp nullable | |
 | `timestamps` | | `created_at`, `updated_at` |

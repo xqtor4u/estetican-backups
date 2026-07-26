@@ -7,6 +7,7 @@ import mapaZonasFactory from './modules/mapa-zonas';
 import './modules/address-editor';
 import './modules/client-form';
 import './modules/confirm-actions';
+import './modules/screen-lock';
 import './modules/pet-photo-exif';
 import './modules/password-toggle';
 import './modules/resizable-columns';
