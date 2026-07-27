@@ -570,6 +570,15 @@ npm run build
 
 **Lección:** si `npm run build` falla con `EACCES` en la OPi, revisar primero el dueño de `node_modules/` y `public/build/` (`stat -c "%U:%G" <ruta>`) antes de investigar nada del código — es casi siempre este problema de permisos, no un error de Vite.
 
+**Addendum (26/07/2026) — el `chown` vía el prefijo `!` de Claude Code no aplica nada:**
+
+Al reproducirse este mismo problema durante BL-072, se le pidió al usuario correr el `sudo chown` de arriba usando `!sudo chown ...` dentro del chat de Claude Code. El comando "corrió" sin error visible, pero el owner de `public/build/assets/` no cambió (verificado con `stat`/`lsattr`/`ctime` — nada se tocó). Al pedir la misma orden con `-v` para ver salida real, apareció el motivo:
+```
+sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper
+sudo: a password is required
+```
+El mecanismo `!<comando>` de Claude Code no adjunta una TTY real al proceso, así que `sudo` no puede pedir la contraseña interactivamente y falla — a veces en silencio si no se revisa el `stderr`. **Cualquier comando que requiera `sudo` debe correrse desde una terminal real (SSH directo a la OPi o consola física), nunca vía `!` en el chat.** El agente puede sugerir el comando exacto, pero no puede ejecutarlo ni verificar que el usuario lo corrió en el lugar correcto sin pedir la salida completa.
+
 ---
 
 ## NT-018 — App móvil: `loadOccupied` no expandía el rango ocupado según `duration_minutes`

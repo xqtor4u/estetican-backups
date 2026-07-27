@@ -32,11 +32,37 @@ De paso se disparó otra vez **NT-019** (`public/build` queda `root:root` tras `
 - `docs/tecnico/BACKLOG.md` — BL-072 movido a Completados
 
 ### 🛑 Pendientes activos
-1. **NT-019 recurrente**: confirmar que el usuario corrió `sudo chown -R tomas:tomas apps/backoffice-laravel/public/build` — sin eso, el próximo `git add`/`npm run build` puede volver a chocar con permisos.
+1. ~~NT-019 recurrente: confirmar chown~~ **RESUELTO** — ver hallazgo en la sesión siguiente (cont.): el primer intento vía `!` en este chat no aplicaba nada porque `sudo` requiere terminal real; se resolvió corriéndolo por SSH directo.
 2. **37 tests preexistentes fallando** (no relacionados a BL-072) — nunca llaman `actingAs()`, listados en `ClientAddressHarmonizationTest`, `ClientLivePetsCatalogTest`, `HotelReservationResourceBlockingTest`, `OperatorBranchSelectionTest`, `OperatorPhotoUploadTest`, `PetCatalogRootViewsTest`, `PetDependenciesCrudTest`, `ResourceDuplicationTest`, `ResourceEventCrudTest`, `ResourcePhotoCrudTest`, `ServiceOperatorRoleLinkTest`, `ExampleTest`. Vale la pena decidir si se arreglan en una sesión dedicada — es deuda técnica real de cobertura.
 3. **Verificación manual en navegador real** del flujo completo (login → bloquear → desbloquear → auto-bloqueo por inactividad) — sin herramienta de navegador en este entorno, solo se verificó vía tests HTTP automatizados.
-4. Commit y push de esta sesión.
+4. ~~Commit y push de esta sesión~~ **HECHO** — `7a188dd`, pusheado a `origin/main`.
 5. Sin relación con lo de hoy: BL-071 (vademécum estructurado), BL-053 (artículos de uso interno), BL-028 (firewall ufw), BL-001/002/004 (UI/config), BL-024b (mensajería automática por API), BL-047 resto (espejo alergia→alerta, app móvil, `icd_code`).
+
+---
+
+## 📅 Cierre de sesión: 26/07/2026 (cont.) — Cierre de pendientes BL-072 + MobCitaDet: botón "Realizada"
+
+### ✅ Logros y Cambios
+
+**Cierre de BL-072:** el usuario confirmó haber corrido el `chown` de NT-019 pero el owner de `public/build/assets/` seguía en `root:root` después de dos intentos vía `!` en este chat. Se diagnosticó comparando `stat`/`lsattr` (sin atributos raros, mismo filesystem, `ctime` sin cambios) y pidiéndole correr `-v` para ver salida real — el output reveló la causa: `sudo: a terminal is required to read the password`. El mecanismo `!` de este chat no adjunta una TTY real, así que `sudo` nunca pudo pedir la contraseña y fallaba en silencio (el usuario no veía el stderr la primera vez). Se resolvió pidiéndole correrlo desde una sesión SSH directa a la OPi, donde sí hay TTY — funcionó a la primera. Documentado como addendum a **NT-019** (ver abajo) porque es un hallazgo reusable: cualquier `sudo` futuro pedido a través de este chat va a fallar igual.
+
+**MobCitaDet — botón "Realizada":** el usuario pidió un botón que marque una cita como realizada "sin importar el tiempo de inicio y finalización (como estuvo programada)". Investigado el flujo real: la única fricción de horario existente es un diálogo de confirmación en el botón "Iniciar servicio" (`scheduled → work_order`) que compara la hora actual contra `scheduled_at` con un margen `graceMinutes` (configurable, default 15 min) — no bloquea, pero pide confirmar si el desfase es grande. El paso a `completed` (dentro de `MobCobro`, vía `PaymentController::store` con `mark_completed`) nunca tuvo ninguna restricción de horario, ni en frontend ni en backend.
+
+Se preguntó al usuario el alcance exacto (¿salta también el cobro?, ¿desde qué estados?): confirmó que el botón debe comportarse **como si se hubieran hecho ambos pasos** (iniciar + completar), o sea, sigue exigiendo pasar por cobro, y pidió que sea visible tanto en `scheduled` como en `work_order` (aceptando el solapamiento con "Completar y cobrar" en este último, se le advirtió explícitamente). Implementado en `MobCitaDet.tsx`: nueva función `markRealizada()` — si la cita está en `scheduled`, hace `PATCH status=work_order` en silencio (sin el diálogo de tolerancia) y navega directo a `/citas/{id}/cobro`; si ya está en `work_order`, navega directo igual que "Completar y cobrar". Sin cambios de backend (el endpoint ya no tenía restricción de horario que saltar).
+
+Verificado con `tsc --noEmit` (sin errores nuevos en este archivo — hay errores preexistentes en `ActiveService.tsx`/`MobCajaMovimientos.tsx` no relacionados) y `npm run build` exitoso; el contenedor `estetican_mob` recogió el build nuevo sin reiniciar (mismo inodo, se evitó a propósito el patrón `rm -rf dist` de NT-018). No se pudo probar el clic real en navegador (sin esa herramienta en este entorno).
+
+### 📁 Archivos Creados/Modificados
+- `mob_apps/operador/src/admin/MobCitaDet.tsx` — botón "Realizada" (`NEXT_STATUSES` + `markRealizada()`)
+- `docs/tecnico/NOTAS_TECNICAS.md` — addendum a NT-019 (sudo requiere TTY real, `!` de este chat no sirve)
+- `docs/tecnico/BACKLOG.md` — entrada de Completados para el botón "Realizada" (sin BL formal, pedido ad-hoc)
+- `BITACORA.md` — este cierre
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (MobCitaDet + docs).
+2. **Verificación manual en navegador real** del botón "Realizada" — mismo límite de entorno que BL-072, sin herramienta de browser disponible.
+3. Evaluar si conviene simplificar el solapamiento "Completar y cobrar" / "Realizada" en `work_order` (dos botones que hacen lo mismo) — el usuario lo aceptó a sabiendas, pero podría revisarse en una pasada de UX.
+4. Sin relación con lo de hoy: los mismos de la entrada anterior (BL-071, BL-053, BL-028, BL-001/002/004, BL-024b, BL-047 resto, 37 tests preexistentes).
 
 ---
 

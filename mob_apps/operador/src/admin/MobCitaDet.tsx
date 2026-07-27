@@ -57,16 +57,20 @@ const STATUS_BAR: Record<string, string> = {
   cancelled:  'bg-error',
   no_show:    'bg-error',
 };
-// 'cobro' no es un status real — es la acción de navegar a MobCobro
-const NEXT_STATUSES: Record<string, { value: string; label: string; icon: string; danger?: boolean; cobro?: boolean }[]> = {
+// 'cobro' no es un status real — es la acción de navegar a MobCobro.
+// 'realizada' tampoco — marca la cita como llevada a cabo tal como se programó,
+// sin importar la hora real de inicio/fin, y lleva directo a cobro.
+const NEXT_STATUSES: Record<string, { value: string; label: string; icon: string; danger?: boolean; cobro?: boolean; realizada?: boolean }[]> = {
   scheduled:  [
     { value: 'work_order', label: 'Iniciar servicio', icon: 'play_arrow' },
+    { value: 'realizada',  label: 'Realizada',        icon: 'task_alt',    realizada: true },
     { value: 'no_show',    label: 'No se presentó',  icon: 'person_off', danger: true },
     { value: 'cancelled',  label: 'Cancelar cita',   icon: 'cancel',     danger: true },
   ],
   work_order: [
-    { value: 'cobro', label: 'Completar y cobrar', icon: 'point_of_sale', cobro: true },
-    { value: 'cancelled', label: 'Cancelar',       icon: 'cancel', danger: true },
+    { value: 'cobro',     label: 'Completar y cobrar', icon: 'point_of_sale', cobro: true },
+    { value: 'realizada', label: 'Realizada',          icon: 'task_alt',      realizada: true },
+    { value: 'cancelled', label: 'Cancelar',           icon: 'cancel', danger: true },
   ],
 };
 
@@ -335,6 +339,33 @@ export function MobCitaDet() {
     setSaving(false);
   };
 
+  /* ── "Realizada": marca la cita como llevada a cabo tal como se programó,
+     sin la fricción de horario de "Iniciar servicio". Si aún no se había
+     iniciado, primero pasa a work_order en silencio y luego va a cobro. ── */
+  const markRealizada = async () => {
+    if (!booking) return;
+    const goToCobro = () => {
+      setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]);
+      navigate(`/citas/${booking.id}/cobro`);
+    };
+
+    if (booking.status === 'work_order') { goToCobro(); return; }
+
+    setSaving(true);
+    setSaveErr(null);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'work_order' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSaveErr(data.message ?? 'Error'); setSaving(false); return; }
+      setSaving(false);
+      goToCobro();
+    } catch { setSaveErr('No se pudo conectar con el servidor.'); setSaving(false); }
+  };
+
   /* ── Guardar edición ───────────────────────────────────── */
   const saveEdit = async () => {
     if (!booking) return;
@@ -486,6 +517,7 @@ export function MobCitaDet() {
                   key={action.value}
                   disabled={saving}
                   onClick={() => {
+                    if (action.realizada)            { markRealizada(); return; }
                     if (action.cobro)                { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/citas/${booking.id}/cobro`); return; }
                     if (action.value === 'cancelled') { setShowCancel(true);  return; }
                     if (action.value === 'no_show')   { setShowNoShow(true);  return; }
