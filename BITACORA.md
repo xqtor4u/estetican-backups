@@ -1,5 +1,13 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 27/07/2026 (cont. 3) — Commit/push + verificación final en producción
+
+Sesión larga (BL-073, BL-074, fixes de recibo/orden de trabajo/notas en cita cerrada — ver entradas de abajo) commiteada y pusheada en un solo commit (`679c971`, `origin/main`). De paso se agregó a `docs/architecture/IDEAS_FUTURO.md` la idea de unificar el cálculo de total/saldo/pagos de una cita (hoy duplicado en `_billing_summary`/`invoice`/`work-order`, causa raíz repetida de los bugs de esta sesión).
+
+**Verificación de producción post-commit** (pedida explícitamente por el usuario): contenedores arriba, git limpio, migración `booking_process_notes` corrida. Se hizo el paso que faltaba del checklist de deploy — **borrar vistas Blade compiladas** (`storage/framework/views`, ver NT-005) tras tocar varios `.blade.php` esta sesión — y se corrió la suite completa de nuevo tras la limpieza (322 pasan, mismos 37 preexistentes, sin regresiones). Chequeo en vivo contra las URLs públicas reales: rutas del backoffice devuelven 302 (auth, sin 500), `mov.estetican.org` sirve el bundle correcto, API sin token da 401 (no 500), recibo/orden de trabajo de la cita `#27` renderizan bien post-limpieza de caché, sección `pets` de `SystemSettings` resuelve correcto, y `Pet::visible()` contra datos reales confirma 23/24 mascotas visibles con el switch apagado (1 inactiva real en BD). Sin `production.ERROR` nuevos en los logs — el único error recurrente es preexistente y sin relación (sync de catálogo Meta, item #51).
+
+---
+
 ## 📅 Cierre de sesión: 27/07/2026 (cont. 2) — Recibo de pago (backoffice web) en $0 y sin notas
 
 ### ✅ Logros y Cambios
