@@ -419,6 +419,19 @@ class SystemSettings
                     ],
                 ],
             ],
+            'pets' => [
+                'label' => 'Mascotas',
+                'description' => 'Reglas de visibilidad para mascotas dadas de baja (marcadas como inactivas).',
+                'fields' => [
+                    'pets_show_inactive' => [
+                        'label' => 'Mostrar mascotas inactivas en selectores y listados',
+                        'type' => 'boolean',
+                        'default' => false,
+                        'rules' => ['nullable', 'boolean'],
+                        'help' => 'Si está apagado (recomendado), las mascotas marcadas como inactivas no aparecen en selectores de agendar/reservar/recetar ni en listados informativos. El listado de Mascotas mantiene su propio filtro "Inactivas" para consultarlas puntualmente sin depender de esta opción.',
+                    ],
+                ],
+            ],
             'fiscal' => [
                 'label' => 'Datos Fiscales',
                 'description' => 'Información legal para reportes.',

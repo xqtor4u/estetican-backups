@@ -149,7 +149,8 @@ class PetController extends Controller
 
     public function index(Request $request)
     {
-        $query = Pet::with('client')
+        $query = Pet::visible()
+            ->with('client')
             ->orderBy('name');
 
         if ($search = $request->input('search')) {

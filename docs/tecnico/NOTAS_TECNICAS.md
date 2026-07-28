@@ -88,6 +88,10 @@ El proyecto ya tenía el patrón correcto resuelto desde antes (`resources/js/mo
 
 Barrido completo del proyecto (`grep -rn 'onsubmit=\|onclick="confirm'`) confirmó cero ocurrencias restantes tras corregir los 4 archivos pendientes.
 
+**Addendum (27/07/2026):** apareció una recurrencia real — `layouts/report.blade.php` (compartido por recibo, orden de trabajo y presupuesto) tenía `<button onclick="window.print()">`, exactamente el mismo bug: clic sin ningún efecto, sin error visible. El barrido de esta nota original nunca lo agarró porque el patrón de grep usado (`onclick="confirm`) era específico para el caso de confirmaciones — no cubría `onclick=` en general. Corregido con el otro patrón ya establecido en el proyecto para clics simples sin `<form>` de por medio (distinto de `data-confirm`, que requiere un submit real): `<script nonce="{{ csp_nonce() }}">` + `addEventListener` sobre un `id`, mismo estilo que ya usa `agenda/global-create.blade.php`. Verificado con `grep -rn 'onclick="window.print'` sin más ocurrencias en el proyecto.
+
+**Lección ampliada:** al auditar por este bug, buscar `on\w+=` en general (no solo `onclick="confirm`) — cualquier atributo de evento inline cae en el mismo bloqueo silencioso, no solo los ligados a confirmaciones de formulario.
+
 ---
 
 ## NT-001 — cropperjs v2 incompatible con código v1

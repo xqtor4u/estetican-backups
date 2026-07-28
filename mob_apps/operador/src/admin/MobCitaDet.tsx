@@ -26,6 +26,7 @@ interface ServiceCat { id: number; name: string; type: string | null; price: num
 interface OperatorCat { id: number; name: string; role: string | null; photo_url: string | null }
 interface OccBooking  { id: number; time: string }
 interface BookingPayment { id: number; amount: number; payment_method: string; category: string; destination: string; created_at: string }
+interface ProcessNote { id: number; note: string; author: string | null; created_at: string; updated_at: string }
 interface TxRow {
   key: string;
   tipo: string;
@@ -177,6 +178,23 @@ export function MobCitaDet() {
   const [payments,     setPayments]     = useState<BookingPayment[]>([]);
   const [totalPaid,    setTotalPaid]    = useState(0);
 
+  /* Notas de proceso (tomadas mientras el servicio está "En proceso") */
+  const [processNotes,   setProcessNotes]   = useState<ProcessNote[]>([]);
+  const [showNoteModal,  setShowNoteModal]  = useState(false);
+  const [noteText,       setNoteText]       = useState('');
+  const [savingNote,     setSavingNote]     = useState(false);
+  const [noteErr,        setNoteErr]        = useState<string | null>(null);
+
+  /* Edición rápida de "Notas de la cita" (sin entrar al modo edición completo) */
+  const [editingBookingNote, setEditingBookingNote] = useState(false);
+  const [bookingNoteText,    setBookingNoteText]    = useState('');
+  const [savingBookingNote,  setSavingBookingNote]  = useState(false);
+
+  /* Edición de notas de proceso ya existentes */
+  const [editingProcessNoteId, setEditingProcessNoteId] = useState<number | null>(null);
+  const [editingProcessText,   setEditingProcessText]   = useState('');
+  const [savingProcessNoteId,  setSavingProcessNoteId]  = useState<number | null>(null);
+
   /* Movimientos unificados (servicios + cobros) */
   const txRows = useMemo<TxRow[]>(() => {
     if (!booking) return [];
@@ -265,6 +283,81 @@ export function MobCitaDet() {
       })
       .catch(() => {});
   }, [booking]);
+
+  /* ── Carga notas de proceso ───────────────────────────── */
+  useEffect(() => {
+    if (!booking) return;
+    fetch(`/api/bookings/${booking.id}/process-notes`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: ProcessNote[] | null) => { if (data) setProcessNotes(data); })
+      .catch(() => {});
+  }, [booking?.id]);
+
+  /* ── Guardar nota de proceso ──────────────────────────── */
+  const saveNote = async () => {
+    if (!booking || !noteText.trim()) return;
+    setSavingNote(true);
+    setNoteErr(null);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/process-notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: noteText.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setNoteErr(data.message ?? 'Error'); setSavingNote(false); return; }
+      setProcessNotes(prev => [...prev, data]);
+      setNoteText('');
+      setShowNoteModal(false);
+      showToast('Nota agregada');
+    } catch { setNoteErr('No se pudo conectar con el servidor.'); }
+    setSavingNote(false);
+  };
+
+  /* ── Editar "Notas de la cita" (rápido, sin modo edición completo) ── */
+  const startEditBookingNote = () => { setBookingNoteText(booking?.notes ?? ''); setEditingBookingNote(true); };
+  const cancelEditBookingNote = () => { setEditingBookingNote(false); setBookingNoteText(''); };
+  const saveBookingNote = async () => {
+    if (!booking) return;
+    setSavingBookingNote(true);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: bookingNoteText.trim() || null }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBooking(data);
+        setNotes(data.notes ?? '');
+        setEditingBookingNote(false);
+        showToast('Nota de la cita actualizada');
+      }
+    } catch { /* silencioso */ }
+    setSavingBookingNote(false);
+  };
+
+  /* ── Editar una nota de proceso ya existente ──────────── */
+  const startEditProcessNote = (n: ProcessNote) => { setEditingProcessNoteId(n.id); setEditingProcessText(n.note); };
+  const cancelEditProcessNote = () => { setEditingProcessNoteId(null); setEditingProcessText(''); };
+  const saveEditProcessNote = async () => {
+    if (!booking || editingProcessNoteId == null || !editingProcessText.trim()) return;
+    setSavingProcessNoteId(editingProcessNoteId);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/process-notes/${editingProcessNoteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: editingProcessText.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setProcessNotes(prev => prev.map(n => n.id === editingProcessNoteId ? data : n));
+        setEditingProcessNoteId(null);
+        setEditingProcessText('');
+      }
+    } catch { /* silencioso */ }
+    setSavingProcessNoteId(null);
+  };
 
   /* ── Carga slots ocupados ──────────────────────────────── */
   const loadOccupied = useCallback((date: Date, excludeId: number) => {
@@ -462,6 +555,13 @@ export function MobCitaDet() {
           <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${STATUS_COLOR[booking.status] ?? ''}`}>
             {STATUS_LABEL[booking.status] ?? booking.status}
           </span>
+          {booking.status === 'work_order' && (
+            <button onClick={() => { setNoteErr(null); setShowNoteModal(true); }}
+              className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full border bg-tertiary/10 text-tertiary border-tertiary/30 active:scale-95 transition-transform">
+              <span className="material-symbols-outlined text-sm">edit_note</span>
+              Nota{processNotes.length > 0 ? ` (${processNotes.length})` : ''}
+            </button>
+          )}
           {booking.order_folio && (
             <span className="font-mono text-xs font-bold text-on-surface-variant bg-surface-container px-2.5 py-1 rounded-lg border border-outline-variant">
               {booking.order_folio}
@@ -630,6 +730,35 @@ export function MobCitaDet() {
               <button onClick={() => { setGraceDialog(null); changeStatus('work_order'); }} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-primary text-on-primary disabled:opacity-50">
                 Sí, iniciar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Modal nota de proceso ─────────────────────── */}
+        {showNoteModal && (
+          <div className="bg-tertiary/8 border border-tertiary/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-tertiary text-xl">edit_note</span>
+              <p className="text-sm font-semibold text-tertiary">Nota del proceso en curso</p>
+            </div>
+            <textarea
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              rows={3}
+              autoFocus
+              placeholder="Ej. Se detectó nudo en la pata trasera, se avisó al dueño…"
+              className="w-full bg-background border border-tertiary/30 rounded-xl px-3 py-2 text-sm outline-none resize-none focus:border-tertiary"
+            />
+            {noteErr && <p className="text-xs text-error">{noteErr}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => { setShowNoteModal(false); setNoteText(''); setNoteErr(null); }}
+                className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                Cancelar
+              </button>
+              <button onClick={saveNote} disabled={savingNote || !noteText.trim()}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-tertiary text-on-tertiary disabled:opacity-50">
+                {savingNote ? 'Guardando…' : 'Guardar nota'}
               </button>
             </div>
           </div>
@@ -916,12 +1045,88 @@ export function MobCitaDet() {
               </div>
             )}
 
-            {/* Notas */}
-            {booking.notes && (
-              <div className="bg-surface-container-low border border-outline-variant rounded-2xl px-4 py-3">
-                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1">Notas</p>
-                <p className="text-sm text-on-surface leading-relaxed">{booking.notes}</p>
-              </div>
+            {/* Notas de la cita (editable en línea, sin entrar al modo edición completo — siempre,
+                incluso con la cita ya completada/cancelada: corregir una nota no reabre nada operativo) */}
+            <div className="bg-surface-container-low border border-outline-variant rounded-2xl px-4 py-3">
+                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1">Notas de la cita</p>
+                {editingBookingNote ? (
+                  <div className="flex flex-col gap-2">
+                    <textarea
+                      value={bookingNoteText}
+                      onChange={e => setBookingNoteText(e.target.value)}
+                      rows={3}
+                      autoFocus
+                      placeholder="Instrucciones especiales…"
+                      className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none resize-none focus:border-primary"
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={cancelEditBookingNote}
+                        className="flex-1 py-2 rounded-xl text-xs border border-outline-variant text-on-surface-variant">
+                        Cancelar
+                      </button>
+                      <button onClick={saveBookingNote} disabled={savingBookingNote}
+                        className="flex-1 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary disabled:opacity-50">
+                        {savingBookingNote ? 'Guardando…' : 'Guardar'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={startEditBookingNote} className="w-full text-left">
+                    {booking.notes ? (
+                      <p className="text-sm text-on-surface leading-relaxed">{booking.notes}</p>
+                    ) : (
+                      <p className="text-sm text-on-surface-variant/60 italic">Sin notas — toca para agregar</p>
+                    )}
+                    <span className="text-[11px] text-primary mt-1 inline-flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">edit</span>Editar
+                    </span>
+                  </button>
+                )}
+            </div>
+
+            {/* Notas de proceso */}
+            {processNotes.length > 0 && (
+              <section>
+                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">
+                  Notas del proceso <span className="font-normal normal-case text-on-surface-variant/50">(toca una para editarla)</span>
+                </p>
+                <div className="flex flex-col gap-2">
+                  {processNotes.map(n => (
+                    <div key={n.id} className="bg-tertiary-container/20 border border-tertiary-fixed-dim/40 rounded-2xl px-4 py-3">
+                      {editingProcessNoteId === n.id ? (
+                        <div className="flex flex-col gap-2">
+                          <textarea
+                            value={editingProcessText}
+                            onChange={e => setEditingProcessText(e.target.value)}
+                            rows={3}
+                            autoFocus
+                            className="w-full bg-background border border-tertiary/30 rounded-xl px-3 py-2 text-sm outline-none resize-none focus:border-tertiary"
+                          />
+                          <div className="flex gap-2">
+                            <button onClick={cancelEditProcessNote}
+                              className="flex-1 py-2 rounded-xl text-xs border border-outline-variant text-on-surface-variant">
+                              Cancelar
+                            </button>
+                            <button onClick={saveEditProcessNote} disabled={savingProcessNoteId === n.id || !editingProcessText.trim()}
+                              className="flex-1 py-2 rounded-xl text-xs font-semibold bg-tertiary text-on-tertiary disabled:opacity-50">
+                              {savingProcessNoteId === n.id ? 'Guardando…' : 'Guardar'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => startEditProcessNote(n)} className="w-full text-left">
+                          <p className="text-sm text-on-surface leading-relaxed">{n.note}</p>
+                          <p className="text-[11px] text-on-surface-variant mt-1.5 flex items-center gap-1">
+                            {n.author ? `${n.author} · ` : ''}
+                            {new Date(n.created_at.replace(' ', 'T')).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            <span className="material-symbols-outlined text-xs ml-auto">edit</span>
+                          </p>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
 
             {/* Motivo de cancelación / observación no-show */}

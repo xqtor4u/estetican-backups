@@ -81,4 +81,9 @@ class SpaBooking extends Model
     {
         return $this->hasMany(BookingMessage::class);
     }
+
+    public function processNotes(): HasMany
+    {
+        return $this->hasMany(BookingProcessNote::class)->orderBy('created_at');
+    }
 }

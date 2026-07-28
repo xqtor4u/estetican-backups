@@ -398,7 +398,8 @@ class SpaBookingController extends Controller
     {
         $page = AgendaPage::create(null, null);
 
-        $pets = Pet::with('client')
+        $pets = Pet::visible()
+            ->with('client')
             ->orderBy('name')
             ->get()
             ->map(fn ($pet) => [

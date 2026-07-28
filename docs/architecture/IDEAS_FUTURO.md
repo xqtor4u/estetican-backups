@@ -19,6 +19,10 @@
 - [ ] **Mercado Pago / Stripe:** Generación de links de pago y QR dinámicos.
 - [ ] **Webhooks:** Confirmación automática de pago en el CRM al recibir la señal de la pasarela.
 
+## 🧾 Reportes / Documentos Imprimibles
+
+- [ ] **Unificar el cálculo de total/saldo/pagos de una cita en un solo lugar** (idea surgida 27/07/2026, ver BITACORA de esa fecha). Hoy la lógica `$acceptedQuote?->total_amount ?? $booking->total_estimated_price` + juntar pagos de `Quote->cashLedgers/bankLedgers` + `Payment` está duplicada en 3 vistas distintas (`agenda/partials/_billing_summary.blade.php`, `reports/invoice.blade.php`, `reports/work-order.blade.php`) — se corrigieron las 3 el mismo día porque cada una había quedado desincronizada de las demás cuando se agregó el cobro móvil (`Payment`/BL-074) sin propagar el cambio a todas. Un servicio de dominio (`BookingBillingSummary` o similar, en `App\Domain\Commercial` o `App\Domain\Planning`) que resuelva total/saldo/historial de pagos una sola vez evitaría que este bug se repita la próxima vez que cambie la forma de cobrar una cita.
+
 ## 📈 Inteligencia y Otros
 - [ ] **Reportes Contables:** Exportación de archivos para contador (Efectivo vs Banco).
 - [ ] **Penalizaciones Automáticas:** Lógica para retener el anticipo si el cliente no llega a su cita de Hotel después de X horas.

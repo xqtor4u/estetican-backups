@@ -186,9 +186,15 @@
 
     {{-- Botón flotante para imprimir en pantalla --}}
     <div class="no-print" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
-        <button onclick="window.print()" style="background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 50px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <button id="btn-print-document" style="background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 50px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             Imprimir Documento
         </button>
     </div>
+
+    {{-- La CSP de este proyecto bloquea onclick= inline sin avisar (ver NT-042) —
+         se engancha el listener aquí, en un <script> con nonce, en vez de un atributo inline. --}}
+    <script nonce="{{ csp_nonce() }}">
+        document.getElementById('btn-print-document').addEventListener('click', () => window.print());
+    </script>
 </body>
 </html>

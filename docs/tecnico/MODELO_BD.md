@@ -222,7 +222,7 @@ Entidad operativa principal. Separa **identidad** (esta tabla) de **trazabilidad
 | `breed` | string nullable | |
 | `birth_date` | date nullable | |
 | `death_date` | date nullable | Nulo = viva |
-| `is_active` | boolean, default true | BL-067: "Eliminar mascota" ya no borra ni hace soft-delete — marca `is_active=false` para no perder historial (citas, pagos, expediente). Estado independiente de `death_date`; badge/filtro del listado combina ambos (Fallecida > Inactiva > Activa) |
+| `is_active` | boolean, default true | BL-067: "Eliminar mascota" ya no borra ni hace soft-delete — marca `is_active=false` para no perder historial (citas, pagos, expediente). Estado independiente de `death_date`; badge/filtro del listado combina ambos (Fallecida > Inactiva > Activa). **BL-073 (27/07/2026):** `Pet::scopeVisible()` oculta mascotas inactivas en selectores de agendar/reservar/eventos, listados informativos (ficha de cliente, clínico, mapa, dashboard), API móvil, **y también en `pets/index`** — su filtro `status=all\|active\|inactive\|deceased` sigue existiendo, pero deja de mostrar cualquier inactiva mientras el switch global esté apagado (elegir "Inactivas" da resultado vacío). Switch en `SystemSettings` → sección `pets`, campo `pets_show_inactive` (default `false`); al encenderlo, `pets/index` vuelve a funcionar como antes de BL-073 (el filtro sí las muestra). El botón "Inactivar" del listado se oculta para una mascota que ya está inactiva (bug corregido en la misma sesión). Fetches de una mascota puntual ya conocida por ID (`Pet::find()`/`findOrFail()`) no filtran a propósito — solo listados/selectores lo hacen |
 | `microchip_code` | string nullable | |
 | `tattoo_code` | string nullable | |
 | `sex` | string nullable | |
@@ -1012,6 +1012,17 @@ Log de recordatorios (WhatsApp manual vía `wa.me`, o correo real desde BL-040) 
 | `wa_link` | text nullable | URL `https://wa.me/...` generada — solo canal `whatsapp` |
 | `sent_by_user_id` | FK → `users` nullOnDelete | |
 | `sent_at` | datetime | Para WhatsApp marca cuándo se generó el link (no garantiza que el staff lo haya mandado); para correo marca el envío real |
+| `timestamps` | | |
+
+### `booking_process_notes`
+Bitácora de notas tomadas por el operador mientras una cita está "En proceso" (`spa_bookings.status = work_order`), desde la app móvil (BL-074, 27/07/2026). Distinta de `spa_bookings.notes` (una sola nota fija, escrita al agendar/editar la cita) y de `payments.notes` (nota puntual del cobro): esta tabla permite **varias entradas cronológicas** por cita. Indexadas a la cita completa (`spa_booking_id`), no por servicio individual — decisión explícita del usuario, aunque una cita tenga varios servicios en `spa_booking_services`. Se crean desde `MobCitaDet` (botón "Nota" junto al badge de estado, visible solo en `work_order`) y se pueden seguir editando desde `MobCobro` justo antes de cerrar el cobro ("completarlas"). Bloqueadas para crear/editar una vez que la cita pasa a `completed`/`cancelled` (`Api\BookingProcessNoteController`).
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `spa_booking_id` | FK → `spa_bookings` cascadeOnDelete | |
+| `user_id` | FK → `users` nullOnDelete | Autor (operador autenticado vía token de la app móvil) |
+| `note` | text | |
 | `timestamps` | | |
 
 ### `recurrence_messages`

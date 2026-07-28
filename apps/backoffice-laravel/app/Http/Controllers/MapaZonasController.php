@@ -32,7 +32,7 @@ class MapaZonasController extends Controller
                 'lng' => (float) $a->lng,
             ])->values();
 
-        $pets = Pet::with('client')->whereNotNull('lat')->whereNotNull('lng')->get()
+        $pets = Pet::visible()->with('client')->whereNotNull('lat')->whereNotNull('lng')->get()
             ->map(fn (Pet $p) => [
                 'id' => $p->id,
                 'label' => trim($p->name.' — '.($p->client?->full_name ?: 'Cliente')),
@@ -48,7 +48,8 @@ class MapaZonasController extends Controller
                 'lng' => (float) $v->lng,
             ])->values();
 
-        $unlocatedPets = Pet::with('client')
+        $unlocatedPets = Pet::visible()
+            ->with('client')
             ->where(fn ($q) => $q->whereNull('lat')->orWhereNull('lng'))
             ->orderBy('name')
             ->get(['id', 'name', 'client_id'])

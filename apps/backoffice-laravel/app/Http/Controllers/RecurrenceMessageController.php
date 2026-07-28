@@ -44,7 +44,7 @@ class RecurrenceMessageController extends Controller
                 continue;
             }
 
-            $pets = Pet::with('client.phones')->whereIn('id', $due->keys())->get()->keyBy('id');
+            $pets = Pet::visible()->with('client.phones')->whereIn('id', $due->keys())->get()->keyBy('id');
 
             foreach ($due as $petId => $lastAt) {
                 $pet = $pets->get($petId);

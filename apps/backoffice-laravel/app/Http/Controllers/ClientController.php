@@ -36,11 +36,12 @@ class ClientController extends Controller
                 'pets' => fn ($query) => $query
                     ->select(['id', 'client_id', 'name', 'species', 'breed', 'birth_date', 'death_date', 'microchip_code'])
                     ->whereNull('death_date')
+                    ->visible()
                     ->orderBy('name')
                     ->with(['primaryPhoto', 'latestPhoto']),
             ])
             ->withCount([
-                'pets as live_pets_count' => fn ($query) => $query->whereNull('death_date'),
+                'pets as live_pets_count' => fn ($query) => $query->whereNull('death_date')->visible(),
             ]);
 
         if ($search !== '') {

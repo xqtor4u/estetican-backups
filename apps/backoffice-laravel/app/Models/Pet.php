@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use App\Support\CatalogCache\PetCatalogCache;
+use App\Support\SystemSettings\SystemSettings;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -69,6 +71,20 @@ class Pet extends Model
         'lat' => 'decimal:8',
         'lng' => 'decimal:8',
     ];
+
+    /**
+     * Excluye mascotas inactivas de selectores/listados, salvo que el ajuste
+     * global `pets_show_inactive` esté encendido. No filtra `death_date`
+     * (eso lo maneja cada pantalla según su propio criterio).
+     */
+    public function scopeVisible(Builder $query): Builder
+    {
+        if (app(SystemSettings::class)->all()['pets_show_inactive'] ?? false) {
+            return $query;
+        }
+
+        return $query->where('pets.is_active', true);
+    }
 
     public function client()
     {

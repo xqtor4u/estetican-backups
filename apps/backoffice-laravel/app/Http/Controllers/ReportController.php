@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Payment;
 use App\Models\SpaBooking;
 use App\Models\Quote;
 use App\Support\SystemSettings\SystemSettings;
@@ -43,6 +44,9 @@ class ReportController extends Controller
             'items.item',
             'resourceAllocations.resource',
             'executedServices.service',
+            'services.service',
+            'operator',
+            'processNotes.user:id,name',
         ]);
         $settings = $this->getReportSettings();
 
@@ -62,12 +66,19 @@ class ReportController extends Controller
             'quotes.items.item',
             'quotes.cashLedgers',
             'quotes.bankLedgers',
+            'services.service',
+            'processNotes.user:id,name',
         ]);
         $settings = $this->getReportSettings();
-        
+
         $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');
 
-        return view('reports.invoice', compact('booking', 'acceptedQuote', 'settings'));
+        // Cobros registrados directamente sobre el booking (app móvil) — no pasan por Quote/CashLedger/BankLedger.
+        $directPayments = Payment::where('payable_type', SpaBooking::class)
+            ->where('payable_id', $booking->id)
+            ->get();
+
+        return view('reports.invoice', compact('booking', 'acceptedQuote', 'settings', 'directPayments'));
     }
 
     /**

@@ -59,7 +59,8 @@ class PetController extends Controller
                 'client:id,first_name,apellido_paterno,apellido_materno,email',
                 'primaryPhoto',
                 'latestPhoto',
-            ]);
+            ])
+            ->visible();
 
         if ($search !== '') {
             $pets->where(function ($query) use ($search) {

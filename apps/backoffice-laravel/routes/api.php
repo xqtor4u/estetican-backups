@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AgendaController;
 use App\Http\Controllers\Api\AssistantChatController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\BookingProcessNoteController;
 use App\Http\Controllers\Api\CashController;
 use App\Http\Controllers\Api\CheckinController;
 use App\Http\Controllers\Api\ClientController;
@@ -73,6 +74,9 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::patch('/bookings/{booking}', [BookingController::class,  'update']);
     Route::get('/bookings/{booking}/payments', [PaymentController::class, 'index']);
     Route::post('/bookings/{booking}/payments', [PaymentController::class, 'store']);
+    Route::get('/bookings/{booking}/process-notes', [BookingProcessNoteController::class, 'index']);
+    Route::post('/bookings/{booking}/process-notes', [BookingProcessNoteController::class, 'store']);
+    Route::patch('/bookings/{booking}/process-notes/{note}', [BookingProcessNoteController::class, 'update']);
 
     Route::get('/checkin/status', [CheckinController::class, 'status']);
     Route::post('/checkin', [CheckinController::class, 'checkin']);

@@ -16,6 +16,7 @@ class ClinicalController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         $pets = Pet::query()
+            ->visible()
             ->with('client:id,first_name,apellido_paterno,apellido_materno')
             ->whereNull('death_date')
             ->when($search !== '', function ($query) use ($search) {

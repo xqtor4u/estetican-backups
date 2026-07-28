@@ -146,6 +146,7 @@ class ResourceController extends Controller
             ->orderBy('apellido_materno')
             ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno']);
         $eventFormPets = Pet::query()
+            ->visible()
             ->with('client:id,first_name,apellido_paterno,apellido_materno')
             ->orderBy('name')
             ->get(['id', 'client_id', 'name']);

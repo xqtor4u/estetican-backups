@@ -157,8 +157,12 @@ class BookingController extends Controller
 
     public function update(Request $request, SpaBooking $booking)
     {
-        // No permite editar citas ya completadas o canceladas
-        if (in_array($booking->status, ['completed', 'cancelled'])) {
+        // No permite editar citas ya completadas o canceladas, salvo que el único
+        // campo que venga en el request sea `notes` — corregir/completar una nota
+        // sobre un servicio ya cerrado no reabre nada operativo (horario, servicios,
+        // estado), así que no tiene por qué estar sujeto a esta regla.
+        $onlyNotes = array_keys($request->all()) === ['notes'];
+        if (in_array($booking->status, ['completed', 'cancelled']) && ! $onlyNotes) {
             return response()->json(['message' => 'No se puede editar una cita '.$booking->status.'.'], 422);
         }
 
@@ -203,15 +207,16 @@ class BookingController extends Controller
             }
         }
 
-        // Campos escalares
-        $booking->fill(array_filter([
-            'operator_id' => $data['operator_id'] ?? $booking->operator_id,
-            'scheduled_at' => $data['scheduled_at'] ?? null,
-            'duration_minutes' => array_key_exists('duration_minutes', $data) ? $data['duration_minutes'] : $booking->duration_minutes,
-            'status' => $data['status'] ?? null,
-            'notes' => array_key_exists('notes', $data) ? $data['notes'] : $booking->notes,
-            'cancellation_reason' => array_key_exists('cancellation_reason', $data) ? $data['cancellation_reason'] : $booking->cancellation_reason,
-        ], fn ($v) => $v !== null));
+        // Campos escalares — solo se tocan los que realmente vinieron en el payload,
+        // para poder limpiar notes/cancellation_reason a null explícitamente sin que
+        // un array_filter por null los descarte antes de llegar a fill().
+        $fillData = [];
+        foreach (['operator_id', 'scheduled_at', 'duration_minutes', 'status', 'notes', 'cancellation_reason'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $fillData[$field] = $data[$field];
+            }
+        }
+        $booking->fill($fillData);
 
         // Sincronizar servicios si vienen en el payload
         if (array_key_exists('services', $data)) {

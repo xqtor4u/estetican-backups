@@ -1,5 +1,153 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 27/07/2026 (cont. 2) — Recibo de pago (backoffice web) en $0 y sin notas
+
+### ✅ Logros y Cambios
+
+El usuario reportó, viendo `AgSpaSho` (detalle de cita SPA en el backoffice web) de un servicio ya finalizado y cobrado: al imprimir el recibo (`reports/invoice.blade.php`, botón "IMPRIMIR RECIBO" en `_billing_summary.blade.php`) el monto salía en $0 pese a estar cobrado, y solo se imprimía la nota puesta al crear la cita (no las notas de proceso nuevas de BL-074).
+
+**Causa raíz confirmada:** `ReportController::invoice()`/la vista solo sabían calcular el total a partir de un `Quote` con `status=accepted` (`$acceptedQuote?->total_amount`). Las citas cobradas 100% desde la app móvil (todo el flujo `MobCitaDet`→`MobCobro`) **nunca crean un `Quote`** — van directo `SpaBooking` + `SpaBookingService` + `Payment`. Sin Quote, el total quedaba en `null`→`$0`, el listado de conceptos salía vacío (`@if($acceptedQuote)` sin `@else`), y el historial de pagos solo sumaba `CashLedger`/`BankLedger` legado ligado a un Quote — ignoraba por completo el modelo `Payment` que usa el cobro móvil. `_billing_summary.blade.php` (la pantalla que SÍ se ve bien) ya tenía el fallback correcto (`?? $booking->total_estimated_price`) y ya sumaba `Payment`; el recibo imprimible nunca se actualizó a la par cuando se agregó el cobro móvil.
+
+**Fix:** mismo patrón de fallback en `ReportController::invoice()` + `reports/invoice.blade.php` — total con fallback a `total_estimated_price`, tabla de conceptos cae a `$booking->services` sin Quote, historial de pagos incluye `Payment` (`payable_type=SpaBooking`). Se agregó además una sección "NOTAS" nueva en el recibo (no existía ninguna antes): imprime `booking.notes` y todas las `booking_process_notes` (BL-074, con autor y hora).
+
+**Verificado contra la cita real reportada** (`#27`, folio `R-000027` — exactamente la que mencionó el usuario): confirmado por `tinker` que no tiene ningún `Quote` (`quotes_count=0`), tiene `total_estimated_price=250`, 1 servicio, 1 `Payment`, 2 `booking_process_notes` y la nota de creación. Se renderizó la vista corregida directo desde el controlador (sin pasar por HTTP, de solo lectura) y se confirmó que ahora muestra `$250.00`, "TOTAL LIQUIDADO", la nota de creación y las 2 notas de proceso — el bug exacto reportado, resuelto. 2 tests nuevos (`InvoiceReportTest`), suite completa: 317 pasan, mismos 37 preexistentes, sin regresiones.
+
+### 📁 Archivos Creados/Modificados
+- `app/Http/Controllers/ReportController.php` — `invoice()`: eager-load `services.service`/`processNotes.user`, nueva variable `$directPayments`
+- `resources/views/reports/invoice.blade.php` — fallback de total, conceptos sin Quote, pagos vía `Payment`, sección de notas
+- `tests/Feature/InvoiceReportTest.php` — nuevo
+- `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+1. ~~Commit y push de esta sesión (BL-073, BL-074, y estos fixes de recibo/orden de trabajo)~~ **HECHO** — ver cierre de sesión al final de este archivo.
+2. Verificación manual en navegador real de todo lo de hoy (mascotas inactivas, notas de proceso, recibo/orden de trabajo, edición de notas en citas cerradas) — sin herramienta de navegador en este entorno, todo verificado vía tests HTTP + `tinker`/`curl` contra datos reales de producción.
+3. Sin relación con lo de hoy: 37 tests preexistentes fallando, BL-071 (vademécum), BL-053, BL-028, BL-001/002/004, BL-024b, BL-047 resto.
+
+### ↪️ Addendum — mismo fix también en la orden de trabajo
+
+El usuario pidió aplicar el mismo arreglo a `reports/work-order.blade.php` ("orden de trabajo", el otro documento imprimible, botón junto al de recibo). Tenía el mismo problema de raíz: sin `Quote` aceptado mostraba literalmente "No hay servicios aceptados registrados." aunque la cita sí tuviera servicios reales (`$booking->services`), y solo imprimía `booking.notes` sin las notas de proceso nuevas de BL-074. Mismo patrón de fix: `ReportController::workOrder()` ahora carga `services.service`, `operator` y `processNotes.user`; la vista cae a `$booking->services` (mostrando el operador de la cita) cuando no hay Quote, y agrega una sub-sección "Notas del Proceso" debajo de las notas de ingreso.
+
+Verificado igual que el recibo: contra la cita real `#27` renderizando la vista directo (con `view()->share(datetimeFormat)` simulando el middleware `ApplySystemSettings`, que en tinker no corre por no pasar por el pipeline HTTP) — ya no dice "sin servicios", muestra la nota de creación y las 2 notas de proceso. 2 tests nuevos (`WorkOrderReportTest`). Suite completa: 319 pasan, mismos 37 preexistentes, sin regresiones.
+
+**Archivos:** `app/Http/Controllers/ReportController.php` (`workOrder()`), `resources/views/reports/work-order.blade.php`, `tests/Feature/WorkOrderReportTest.php` (nuevo), `docs/tecnico/BACKLOG.md`.
+
+### ↪️ Addendum 2 — "Imprimir Documento" no hacía nada en ninguno de los dos
+
+El usuario reportó que el botón "Imprimir Documento" (visible en recibo y orden de trabajo) no hacía absolutamente nada al hacer clic. Causa: es la **misma clase de bug que NT-042** (documentado el 24/07/2026) — `layouts/report.blade.php` (layout compartido por recibo/orden de trabajo/presupuesto) tenía `<button onclick="window.print()">`, y la CSP del proyecto bloquea cualquier atributo de evento inline en silencio, sin error visible. El barrido original de NT-042 no lo agarró porque buscó específicamente `onclick="confirm` (casos de formulario), no `onclick=` en general.
+
+Corregido con el patrón ya usado en `agenda/global-create.blade.php` para clics simples sin `<form>` de por medio: `id` en el botón + `<script nonce="{{ csp_nonce() }}">` con `addEventListener` (no aplica `data-confirm`, que es para submits de formulario). Confirmado con `grep` que no queda ningún otro `onclick="window.print` en el proyecto. Test nuevo (`InvoiceReportTest`) agrega assert de que no hay `onclick=` inline en la respuesta. Documentado como addendum a **NT-042** con la lección ampliada (buscar `on\w+=` en general, no solo el caso de confirmaciones).
+
+### ↪️ Addendum 3 — las notas seguían sin poder editarse: la causa era el estado `completed`, no un bug de clic
+
+El usuario insistió una vez más en que las notas seguían sin poder editarse en `MobCitaDet`. Antes de seguir adivinando se le preguntó con `AskUserQuestion` qué pasaba exactamente al tocar una nota — respondió **"no veo ninguna opción para editar"** (no "toco y no pasa nada"). Eso cambió el diagnóstico: no era un problema de clic/CSP como los anteriores, sino que directamente no se renderizaba ningún control de edición. Causa real: el frontend gateaba la edición de notas con la misma variable `editable` que bloquea el formulario completo de edición (`!['completed','cancelled'].includes(status)`) — y el usuario estaba probando sobre citas **ya finalizadas** (coherente con el resto de la sesión, centrada en documentos de servicios ya cerrados). El backend además bloqueaba por completo cualquier `PATCH` a una cita `completed`/`cancelled`, incluyendo notas.
+
+Decisión: separar "editar notas" de "editar la operación de la cita" — corregir/completar una nota sobre un servicio ya cerrado no reabre nada (horario, servicios, estado), así que no debería estar sujeto a esa regla. Cambios:
+- `Api\BookingController::update()`: permite el `PATCH` si el único campo enviado es `notes`, incluso con la cita `completed`/`cancelled`; cualquier otro campo (solo o mezclado con `notes`) sigue bloqueado.
+- `Api\BookingProcessNoteController::update()` (no `store()`): ya no bloquea por estado — se puede seguir corrigiendo una nota de proceso existente después de cerrar el servicio, pero no se pueden crear notas nuevas en una cita ya cerrada (eso sí sigue bloqueado, tiene sentido: "notas del proceso en curso" no aplica si ya no hay proceso).
+- Frontend (`MobCitaDet.tsx`): se quitó el gate `editable` de los dos bloques de edición de notas (de la cita y de proceso) — ahora siempre muestran el afordance de edición, sin importar el estado.
+
+Verificado en vivo contra la cita real `#27` (`completed`, la misma usada en los addendums anteriores): `curl PATCH /api/bookings/27` con solo `notes` funcionó correctamente incluso estando completada (confirmado, luego restaurado el valor original de la nota para no dejar basura de prueba en producción). 4 tests nuevos (`BookingUpdateNotesTest` ×2 — notas editables en completada, otros campos siguen bloqueados; `BookingProcessNoteTest` ×1 — update permitido en completada). Bundle reconstruido y confirmado servido en `mov.estetican.org` (nuevo hash `index-C_13RXef.js`). Suite completa: 322 pasan, mismos 37 preexistentes, sin regresiones.
+
+**Archivos:** `app/Http/Controllers/Api/BookingController.php` (`update()`), `app/Http/Controllers/Api/BookingProcessNoteController.php` (`update()`), `mob_apps/operador/src/admin/MobCitaDet.tsx` (notas siempre editables), `tests/Feature/Api/{BookingUpdateNotesTest,BookingProcessNoteTest}.php`, `docs/tecnico/BACKLOG.md`.
+
+---
+
+## 📅 Cierre de sesión: 27/07/2026 (cont.) — BL-074: notas de proceso en MobCitaDet/MobCobro
+
+### ✅ Logros y Cambios
+
+El usuario pidió que, mientras una cita está "En proceso" en `MobCitaDet`, hubiera un botón junto al badge de estado para que el operador capture notas del servicio en curso (varias, cronológicas), que después aparecieran en `MobCobro` con opción de completarlas antes de cerrar el cobro. De paso reportó un bug: en `MobCobro` no se veía la nota puesta al crear la cita en la agenda, aunque sí se veía en `MobCitaDet`.
+
+**Decisiones confirmadas con el usuario antes de codificar** (`AskUserQuestion`): (1) las notas de proceso se indexan a la **cita completa** (`spa_booking_id`), no a cada servicio individual dentro de la cita, aunque tenga varios — más simple y consistente con cómo ya funcionan `notes`/`cancellation_reason` en `SpaBooking`; (2) "completarlas" en `MobCobro` significa poder **seguir editando el texto** de cada nota ahí mismo antes de cobrar, no solo marcarlas como revisadas.
+
+**Backend:** tabla nueva `booking_process_notes` (`spa_booking_id`, `user_id` nullable, `note`, timestamps — mismo patrón que `booking_messages`), modelo `BookingProcessNote`, relación `SpaBooking::processNotes()`. `Api\BookingProcessNoteController` con `index`/`store`/`update` en `/api/bookings/{id}/process-notes[/{note}]` — bloqueado crear/editar una vez que la cita está `completed`/`cancelled`. Migración corrida en producción (`--force`, verificada antes con `--pretend`).
+
+**Bug real encontrado:** `MobCobro.tsx` nunca tuvo `notes` en su interfaz `BookingSummary` — el endpoint `/api/bookings/{id}` sí devuelve `notes` (se usa en `MobCitaDet` sin problema), pero `MobCobro` simplemente no lo leía. Corregido agregando el campo y un bloque de solo lectura "Notas de la cita". Para evitar confundir tres conceptos distintos que ahora conviven en la misma pantalla, se etiquetaron claramente: **Notas de la cita** (fija, de agendar — solo lectura), **Notas del proceso** (las nuevas, editables ahí mismo), **Notas del cobro** (la que ya existía, propia del pago — antes decía solo "Notas", renombrada).
+
+**Frontend:** `MobCitaDet.tsx` — botón "Nota" (con contador) visible solo en `work_order`, modal para capturar, lista de notas en la vista normal. `MobCobro.tsx` — carga las mismas notas, permite editarlas inline (clic → textarea → Guardar) antes de cobrar.
+
+**Verificación:** `php -l` limpio en los archivos backend nuevos/tocados. 5 tests nuevos (`BookingProcessNoteTest`: crear con autor correcto, listar en orden cronológico, editar, rechazar edición cruzada entre citas, bloquear una vez completada) — todos pasan. Suite completa: 312 pasan, mismos 37 tests preexistentes fallando (sin relación, ver sesiones previas), sin regresiones. Frontend: `tsc --noEmit` sin errores nuevos (mismos preexistentes de `ActiveService.tsx`/`MobCajaMovimientos.tsx`) y `npm run build` exitoso; `estetican_mob` sirve `dist/` por bind mount, recoge el build sin reiniciar. No se pudo probar el clic real en navegador/app (sin esa herramienta en este entorno).
+
+### 📁 Archivos Creados/Modificados
+- `database/migrations/2026_07_27_000001_create_booking_process_notes_table.php` — nueva
+- `app/Models/BookingProcessNote.php` — nuevo
+- `app/Models/SpaBooking.php` — relación `processNotes()`
+- `app/Http/Controllers/Api/BookingProcessNoteController.php` — nuevo
+- `routes/api.php` — 3 rutas nuevas
+- `tests/Feature/Api/BookingProcessNoteTest.php` — nuevo
+- `mob_apps/operador/src/admin/MobCitaDet.tsx` — botón/modal/lista de notas de proceso
+- `mob_apps/operador/src/admin/MobCobro.tsx` — fix bug `booking.notes`, notas de proceso editables, notas del cobro renombradas
+- `docs/tecnico/{MODELO_BD,BACKLOG}.md`
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (BL-073 + BL-074).
+2. Verificación manual en navegador/app real de ambos flujos (switch de mascotas inactivas y notas de proceso) — sin herramienta de navegador en este entorno.
+3. Sin relación con lo de hoy: 37 tests preexistentes fallando, BL-071 (vademécum), BL-053, BL-028, BL-001/002/004, BL-024b, BL-047 resto.
+
+### ↪️ Addendum (misma sesión) — "Notas de la cita" tampoco se podían editar
+
+El usuario probó lo de arriba y reportó que, una vez agendada la cita, la nota original (`spa_bookings.notes`) ya no se podía modificar ni durante el proceso (`MobCitaDet`) ni al cobrar (`MobCobro` — ahí solo dejaba editar las notas de proceso nuevas, la original quedó de solo lectura a propósito en la primera pasada). Pidió que también fuera editable en `MobCitaDet`.
+
+Se agregó edición en línea de "Notas de la cita" en ambas pantallas (clic sobre la nota → textarea → Guardar/Cancelar, sin necesidad de entrar al formulario completo de edición de la cita en `MobCitaDet`) vía `PATCH /api/bookings/{id}` con `{ notes }`. Al construir esto se encontró un bug de backend real y más serio: `Api\BookingController::update()` armaba el payload de campos a actualizar con `array_filter(..., fn($v) => $v !== null)` — cualquier campo enviado explícitamente en `null` (como `notes` al querer vaciar la nota) se descartaba **antes** de llegar a `fill()`, así que borrar una nota nunca se guardaba de verdad (respondía 200 pero no cambiaba nada en BD). Reescrito para armar el payload solo con los campos que realmente vienen en el request (`array_key_exists`), sin filtrar por valor — ahora `notes: null` sí limpia la nota.
+
+3 tests nuevos (`BookingUpdateNotesTest`): editar la nota en `work_order`, limpiarla a `null`, y confirmar que no toca campos no relacionados (operador, horario, status). Suite completa: 315 pasan (antes 312), mismos 37 preexistentes, sin regresiones. `tsc --noEmit` y `npm run build` limpios otra vez.
+
+**Archivos adicionales:** `app/Http/Controllers/Api/BookingController.php` (`update()`), `tests/Feature/Api/BookingUpdateNotesTest.php` (nuevo), `mob_apps/operador/src/admin/{MobCitaDet,MobCobro}.tsx` (edición en línea de "Notas de la cita"), `docs/tecnico/BACKLOG.md` (BL-074 ampliado).
+
+### ↪️ Addendum 2 (misma sesión) — el usuario seguía viendo notas no editables en MobCitaDet
+
+Tras el addendum anterior, el usuario reportó que **seguía** sin poder editar notas en `MobCitaDet`. Antes de tocar más código se verificó el backend en producción real (no solo la suite de tests): se creó una cita temporal vía `tinker`, se generó un `ApiToken` real, y se hizo `PATCH /api/bookings/{id}` con `curl` directo contra el contenedor — la nota se editó y persistió correctamente. Backend descartado como causa; datos de prueba borrados después.
+
+Revisando el frontend se encontró la causa real: al implementar la edición de "Notas del proceso" en el addendum inicial de BL-074, solo se hizo editable en `MobCobro` — en `MobCitaDet` esas notas quedaron de **solo lectura** (se agregó la lista, pero nunca el modo edición). Si el usuario tocaba una nota de proceso (no la nota original de la cita) en `MobCitaDet`, no pasaba nada. Se agregó el mismo patrón de edición en línea (clic → textarea → Guardar) también ahí, para que ambos tipos de nota sean editables en las dos pantallas por igual.
+
+De paso, para descartar por completo un problema de caché de navegador, se forzó un rebuild limpio del bundle (`rm dist/assets/*` + `npm run build`) — el hash del JS cambió (`index-zxkWM_Oq.js`) y se confirmó que `estetican_mob` ya lo sirve.
+
+---
+
+## 📅 Cierre de sesión: 27/07/2026 — BL-073: mascotas inactivas ocultas de selectores/listados
+
+### ✅ Logros y Cambios
+
+El usuario había filtrado mascotas inactivas (`is_active=false`, BL-067) en `pets/index` pero no sabía dónde más hacía falta el mismo filtro. Se mapeó todo el código con un agente de exploración: 9 lugares mostraban mascotas inactivas sin ninguna restricción — selector de mascota al crear/editar reserva de hotel (`HotelReservationController::loadPets()`), dropdown al crear evento de recurso (`ResourceController::show()`), selector de "nueva cita" global SPA (`SpaBookingController::globalCreate()`), listado del módulo clínico (`Clinical/ClinicalController::index()`), ficha de cliente — `pets`/`live_pets_count` (`ClientController::index()`), `PetRepository::getByClientId()` (dominio comercial), pines del mapa de zonas (`MapaZonasController`, dos queries), fila de recordatorios de recurrencia WhatsApp (`RecurrenceMessageController::index()` — podía ofrecer mandarle un recordatorio a una mascota dada de baja), KPI "total mascotas" del dashboard, y el listado de la API móvil (`Api/PetController::index()`).
+
+Se preguntó al usuario el alcance: eligió que sea una **config global en Sistema** (no reglas fijas por pantalla) — un único `SystemSettings` que, apagado, oculta inactivas en todo el sistema por igual. Implementado: nueva sección `pets` en `SystemSettings::definitions()` (`app/Support/SystemSettings/SystemSettings.php`), campo booleano `pets_show_inactive` (default `false`), mismo patrón exacto que `photo_watermark_enabled` — sin migración/seeder propio (la tabla `system_settings` es genérica), sin tocar la vista de configuración (`system-settings/index.blade.php` ya renderiza cualquier campo `boolean` de forma genérica). Nuevo scope local `Pet::scopeVisible()` en el modelo (no global scope, a propósito — un global scope se habría colado en `pets/index`, que **mantiene su propio filtro independiente** `status=all|active|inactive|deceased` pedido explícitamente por el usuario en otra sesión). Se aplicó `->visible()` en los 9 puntos de listado/selector detectados. Se decidió **no filtrar** los `Pet::find()`/`findOrFail()` de una mascota puntual ya conocida por ID (ej. `Api/PetController::show()`, `RecurrenceMessageController::loadRecipient()`) — ocultar una mascota específica que ya está referenciada en una pantalla no tiene sentido, solo aplica a listados donde se *elige* entre varias.
+
+**Verificación:** `php -l` en los 12 archivos tocados sin errores. Suite completa de tests: 305 pasan, 37 fallan — mismos 12 archivos de tests documentados como deuda preexistente el 26/07/2026 (`ClientAddressHarmonizationTest`, `ClientLivePetsCatalogTest`, `ExampleTest`, `HotelReservationResourceBlockingTest`, `OperatorBranchSelectionTest`, `OperatorPhotoUploadTest`, `PetCatalogRootViewsTest`, `PetDependenciesCrudTest`, `ResourceDuplicationTest`, `ResourceEventCrudTest`, `ResourcePhotoCrudTest`, `ServiceOperatorRoleLinkTest`) — sin regresiones nuevas. Confirmado además vía `tinker` que la nueva sección `pets` resuelve bien (`sections()['pets']`, default `false`). No se pudo verificar el switch nuevo haciendo clic real en `/system-settings` (sin herramienta de navegador en este entorno).
+
+### 📁 Archivos Creados/Modificados
+- `app/Support/SystemSettings/SystemSettings.php` — sección `pets`, campo `pets_show_inactive`
+- `app/Models/Pet.php` — `scopeVisible()`
+- `app/Http/Controllers/HotelReservationController.php` — `loadPets()`
+- `app/Http/Controllers/ResourceController.php` — `$eventFormPets`
+- `app/Http/Controllers/SpaBookingController.php` — `globalCreate()`
+- `app/Http/Controllers/Clinical/ClinicalController.php` — `index()`
+- `app/Http/Controllers/ClientController.php` — `pets`/`live_pets_count`
+- `app/Domain/Commercial/Repositories/PetRepository.php` — `getByClientId()`
+- `app/Http/Controllers/MapaZonasController.php` — `$pets`/`$unlocatedPets`
+- `app/Http/Controllers/RecurrenceMessageController.php` — `index()`
+- `app/Http/Controllers/DashboardController.php` — `$totalPets`
+- `app/Http/Controllers/Api/PetController.php` — `index()`
+- `docs/tecnico/MODELO_BD.md` — nota en `pets.is_active`
+- `docs/tecnico/BACKLOG.md` — BL-073 a Completados
+
+### 🛑 Pendientes activos
+1. Commit y push de esta sesión (BL-073).
+2. Verificación manual en navegador real del switch nuevo en `/system-settings` (sección "Mascotas") — sin herramienta de navegador en este entorno.
+3. Sin relación con lo de hoy: 37 tests preexistentes fallando, BL-071 (vademécum), BL-053, BL-028, BL-001/002/004, BL-024b, BL-047 resto.
+
+### ↪️ Addendum (misma sesión) — corrección de alcance pedida por el usuario
+
+El usuario probó y corrigió dos cosas del diseño original de arriba:
+
+1. **`pets/index` no debía ser independiente.** La decisión original (mantener el filtro propio de `pets/index` sin ligarlo al switch global) fue mía, no pedida — el usuario aclaró que las inactivas **solo** deben salir si `pets_show_inactive` está encendido, en todos lados sin excepción. Se agregó `->visible()` también a la query base de `PetController::index()`: con el switch apagado, el filtro `status=inactive` ahora da resultado vacío en vez de mostrarlas; encendido, funciona exactamente igual que antes de este cambio.
+2. **Bug real encontrado por el usuario:** al filtrar por "Inactivas" (con el switch encendido), cada fila seguía mostrando el botón "Inactivar" — no tiene sentido ofrecer desactivar algo que ya está inactivo. Se envolvió el botón/form en `@if($pet->is_active)` en `pets/partials/{index-blocks,index-table}.blade.php`. La reactivación sigue siendo solo vía el checkbox "Mascota activa" en la ficha de edición (ya existente desde BL-067).
+
+`PetDeactivateTest` actualizado: el test viejo de "status=inactive muestra solo inactivas" se dividió en dos (switch apagado → vacío; switch encendido → comportamiento original) + un test nuevo para el botón oculto. Suite completa re-verificada: 307 pasan, mismos 37 preexistentes fallando, sin regresiones.
+
+**Archivos adicionales tocados:** `app/Http/Controllers/PetController.php` (`index()`), `resources/views/pets/partials/index-blocks.blade.php`, `resources/views/pets/partials/index-table.blade.php`, `tests/Feature/PetDeactivateTest.php`, `docs/tecnico/{MODELO_BD,BACKLOG}.md` (nota corregida).
+
+---
+
 ## 📅 Cierre de sesión: 26/07/2026 — BL-072: bloqueo de pantalla del backoffice
 
 ### ✅ Logros y Cambios

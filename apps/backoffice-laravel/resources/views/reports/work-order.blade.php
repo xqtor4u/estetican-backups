@@ -80,6 +80,20 @@
                     </td>
                 </tr>
             @endforeach
+        @elseif($booking->services->isNotEmpty())
+            {{-- Citas agendadas/cobradas directo desde la app móvil (sin presupuesto/Quote de por medio) --}}
+            @foreach($booking->services as $bookingService)
+                <tr>
+                    <td>
+                        <div style="font-weight: bold;">{{ $bookingService->service?->name ?? '—' }}</div>
+                        <div style="font-size: 9px; color: var(--secondary-color);">{{ $bookingService->service?->description }}</div>
+                    </td>
+                    <td>{{ $booking->operator?->full_name ?? 'Pendiente de asignar' }}</td>
+                    <td class="text-center">
+                        <span class="badge">{{ ucfirst($booking->status) }}</span>
+                    </td>
+                </tr>
+            @endforeach
         @else
             <tr>
                 <td colspan="3" class="text-center">No hay servicios aceptados registrados.</td>
@@ -93,6 +107,17 @@
     <div class="info-content" style="min-height: 60px;">
         {{ $booking->notes ?: 'Sin observaciones adicionales.' }}
     </div>
+    @if($booking->processNotes->isNotEmpty())
+        <div class="info-title" style="margin-top: 10px;">Notas del Proceso</div>
+        <div class="info-content">
+            @foreach($booking->processNotes as $note)
+                <div style="margin-bottom: 4px;">
+                    <strong>{{ $note->created_at->format('d/m H:i') }}{{ $note->user ? ' · '.$note->user->name : '' }}:</strong>
+                    {{ $note->note }}
+                </div>
+            @endforeach
+        </div>
+    @endif
 </div>
 
 <div class="signature-box" style="margin-top: 80px;">

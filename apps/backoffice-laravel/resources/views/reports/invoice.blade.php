@@ -59,17 +59,28 @@
                     <td class="text-right">${{ number_format($item->lineTotal(), 2) }}</td>
                 </tr>
             @endforeach
+        @else
+            {{-- Citas cobradas directo desde la app móvil (sin presupuesto/Quote de por medio) --}}
+            @foreach($booking->services as $bookingService)
+                <tr>
+                    <td>{{ $bookingService->service?->name ?? '—' }}</td>
+                    <td class="text-right">${{ number_format($bookingService->current_price ?? 0, 2) }}</td>
+                </tr>
+            @endforeach
         @endif
     </tbody>
 </table>
 
 <div class="totals-wrapper">
     <div class="totals-box">
+        @php
+            $documentTotal = (float) ($acceptedQuote?->total_amount ?? $booking->total_estimated_price ?? 0);
+        @endphp
         <div class="total-row">
             <span>Subtotal</span>
-            <span>${{ number_format($acceptedQuote?->total_amount ?? 0, 2) }}</span>
+            <span>${{ number_format($documentTotal, 2) }}</span>
         </div>
-        
+
         @php
             $allPayments = collect();
             if ($acceptedQuote) {
@@ -79,8 +90,11 @@
                 foreach ($acceptedQuote->bankLedgers as $e) {
                     $allPayments->push(['date' => $e->created_at, 'method' => $e->payment_method, 'dest' => 'Banco', 'amount' => $e->amount]);
                 }
-                $allPayments = $allPayments->sortBy('date');
             }
+            foreach ($directPayments as $p) {
+                $allPayments->push(['date' => $p->created_at, 'method' => $p->payment_method, 'dest' => $p->destination === 'banco' ? 'Banco' : 'Caja', 'amount' => $p->amount]);
+            }
+            $allPayments = $allPayments->sortBy('date');
         @endphp
 
         <div style="margin-top: 10px; border-top: 1px dashed var(--secondary-color); padding-top: 5px;">
@@ -102,7 +116,7 @@
 
         @php
             $totalPaid = (float) $allPayments->sum('amount');
-            $balance   = (float) ($acceptedQuote?->total_amount ?? 0) - $totalPaid;
+            $balance   = $documentTotal - $totalPaid;
         @endphp
 
         <div class="total-row grand-total">
@@ -111,6 +125,23 @@
         </div>
     </div>
 </div>
+
+@if($booking->notes || $booking->processNotes->isNotEmpty())
+    <div style="margin-top: 25px; border-top: 1px dashed var(--secondary-color); padding-top: 10px;">
+        <div style="font-size: 9px; font-weight: bold; color: var(--secondary-color);">NOTAS</div>
+        @if($booking->notes)
+            <div style="font-size: 11px; margin-top: 4px;">
+                <strong>De la cita:</strong> {{ $booking->notes }}
+            </div>
+        @endif
+        @foreach($booking->processNotes as $note)
+            <div style="font-size: 11px; margin-top: 4px;">
+                <strong>{{ $note->created_at->format('d/m H:i') }}{{ $note->user ? ' · '.$note->user->name : '' }}:</strong>
+                {{ $note->note }}
+            </div>
+        @endforeach
+    </div>
+@endif
 
 <div style="margin-top: 50px;">
     <div style="text-align: center;">

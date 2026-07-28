@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\Pet;
 use App\Models\SpaBooking;
 use App\Models\User;
+use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -76,8 +77,27 @@ class PetDeactivateTest extends TestCase
         $this->assertNotSoftDeleted($pet);
     }
 
-    public function test_index_status_filter_inactive_shows_only_inactive_pets(): void
+    public function test_index_status_filter_inactive_is_empty_while_pets_show_inactive_is_off(): void
     {
+        app(SystemSettings::class)->saveFields('pets', ['pets_show_inactive' => false]);
+
+        $activePet = $this->pet();
+        $activePet->update(['name' => 'Rocco']);
+        $inactivePet = $this->pet();
+        $inactivePet->update(['name' => 'Nala', 'is_active' => false]);
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->get(route('pets.index', ['status' => 'inactive']));
+
+        $response->assertOk();
+        $response->assertDontSee('Nala');
+        $response->assertDontSee('Rocco');
+    }
+
+    public function test_index_status_filter_inactive_shows_only_inactive_pets_while_pets_show_inactive_is_on(): void
+    {
+        app(SystemSettings::class)->saveFields('pets', ['pets_show_inactive' => true]);
+
         $activePet = $this->pet();
         $activePet->update(['name' => 'Rocco']);
         $inactivePet = $this->pet();
@@ -89,6 +109,21 @@ class PetDeactivateTest extends TestCase
         $response->assertOk();
         $response->assertSee('Nala');
         $response->assertDontSee('Rocco');
+    }
+
+    public function test_index_hides_the_deactivate_button_for_an_already_inactive_pet(): void
+    {
+        app(SystemSettings::class)->saveFields('pets', ['pets_show_inactive' => true]);
+
+        $inactivePet = $this->pet();
+        $inactivePet->update(['name' => 'Nala', 'is_active' => false]);
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->get(route('pets.index', ['status' => 'inactive']));
+
+        $response->assertOk();
+        $response->assertSee('Nala');
+        $response->assertDontSee('Inactivar');
     }
 
     public function test_editing_a_pet_can_reactivate_it(): void

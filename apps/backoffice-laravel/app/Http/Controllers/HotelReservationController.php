@@ -184,6 +184,7 @@ class HotelReservationController extends Controller
     private function loadPets()
     {
         return Pet::query()
+            ->visible()
             ->with('client:id,first_name,apellido_paterno,apellido_materno')
             ->orderBy('name')
             ->get(['id', 'client_id', 'name']);

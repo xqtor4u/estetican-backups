@@ -15,7 +15,7 @@ class PetRepository implements PetRepositoryInterface
 
     public function getByClientId(int $clientId): Collection
     {
-        return Pet::where('client_id', $clientId)->get();
+        return Pet::visible()->where('client_id', $clientId)->get();
     }
 
     public function create(array $data): Pet

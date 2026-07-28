@@ -47,7 +47,7 @@ class DashboardController extends Controller
 
         // Clientes y mascotas totales
         $totalClients = Client::count();
-        $totalPets    = Pet::count();
+        $totalPets    = Pet::visible()->count();
 
         // Ingresos del día (ambos ledgers si existen)
         $cashToday = 0;

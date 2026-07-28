@@ -58,13 +58,15 @@
                         <a href="{{ route('pets.show', ['pet' => $pet, 'view' => $viewMode]) }}" class="btn btn-sm btn-outline-primary" title="Ver ficha técnica (PETSHO)">Detalle</a>
                         <a href="{{ route('pets.show', ['pet' => $pet, 'view' => $viewMode]) }}#core-profile" class="btn btn-sm btn-outline-secondary" title="Editar datos base (PETEDI)">Editar</a>
                         <a href="{{ route('pets.bookings.create', ['pet' => $pet, 'return_view_mode' => $viewMode]) }}" class="btn btn-sm btn-outline-dark catalog-action-upcoming">Programar</a>
-                        <form action="{{ route('pets.destroy', ['pet' => $pet, 'view' => $viewMode]) }}" method="POST" class="d-inline">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="No elimina, conserva historial" data-confirm="¿Marcar a {{ $pet->name }} como inactiva? No se elimina — su historial (citas, pagos, expediente) se conserva completo y puede reactivarse después desde su ficha.">
-                                <i class="bi bi-trash"></i> Inactivar
-                            </button>
-                        </form>
+                        @if($pet->is_active)
+                            <form action="{{ route('pets.destroy', ['pet' => $pet, 'view' => $viewMode]) }}" method="POST" class="d-inline">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="No elimina, conserva historial" data-confirm="¿Marcar a {{ $pet->name }} como inactiva? No se elimina — su historial (citas, pagos, expediente) se conserva completo y puede reactivarse después desde su ficha.">
+                                    <i class="bi bi-trash"></i> Inactivar
+                                </button>
+                            </form>
+                        @endif
                     </div>
                 </div>
             </div>
