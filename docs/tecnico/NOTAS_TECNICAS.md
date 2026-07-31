@@ -31,6 +31,28 @@
 
 ---
 
+## NT-044 — `<script>` sin atributo `nonce` bajo `@push('scripts')`: bloqueado en silencio por la CSP (variante de NT-042)
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-31 |
+| **Severidad** | P2 — Alto (silencioso: no lanza error visible, la funcionalidad simplemente no existe en el navegador real) |
+| **Componente** | `app/Http/Middleware/ContentSecurityPolicy.php` + cualquier vista con un `<script>` sin `nonce` dentro de `@push('scripts')` |
+| **Impacto** | 4 archivos con el bug: `agenda/create.blade.php`, `agenda/edit.blade.php` (el chequeo de disponibilidad en vivo — incluye el checkbox de "forzar horario" agregado ese mismo día, nunca funcional fuera de pruebas HTTP), `finances/cash-sessions/close.blade.php`, `finances/cash-sessions/show.blade.php` |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+Encontrado no por reporte del usuario sino al agregar una funcionalidad nueva al mismo script (`checkAvailability` en `agenda/create.blade.php`) — al revisar por qué el script pudiera no ejecutarse en un navegador real, se detectó que el `<script>` que lo contiene no tenía `nonce`.
+
+**Causa raíz:**
+`ContentSecurityPolicy.php` define `script-src 'self' 'nonce-{$nonce}' 'unsafe-eval'` — sin `'unsafe-inline'`. A diferencia de NT-042 (atributos de evento inline como `onclick=`), esto es sobre **etiquetas `<script>` completas**: por spec de CSP, una etiqueta `<script>` inline (sin `src`) solo se ejecuta si su atributo `nonce` coincide con el nonce declarado en la cabecera `Content-Security-Policy` de esa respuesta. `@stack('scripts')` en `layouts/app.blade.php` se renderiza tal cual, sin envolver ni inyectar `nonce` automáticamente — cada vista que empuja un `<script>` vía `@push('scripts')` es responsable de poner su propio `nonce="{{ csp_nonce() }}"`. Los 4 archivos afectados simplemente lo omitieron al escribir el script (probablemente copiando una plantilla más antigua, de antes de que la CSP con nonce existiera).
+
+**Solución definitiva:** agregar `nonce="{{ csp_nonce() }}"` a la etiqueta `<script>` en los 4 archivos. Barrido completo del proyecto confirmó que no quedan más casos (`grep` de `<script>` sin `nonce` ni `src=` dentro de `resources/views`).
+
+**Lección:** al escribir un nuevo `<script>` dentro de `@push('scripts')` en este proyecto, **siempre** agregar `nonce="{{ csp_nonce() }}"` a la etiqueta de apertura — no hay ningún mecanismo automático que lo inyecte. Esta nota es la contraparte de NT-042: ese cubre atributos de evento inline (`onclick=`), esta cubre etiquetas `<script>` completas sin nonce — ambos casos fallan igual de silenciosos (sin error visible para el usuario, solo en la consola de DevTools), así que conviene revisar los dos patrones juntos al auditar una vista nueva.
+
+---
+
 ## NT-043 — La búsqueda de clientes no se podía enviar ("No se pudo crear el cliente")
 
 | Campo | Valor |
