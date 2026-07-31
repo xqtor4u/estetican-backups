@@ -43,6 +43,7 @@ class BookingController extends Controller
             'pet:id,name,species,breed,profile_photo_path,client_id',
             'pet.client:id,first_name,apellido_paterno,apellido_materno',
             'services.service:id,name,type,price,duration_minutes',
+            'services.operator:id,first_name,apellido_paterno,apellido_materno,name',
             'operator:id,first_name,apellido_paterno,apellido_materno,profile_photo_path',
         ]);
 
@@ -76,10 +77,15 @@ class BookingController extends Controller
             ] : null,
             'services' => $b->services->map(fn ($s) => [
                 'id' => $s->service?->id,
+                'booking_service_id' => $s->id,
                 'name' => $s->service?->name ?? '—',
                 'type' => $s->service?->type,
                 'price' => (float) ($s->current_price ?? $s->service?->price ?? 0),
                 'duration_minutes' => $s->service?->duration_minutes,
+                'operator_id' => $s->operator_id,
+                'operator_name' => $s->operator?->name,
+                'is_external' => (bool) $s->is_external,
+                'external_cost' => $s->external_cost !== null ? (float) $s->external_cost : null,
             ])->values(),
             'operator' => $b->operator ? [
                 'id' => $b->operator->id,
@@ -240,20 +246,26 @@ class BookingController extends Controller
         }
         $booking->fill($fillData);
 
-        // Sincronizar servicios si vienen en el payload
+        // Sincronizar servicios si vienen en el payload — preserva las líneas existentes
+        // (precio editado, operador y costo externo asignados) en vez de borrar y recrear todo;
+        // solo quita las líneas que ya no están seleccionadas y agrega las nuevas al precio de catálogo.
         if (array_key_exists('services', $data)) {
             $serviceIds = $data['services'];
             $prices = $serviceIds ? Service::whereIn('id', $serviceIds)->pluck('price', 'id') : collect();
+            $existingServiceIds = $booking->services()->pluck('service_id')->all();
 
-            $booking->services()->delete();
+            $booking->services()->whereNotIn('service_id', $serviceIds)->delete();
             foreach ($serviceIds as $svcId) {
+                if (in_array($svcId, $existingServiceIds, true)) {
+                    continue;
+                }
                 SpaBookingService::create([
                     'spa_booking_id' => $booking->id,
                     'service_id' => $svcId,
                     'current_price' => $prices[$svcId] ?? 0,
                 ]);
             }
-            $booking->total_estimated_price = $prices->sum();
+            $booking->total_estimated_price = $booking->services()->sum('current_price');
         }
 
         $booking->save();
@@ -270,6 +282,27 @@ class BookingController extends Controller
         if (($data['status'] ?? null) === 'completed') {
             app(BookingStockConsumptionServiceInterface::class)->consume($booking, auth()->id());
         }
+
+        return response()->json($this->serialize($booking->fresh()));
+    }
+
+    /** Asigna profesional / costo externo a una línea de servicio específica de la cita (mismo mecanismo que el work order web). */
+    public function assignServiceProfessional(Request $request, SpaBooking $booking, SpaBookingService $line)
+    {
+        abort_unless($line->spa_booking_id === $booking->id, 404);
+
+        $validated = $request->validate([
+            'operator_id' => 'required|exists:operators,id',
+            'external_cost' => 'nullable|numeric|min:0',
+            'current_price' => 'nullable|numeric|min:0',
+        ]);
+
+        $line->update([
+            'operator_id' => $validated['operator_id'],
+            'is_external' => $request->boolean('is_external'),
+            'external_cost' => $validated['external_cost'] ?? null,
+            'current_price' => $validated['current_price'] ?? $line->current_price,
+        ]);
 
         return response()->json($this->serialize($booking->fresh()));
     }

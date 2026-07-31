@@ -31,6 +31,52 @@
 
 ---
 
+## NT-046 — Sincronizar `services` desde `Api\BookingController::update()` borraba y recreaba todas las líneas, perdiendo precio/operador/costo externo editados
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-31 |
+| **Severidad** | P3 — Medio (riesgo identificado antes de manifestarse como incidente real — no había reporte de datos perdidos) |
+| **Componente** | `Api\BookingController::update()` (endpoint usado por `mob_apps/operador`, `MobCitaDet.tsx` en modo edición) |
+| **Impacto** | Cualquier edición desde mobile que reenvíe el arreglo `services` (reprogramar servicios de una cita) — potencial, no confirmado como ya ocurrido en producción |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+No reportado — encontrado al llevar BL-075 (costo de proveedor externo por línea) a la app móvil. Antes de exponer un endpoint nuevo para asignar operador/costo por línea, se revisó qué pasaba si el mismo booking se editaba después desde `MobCitaDet.tsx`, que reenvía `services` como un arreglo plano de IDs de catálogo (`selSvcs`, sin precio ni ningún otro dato de línea).
+
+**Causa raíz:**
+`update()` hacía `$booking->services()->delete()` seguido de recrear cada línea con `SpaBookingService::create(['current_price' => precio_de_catálogo])` — sin importar si la línea ya existía. Esto no solo ignoraba cualquier precio editado a mano (bug preexistente, ya presente antes de esta sesión), sino que con las columnas nuevas de BL-075 (`operator_id`, `is_external`, `external_cost`) habría empezado a **borrar en silencio** cualquier profesional/costo externo ya asignado a una línea, en cuanto alguien tocara la lista de servicios desde mobile — sin ningún mensaje de error, sin que el usuario supiera que perdió esa asignación.
+
+**Solución definitiva:** reescrito para hacer un sync no destructivo — solo `delete()` de las líneas cuyo `service_id` ya no está en la lista nueva, y solo `create()` para `service_id` que no existían antes; las líneas que permanecen (mismo `service_id`) no se tocan, conservando `current_price`, `operator_id`, `is_external` y `external_cost` tal cual estaban. `total_estimated_price` se recalcula sumando `current_price` real de las líneas resultantes en vez de sumar precios de catálogo.
+
+**Lección:** cuando una tabla gana columnas nuevas con estado que se asigna en un momento posterior a su creación (operador, costo, lo que sea), hay que revisar **todos** los puntos que hacen `delete()` + recreate de esa tabla como mecanismo de "sincronizar una lista" — un patrón que era inofensivo cuando la tabla solo tenía datos derivables del catálogo deja de serlo en cuanto empieza a cargar datos que solo existen ahí.
+
+---
+
+## NT-045 — "Asignar Profesional" en la Orden de Trabajo daba 404 siempre: type-hint apuntaba a `QuoteItem`, la ruta recibe IDs de `SpaBookingService`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-31 |
+| **Severidad** | P2 — Alto (funcionalidad completamente inoperante, sin reporte previo del usuario) |
+| **Componente** | `SpaBookingController::assignProfessional()` + `resources/views/agenda/partials/_work_order.blade.php` |
+| **Impacto** | Botón "Asignar" de cada línea de servicio en toda Orden de Trabajo — nunca funcionó en producción |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+No reportado por el usuario — encontrado al construir BL-075 (costo de proveedor externo), que necesitaba extender este mismo modal. Al revisar el controlador antes de tocarlo, se detectó la inconsistencia de tipos.
+
+**Causa raíz:**
+`_work_order.blade.php` itera `$booking->services` (relación `SpaBooking::services()`, modelo `SpaBookingService`) y arma `route('agenda.items.assign', [$booking, $item])` con el `id` de esas filas. Pero `SpaBookingController::assignProfessional(Request $request, SpaBooking $booking, QuoteItem $item)` tipaba el tercer parámetro como `QuoteItem` — un modelo completamente distinto, de otra tabla. El binding implícito de Laravel busca ese ID en `quote_items`, no en `spa_booking_services`. Verificado contra la base de datos real de producción: `quote_items` tiene **0 filas** (el flujo formal de "Nueva Opción de presupuesto" casi no se usa en la práctica — casi todo el negocio agenda y cobra directo, sin pasar por Presupuestos), así que cualquier ID de `SpaBookingService` (1 a 27 en producción al momento de este hallazgo) nunca coincidía con ningún `QuoteItem` existente → 404 garantizado en el 100% de los casos, desde que se construyó esta pantalla.
+
+**Por qué no se detectó antes:** el 404 ocurre solo al hacer submit del modal (no al abrirlo), en una pantalla operativa (Orden de Trabajo) que probablemente se usa poco para esta acción específica en el día a día — sin un reporte explícito de "el botón no funciona", quedó invisible. No había ningún test cubriendo esta ruta.
+
+**Solución definitiva:** retipado el parámetro a `SpaBookingService $item` (el modelo real que la vista siempre envió). De paso se corrigió que el checkbox `is_external`, al no enviarse cuando queda desmarcado (comportamiento normal de un `<input type="checkbox">` en HTML), nunca se podía poner en `false` una vez marcado — ahora se usa `$request->boolean('is_external')` en vez de depender de que la clave exista en el payload validado.
+
+**Lección:** cuando una vista arma una ruta con `route(..., [$booking, $item])` a partir de una relación (`$booking->services`), verificar de qué modelo es esa relación **antes** de confiar en el type-hint del método del controlador — el nombre del parámetro (`$item`) no garantiza que coincida con el modelo real que la vista está enviando. Vale la pena grepear el nombre de la tabla real que alimenta el `@foreach` cuando el type-hint de un controlador "parece" razonable pero no hay tests que lo confirmen.
+
+---
+
 ## NT-044 — `<script>` sin atributo `nonce` bajo `@push('scripts')`: bloqueado en silencio por la CSP (variante de NT-042)
 
 | Campo | Valor |

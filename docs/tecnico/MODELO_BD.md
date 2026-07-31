@@ -576,7 +576,10 @@ Servicios incluidos en una cita (sincronizados desde el quote aceptado).
 | `service_id` | FK → `services` | |
 | `quantity` | decimal(8,2), default 1 | Grupos — permite cantidades fraccionarias (ej. 0.5 hrs) |
 | `group_id` | FK → `groups` nullable, nullOnDelete | Trazabilidad: de qué Grupo vino esta línea (si vino de uno) |
-| `current_price` | decimal(10,2) | Precio total de la línea al momento de agendar (`quantity` ya aplicada) |
+| `current_price` | decimal(10,2) | Precio total de la línea al momento de agendar (`quantity` ya aplicada) — precio de venta al cliente, siempre el del catálogo salvo edición manual, nunca derivado de `external_cost` |
+| `operator_id` | FK → `operators` nullable, nullOnDelete | BL-075 (31/07/2026) — profesional asignado a esta línea específica, vía modal "Asignar Profesional" en `_work_order.blade.php`. Independiente del `operator_id` a nivel de cita completa (`spa_bookings.operator_id`) |
+| `is_external` | boolean, default false | BL-075 — servicio prestado por un proveedor externo (no nómina, ej. veterinario externo) |
+| `external_cost` | decimal(10,2) nullable | BL-075 — costo que cobra el proveedor externo, solo aplica si `is_external=true`. Independiente de `current_price` (lo que se le cobra al cliente); editable en cualquier momento antes de cerrar la cita. Si se corrige después de capturado, la UI sugiere (no aplica sola) un ajuste proporcional de `current_price` manteniendo el margen original: `precio_sugerido = current_price × (costo_nuevo / costo_original)` |
 | `timestamps` | | |
 
 ### `spa_booking_items`

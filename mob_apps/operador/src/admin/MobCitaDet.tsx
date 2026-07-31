@@ -23,9 +23,21 @@ interface BookingDetail {
   total: number;
   pet: { id: number; name: string; species: string | null; breed: string | null; photo: string | null };
   client: { id: number; name: string } | null;
-  services: { id: number | null; name: string; type: string | null; price: number; duration_minutes: number | null }[];
+  services: {
+    id: number | null;
+    booking_service_id: number;
+    name: string;
+    type: string | null;
+    price: number;
+    duration_minutes: number | null;
+    operator_id: number | null;
+    operator_name: string | null;
+    is_external: boolean;
+    external_cost: number | null;
+  }[];
   operator: { id: number; name: string; photo_url: string | null } | null;
 }
+type BookingServiceLine = BookingDetail['services'][number];
 interface ServiceCat { id: number; name: string; type: string | null; price: number; duration_minutes: number | null }
 interface OperatorCat { id: number; name: string; role: string | null; photo_url: string | null }
 interface OccBooking  { id: number; time: string }
@@ -190,6 +202,17 @@ export function MobCitaDet() {
   const [savingNote,     setSavingNote]     = useState(false);
   const [noteErr,        setNoteErr]        = useState<string | null>(null);
 
+  /* Asignar profesional / costo externo por línea de servicio (solo en "En proceso") */
+  const [assigningLine,   setAssigningLine]   = useState<BookingServiceLine | null>(null);
+  const [assignOperator,  setAssignOperator]  = useState<number | ''>('');
+  const [assignExternal,  setAssignExternal]  = useState(false);
+  const [assignOrigCost,  setAssignOrigCost]  = useState<number | null>(null);
+  const [assignCost,      setAssignCost]      = useState('');
+  const [assignBasePrice, setAssignBasePrice] = useState(0);
+  const [assignPrice,     setAssignPrice]     = useState('');
+  const [savingAssign,    setSavingAssign]    = useState(false);
+  const [assignErr,       setAssignErr]       = useState<string | null>(null);
+
   /* Edición rápida de "Notas de la cita" (sin entrar al modo edición completo) */
   const [editingBookingNote, setEditingBookingNote] = useState(false);
   const [bookingNoteText,    setBookingNoteText]    = useState('');
@@ -318,6 +341,49 @@ export function MobCitaDet() {
       showToast('Nota agregada');
     } catch { setNoteErr('No se pudo conectar con el servidor.'); }
     setSavingNote(false);
+  };
+
+  /* ── Asignar profesional / costo externo a una línea de servicio ── */
+  const openAssign = (line: BookingServiceLine) => {
+    setAssigningLine(line);
+    setAssignOperator(line.operator_id ?? '');
+    setAssignExternal(line.is_external);
+    setAssignOrigCost(line.external_cost);
+    setAssignCost(line.external_cost !== null ? String(line.external_cost) : '');
+    setAssignBasePrice(line.price);
+    setAssignPrice(String(line.price));
+    setAssignErr(null);
+  };
+  const closeAssign = () => setAssigningLine(null);
+
+  const assignSuggestedPrice = useMemo(() => {
+    const cost = parseFloat(assignCost);
+    if (!assignOrigCost || assignOrigCost <= 0 || !Number.isFinite(cost) || cost === assignOrigCost) return null;
+    return (assignBasePrice * (cost / assignOrigCost)).toFixed(2);
+  }, [assignCost, assignOrigCost, assignBasePrice]);
+
+  const saveAssign = async () => {
+    if (!booking || !assigningLine || !assignOperator) return;
+    setSavingAssign(true);
+    setAssignErr(null);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/services/${assigningLine.booking_service_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operator_id: assignOperator,
+          is_external: assignExternal,
+          external_cost: assignExternal && assignCost.trim() !== '' ? parseFloat(assignCost) : null,
+          current_price: assignPrice.trim() !== '' ? parseFloat(assignPrice) : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAssignErr(data.message ?? 'Error'); setSavingAssign(false); return; }
+      setBooking(data);
+      setAssigningLine(null);
+      showToast('Profesional asignado');
+    } catch { setAssignErr('No se pudo conectar con el servidor.'); }
+    setSavingAssign(false);
   };
 
   /* ── Editar "Notas de la cita" (rápido, sin modo edición completo) ── */
@@ -774,6 +840,78 @@ export function MobCitaDet() {
           </div>
         )}
 
+        {/* ── Panel: asignar profesional / costo externo por línea ── */}
+        {assigningLine && (
+          <div className="bg-secondary/8 border border-secondary/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-secondary text-xl">person_add</span>
+              <p className="text-sm font-semibold text-secondary">Asignar: {assigningLine.name}</p>
+            </div>
+
+            <div>
+              <label className="text-xs text-on-surface-variant mb-1 block">Especialista / Operador</label>
+              <select
+                value={assignOperator}
+                onChange={e => setAssignOperator(e.target.value ? Number(e.target.value) : '')}
+                className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary"
+              >
+                <option value="">Selecciona un profesional…</option>
+                {operators.map(op => (
+                  <option key={op.id} value={op.id}>{op.name}{op.role ? ` (${op.role})` : ''}</option>
+                ))}
+              </select>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-on-surface">
+              <input type="checkbox" checked={assignExternal} onChange={e => setAssignExternal(e.target.checked)}
+                className="w-4 h-4 accent-secondary" />
+              Es servicio externo (ej. cremación, anestesia externa)
+            </label>
+
+            {assignExternal && (
+              <div>
+                <label className="text-xs text-on-surface-variant mb-1 block">Costo del proveedor externo</label>
+                <input type="number" inputMode="decimal" step="0.01" min="0" value={assignCost}
+                  onChange={e => setAssignCost(e.target.value)}
+                  className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
+                <p className="text-[11px] text-on-surface-variant mt-1">Lo que cobra el proveedor externo — distinto del precio de venta al cliente.</p>
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-on-surface-variant">Precio de venta al cliente</label>
+                {assignSuggestedPrice && (
+                  <button type="button" onClick={() => setAssignPrice(assignSuggestedPrice)}
+                    className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary">
+                    Sugerido: ${assignSuggestedPrice} (usar)
+                  </button>
+                )}
+              </div>
+              <input type="number" inputMode="decimal" step="0.01" min="0" value={assignPrice}
+                onChange={e => setAssignPrice(e.target.value)}
+                className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
+              {assignSuggestedPrice && (
+                <p className="text-[11px] text-on-surface-variant mt-1">
+                  El costo externo cambió respecto al capturado antes — el precio sugerido mantiene la misma proporción, pero es editable, no se aplica solo.
+                </p>
+              )}
+            </div>
+
+            {assignErr && <p className="text-xs text-error">{assignErr}</p>}
+            <div className="flex gap-2">
+              <button onClick={closeAssign}
+                className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                Cancelar
+              </button>
+              <button onClick={saveAssign} disabled={savingAssign || !assignOperator}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-secondary text-on-secondary disabled:opacity-50">
+                {savingAssign ? 'Guardando…' : 'Confirmar asignación'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ══════════════════════════════════════════════
             MODO EDICIÓN
             ══════════════════════════════════════════════ */}
@@ -968,6 +1106,40 @@ export function MobCitaDet() {
                   : null}
               </p>
             </div>
+
+            {/* ── Profesional por servicio (solo mientras está "En proceso") ── */}
+            {booking.status === 'work_order' && booking.services.length > 0 && (
+              <section>
+                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Servicios y profesionales</p>
+                <div className="flex flex-col gap-2">
+                  {booking.services.map(line => (
+                    <div key={line.booking_service_id} className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-on-surface truncate">{line.name}</p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {line.operator_name ? (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              {line.operator_name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-on-surface-variant">Sin profesional asignado</span>
+                          )}
+                          {line.is_external && (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-error/10 text-error border border-error/30">
+                              Externo{line.external_cost !== null ? ` — $${line.external_cost.toFixed(2)}` : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button onClick={() => openAssign(line)}
+                        className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl border border-secondary text-secondary">
+                        Asignar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* ── Movimientos: servicios + cobros en tabla ordenable ── */}
             {txRows.length > 0 && (

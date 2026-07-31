@@ -72,6 +72,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/bookings', [BookingController::class, 'store']);
     Route::get('/bookings/{booking}', [BookingController::class,  'show']);
     Route::patch('/bookings/{booking}', [BookingController::class,  'update']);
+    Route::patch('/bookings/{booking}/services/{line}', [BookingController::class, 'assignServiceProfessional']);
     Route::get('/bookings/{booking}/payments', [PaymentController::class, 'index']);
     Route::post('/bookings/{booking}/payments', [PaymentController::class, 'store']);
     Route::get('/bookings/{booking}/process-notes', [BookingProcessNoteController::class, 'index']);

@@ -1,5 +1,47 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 31/07/2026 (cont. 5) — BL-075 (costo de proveedor externo) + BL-076 diseñado (auditoría de recibo/OT)
+
+### ✅ Logros y Cambios
+
+**Conversación larga de diseño sobre auditoría de recibo/OT (BL-076, sin construir):** el usuario preguntó cómo dejar rastro claro (para auditoría) de servicios fuera de catálogo — curaciones especiales, artículos a la medida — en recibo, orden de trabajo y contabilidad. Investigación real del código (no supuesta) reveló varios hallazgos serios documentados en detalle en `BACKLOG.md` BL-076: `quote_items.notes` se captura pero nunca se renderiza en ningún lado; `ExecutedService`/`ExecutedServiceItem` es código muerto (confirmado también por `MODELO_BD.md` NT-020); `AccountingService::cancelEntry()` existe pero no está cableado a ningún controlador, y aunque lo estuviera, recibe `$cancelledBy` sin persistirlo; y el hallazgo más grande — el sistema de doble entrada (`documents`/`journal_entries`) es un side-channel best-effort que **no es la fuente de verdad del dinero real**: `Payment`, `CashLedger`/`BankLedger` y `documents`/`journal_entries` son tres vías independientes sin FK entre sí, y ningún reporte financiero real (dashboard, corte de caja, pagos) lee `journal_entries`/`documents`. Diseño acordado con el usuario (OT viva/editable hasta cobrar, `Document` como fuente de verdad del pago tras consolidar, snapshot de línea `document_items`/`line_items_snapshot`, cancelar con dos ramas según haya o no reembolso real, reemitir con `supersedes_document_id`) quedó anotado completo en BL-076 para una sesión futura — no se tocó código de este ítem.
+
+**BL-075 — construido en esta sesión, tras dos redefiniciones en la misma conversación:** primero se descartó "elegir rol por cita" (la tarifa no depende del rol, citas separadas ya resuelven "dos operadores en un mismo trabajo"). Luego se descartó también el cálculo automático de precio por costo-hora del operador **de nómina** — el usuario confirmó explícitamente: el precio de venta es siempre el del catálogo, sin importar quién lo ejecute. El costo solo importa para **proveedores externos** (ej. veterinario externo, no nómina), y ahí la relación es distinta: si el proveedor externo cobra distinto de lo estimado, el precio al cliente debería poder ajustarse proporcionalmente (mismo margen), siempre como sugerencia editable, nunca automática.
+
+**Implementación:** 3 columnas nuevas en `spa_booking_services` (`operator_id`, `is_external`, `external_cost`) — no en `quote_items` como se había planteado al diseñarlo. Al implementar se encontró que `quote_items` tiene **0 filas en producción** (verificado contra la BD real vía tinker) — el flujo formal de "Nueva Opción de presupuesto" casi no se usa en la práctica; el punto real donde se asigna operador y costo es la Orden de Trabajo.
+
+**Bug real preexistente encontrado y corregido de paso:** el modal "Asignar Profesional" de `_work_order.blade.php` itera `$booking->services` (`SpaBookingService`) y postea a `agenda.items.assign`, pero `SpaBookingController::assignProfessional()` tipaba el parámetro como `QuoteItem $item` — con 0 `quote_items` en producción, el botón **siempre daba 404** al usarlo, sin que nadie lo hubiera reportado. Corregido el tipo a `SpaBookingService` (único consumidor real de esa ruta).
+
+**Modal ampliado:** costo del proveedor externo (visible solo si se marca "Es servicio externo") y precio de venta editable, en el mismo formulario donde ya se asigna el operador. Alpine.js calcula en vivo una sugerencia de precio proporcional (`precio × costo_nuevo/costo_original`) cuando el costo capturado cambia, con botón "usar" — nunca se aplica sola. Precio de venta y costo externo son campos independientes: corregir uno no mueve el otro salvo que el staff acepte la sugerencia.
+
+**Verificado (parte web):** 5 tests nuevos (`AssignProfessionalTest`) cubriendo asignación de operador, costo+precio independientes, ajuste manual tras cambio de costo, aislamiento entre citas (404 si la línea no pertenece a la cita), y render del modal con los campos nuevos. Migración corrida en producción real (`estetican_app`).
+
+**Llevado también a la app móvil en la misma sesión, a pedido explícito del usuario ("sí deben estar sincronizados"):** mismas 3 columnas de `spa_booking_services`, sin migración nueva. Endpoint API nuevo `PATCH /api/bookings/{booking}/services/{line}` (`Api\BookingController::assignServiceProfessional()`), mismo contrato que el web (operador requerido, `is_external`, `external_cost`, `current_price` opcional). `serialize()` ahora expone `booking_service_id` (id real de la línea — distinto del `id` que ya existía, que es el id del servicio de catálogo, usado por el selector de servicios del modo edición; no se podía reusar sin romperlo), `operator_id`, `operator_name`, `is_external`, `external_cost` por línea. `MobCitaDet.tsx` gana sección "Servicios y profesionales" (solo en estado `work_order`, mismo alcance que el work order web) con panel de asignación — mismo cálculo de sugerencia proporcional replicado en TypeScript (`useMemo`), mismo patrón de "nunca se aplica sola".
+
+**Bug real encontrado y corregido de paso, documentado en NT-046:** antes de exponer el endpoint nuevo se revisó qué pasaba si `MobCitaDet.tsx` editaba la lista de servicios de una cita después (`PATCH /api/bookings/{id}` con `services` como arreglo plano de IDs) — `Api\BookingController::update()` hacía `delete()` + recrear todas las líneas con precio de catálogo, sin importar si ya existían. Con las columnas nuevas, esto habría borrado en silencio cualquier operador/costo externo ya asignado en cuanto alguien tocara la lista de servicios desde mobile. Reescrito a sync no destructivo: solo borra las líneas que salieron de la selección, solo crea las que son realmente nuevas: las que quedan conservan precio/operador/costo externo tal cual.
+
+**Verificado (parte mobile):** 4 tests nuevos (`Api\BookingServiceAssignmentTest`) — asignación vía API, aislamiento entre citas, y el caso central del bug: sincronizar `services` agregando un servicio nuevo no debe tocar el operador/costo externo/precio de una línea que ya estaba. Suite completa sin regresiones (331 pasan, mismos 37 preexistentes). `npx tsc --noEmit` limpio en los archivos tocados (mismos 2 errores preexistentes ajenos: `ActiveService.tsx`, `MobCajaMovimientos.tsx`). `npm run build` exitoso, bundle `index--R987Tm1.js` confirmado servido por el contenedor `estetican_mob` (nginx sirviendo `dist/` directo).
+
+### 📁 Archivos Modificados/Creados
+- `database/migrations/2026_07_31_000001_add_operator_external_cost_to_spa_booking_services.php` — nueva
+- `app/Models/SpaBookingService.php` — `operator_id`/`is_external`/`external_cost` en fillable+casts, relación `operator()`
+- `app/Http/Controllers/SpaBookingController.php` — `assignProfessional()` retipado a `SpaBookingService`; `loadBookingContext()` eager-carga `services.operator`
+- `resources/views/agenda/partials/_work_order.blade.php` — badge de línea externa, modal ampliado con costo externo + precio editable + sugerencia proporcional (Alpine.js)
+- `app/Http/Controllers/Api/BookingController.php` — `serialize()` expone campos nuevos por línea; `assignServiceProfessional()` nuevo; `update()` reescrito a sync no destructivo de `services` (NT-046)
+- `routes/api.php` — ruta nueva `PATCH /api/bookings/{booking}/services/{line}`
+- `mob_apps/operador/src/admin/MobCitaDet.tsx` — sección "Servicios y profesionales" + panel de asignación (solo en `work_order`)
+- `tests/Feature/AssignProfessionalTest.php` — nuevo, 5 tests (web)
+- `tests/Feature/Api/BookingServiceAssignmentTest.php` — nuevo, 4 tests (API/mobile)
+- `docs/tecnico/MODELO_BD.md` — `spa_booking_services` documentada con las 3 columnas nuevas
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-045 (bug del modal web), NT-046 (sync destructivo de `update()`)
+- `docs/tecnico/BACKLOG.md` — BL-075 movido a Completados; BL-076 anotado completo (diseño, sin construir)
+
+### 🛑 Pendientes activos
+- BL-076 completo (consolidación `Document`↔`Payment`, snapshot de línea, cancelar/reemitir) — solo diseñado, sin construir, requiere su propia sesión.
+- Falta commit/push de esta sesión.
+
+---
+
 ## 📅 Cierre de sesión: 31/07/2026 (cont. 4) — Precio editable al agendar (web + móvil) + bug de CSP sin relación
 
 ### ✅ Logros y Cambios

@@ -17,10 +17,10 @@ use App\Models\Item;
 use App\Models\Operator;
 use App\Models\Pet;
 use App\Models\Quote;
-use App\Models\QuoteItem;
 use App\Models\Resource;
 use App\Models\Service;
 use App\Models\SpaBooking;
+use App\Models\SpaBookingService;
 use App\Support\Geo\CoverageChecker;
 use App\Support\Pages\AgendaPage;
 use App\Support\SystemSettings\BusinessHours;
@@ -770,6 +770,7 @@ class SpaBookingController extends Controller
             'pet.primaryPhoto',
             'services.service',
             'services.group',
+            'services.operator',
             'items.item',
             'items.group',
             'resourceAllocations.resource:id,branch_id,code,name,resource_type',
@@ -853,16 +854,22 @@ class SpaBookingController extends Controller
         return redirect()->route('agenda.show', $booking)->with('success', 'Presupuesto aceptado. La sesión ahora es una Orden de Trabajo activa.');
     }
 
-    public function assignProfessional(Request $request, SpaBooking $booking, QuoteItem $item): RedirectResponse
+    public function assignProfessional(Request $request, SpaBooking $booking, SpaBookingService $item): RedirectResponse
     {
-        abort_unless($item->quote->spa_booking_id === $booking->id, 404);
+        abort_unless($item->spa_booking_id === $booking->id, 404);
 
         $validated = $request->validate([
             'operator_id' => 'required|exists:operators,id',
-            'is_external' => 'boolean',
+            'external_cost' => 'nullable|numeric|min:0',
+            'current_price' => 'nullable|numeric|min:0',
         ]);
 
-        $item->update($validated);
+        $item->update([
+            'operator_id' => $validated['operator_id'],
+            'is_external' => $request->boolean('is_external'),
+            'external_cost' => $validated['external_cost'] ?? null,
+            'current_price' => $validated['current_price'] ?? $item->current_price,
+        ]);
 
         return redirect()->back()->with('success', 'Profesional asignado correctamente.');
     }

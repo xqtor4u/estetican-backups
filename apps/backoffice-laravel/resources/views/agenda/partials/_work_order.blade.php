@@ -67,11 +67,19 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div class="mt-2 small">
+                                <div class="mt-2 small d-flex align-items-center gap-2 flex-wrap">
                                     @if($item->operator_id)
                                         <span class="badge bg-white text-dark border"><i class="bi bi-person-check-fill text-success me-1"></i> {{ $item->operator->name }}</span>
                                     @else
                                         <span class="text-body-secondary italic">Sin profesional asignado</span>
+                                    @endif
+                                    @if($item->is_external)
+                                        <span class="badge bg-warning-subtle text-warning border">
+                                            <i class="bi bi-truck me-1"></i> Externo
+                                            @if($item->external_cost !== null)
+                                                — costo ${{ number_format($item->external_cost, 2) }}
+                                            @endif
+                                        </span>
                                     @endif
                                 </div>
                             </div>
@@ -137,7 +145,21 @@
 @foreach($booking->services as $item)
 <div class="modal fade" id="modalAssignProfessional{{ $item->id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
-        <form action="{{ route('agenda.items.assign', [$booking, $item]) }}" method="POST" class="modal-content">
+        <form action="{{ route('agenda.items.assign', [$booking, $item]) }}" method="POST" class="modal-content"
+              x-data="{
+                  isExternal: {{ $item->is_external ? 'true' : 'false' }},
+                  originalCost: {{ $item->external_cost !== null ? $item->external_cost : 'null' }},
+                  cost: {{ $item->external_cost !== null ? $item->external_cost : 'null' }},
+                  price: {{ $item->current_price }},
+                  get suggestedPrice() {
+                      if (!this.originalCost || !this.cost || this.originalCost <= 0) return null;
+                      if (parseFloat(this.cost) === parseFloat(this.originalCost)) return null;
+                      return (parseFloat(this.price) * (parseFloat(this.cost) / parseFloat(this.originalCost))).toFixed(2);
+                  },
+                  applySuggested() {
+                      if (this.suggestedPrice) this.price = this.suggestedPrice;
+                  }
+              }">
             @csrf
             <div class="modal-header">
                 <h5 class="modal-title">Asignar Profesional: {{ $item->service->name }}</h5>
@@ -145,7 +167,7 @@
             </div>
             <div class="modal-body">
                 <p class="small text-body-secondary mb-3">Elige al responsable de ejecutar este servicio específico.</p>
-                
+
                 <div class="mb-3">
                     <label class="form-label">Especialista / Operador</label>
                     <select name="operator_id" class="form-select" required>
@@ -158,11 +180,37 @@
                     </select>
                 </div>
 
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="is_external" value="1" id="ext{{ $item->id }}" @checked($item->is_external)>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="is_external" value="1" id="ext{{ $item->id }}"
+                           x-model="isExternal">
                     <label class="form-check-label" for="ext{{ $item->id }}">
                         Es servicio externo (Ej: Cremación, Anestesia externa)
                     </label>
+                </div>
+
+                <div x-show="isExternal" x-cloak class="p-3 bg-light rounded-3 mb-3">
+                    <label class="form-label small fw-bold text-uppercase text-body-secondary">Costo del proveedor externo</label>
+                    <div class="input-group mb-1">
+                        <span class="input-group-text">$</span>
+                        <input type="number" name="external_cost" x-model="cost" class="form-control" step="0.01" min="0">
+                    </div>
+                    <div class="form-text">Lo que cobra el proveedor externo — distinto del precio de venta al cliente.</div>
+                </div>
+
+                <div class="mb-1">
+                    <label class="form-label small fw-bold text-uppercase text-body-secondary d-flex justify-content-between align-items-center">
+                        Precio de venta al cliente
+                        <template x-if="suggestedPrice">
+                            <button type="button" class="badge bg-info-subtle text-info border" @click="applySuggested()" x-text="'Sugerido: $' + suggestedPrice + ' (usar)'"></button>
+                        </template>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" name="current_price" x-model="price" class="form-control" step="0.01" min="0">
+                    </div>
+                    <div class="form-text" x-show="suggestedPrice" x-cloak>
+                        El costo externo cambió respecto al capturado antes — el precio sugerido mantiene la misma proporción, pero es editable, no se aplica solo.
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
