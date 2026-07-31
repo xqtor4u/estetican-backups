@@ -91,6 +91,7 @@ export function MobCitaNueva() {
   const [businessHours, setBusinessHours] = useState({ start: DEFAULT_OPEN_MIN, end: DEFAULT_CLOSE_MIN });
   const [selSlot,      setSelSlot]      = useState<string | null>(null);
   const [selSvcs,      setSelSvcs]      = useState<number[]>([]);
+  const [svcPrices,    setSvcPrices]    = useState<Record<number, number>>({});
   const [selOp,        setSelOp]        = useState<number | null>(null);
   const [customDur,    setCustomDur]    = useState<number | null>(null); // null = usar catálogo
   const [notes,        setNotes]        = useState('');
@@ -215,12 +216,12 @@ export function MobCitaNueva() {
   const effectiveDuration = customDur ?? (catalogDuration > 0 ? catalogDuration : STEP);
   const slotsNeeded = Math.max(1, Math.ceil(effectiveDuration / STEP));
 
-  /* Precio total */
+  /* Precio total — usa el precio editado por el usuario si existe, sino el sugerido del catálogo */
   const totalPrice = useMemo(() =>
     services
       .filter(s => selSvcs.includes(s.id))
-      .reduce((acc, s) => acc + s.price, 0),
-    [services, selSvcs]
+      .reduce((acc, s) => acc + (svcPrices[s.id] ?? s.price), 0),
+    [services, selSvcs, svcPrices]
   );
 
   /* Ajuste de duración */
@@ -251,9 +252,11 @@ export function MobCitaNueva() {
   };
 
   const toggleSvc = (svcId: number) =>
-    setSelSvcs(prev =>
-      prev.includes(svcId) ? prev.filter(x => x !== svcId) : [...prev, svcId]
-    );
+    setSelSvcs(prev => {
+      if (prev.includes(svcId)) return prev.filter(x => x !== svcId);
+      setSvcPrices(p => (svcId in p ? p : { ...p, [svcId]: services.find(s => s.id === svcId)?.price ?? 0 }));
+      return [...prev, svcId];
+    });
 
   /* ── Hora de fin estimada ──────────────────────────────── */
   const endTime = selSlot ? slotAddMins(selSlot, effectiveDuration) : null;
@@ -287,6 +290,10 @@ export function MobCitaNueva() {
     setOfferOverride(false);
 
     const scheduled_at = `${localDateStr(selDate)} ${selSlot!}:00`;
+    const servicesPayload = selSvcs.map(id => ({
+      id,
+      price: svcPrices[id] ?? (services.find(s => s.id === id)?.price ?? 0),
+    }));
 
     try {
       const res = await fetch('/api/bookings', {
@@ -297,7 +304,7 @@ export function MobCitaNueva() {
           operator_id:      selOp,
           scheduled_at,
           duration_minutes: effectiveDuration,
-          services:         selSvcs,
+          services:         servicesPayload,
           notes:            notes.trim() || null,
           ...(overrideAvailability ? { override_availability: true } : {}),
         }),
@@ -466,10 +473,9 @@ export function MobCitaNueva() {
               {services.map(svc => {
                 const sel = selSvcs.includes(svc.id);
                 return (
-                  <button
+                  <div
                     key={svc.id}
-                    onClick={() => toggleSvc(svc.id)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-colors text-left ${
+                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-colors ${
                       sel
                         ? 'bg-primary/10 border-primary/40'
                         : fieldErrors.services
@@ -477,29 +483,53 @@ export function MobCitaNueva() {
                           : 'bg-surface-container border-outline-variant'
                     }`}
                   >
-                    <span
-                      className={`material-symbols-outlined text-xl shrink-0 ${sel ? 'text-primary' : 'text-on-surface-variant'}`}
-                      style={{ fontVariationSettings: `'FILL' ${sel ? 1 : 0}` }}
+                    <button
+                      type="button"
+                      onClick={() => toggleSvc(svc.id)}
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
                     >
-                      {sel ? 'check_circle' : 'radio_button_unchecked'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-semibold truncate ${sel ? 'text-primary' : 'text-on-surface'}`}>
-                        {svc.name}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {svc.price > 0 && (
-                          <span className="text-xs text-on-surface-variant">${svc.price.toFixed(0)}</span>
-                        )}
-                        {svc.duration_minutes && (
-                          <span className="flex items-center gap-1 text-xs text-on-surface-variant">
-                            <span className="material-symbols-outlined text-xs">schedule</span>
-                            {minutesToHHMM(svc.duration_minutes)}
-                          </span>
-                        )}
+                      <span
+                        className={`material-symbols-outlined text-xl shrink-0 ${sel ? 'text-primary' : 'text-on-surface-variant'}`}
+                        style={{ fontVariationSettings: `'FILL' ${sel ? 1 : 0}` }}
+                      >
+                        {sel ? 'check_circle' : 'radio_button_unchecked'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-semibold truncate ${sel ? 'text-primary' : 'text-on-surface'}`}>
+                          {svc.name}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {!sel && svc.price > 0 && (
+                            <span className="text-xs text-on-surface-variant">${svc.price.toFixed(0)}</span>
+                          )}
+                          {svc.duration_minutes && (
+                            <span className="flex items-center gap-1 text-xs text-on-surface-variant">
+                              <span className="material-symbols-outlined text-xs">schedule</span>
+                              {minutesToHHMM(svc.duration_minutes)}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                    {sel && (
+                      <div className="flex items-center gap-1 shrink-0 bg-surface rounded-xl border border-outline-variant px-2 py-1">
+                        <span className="text-xs text-on-surface-variant">$</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          inputMode="decimal"
+                          value={svcPrices[svc.id] ?? svc.price}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => {
+                            const v = e.target.value === '' ? 0 : Number(e.target.value);
+                            setSvcPrices(p => ({ ...p, [svc.id]: v }));
+                          }}
+                          className="w-16 bg-transparent text-sm font-semibold text-on-surface text-right focus:outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

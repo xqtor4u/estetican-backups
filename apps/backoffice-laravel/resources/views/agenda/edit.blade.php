@@ -168,7 +168,7 @@
 @endpush
 
 @push('scripts')
-<script>
+<script nonce="{{ csp_nonce() }}">
     document.addEventListener('DOMContentLoaded', function () {
         var operatorSelect = document.getElementById('operator_id');
         var wrapper = document.getElementById('scheduled_at_wrapper');

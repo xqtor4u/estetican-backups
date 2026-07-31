@@ -104,7 +104,8 @@ class BookingController extends Controller
             'scheduled_at' => 'required|date_format:Y-m-d H:i:s',
             'duration_minutes' => 'nullable|integer|min:15|max:480',
             'services' => 'nullable|array',
-            'services.*' => 'integer|exists:services,id',
+            'services.*.id' => 'required_with:services|integer|exists:services,id',
+            'services.*.price' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
             'override_availability' => 'nullable|boolean',
         ]);
@@ -131,9 +132,15 @@ class BookingController extends Controller
             return response()->json(['message' => 'El operador seleccionado no está disponible en ese periodo (vacaciones/permiso).'], 422);
         }
 
-        $serviceIds = $data['services'] ?? [];
-        $prices = $serviceIds ? Service::whereIn('id', $serviceIds)->pluck('price', 'id') : collect();
-        $estimatedTotal = $prices->sum();
+        $serviceRows = collect($data['services'] ?? []);
+        $serviceIds = $serviceRows->pluck('id')->all();
+        $catalogPrices = $serviceIds ? Service::whereIn('id', $serviceIds)->pluck('price', 'id') : collect();
+        // El precio sugerido del catálogo es editable por el usuario al agendar; si no manda
+        // uno explícito (o el campo es null), cae al precio del catálogo.
+        $resolvedPrices = $serviceRows->mapWithKeys(fn ($row) => [
+            $row['id'] => $row['price'] ?? ($catalogPrices[$row['id']] ?? 0),
+        ]);
+        $estimatedTotal = $resolvedPrices->sum();
 
         $booking = SpaBooking::create([
             'pet_id' => $data['pet_id'],
@@ -150,7 +157,7 @@ class BookingController extends Controller
             SpaBookingService::create([
                 'spa_booking_id' => $booking->id,
                 'service_id' => $svcId,
-                'current_price' => $prices[$svcId] ?? 0,
+                'current_price' => $resolvedPrices[$svcId] ?? 0,
             ]);
         }
 

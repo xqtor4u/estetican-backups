@@ -92,7 +92,7 @@
 </div>
 
 @push('scripts')
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
     const expected = {{ $expectedAmount }};
     const input    = document.getElementById('closing_amount');

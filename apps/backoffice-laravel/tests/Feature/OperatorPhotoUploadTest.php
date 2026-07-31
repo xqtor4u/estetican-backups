@@ -79,7 +79,6 @@ class OperatorPhotoUploadTest extends TestCase
             'first_name' => 'Nora',
             'apellido_paterno' => 'Peña',
             'name' => 'Nora Peña',
-            'role' => 'Bañado',
             'profile_photo_path' => 'operator-photos/2026/03/original/nora.jpg',
             'is_active' => true,
         ]);

@@ -178,7 +178,6 @@ class OperatorBranchSelectionTest extends TestCase
             'first_name' => 'Mario',
             'apellido_paterno' => 'León',
             'name' => 'Mario León',
-            'role' => 'Hotelero',
             'is_active' => true,
         ]);
 

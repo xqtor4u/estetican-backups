@@ -1,5 +1,74 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 31/07/2026 (cont. 4) — Precio editable al agendar (web + móvil) + bug de CSP sin relación
+
+### ✅ Logros y Cambios
+
+El usuario reportó que en `MobCitaNueva` no se puede modificar el precio, solo aparece "Agendar". Investigado: nunca existió un campo editable — cada servicio era un botón de check/uncheck con el precio del catálogo como texto plano. Revisando el equivalente web (`agenda/create.blade.php`) se confirmó que tampoco era editable ahí (el texto decía explícitamente "el sistema tomará su precio sugerido... y lo congelará"); la única edición de precio real en todo el sistema vivía en el flujo de **Presupuestos** (`_quote_manager`, solo web, solo después de creada la cita) — no en el paso inicial de agendar, ni en móvil.
+
+**Alcance acordado con el usuario:** precio editable por servicio al momento de agendar, en **ambas** interfaces (no solo móvil).
+
+**Backend:**
+- `Api\BookingController::store()`: `services` cambia de `number[]` a `{id, price}[]`. Si no viene `price` (o es `null`), cae al precio del catálogo — mismo comportamiento de antes para clientes que no manden precio.
+- `SpaBookingController::storeForPet()` (web): nuevo input `service_prices[<service_id>]`; si no viene o viene vacío, cae al `suggested_price`/`price` del catálogo (igual que antes). `BookingService::scheduleSpaSession()` ya aceptaba un mapa `[service_id => price]`, no requirió cambios.
+- Ninguno de los dos endpoints de edición (`update()`) se tocó — el pedido fue específicamente sobre agendar, no sobre editar una cita existente.
+
+**Frontend:**
+- `MobCitaNueva.tsx`: cada servicio marcado ahora muestra un input numérico editable (precio sugerido precargado) en vez de texto plano; el total se recalcula en vivo. Reestructurado el botón de selección (antes envolvía todo en un solo `<button>`, lo que habría hecho inválido anidar un `<input>` adentro) para que el toggle y el precio sean elementos independientes.
+- `agenda/create.blade.php` (web): mismo cambio, input numérico dentro de la tarjeta de cada servicio.
+
+**Bug de CSP encontrado de paso (mismo patrón NT-042), sin relación con lo anterior:** los `<script>` de `checkAvailability` en `agenda/create.blade.php` y `agenda/edit.blade.php` **no tenían `nonce`** — la CSP del proyecto (`script-src` con nonce, sin `unsafe-inline`) los bloqueaba en silencio en cualquier navegador real. Esto incluye el checkbox de "forzar horario" agregado en una sesión anterior el mismo día: nunca funcionó de verdad fuera de las pruebas HTTP (que no ejecutan JS). Se hizo un barrido completo del proyecto (`@push('scripts')` sin `nonce`) y se encontraron 2 casos más, sin relación, en `finances/cash-sessions/{close,show}.blade.php` — corregidos los 4 archivos.
+
+**Verificado:** test de Feature temporal (no quedó en el repo) confirmó ambos flujos — API con precio editado (se respeta) y sin precio (cae al catálogo), y formulario web con precio editado guardándose en `current_price`. Suite completa sin regresiones (322 pasan, mismos 37 preexistentes). Bundle móvil reconstruido y confirmado servido (`index-oryuI9-w.js`).
+
+### 📁 Archivos Modificados
+- `app/Http/Controllers/Api/BookingController.php` — `store()`: `services` acepta precio por ítem
+- `app/Http/Controllers/SpaBookingController.php` — `storeForPet()`: nuevo input `service_prices`
+- `resources/views/agenda/create.blade.php` — precio editable por servicio + `nonce` en el script existente
+- `resources/views/agenda/edit.blade.php` — solo el fix de `nonce` (sin cambio de precio, no era parte del pedido)
+- `resources/views/finances/cash-sessions/close.blade.php`, `show.blade.php` — fix de `nonce`, sin relación
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx` — precio editable por servicio
+
+### 🛑 Pendientes activos
+- Falta commit/push de toda la sesión (agenda viernes/sábado, override de horario, consolidación de rol de operador, y este precio editable + fix de CSP).
+- BL-075 (fórmula de precio por costo-más-margen) sigue sin construir.
+
+---
+
+## 📅 Cierre de sesión: 31/07/2026 (cont. 3) — Respaldos + consolidación del rol de operador en un solo campo
+
+### ✅ Logros y Cambios
+
+**Respaldo de sistemas, previo a la consolidación (a pedido explícito del usuario):**
+- Dump de BD (`estetican_pre-consolidacion-roles-operador_20260730_2132.sql`) + tar completo de código (`estetican-completo_..._2132.tar.gz`, 109 MB), verificados íntegros.
+- Nuevo `backups/LISTA_RESPALDOS.md` — registro de todos los respaldos manuales existentes con su motivo, para ir tachándolos cuando cada cambio quede suficientemente probado en producción.
+- **Bug real encontrado de paso:** el respaldo automático diario (cron 3am) llevaba **más de un mes fallando en silencio** — `scripts/auto_backup_db.sh` apuntaba a un contenedor obsoleto (`backoffice-laravel-mysql-1`, nombre de Sail) en vez de `estetican_mysql`, y el log iba a `/var/log/` (sin permiso de escritura para el usuario del cron, así que la redirección fallaba antes de ejecutar una sola línea). Corregido en el script y el crontab (log ahora en `backups/estetican_backup.log`); probado manualmente, dump + subida a Drive exitosos. Se borraron 3 archivos que eran restos de la falla (dumps vacíos/incompletos de prueba), no respaldos reales.
+
+**Consolidación del rol de operador (continuación del bug de la sesión anterior):**
+- El usuario, tras el fix de visualización de rol en `/api/operators`, pidió explícitamente consolidar los 3 campos en uno solo — "el que manda es el checkbox".
+- Antes de eso hubo una conversación larga sobre el alcance de BL-075 (elegir con qué rol trabaja un operador por cita): se descartó la idea original — la tarifa por operador es por hora, no depende del rol; y "dos operadores distintos en un mismo trabajo" (auxiliar + veterinario) ya se resuelve con **citas separadas** (una cita = un operador, sin cambios de código). El alcance final que quedó pendiente de BL-075 es un cálculo de precio sugerido por costo-más-margen (duración × costo del operador × margen%) — **sin construir**, solo diseñado (ver BACKLOG.md).
+- **Migración `2026_07_31_000000_consolidate_operator_role_fields`:** backfill del único operador que dependía del campo huérfano `operator_role_id` (Tomas Alejandro, sin fila en el m2m) hacia `operator_role_assignments`; luego elimina las columnas `operators.role` y `operators.operator_role_id`.
+- **Hallazgo importante durante el barrido de referencias:** `Operator::isVeterinario()` — un gate real de negocio (`ClinicalVisitService::sign()` exige que quien firma una visita clínica sea veterinario con cédula) — dependía de la FK huérfana, no del m2m. Migrado a `activeRoles()->contains(...)`. De no haberse encontrado, la consolidación habría roto silenciosamente la firma de visitas clínicas para cualquier operador cuyo rol viviera solo en el m2m.
+- Actualizado: `app/Models/Operator.php` (quitada `operatorRole()`, Fillable), `OperatorController` (ya no escribe el `role` legado en `syncRoles()`), `Api\OperatorController` (simplificado, ya sin fallback a campos legado), `ClinicalVisitController` (columna quitada del select), vistas `operators/{index,show,partials/form}.blade.php` (quitado el campo readonly "Rol operativo" y la fila "Rol legado"), y 3 tests que dependían de los campos legado (`OperatorBranchSelectionTest`, `OperatorPhotoUploadTest`, `ClinicalVisitServiceTest` — este último migrado a asignar el rol vía `roleAssignments()->create()` en vez de la columna directa).
+- **Verificado:** migración corrida en producción (backfill confirmado por tinker antes/después); test de Feature temporal (no quedó en el repo) confirmó `operators.index`/`show`/`edit` renderizando bien sin los campos legado, y que guardar una edición real sigue asignando ambos roles correctamente. Endpoint real `/api/operators` verificado en vivo (mismo resultado que antes, ahora desde una sola fuente). Suite completa sin regresiones (322 pasan, mismos 37 preexistentes — confirmado que los 3 tests tocados ya fallaban antes por el bug conocido de `actingAs()`, sin relación).
+- `docs/tecnico/MODELO_BD.md` actualizado (tabla `operators` sin las 2 columnas, nota de consolidación).
+
+### 📁 Archivos Modificados/Creados
+- `database/migrations/2026_07_31_000000_consolidate_operator_role_fields.php` — nueva
+- `app/Models/Operator.php`, `app/Http/Controllers/OperatorController.php`, `app/Http/Controllers/Api/OperatorController.php`, `app/Http/Controllers/Clinical/ClinicalVisitController.php`
+- `resources/views/operators/index.blade.php`, `resources/views/operators/show.blade.php`, `resources/views/operators/partials/form.blade.php`
+- `tests/Feature/OperatorBranchSelectionTest.php`, `tests/Feature/OperatorPhotoUploadTest.php`, `tests/Feature/Clinical/ClinicalVisitServiceTest.php`
+- `scripts/auto_backup_db.sh` — nombre de contenedor + ruta de log corregidos
+- `backups/LISTA_RESPALDOS.md` — nueva
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md`
+
+### 🛑 Pendientes activos
+- BL-075 (redefinido): fórmula de precio sugerido por costo-más-margen — sin construir, ver BACKLOG.md.
+- Falta commit/push de esta sesión completa.
+- Backups pendientes de revisión en `backups/LISTA_RESPALDOS.md` cuando el usuario decida que cada cambio ya está suficientemente probado.
+
+---
+
 ## 📅 Cierre de sesión: 31/07/2026 (cont. 2) — Bug: rol de operador en la app móvil venía de un campo huérfano
 
 ### ✅ Logros y Cambios

@@ -34,7 +34,7 @@ class ClinicalVisitController extends Controller
             'attachments' => fn ($q) => $q->orderByDesc('performed_at'),
         ]);
 
-        $operators = Operator::where('is_active', true)->orderBy('name')->get(['id', 'name', 'operator_role_id']);
+        $operators = Operator::where('is_active', true)->orderBy('name')->get(['id', 'name']);
         $vaccineServices = Service::where('type', 'vaccine')->where('is_active', true)->orderBy('name')->get(['id', 'name']);
         $vaccineItems = Item::where('is_active', true)->where('department', 'Vacunas')->orderBy('name')->get(['id', 'name', 'brand', 'presentation']);
 

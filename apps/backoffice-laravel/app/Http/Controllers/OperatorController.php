@@ -323,7 +323,6 @@ class OperatorController extends Controller
             'emergency_contact_name' => 'nullable|string|max:255',
             'emergency_contact_phone' => 'nullable|string|max:255',
             'hire_date' => 'nullable|date',
-            'role' => 'nullable|string|max:255',
             'role_ids' => 'nullable|array',
             'role_ids.*' => 'integer|exists:operator_roles,id',
             'branch_id' => 'nullable|integer|exists:branches,id',
@@ -386,7 +385,6 @@ class OperatorController extends Controller
             'emergency_contact_name' => $validated['emergency_contact_name'] ?? null,
             'emergency_contact_phone' => $validated['emergency_contact_phone'] ?? null,
             'hire_date' => $validated['hire_date'] ?? null,
-            'role' => $validated['role'] ?? null,
             'notes' => $validated['notes'] ?? null,
             'is_active' => !empty($validated['is_active']),
         ];
@@ -409,11 +407,6 @@ class OperatorController extends Controller
                 'starts_at' => now(),
             ]);
         }
-
-        $primaryRole = OperatorRole::query()->find($normalizedRoleIds->first());
-        $operator->update([
-            'role' => $primaryRole?->name,
-        ]);
     }
 
     private function syncPrimaryBranch(Operator $operator, mixed $branchId): void

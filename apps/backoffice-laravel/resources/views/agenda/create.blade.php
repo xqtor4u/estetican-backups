@@ -125,12 +125,13 @@
 
                 <div class="catalog-filter-note mb-4">
                     <span class="catalog-filter-note__kicker">Selección de servicios</span>
-                    <p class="catalog-filter-note__text mb-0">Elige uno o más servicios activos. El sistema tomará su precio sugerido actual y lo congelará en la programación.</p>
+                    <p class="catalog-filter-note__text mb-0">Elige uno o más servicios activos. El precio se sugiere del catálogo, pero podés editarlo antes de guardar.</p>
                 </div>
 
                 <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-3 mb-4">
                     @foreach($services as $service)
                         @php($checked = in_array($service->id, old('services', []), false))
+                        @php($defaultPrice = (float) ($service->suggested_price ?? $service->price ?? 0))
                         <div class="col">
                             <label class="card h-100 shadow-sm service-card-label" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;">
                                 <div class="card-body position-relative p-3 d-flex flex-column">
@@ -151,8 +152,18 @@
                                         <span class="catalog-inline-tag text-truncate" title="{{ $service->operatorRole?->name ?? 'S/R' }}"><i class="bi bi-person me-1"></i> {{ $service->operatorRole?->name ?? 'S/R' }}</span>
                                     </div>
                                     <div class="mt-auto border-top pt-2">
-                                        <div class="fw-bold fs-5 text-dark">${{ number_format((float) ($service->suggested_price ?? $service->price ?? 0), 2) }}</div>
-                                        <div class="catalog-stat__hint text-muted" style="font-size: 0.7rem;">precio sugerido congelado</div>
+                                        <div class="input-group input-group-sm service-price-group">
+                                            <span class="input-group-text">$</span>
+                                            <input
+                                                type="number"
+                                                name="service_prices[{{ $service->id }}]"
+                                                class="form-control service-price-input"
+                                                step="0.01"
+                                                min="0"
+                                                value="{{ old('service_prices.'.$service->id, $defaultPrice) }}"
+                                            >
+                                        </div>
+                                        <div class="catalog-stat__hint text-muted" style="font-size: 0.7rem;">precio editable</div>
                                     </div>
                                 </div>
                             </label>
@@ -251,7 +262,7 @@
 @endpush
 
 @push('scripts')
-<script>
+<script nonce="{{ csp_nonce() }}">
     document.addEventListener('DOMContentLoaded', function () {
         var operatorSelect = document.getElementById('operator_id');
         var wrapper = document.getElementById('scheduled_at_wrapper');

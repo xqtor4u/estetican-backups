@@ -11,39 +11,28 @@ use Illuminate\Support\Facades\Storage;
 
 class OperatorController extends Controller
 {
-    /**
-     * Etiqueta de rol para mostrar: prioriza los tipos activos del operador (checkboxes
-     * "Tipos de operador" en el backoffice, tabla `operator_role_assignments`) — es la
-     * fuente correcta cuando el operador ya fue editado con el formulario actual. Si
-     * está vacía (operador nunca vuelto a guardar desde que existen los checkboxes),
-     * cae al `operator_role_id` legado, que para esos operadores sigue siendo el único
-     * dato real capturado.
-     */
+    /** Etiqueta de rol para mostrar: todos los tipos activos del operador (checkboxes "Tipos de operador"). */
     private function roleLabel(Operator $o): ?string
     {
         $names = $o->activeRoles()->pluck('name');
 
-        if ($names->isNotEmpty()) {
-            return $names->implode(', ');
-        }
-
-        return $o->operatorRole?->name ?? $o->specialty ?? $o->role;
+        return $names->isNotEmpty() ? $names->implode(', ') : $o->specialty;
     }
 
     public function index()
     {
         $operators = Operator::where('is_active', true)
-            ->with(['roles:id,name,code,acronym', 'operatorRole:id,code,acronym,name'])
+            ->with('roles:id,name,code,acronym')
             ->orderBy('apellido_paterno')
             ->orderBy('apellido_materno')
             ->orderBy('first_name')
-            ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'profile_photo_path', 'specialty', 'role', 'operator_role_id']);
+            ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'profile_photo_path', 'specialty']);
 
         return response()->json($operators->map(fn ($o) => [
             'id'           => $o->id,
             'name'         => $o->full_name,
             'role'         => $this->roleLabel($o),
-            'role_acronym' => $o->activeRoles()->first()?->short_label ?? $o->operatorRole?->short_label,
+            'role_acronym' => $o->activeRoles()->first()?->short_label,
             'photo_url'    => $o->profile_photo_path
                 ? Storage::disk('public')->url($o->profile_photo_path)
                 : null,
@@ -54,11 +43,11 @@ class OperatorController extends Controller
     public function team()
     {
         $operators = Operator::where('is_active', true)
-            ->with(['roles:id,name,code,acronym', 'operatorRole:id,code,acronym,name'])
+            ->with('roles:id,name,code,acronym')
             ->orderBy('apellido_paterno')
             ->orderBy('apellido_materno')
             ->orderBy('first_name')
-            ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'profile_photo_path', 'specialty', 'role', 'operator_role_id']);
+            ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'profile_photo_path', 'specialty']);
 
         $operatorIds = $operators->pluck('id');
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Respaldo automático de BD + subida a Google Drive — EstetiCAN
-# Cron: 0 3 * * * /opt/www/estetican/scripts/auto_backup_db.sh >> /var/log/estetican_backup.log 2>&1
+# Cron: 0 3 * * * /opt/www/estetican/scripts/auto_backup_db.sh >> /opt/www/estetican/backups/estetican_backup.log 2>&1
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ export $(grep -v '^#' "$APP_DIR/.env" | grep -E '^DB_' | xargs)
 echo "[$(date)] Iniciando respaldo: $FILE_NAME"
 
 # Dump desde el contenedor MySQL
-if docker exec backoffice-laravel-mysql-1 mysqldump \
+if docker exec estetican_mysql mysqldump \
     -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" \
     --single-transaction --routines --triggers --no-tablespaces \
     | gzip > "$BACKUP_DIR/$FILE_NAME"; then

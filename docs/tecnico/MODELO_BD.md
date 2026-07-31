@@ -70,6 +70,8 @@ Usuarios del backoffice. También representan operadores cuando `is_operator = t
 ### `operators`
 Catálogo legado de operadores (pre-fusión). Sigue siendo la FK usada en `spa_bookings.operator_id` y en la app móvil.
 
+**Rol/tipo de operador:** una sola fuente de verdad — `operator_role_assignments` (m2m vía `Operator::roles()`/`activeRoles()`). Hasta el 31/07/2026 existían además `operators.role` (texto legado) y `operators.operator_role_id` (FK huérfana desde antes de que existiera el m2m); ambas se eliminaron por consolidación (migración `2026_07_31_000000_consolidate_operator_role_fields`, ver BITACORA).
+
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
@@ -79,8 +81,6 @@ Catálogo legado de operadores (pre-fusión). Sigue siendo la FK usada en `spa_b
 | `first_name` | string nullable | BL-045b — a diferencia de `clients`/`users`, `operators` no tenía ningún campo de nombre separado; se creó de cero junto con los apellidos |
 | `apellido_paterno` | string nullable | BL-045b |
 | `apellido_materno` | string nullable | BL-045b — nunca obligatorio (convención mexicana) |
-| `role` | string nullable | Rol legacy |
-| `operator_role_id` | FK → `operator_roles` nullable | Agregado 30/06/2026 |
 | `branch_id` | FK → `branches` nullable | Sucursal base |
 | `ine_number` | string nullable | |
 | `imss_number` | string nullable | |

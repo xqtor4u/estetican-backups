@@ -619,13 +619,21 @@ class SpaBookingController extends Controller
             'notes' => 'nullable|string',
             'services' => 'required|array',
             'services.*' => 'exists:services,id',
+            'service_prices' => 'nullable|array',
+            'service_prices.*' => 'nullable|numeric|min:0',
             'override_availability' => 'nullable|boolean',
         ]);
 
+        // El precio sugerido del catálogo es editable en el formulario (service_prices[]);
+        // si no viene uno explícito para un servicio, cae al precio del catálogo.
         $servicesWithPrices = [];
         $servicesData = Service::whereIn('id', $validated['services'])->get();
+        $enteredPrices = $validated['service_prices'] ?? [];
         foreach ($servicesData as $service) {
-            $servicesWithPrices[$service->id] = $service->suggested_price ?? $service->price ?? 0;
+            $entered = $enteredPrices[$service->id] ?? null;
+            $servicesWithPrices[$service->id] = $entered !== null && $entered !== ''
+                ? (float) $entered
+                : ($service->suggested_price ?? $service->price ?? 0);
         }
 
         $scheduledAt = Carbon::parse($validated['scheduled_at']);

@@ -35,9 +35,14 @@ class ClinicalVisitServiceTest extends TestCase
             'code' => 'VET'.uniqid(),
             'name' => 'Dra. Ana Vet',
             'first_name' => 'Dra. Ana Vet',
-            'operator_role_id' => $role->id,
             'professional_license' => $withLicense ? 'CED-123456' : null,
             'is_active' => true,
+        ]);
+
+        $operator->roleAssignments()->create([
+            'operator_role_id' => $role->id,
+            'is_primary' => true,
+            'starts_at' => now(),
         ]);
 
         Permission::firstOrCreate(['name' => 'clinico.firmar', 'guard_name' => 'web']);

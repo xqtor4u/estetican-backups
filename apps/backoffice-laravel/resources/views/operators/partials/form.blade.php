@@ -28,11 +28,6 @@
         <input id="apellido_materno" type="text" name="apellido_materno" class="form-control" value="{{ old('apellido_materno', $operator->apellido_materno ?? '') }}">
     </div>
 
-    <div class="col-md-4">
-        <label for="role" class="form-label">Rol operativo</label>
-        <input id="role" type="text" name="role" class="form-control" value="{{ old('role', $operator->role ?? '') }}" placeholder="Se asigna automáticamente según el tipo principal" readonly>
-    </div>
-
     <div class="col-md-3">
         <label for="ine_number" class="form-label">INE</label>
         <input id="ine_number" type="text" name="ine_number" class="form-control" value="{{ old('ine_number', $operator->ine_number ?? '') }}" placeholder="Folio o referencia INE">
@@ -129,7 +124,7 @@
 
     <div class="col-12">
         <div class="small text-body-secondary">
-            El primer tipo marcado se tomará como referencia principal para el campo legado de rol y futuras reglas de asignación.
+            El primer tipo marcado se toma como principal para futuras reglas de asignación.
         </div>
     </div>
 

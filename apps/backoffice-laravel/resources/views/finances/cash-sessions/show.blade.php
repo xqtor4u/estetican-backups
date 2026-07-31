@@ -376,7 +376,7 @@
 </div>
 
 @push('scripts')
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
     var accounts = {
         retiro:         @json($gatoAccounts),

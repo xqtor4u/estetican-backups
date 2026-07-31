@@ -69,7 +69,7 @@
                     @if($operator->roles->isNotEmpty())
                         {{ $operator->roles->pluck('name')->implode(', ') }}
                     @else
-                        {{ $operator->role ?: 'Sin roles definidos' }}
+                        Sin roles definidos
                     @endif
                 </td>
                 <td>{{ optional($operator->primaryBranch())->name ?: 'Sin base' }}</td>

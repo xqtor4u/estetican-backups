@@ -6,7 +6,6 @@ use Database\Factories\OperatorFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
@@ -18,7 +17,6 @@ use Illuminate\Support\Collection;
     'apellido_paterno',
     'apellido_materno',
     'name',
-    'operator_role_id',
     'ine_number',
     'imss_number',
     'address',
@@ -30,7 +28,6 @@ use Illuminate\Support\Collection;
     'emergency_contact_name',
     'emergency_contact_phone',
     'hire_date',
-    'role',
     'is_active',
     'notes',
 ])]
@@ -56,11 +53,6 @@ class Operator extends Model
         ], fn ($part) => filled($part)));
     }
 
-    public function operatorRole(): BelongsTo
-    {
-        return $this->belongsTo(OperatorRole::class, 'operator_role_id');
-    }
-
     public function executedServices(): HasMany
     {
         return $this->hasMany(ExecutedService::class);
@@ -78,7 +70,7 @@ class Operator extends Model
 
     public function isVeterinario(): bool
     {
-        return $this->operatorRole?->code === 'veterinario';
+        return $this->activeRoles()->contains(fn (OperatorRole $role) => $role->code === 'veterinario');
     }
 
     public function roleAssignments(): HasMany

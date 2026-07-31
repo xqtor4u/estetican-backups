@@ -71,9 +71,6 @@
                     <dt class="col-sm-4">Fecha de contratación</dt>
                     <dd class="col-sm-8">{{ $operator->hire_date?->format('Y-m-d') ?: 'Sin dato' }}</dd>
 
-                    <dt class="col-sm-4">Rol legado</dt>
-                    <dd class="col-sm-8">{{ $operator->role ?: 'Sin rol definido' }}</dd>
-
                     <dt class="col-sm-4">Roles activos</dt>
                     <dd class="col-sm-8">
                         @if($operator->activeRoles()->isNotEmpty())
