@@ -25,6 +25,17 @@ class BookingController extends Controller
         private VaccinationEligibilityChecker $vaccinationChecker
     ) {}
 
+    /**
+     * Único caso de disponibilidad que se puede forzar: el operador fuera de su horario
+     * declarado. Conflicto de agenda y vacaciones/permiso siguen siendo bloqueos duros.
+     */
+    private function canOverrideSchedule(): bool
+    {
+        $user = auth()->user();
+
+        return (bool) ($user?->can('agenda.forzar_horario') || $user?->is_super_admin);
+    }
+
     /** Serializa una cita al formato que usa la app móvil */
     private function serialize(SpaBooking $b): array
     {
@@ -95,6 +106,7 @@ class BookingController extends Controller
             'services' => 'nullable|array',
             'services.*' => 'integer|exists:services,id',
             'notes' => 'nullable|string|max:1000',
+            'override_availability' => 'nullable|boolean',
         ]);
 
         $scheduledAt = Carbon::parse($data['scheduled_at']);
@@ -110,7 +122,8 @@ class BookingController extends Controller
             return response()->json(['message' => 'El operador seleccionado ya tiene una cita en ese horario.'], 422);
         }
 
-        if ($this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
+        $overrideSchedule = ! empty($data['override_availability']) && $this->canOverrideSchedule();
+        if (! $overrideSchedule && $this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
             return response()->json(['message' => 'El operador seleccionado no labora en el horario indicado.'], 422);
         }
 
@@ -175,6 +188,7 @@ class BookingController extends Controller
             'services.*' => 'integer|exists:services,id',
             'notes' => 'sometimes|nullable|string|max:1000',
             'cancellation_reason' => 'sometimes|nullable|string|max:500',
+            'override_availability' => 'nullable|boolean',
         ]);
 
         // Re-validar horario/traslape solo si el request realmente reprograma la cita
@@ -198,7 +212,8 @@ class BookingController extends Controller
                 return response()->json(['message' => 'El operador seleccionado ya tiene una cita en ese horario.'], 422);
             }
 
-            if ($this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $resolvedOperatorId, $scheduledAt, $durationMinutes)) {
+            $overrideSchedule = ! empty($data['override_availability']) && $this->canOverrideSchedule();
+            if (! $overrideSchedule && $this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $resolvedOperatorId, $scheduledAt, $durationMinutes)) {
                 return response()->json(['message' => 'El operador seleccionado no labora en el horario indicado.'], 422);
             }
 

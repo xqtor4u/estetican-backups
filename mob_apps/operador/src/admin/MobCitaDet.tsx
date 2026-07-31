@@ -4,6 +4,10 @@ import { useSortable, SortBtn } from '../hooks/useSortable';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
+import { useAuth } from '../AuthContext';
+
+/** Debe coincidir exactamente con el mensaje de OperatorAvailabilityChecker::isOutsideWorkingHours en el backend. */
+const SCHEDULE_OVERRIDE_MESSAGE = 'El operador seleccionado no labora en el horario indicado.';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface BookingDetail {
@@ -128,6 +132,7 @@ function parseDateLocal(datetimeStr: string): Date {
 export function MobCitaDet() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   /* Breadcrumbs del módulo navState — más confiable que location.state */
   const crumbs = getNavCrumbs();
@@ -223,6 +228,7 @@ export function MobCitaDet() {
   /* Guardado / error de carga */
   const [saving,    setSaving]    = useState(false);
   const [saveErr,   setSaveErr]   = useState<string | null>(null);
+  const [offerOverride, setOfferOverride] = useState(false);
   const [loadErr,   setLoadErr]   = useState<string | null>(null);
 
   /* ── Carga inicial ─────────────────────────────────────── */
@@ -460,10 +466,11 @@ export function MobCitaDet() {
   };
 
   /* ── Guardar edición ───────────────────────────────────── */
-  const saveEdit = async () => {
+  const saveEdit = async (overrideAvailability = false) => {
     if (!booking) return;
     setSaving(true);
     setSaveErr(null);
+    setOfferOverride(false);
     try {
       const res = await fetch(`/api/bookings/${booking.id}`, {
         method: 'PATCH',
@@ -474,6 +481,7 @@ export function MobCitaDet() {
           duration_minutes: effectiveDuration,
           services:         selSvcs,
           notes:            notes.trim() || null,
+          ...(overrideAvailability ? { override_availability: true } : {}),
         }),
       });
       const data = await res.json();
@@ -481,7 +489,9 @@ export function MobCitaDet() {
         const msg = data.errors
           ? Object.values(data.errors as Record<string, string[]>).flat().join(' · ')
           : (data.message ?? `Error ${res.status}`);
-        setSaveErr(msg); setSaving(false); return;
+        setSaveErr(msg);
+        setOfferOverride(msg === SCHEDULE_OVERRIDE_MESSAGE && !!user?.can_override_schedule);
+        setSaving(false); return;
       }
       setBooking(data);
       // Resincronizar campos
@@ -531,7 +541,7 @@ export function MobCitaDet() {
         noCrumbs={editing}
         onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); }}
         rightAction={editing ? (
-          <button onClick={saveEdit} disabled={saving}
+          <button onClick={() => saveEdit()} disabled={saving}
             className="flex items-center gap-1.5 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-all disabled:opacity-40">
             {saving
               ? <><span className="material-symbols-outlined text-base animate-spin">progress_activity</span>Guardando…</>
@@ -1145,7 +1155,17 @@ export function MobCitaDet() {
         {saveErr && (
           <div className="bg-error/10 border border-error/30 rounded-2xl px-4 py-3 flex items-start gap-2">
             <span className="material-symbols-outlined text-error text-xl shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
-            <p className="text-sm text-error">{saveErr}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-error">{saveErr}</p>
+              {offerOverride && (
+                <button
+                  onClick={() => saveEdit(true)}
+                  className="mt-2 text-xs font-bold text-error underline underline-offset-2"
+                >
+                  Agendar de todas formas
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -1154,7 +1174,7 @@ export function MobCitaDet() {
       {/* ── FAB guardar (modo edición) ───────────────── */}
       {editing && (
         <div className="fixed bottom-16 left-4 right-4 z-30">
-          <button onClick={saveEdit} disabled={saving || !selSlot}
+          <button onClick={() => saveEdit()} disabled={saving || !selSlot}
             className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-4 rounded-2xl text-base font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-40">
             {saving
               ? <><span className="material-symbols-outlined animate-spin">progress_activity</span>Guardando…</>

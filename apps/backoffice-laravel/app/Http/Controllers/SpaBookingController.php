@@ -173,6 +173,18 @@ class SpaBookingController extends Controller
         ));
     }
 
+    /**
+     * Único caso de disponibilidad que se puede forzar: el operador fuera de su horario
+     * declarado. Conflicto de agenda, fuera de horario del negocio y vacaciones/permiso
+     * siguen siendo bloqueos duros — no tiene sentido "forzar" una doble cita o un permiso.
+     */
+    private function canOverrideSchedule(): bool
+    {
+        $user = auth()->user();
+
+        return (bool) ($user?->can('agenda.forzar_horario') || $user?->is_super_admin);
+    }
+
     public function checkAvailability(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -187,15 +199,24 @@ class SpaBookingController extends Controller
         $operatorId = (int) $validated['operator_id'];
         $excludeId = $validated['exclude_booking_id'] ?? null;
 
-        $reason = match (true) {
+        $hardBlockReason = match (true) {
             ! $this->businessHours->isWithin($scheduledAt) => 'Fuera del horario operativo del negocio ('.$this->businessHours->openingTime().'–'.$this->businessHours->closingTime().').',
             $this->operatorAvailabilityChecker->hasConflict($operatorId, $scheduledAt, $duration, $excludeId) => 'El operador ya tiene una cita en ese horario.',
-            $this->operatorAvailabilityChecker->isOutsideWorkingHours($operatorId, $scheduledAt, $duration) => 'El operador no labora en el horario indicado.',
             $this->operatorAvailabilityChecker->hasTimeOff($operatorId, $scheduledAt, $duration) => 'El operador no está disponible en ese periodo (vacaciones/permiso).',
             default => null,
         };
 
-        return response()->json(['available' => $reason === null, 'reason' => $reason]);
+        $outsideSchedule = $hardBlockReason === null
+            && $this->operatorAvailabilityChecker->isOutsideWorkingHours($operatorId, $scheduledAt, $duration);
+
+        $reason = $hardBlockReason ?? ($outsideSchedule ? 'El operador no labora en el horario indicado.' : null);
+
+        return response()->json([
+            'available' => $reason === null,
+            'reason' => $reason,
+            'overridable' => $outsideSchedule,
+            'can_override' => $outsideSchedule && $this->canOverrideSchedule(),
+        ]);
     }
 
     private function applyBookingFilters($query, array $statuses, string $search): void
@@ -463,6 +484,7 @@ class SpaBookingController extends Controller
             'notes' => 'nullable|string',
             'services' => 'nullable|array',
             'services.*' => 'exists:services,id',
+            'override_availability' => 'nullable|boolean',
         ]);
 
         $scheduledAt = Carbon::parse($validated['scheduled_at']);
@@ -477,7 +499,8 @@ class SpaBookingController extends Controller
             return redirect()->back()->withInput()->with('error', 'El operador seleccionado ya tiene una cita en ese horario.');
         }
 
-        if ($this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
+        $overrideSchedule = ! empty($validated['override_availability']) && $this->canOverrideSchedule();
+        if (! $overrideSchedule && $this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
             return redirect()->back()->withInput()->with('error', 'El operador seleccionado no labora en el horario indicado.');
         }
 
@@ -596,6 +619,7 @@ class SpaBookingController extends Controller
             'notes' => 'nullable|string',
             'services' => 'required|array',
             'services.*' => 'exists:services,id',
+            'override_availability' => 'nullable|boolean',
         ]);
 
         $servicesWithPrices = [];
@@ -615,7 +639,8 @@ class SpaBookingController extends Controller
             return redirect()->back()->withInput()->with('error', 'El operador seleccionado ya tiene una cita en ese horario.');
         }
 
-        if ($this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
+        $overrideSchedule = ! empty($validated['override_availability']) && $this->canOverrideSchedule();
+        if (! $overrideSchedule && $this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
             return redirect()->back()->withInput()->with('error', 'El operador seleccionado no labora en el horario indicado.');
         }
 

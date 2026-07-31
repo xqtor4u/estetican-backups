@@ -1,5 +1,89 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 31/07/2026 (cont. 2) — Bug: rol de operador en la app móvil venía de un campo huérfano
+
+### ✅ Logros y Cambios
+
+El usuario reportó que en `OperatorEdit` (backoffice) seleccionó dos tipos de operador (Auxiliar de Estética + Groomer Básico) pero el campo "Rol" solo mostraba uno. Investigando se confirmó que **hay tres campos distintos** relacionados con el rol de un operador, no dos:
+
+1. `operators.role` (texto legado, solo lectura en el form) — auto-calculado por `OperatorController::syncRoles()` a partir del primer tipo marcado (según el orden del catálogo, no el orden de clic). Puramente decorativo en el backoffice, nada más lo lee.
+2. `roles()` (muchos-a-muchos vía `operator_role_assignments`, los checkboxes "Tipos de operador") — el campo real y completo, correcto, se ve en "Roles activos" en la ficha de detalle.
+3. **`operators.operator_role_id`** (FK única, un tercer campo separado) — remanente de una versión anterior del formulario (antes de que existieran los checkboxes). El formulario actual **nunca la vuelve a tocar**, así que para cualquier operador editado con los checkboxes queda huérfana con el valor viejo — y es exactamente lo que usaba `Api\OperatorController` (`/api/operators`, `/api/operators/team`) como fuente **principal** para el campo `role` que consume la app móvil (selector de operador en Nueva Cita, `GroomerPicker`, Panel de Equipo).
+
+Verificado contra el operador real del reporte (Jose Méndez, id 1): `roles()` = "Groomer Básico, Auxiliar de estética" (correcto), `role` legado = "Auxiliar de estética", pero `operator_role_id` apuntaba a "Groomer Básico" — un tercer valor distinto, sin relación con cuál de los dos checkboxes se marcó primero. La app móvil mostraba ese tercer valor.
+
+**Decisión con el usuario:** separar en dos pasos — arreglar ahora el bug de visualización, y dejar aparte (BL-075) la idea de poder elegir "con qué rol" trabaja un operador en una cita puntual (relevante porque el rol sí afecta la tarifa por hora vía `Operator::effectiveHourlyRate()`, así que no es solo cosmético — pero implica diseño nuevo: filtrar operadores elegibles por servicio, guardar el rol elegido en la cita, ajustar el cálculo de tarifa).
+
+**Fix aplicado:** `Api\OperatorController::index()`/`team()` ahora arman el `role` mostrado a partir de `activeRoles()` (los checkboxes reales, con fallback a `operatorRole()`/`specialty`/`role` legado **solo** para operadores que nunca fueron re-guardados desde que existen los checkboxes — para no perder su único dato real). Verificado en vivo contra producción con un token de prueba (borrado después): Jose Méndez ahora muestra "Groomer Básico, Auxiliar de estética"; un operador sin checkboxes asignados (Tomas Alejandro, `operator_role_id` legado="Groomer Profesional") sigue mostrando correctamente ese valor de respaldo. Suite completa sin regresiones (322 pasan, mismos 37 preexistentes).
+
+### 📁 Archivos Modificados
+- `app/Http/Controllers/Api/OperatorController.php` — `roleLabel()` nuevo, `index()`/`team()` usan `activeRoles()` con fallback a `operatorRole()`
+- `docs/tecnico/BACKLOG.md` — nuevo BL-075 (selección de rol por cita, sin diseñar aún)
+
+### 🛑 Pendientes activos
+- BL-075: diseñar selección de rol/tipo por cita puntual (ver BACKLOG.md) — decisión explícita del usuario de dejarlo para después.
+- Falta commit/push de esta sesión completa (incluye también el fix de agenda viernes/sábado y el override de horario de operador de las sesiones anteriores del mismo día).
+
+---
+
+## 📅 Cierre de sesión: 31/07/2026 (cont.) — Forzar cita fuera del horario del operador (solo admin)
+
+### ✅ Logros y Cambios
+
+A raíz del bug de la agenda (ver sesión anterior), el usuario preguntó qué pasa si se agenda a un operador fuera de su horario semanal declarado (ej. termina a las 16:00 y se le asigna un trabajo de 15:00 con 2 h de duración, terminaría a las 17:00) — hasta ahora era un **bloqueo duro** (422/redirect) en los 4 puntos de entrada (crear/editar cita, web y API móvil), sin forma de continuar aunque el usuario quisiera.
+
+Se agregó la opción de **forzar el agendado, restringida a usuarios con permiso de administrador**. Alcance acotado a propósito: **solo** el caso "operador fuera de su horario declarado" (`OperatorAvailabilityChecker::isOutsideWorkingHours`) es forzable — conflicto de doble cita (`hasConflict`) y vacaciones/permiso (`hasTimeOff`) siguen siendo bloqueos duros sin excepción, porque no tiene sentido "forzar" una doble cita o un permiso.
+
+**Backend:**
+- Nuevo permiso Spatie `agenda.forzar_horario` (`BaseRolesSeeder`, ya corrido en producción) — lo tiene el rol `admin` automáticamente (recibe todos los permisos). Gate real: `$user->can('agenda.forzar_horario') || $user->is_super_admin` (mismo patrón que `FinanzasNavigation.php`).
+- `SpaBookingController::checkAvailability()` ahora devuelve además `overridable` (true solo si el único motivo de bloqueo es horario fuera de turno) y `can_override` (si el usuario actual puede forzarlo).
+- `SpaBookingController::update()`/`storeForPet()` y `Api\BookingController::store()`/`update()` aceptan `override_availability` (bool); solo se respeta si el usuario tiene el permiso — si alguien manda el flag sin permiso, el backend lo ignora silenciosamente y sigue bloqueando (sin dar pista de que existe la opción).
+- `User::toApiArray()` expone `can_override_schedule` para que la app móvil sepa si mostrar la opción (usado en `/api/me` y login).
+
+**Frontend:**
+- Web (`agenda/create.blade.php`, `agenda/edit.blade.php`): el chequeo de disponibilidad en vivo (ya existía, solo mostraba advertencia cosmética) ahora también muestra un checkbox "Agendar de todas formas, fuera del horario del operador" cuando `overridable && can_override` — si no tiene permiso, no ve la opción en absoluto (no solo deshabilitada).
+- Móvil (`MobCitaNueva.tsx` crear, `MobCitaDet.tsx` editar): al recibir el mensaje exacto de bloqueo por horario y si `user.can_override_schedule`, el banner de error ahora incluye un botón "Agendar de todas formas" que reintenta con el flag.
+
+**Verificación:** test de Feature temporal (no quedó en el repo) contra la BD de testing reprodujo el escenario exacto del usuario (operador cierra 16:00, cita 15:00+2h) — confirmó los 3 casos: bloqueo normal, override ignorado sin permiso, y éxito con permiso de admin. Suite completa sin regresiones (322 pasan, mismos 37 preexistentes). Bundle reconstruido y servido en `mov.estetican.org` (`index-BM5p4fBY.js`).
+
+### 📁 Archivos Modificados
+- `database/seeders/BaseRolesSeeder.php` — permiso `agenda.forzar_horario`
+- `app/Http/Controllers/SpaBookingController.php` — `checkAvailability()`, `update()`, `storeForPet()`, helper `canOverrideSchedule()`
+- `app/Http/Controllers/Api/BookingController.php` — `store()`, `update()`, helper `canOverrideSchedule()`
+- `app/Models/User.php` — `toApiArray()` expone `can_override_schedule`
+- `resources/views/agenda/create.blade.php`, `resources/views/agenda/edit.blade.php` — checkbox de override
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx`, `MobCitaDet.tsx` — botón "Agendar de todas formas"
+- `mob_apps/operador/src/AuthContext.tsx` — campo `can_override_schedule`
+
+### 🛑 Pendientes activos
+- Falta commit/push de esta sesión (incluye también el fix de la agenda de la sesión anterior, sin commitear todavía).
+- Sin relación: backlog activo sin cambios; 37 tests preexistentes fallando sin relación.
+
+---
+
+## 📅 Cierre de sesión: 31/07/2026 — Bug: citas del sábado aparecían el viernes en la agenda móvil
+
+### ✅ Logros y Cambios
+
+El usuario reportó una cita real (Yorkshire, cita `#31`) agendada para el sábado 1/ago que en `GlobalAgenda` (pantalla `MobAgGbl`) aparecía el viernes 31/jul, pero en `MobCitaDet` (detalle de la misma cita) sí aparecía correctamente el sábado — esa comparación entre pantallas fue la pista clave para descartar un problema de datos.
+
+**Causa raíz confirmada:** el `scheduled_at` en BD estaba correcto (`2026-08-01 09:00:00`, sábado) — no era un bug de guardado. `MobCitaDet` parsea la fecha con `parseDateLocal` (sin pasar por UTC, seguro). `GlobalAgenda`/`AgendaCalendarGrid` (vistas semana/mes) usaban una función `toDateStr(d)` que hacía `d.toISOString().slice(0,10)` para generar la clave de fecha de cada columna del calendario y para el parámetro `date` del fetch a `/api/agenda`. Ese patrón es correcto solo si `d` está exactamente en medianoche local — pero `selectedDate`/`today` nacen de `new Date()` (hora real del dispositivo) y esa hora se propaga a través de `addDays`/`weekDays`/`monthGridDays`. Con el dispositivo en horario de México (UTC-6) y pasadas ~18:00 hora local, convertir a UTC empuja la fecha al día siguiente — la columna "viernes" terminaba calculando la clave `2026-08-01` (la del sábado), y ahí es donde caía la cita real. Confirmado con una simulación directa (`TZ=America/Mexico_City`, viernes 21:00 local): la función vieja devolvía `2026-08-01`, la corregida `2026-07-31`.
+
+**Fix:** `toDateStr` reescrita para construir el string desde los componentes de fecha **locales** (`getFullYear`/`getMonth`/`getDate`), sin pasar por `toISOString()`/UTC. Estaba duplicada en `agendaViews.ts` y `AgendaCalendarGrid.tsx` — se dejó una sola definición en `agendaViews.ts` y `AgendaCalendarGrid.tsx` ahora la importa. De paso se encontró el mismo patrón (`toISOString().slice(0,10)`) en `MobCajaMovimientos.tsx` (funciones `today()`/`startOfWeek()` del filtro de fecha de movimientos de caja) — mismo riesgo de que el filtro "hoy" muestre el día equivocado por la tarde/noche; corregido igual, con una `toDateStr` local en ese archivo (no comparte módulo con `agendaViews.ts`).
+
+Sin tests automatizados para el frontend móvil (no hay suite configurada en este proyecto) — verificado con la simulación de Node en el TZ real del negocio y con `tsc --noEmit` (sin errores nuevos; los 2 errores de tipo preexistentes en `MobCajaMovimientos.tsx` — prop `key` — y los de `ActiveService.tsx` no tienen relación, ya estaban antes). Build reconstruido y confirmado servido en `mov.estetican.org` (`index-CPCBPnGb.js`).
+
+### 📁 Archivos Modificados
+- `mob_apps/operador/src/admin/agendaViews.ts` — `toDateStr()` reescrita a fecha local
+- `mob_apps/operador/src/admin/AgendaCalendarGrid.tsx` — quitada su copia duplicada de `toDateStr`, ahora importa la de `agendaViews.ts`
+- `mob_apps/operador/src/admin/MobCajaMovimientos.tsx` — `today()`/`startOfWeek()` mismo fix (fecha local en vez de UTC)
+
+### 🛑 Pendientes activos
+- Sin relación con esta sesión: backlog activo sin cambios (BL-028, BL-024b, BL-001/002/004, BL-047 resto, BL-053, BL-008, BL-012, BL-071, BL-031); 37 tests preexistentes fallando sin relación (ver 26/07/2026).
+- Falta commit/push de esta sesión.
+
+---
+
 ## 📅 Cierre de sesión: 27/07/2026 (cont. 3) — Commit/push + verificación final en producción
 
 Sesión larga (BL-073, BL-074, fixes de recibo/orden de trabajo/notas en cita cerrada — ver entradas de abajo) commiteada y pusheada en un solo commit (`679c971`, `origin/main`). De paso se agregó a `docs/architecture/IDEAS_FUTURO.md` la idea de unificar el cálculo de total/saldo/pagos de una cita (hoy duplicado en `_billing_summary`/`invoice`/`work-order`, causa raíz repetida de los bugs de esta sesión).

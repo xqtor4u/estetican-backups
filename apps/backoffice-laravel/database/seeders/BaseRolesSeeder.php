@@ -53,6 +53,7 @@ class BaseRolesSeeder extends Seeder
             'asientos.aprobar',
             'clinico.firmar',
             'alergias.administrar',
+            'agenda.forzar_horario',
         ];
 
         $permissions = array_merge($permissions, $granularPermissions);

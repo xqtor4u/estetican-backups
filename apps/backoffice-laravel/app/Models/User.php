@@ -181,6 +181,7 @@ class User extends Authenticatable
             'email'         => $this->email,
             'roles'         => $this->getRoleNames()->toArray(),
             'is_admin'      => $this->is_super_admin,
+            'can_override_schedule' => $this->can('agenda.forzar_horario') || $this->is_super_admin,
             'operator_id'   => $this->operator_id,
             'operator_role' => $this->operatorRole?->name,
             'photo_url'     => $this->profile_photo_url,

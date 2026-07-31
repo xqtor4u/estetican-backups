@@ -1,4 +1,5 @@
 import React from 'react';
+import { toDateStr } from './agendaViews';
 
 interface GridBooking {
   id: number;
@@ -14,10 +15,6 @@ const STATUS_DOT: Record<string, string> = {
   completed: 'bg-tertiary',
   no_show: 'bg-error',
 };
-
-function toDateStr(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 
 interface WeekGridProps {
   days: Date[];

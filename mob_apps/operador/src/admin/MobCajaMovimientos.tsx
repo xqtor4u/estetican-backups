@@ -75,11 +75,15 @@ function fmtDateTime(iso: string) {
     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
   });
 }
-function today()        { return new Date().toISOString().slice(0, 10); }
+/** Fecha local en formato YYYY-MM-DD (no usar toISOString: convierte a UTC y puede correr la fecha un día según la hora del dispositivo). */
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function today()        { return toDateStr(new Date()); }
 function startOfWeek()  {
   const d = new Date(), day = d.getDay();
   d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
-  return d.toISOString().slice(0, 10);
+  return toDateStr(d);
 }
 function startOfMonth() {
   const d = new Date();

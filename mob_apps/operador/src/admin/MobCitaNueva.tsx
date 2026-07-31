@@ -16,6 +16,9 @@ const STEP = 30; // minutos por slot
 const DEFAULT_OPEN_MIN  = 9 * 60;
 const DEFAULT_CLOSE_MIN = 19 * 60;
 
+/** Debe coincidir exactamente con el mensaje de OperatorAvailabilityChecker::isOutsideWorkingHours en el backend. */
+const SCHEDULE_OVERRIDE_MESSAGE = 'El operador seleccionado no labora en el horario indicado.';
+
 function hhmmToMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + (m || 0);
@@ -96,6 +99,7 @@ export function MobCitaNueva() {
   const [saving,      setSaving]      = useState(false);
   const [saved,       setSaved]       = useState(false);
   const [saveErr,     setSaveErr]     = useState<string | null>(null);
+  const [offerOverride, setOfferOverride] = useState(false);
   const [coverageWarning, setCoverageWarning] = useState<string | null>(null);
   const [vaccinationWarning, setVaccinationWarning] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -257,7 +261,7 @@ export function MobCitaNueva() {
   /* ── Guardar ───────────────────────────────────────────── */
   const canSave = selOp !== null && selSlot !== null && !isSlotInvalid(selSlot) && pet !== null;
 
-  const save = async () => {
+  const save = async (overrideAvailability = false) => {
     if (saving) return;
 
     // Validación client-side con feedback por campo
@@ -280,6 +284,7 @@ export function MobCitaNueva() {
     setFieldErrors({});
     setSaving(true);
     setSaveErr(null);
+    setOfferOverride(false);
 
     const scheduled_at = `${localDateStr(selDate)} ${selSlot!}:00`;
 
@@ -294,6 +299,7 @@ export function MobCitaNueva() {
           duration_minutes: effectiveDuration,
           services:         selSvcs,
           notes:            notes.trim() || null,
+          ...(overrideAvailability ? { override_availability: true } : {}),
         }),
       });
 
@@ -304,6 +310,7 @@ export function MobCitaNueva() {
           ? Object.values(data.errors as Record<string, string[]>).flat().join(' · ')
           : (data.message ?? `Error ${res.status}`);
         setSaveErr(msg);
+        setOfferOverride(msg === SCHEDULE_OVERRIDE_MESSAGE && !!user?.can_override_schedule);
         setSaving(false);
         return;
       }
@@ -357,7 +364,7 @@ export function MobCitaNueva() {
         onCrumbClick={(to, prev) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); }}
         rightAction={
           <button
-            onClick={save}
+            onClick={() => save()}
             disabled={!canSave || saving}
             className="flex items-center gap-1.5 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-all disabled:opacity-40 disabled:scale-100"
           >
@@ -768,8 +775,16 @@ export function MobCitaNueva() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold leading-tight">No se pudo agendar</p>
             <p className="text-xs mt-0.5 opacity-90">{saveErr}</p>
+            {offerOverride && (
+              <button
+                onClick={() => save(true)}
+                className="mt-2 text-xs font-bold underline underline-offset-2"
+              >
+                Agendar de todas formas
+              </button>
+            )}
           </div>
-          <button onClick={() => setSaveErr(null)} className="shrink-0 p-1 rounded-full hover:bg-white/20">
+          <button onClick={() => { setSaveErr(null); setOfferOverride(false); }} className="shrink-0 p-1 rounded-full hover:bg-white/20">
             <span className="material-symbols-outlined text-base">close</span>
           </button>
         </div>
@@ -778,7 +793,7 @@ export function MobCitaNueva() {
       {/* ── Botón flotante de acción ─────────────────── */}
       <div className="fixed bottom-16 left-4 right-4 z-30">
         <button
-          onClick={save}
+          onClick={() => save()}
           disabled={saving}
           className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-4 rounded-2xl text-base font-bold shadow-lg active:scale-[0.98] transition-all disabled:opacity-60 disabled:scale-100"
         >

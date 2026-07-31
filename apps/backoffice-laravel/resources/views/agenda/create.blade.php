@@ -99,6 +99,10 @@
                         </div>
                         <div class="form-text">Horario operativo: {{ $openingTime }}–{{ $closingTime }}.</div>
                         <div id="availability_warning" class="form-text text-danger d-none"></div>
+                        <div id="override_availability_wrapper" class="form-check mt-1 d-none">
+                            <input type="checkbox" class="form-check-input" id="override_availability_checkbox" name="override_availability" value="1">
+                            <label class="form-check-label small" for="override_availability_checkbox">Agendar de todas formas, fuera del horario del operador</label>
+                        </div>
                     </div>
                     <div class="col-lg-4 col-md-6">
                         <label for="resource_id" class="form-label">Jaula / recurso físico</label>
@@ -253,6 +257,8 @@
         var wrapper = document.getElementById('scheduled_at_wrapper');
         var scheduledAtInput = document.getElementById('scheduled_at');
         var warningEl = document.getElementById('availability_warning');
+        var overrideWrapper = document.getElementById('override_availability_wrapper');
+        var overrideCheckbox = document.getElementById('override_availability_checkbox');
         if (!operatorSelect || !wrapper) return;
 
         function syncScheduledAtState() {
@@ -263,6 +269,7 @@
             if (!warningEl) return;
             if (!operatorSelect.value || !scheduledAtInput.value) {
                 warningEl.classList.add('d-none');
+                overrideWrapper && overrideWrapper.classList.add('d-none');
                 return;
             }
             var params = new URLSearchParams({
@@ -274,8 +281,16 @@
                 .then(function (data) {
                     warningEl.textContent = data.reason || '';
                     warningEl.classList.toggle('d-none', data.available !== false);
+                    if (overrideWrapper) {
+                        var showOverride = data.available === false && data.can_override === true;
+                        overrideWrapper.classList.toggle('d-none', !showOverride);
+                        if (!showOverride && overrideCheckbox) overrideCheckbox.checked = false;
+                    }
                 })
-                .catch(function () { warningEl.classList.add('d-none'); });
+                .catch(function () {
+                    warningEl.classList.add('d-none');
+                    overrideWrapper && overrideWrapper.classList.add('d-none');
+                });
         }
 
         operatorSelect.addEventListener('change', function () { syncScheduledAtState(); checkAvailability(); });
