@@ -22,6 +22,7 @@ use App\Http\Controllers\Finances\AccountController;
 use App\Http\Controllers\Finances\CashMovementController;
 use App\Http\Controllers\Finances\CashRegisterController;
 use App\Http\Controllers\Finances\CashSessionController;
+use App\Http\Controllers\Finances\DocumentController;
 use App\Http\Controllers\Finances\DocumentSeriesController;
 use App\Http\Controllers\Finances\PaymentMethodController;
 use App\Http\Controllers\GroupComponentController;
@@ -201,6 +202,8 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
             Route::resource('accounts', AccountController::class)->except(['show']);
             Route::resource('payment-methods', PaymentMethodController::class)->except(['show']);
             Route::resource('document-series', DocumentSeriesController::class)->except(['show']);
+            Route::post('documents/{document}/cancel', [DocumentController::class, 'cancel'])->name('documents.cancel');
+            Route::post('documents/{document}/reissue', [DocumentController::class, 'reissue'])->name('documents.reissue');
             Route::resource('cash-registers', CashRegisterController::class)->except(['show']);
             Route::get('cash-sessions', [CashSessionController::class, 'index'])->name('cash-sessions.index');
             Route::get('cash-registers/{cashRegister}/open', [CashSessionController::class, 'open'])->name('cash-sessions.open');

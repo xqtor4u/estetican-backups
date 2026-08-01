@@ -1,5 +1,51 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 31/07/2026 (cont. 8) — BL-076 construido completo — recibo real, auditoría de cancelación, reemisión (móvil + web)
+
+### ✅ Logros y Cambios
+
+Se construyó el diseño completo de BL-076 (documentado en la sesión de diseño, ver cont. 5/6), en dos fases dentro de la misma sesión. Fase 1: fundacionales + camino de pago móvil, el más usado en producción real. Antes de tocar la fase 2 (los 2 caminos de pago web) se hizo la auditoría pendiente a propósito: `DashboardController` ("ingresos del día") solo lee `CashLedger`+`BankLedger`, no `Payment` — así que el camino web se migró manteniendo esas tablas como fuente de dinero (con `document_id` nuevo), en vez de moverlo a `Payment` como mobile, para no dejar ciego ese dashboard. `CashSessionController::allPaymentsForPeriod()` ya unía los 3 orígenes, sin riesgo ahí.
+
+**Schema:** migración nueva con `documents.{cancelled_at, cancelled_by_user_id, cancellation_type, cancellation_reason, supersedes_document_id, line_items_snapshot}`, `payments.document_id`, `journal_entries.{cancelled_at, cancelled_by_user_id}`. Corrida en producción real.
+
+**`AccountingService::recordBookingPayment()`** reemplaza al viejo `createEntryForBookingPayment()` (que fallaba en silencio, sin FK a `Payment`, sin snapshot). Ahora: obligatorio (lanza excepción si falta cuenta contable en el método de pago o no hay serie de recibos activa — antes simplemente no pasaba nada), transaccional (si falla, no queda un `Payment` huérfano sin recibo — se revierte todo junto), y genera `line_items_snapshot` (JSON: nombre de servicio/artículo como texto congelado, operador, cantidad, precio, `is_external`/`external_cost` de BL-075) para que reimprimir un recibo viejo no dependa de que `services`/`operators` sigan existiendo igual después.
+
+**`Api\PaymentController::store()`** (cobro desde `MobCobro.tsx`, confirmado en sesión anterior como el camino real más usado — casi no se usa el flujo formal de Presupuestos) migrado al nuevo método. El payload legacy sin `payment_method_code` (sin cuenta contable identificable) se sigue registrando como `Payment` simple, sin `Document` — comportamiento preservado a propósito, hay un test que lo cubre (`BookingStockConsumptionTest` ya existente).
+
+**Cancelar — repensado a medio camino, corregido antes de construir la UI encima:** el diseño original de la sesión de diseño cancelaba el asiento contable en las dos ramas por igual. Al implementarlo se cayó en la cuenta de que eso está mal para una **corrección de datos**: si el dinero contabilizado sigue siendo correcto (solo el papel/recibo tenía un error), cancelar el asiento sería falso — el ingreso sí ocurrió. Se separó: `AccountingService::cancelDocument()` cancela siempre el `Document`, pero solo cancela el `JournalEntry` (y genera la reversión de dinero en `CashLedger`/`BankLedger` según el destino real del pago original) en la rama de **reembolso real**. En corrección, el asiento queda "aplicado" tal cual, intacto.
+
+**Reemitir:** solo automático para cancelaciones por corrección (para reembolso, cualquier cobro nuevo es un pago nuevo real, no una reemisión — se registraría como tal cuando se migre el flujo web en la sesión pendiente). Genera un `Document` nuevo (folio nuevo de la misma serie, `line_items_snapshot` fresco desde el estado *actual* de la OT — no del viejo) con `supersedes_document_id`, y **re-apunta** el `JournalEntry` y el `Payment` originales (que nunca se tocaron, seguían siendo válidos) al documento nuevo. Bloqueado reemitir dos veces el mismo documento, y bloqueado reemitir uno ya reembolsado.
+
+**UI:** nueva sección "Recibos generados" en `_billing_summary.blade.php` (visible solo con permiso `asientos.aprobar` o `is_super_admin` — verificado que el gate correcto no es un simple `@can()` porque `super-admin` en este proyecto es un flag `is_super_admin` separado de Spatie, no sincronizado a permisos; se usa el mismo patrón combinado que ya usa `canOverrideSchedule()` en otro lado del código). Modal de cancelar (elige tipo + escribe motivo, ambos obligatorios) y botón de reemitir. Controlador nuevo `Finances\DocumentController`, rutas dentro del grupo ya protegido por `role:admin|super-admin`.
+
+**Fase 2 (web) — `QuoteService::registerPayment()`:** usada por el anticipo al aceptar presupuesto y por "Liquidar Saldo" en `_billing_summary.blade.php`. Se refactorizó `AccountingService` para compartir el núcleo de creación de `Document`+`JournalEntry` (`createReceiptDocumentAndEntry()`) entre dos métodos públicos: `recordBookingPayment()` (móvil, liga `Payment`) y `recordBookingPaymentLedger()` (web, liga `CashLedger`/`BankLedger`) — mismo contrato de recibo, distinto destino de dinero. `cash_ledgers`/`bank_ledgers` ganaron columna `document_id`.
+
+**Hallazgo real al migrar:** `payment_method` en el flujo web era texto libre sin relación a un `PaymentMethod` real (`'Efectivo'/'Tarjeta'/'Transferencia'/'Otro'`, sin `account_id` resoluble) — no se podía generar un asiento contable real sin saber qué cuenta acreditar. Los 2 modales web (aceptar presupuesto con anticipo en `_quote_manager.blade.php`, liquidar saldo en `_billing_summary.blade.php`) se cambiaron a un `<select>` real de `PaymentMethod` activos (mismo patrón que ya usaba `MobCobro.tsx` en mobile) — se perdió la opción "Otro" (no tiene equivalente real en el catálogo de métodos de pago) y "Tarjeta" se separó correctamente en débito/crédito.
+
+**Bug real encontrado y corregido de paso:** `QuoteService::acceptQuote()` registraba el anticipo *antes* de sincronizar `spa_booking_services`/`items` desde el quote aceptado — el snapshot de línea del recibo del anticipo salía vacío (la cita todavía no tenía servicios cuando se armaba el snapshot). Reordenado: sincronizar primero, registrar el anticipo después.
+
+**Verificado:** 24 tests nuevos en total (`BookingPaymentAccountingTest` ×7, `DocumentCancelReissueTest` ×7, `QuoteAdvancePaymentAccountingTest` ×5 — anticipo con método válido genera documento balanceado, anticipo sin método revierte *todo* (el quote no queda aceptado ni la cita en work_order), aceptar sin anticipo sigue funcionando sin pedir método, liquidar saldo genera documento, rechaza método inválido). Suite completa sin regresiones (350 pasan, mismos 37 preexistentes). Migraciones corridas en producción real, caché de vistas/rutas limpiada.
+
+### 📁 Archivos Modificados/Creados
+- `database/migrations/2026_07_31_000002_add_audit_and_snapshot_columns_for_documents.php`, `2026_07_31_000003_add_document_id_to_cash_and_bank_ledgers.php` — nuevas
+- `app/Models/Document.php`, `Payment.php`, `JournalEntry.php`, `CashLedger.php`, `BankLedger.php` — columnas/relaciones nuevas
+- `app/Domain/Accounting/Contracts/AccountingServiceInterface.php`, `Services/AccountingService.php` — `recordBookingPayment()`, `recordBookingPaymentLedger()`, `cancelDocument()`, `snapshotBookingLineItems()`
+- `app/Domain/Commercial/Services/QuoteService.php`, `Contracts/QuoteServiceInterface.php` — `registerPayment()` migrado, `acceptQuote()` reordenado
+- `app/Http/Controllers/Api/PaymentController.php` — migrado a `recordBookingPayment()`, transaccional
+- `app/Http/Controllers/SpaBookingController.php` — `acceptQuote()`/`registerPayment()` piden `payment_method_code`; `show()` pasa `$paymentMethods` a la vista
+- `app/Http/Controllers/Finances/DocumentController.php` — nuevo (`cancel`/`reissue`)
+- `routes/web.php` — 2 rutas nuevas en `finances.*`
+- `resources/views/agenda/partials/_billing_summary.blade.php` — sección "Recibos generados" + modal de liquidar con `<select>` real de método de pago
+- `resources/views/agenda/partials/_quote_manager.blade.php` — modal de aceptar presupuesto con `<select>` real de método de pago
+- `tests/Feature/Api/BookingPaymentAccountingTest.php`, `tests/Feature/DocumentCancelReissueTest.php`, `tests/Feature/QuoteAdvancePaymentAccountingTest.php` — nuevos
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md` — actualizados, BL-076 movido a Completados
+
+### 🛑 Pendientes activos
+- Diferido a propósito, documentado: re-cablear `ExecutedService`/`ExecutedServiceItem` (siguen huérfanos) y unificar `Payment` con `CashLedger`/`BankLedger` en una sola tabla de dinero (hoy son 2 caminos paralelos con el mismo contrato de recibo).
+- Falta commit/push de esta sesión.
+
+---
+
 ## 📅 Cierre de sesión: 31/07/2026 (cont. 7) — BL-028 (firewall OPi) verificado y resuelto
 
 ### ✅ Logros y Cambios

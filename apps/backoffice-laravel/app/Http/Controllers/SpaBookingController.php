@@ -15,6 +15,7 @@ use App\Models\Group;
 use App\Models\HotelReservation;
 use App\Models\Item;
 use App\Models\Operator;
+use App\Models\PaymentMethod;
 use App\Models\Pet;
 use App\Models\Quote;
 use App\Models\Resource;
@@ -33,6 +34,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
+use RuntimeException;
 
 class SpaBookingController extends Controller
 {
@@ -411,8 +413,9 @@ class SpaBookingController extends Controller
             ]),
         ]);
         $storeModuleEnabled = (bool) app(SystemSettings::class)->all()['store_module_enabled'];
+        $paymentMethods = PaymentMethod::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name', 'type']);
 
-        return view('agenda.show', compact('page', 'booking', 'assignableResources', 'operators', 'services', 'items', 'groups', 'groupsForQuoteManager', 'storeModuleEnabled'));
+        return view('agenda.show', compact('page', 'booking', 'assignableResources', 'operators', 'services', 'items', 'groups', 'groupsForQuoteManager', 'storeModuleEnabled', 'paymentMethods'));
     }
 
     public function globalCreate(Request $request): View
@@ -839,10 +842,14 @@ class SpaBookingController extends Controller
 
         $validated = $request->validate([
             'advance_amount' => 'nullable|numeric|min:0',
-            'advance_payment_method' => 'nullable|string|max:50',
+            'advance_payment_method_code' => 'nullable|string|exists:payment_methods,code',
         ]);
 
-        $this->quoteService->acceptQuote($quote, $validated);
+        try {
+            $this->quoteService->acceptQuote($quote, $validated);
+        } catch (RuntimeException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
 
         // Asignar folio de orden al convertirse en work_order
         try {
@@ -880,20 +887,23 @@ class SpaBookingController extends Controller
 
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01',
-            'payment_method' => 'required|string|max:50',
-            'destination' => 'required|in:caja,banco',
+            'payment_method_code' => 'required|string|exists:payment_methods,code',
             'notes' => 'nullable|string|max:500',
             'category' => 'required|string|max:50',
         ]);
 
-        $this->quoteService->registerPayment($booking->pet->client_id, $validated['amount'], [
-            'payable_type' => Quote::class,
-            'payable_id' => $quote->id,
-            'payment_method' => $validated['payment_method'],
-            'destination' => $validated['destination'],
-            'category' => $validated['category'],
-            'notes' => $validated['notes'],
-        ]);
+        try {
+            $this->quoteService->registerPayment($booking->pet->client_id, $validated['amount'], [
+                'payable_type' => Quote::class,
+                'payable_id' => $quote->id,
+                'payment_method_code' => $validated['payment_method_code'],
+                'category' => $validated['category'],
+                'notes' => $validated['notes'] ?? null,
+                'booking' => $booking,
+            ]);
+        } catch (RuntimeException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
 
         return redirect()->back()->with('success', 'Pago registrado exitosamente.');
     }

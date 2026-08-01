@@ -214,6 +214,12 @@
         <div class="modal fade" id="modalAcceptQuote{{ $quote->id }}" tabindex="-1" aria-hidden="true" x-data="{
             total: {{ $quote->total_amount }},
             suggested: 0,
+            methods: @json($paymentMethods->map(fn ($pm) => ['code' => $pm->code, 'name' => $pm->name, 'type' => $pm->type])),
+            methodCode: '',
+            get isCash() {
+                let m = this.methods.find(m => m.code === this.methodCode);
+                return m ? m.type === 'cash' : true;
+            },
             init() {
                 let s = 0;
                 @foreach($quote->items as $item)
@@ -253,22 +259,16 @@
                                 <div class="form-text">Monto pagado por el cliente para confirmar.</div>
                             </div>
                             
-                            <div class="row g-2">
-                                <div class="col-md-7">
-                                    <label class="form-label fw-bold">Método de pago</label>
-                                    <select name="advance_payment_method" class="form-select" x-model="method" x-init="method = 'Efectivo'">
-                                        <option value="Efectivo">Efectivo</option>
-                                        <option value="Tarjeta">Tarjeta (Deb/Cred)</option>
-                                        <option value="Transferencia">Transferencia</option>
-                                        <option value="Otro">Otro</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-5">
-                                    <label class="form-label fw-bold">Destino</label>
-                                    <select name="destination" class="form-select" :class="method === 'Tarjeta' || method === 'Transferencia' ? 'bg-info-subtle' : ''">
-                                        <option value="caja" :selected="method === 'Efectivo'">En Caja</option>
-                                        <option value="banco" :selected="method === 'Tarjeta' || method === 'Transferencia'">En Banco</option>
-                                    </select>
+                            <div class="mb-1">
+                                <label class="form-label fw-bold">Método de pago</label>
+                                <select name="advance_payment_method_code" class="form-select" x-model="methodCode" required>
+                                    <option value="">Selecciona...</option>
+                                    @foreach($paymentMethods as $pm)
+                                        <option value="{{ $pm->code }}">{{ $pm->name }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="form-text" x-show="methodCode" x-cloak>
+                                    Destino: <span :class="isCash ? 'text-warning fw-bold' : 'text-info fw-bold'" x-text="isCash ? 'En Caja' : 'En Banco'"></span>
                                 </div>
                             </div>
                         </div>

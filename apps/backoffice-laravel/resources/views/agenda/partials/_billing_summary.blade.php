@@ -114,21 +114,121 @@
                 </div>
             </div>
         </div>
+
+        @if(auth()->user()->can('asientos.aprobar') || auth()->user()->is_super_admin)
+            @php
+                $documents = \App\Models\Document::where('documentable_type', \App\Models\SpaBooking::class)
+                    ->where('documentable_id', $booking->id)
+                    ->with('cancelledBy', 'supersedes')
+                    ->orderByDesc('created_at')
+                    ->get();
+            @endphp
+            @if($documents->isNotEmpty())
+                <hr class="my-4">
+                <h6 class="text-uppercase small text-body-secondary fw-bold mb-3">Recibos generados</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Folio</th>
+                                <th>Estado</th>
+                                <th class="text-end">Total</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($documents as $doc)
+                                <tr>
+                                    <td>
+                                        <span class="fw-semibold">{{ $doc->folio_display }}</span>
+                                        @if($doc->supersedes_document_id)
+                                            <br><small class="text-body-secondary">reemplaza a {{ $doc->supersedes?->folio_display }}</small>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($doc->status === 'emitido')
+                                            <span class="badge text-bg-success">Emitido</span>
+                                        @else
+                                            <span class="badge text-bg-secondary">Cancelado</span>
+                                            <div class="small text-body-secondary mt-1">
+                                                {{ $doc->cancellation_type === 'refund' ? 'Reembolso' : 'Corrección' }} —
+                                                {{ $doc->cancellation_reason }}
+                                                <br>por {{ $doc->cancelledBy?->name }}, {{ $doc->cancelled_at?->format('d/m/Y H:i') }}
+                                            </div>
+                                        @endif
+                                    </td>
+                                    <td class="text-end">${{ number_format($doc->total, 2) }}</td>
+                                    <td class="text-end">
+                                        @if($doc->status === 'emitido')
+                                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalCancelDocument{{ $doc->id }}">
+                                                Cancelar
+                                            </button>
+                                        @elseif($doc->cancellation_type === 'correction' && ! $doc->replacement()->exists())
+                                            <form action="{{ route('finances.documents.reissue', $doc) }}" method="POST" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-primary" data-confirm="¿Reemitir un recibo nuevo a partir del estado actual de la cita?">
+                                                    Reemitir
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        @endif
     </div>
 </div>
+
+<!-- Modales: Cancelar Documento -->
+@foreach($documents ?? [] as $doc)
+    @if($doc->status === 'emitido')
+        <div class="modal fade" id="modalCancelDocument{{ $doc->id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <form action="{{ route('finances.documents.cancel', $doc) }}" method="POST" class="modal-content">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cancelar recibo {{ $doc->folio_display }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Motivo de la cancelación</label>
+                            <select name="cancellation_type" class="form-select" required>
+                                <option value="correction">Corrección de datos — el dinero se queda donde está</option>
+                                <option value="refund">Reembolso real — se le devuelve el dinero al cliente</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Explicación</label>
+                            <textarea name="cancellation_reason" class="form-control" rows="3" required placeholder="Ej. Se capturó mal el nombre del servicio / El cliente pidió que le devolviéramos su dinero"></textarea>
+                        </div>
+                        <div class="alert alert-warning small mb-0">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            El folio {{ $doc->folio_display }} queda cancelado permanentemente (nunca se borra ni se reutiliza). Si es corrección, después podrás reemitir un recibo nuevo desde este mismo listado.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="submit" class="btn btn-danger">Confirmar cancelación</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+@endforeach
 
 <!-- Modal: Final Payment (Liquidation) -->
 @if($acceptedQuote)
 <div class="modal fade" id="modalRegisterFinalPayment" tabindex="-1" aria-hidden="true" x-data="{
     balance: {{ $balance }},
-    method: 'Efectivo',
-    destination: 'caja',
-    updateDest() {
-        if(this.method === 'Tarjeta' || this.method === 'Transferencia') {
-            this.destination = 'banco';
-        } else {
-            this.destination = 'caja';
-        }
+    methods: @json($paymentMethods->map(fn ($pm) => ['code' => $pm->code, 'name' => $pm->name, 'type' => $pm->type])),
+    methodCode: '',
+    get isCash() {
+        let m = this.methods.find(m => m.code === this.methodCode);
+        return m ? m.type === 'cash' : true;
     }
 }">
     <div class="modal-dialog">
@@ -148,21 +248,17 @@
                 <input type="hidden" name="category" value="liquidation">
 
                 <div class="row g-3">
-                    <div class="col-md-7">
+                    <div class="col-12">
                         <label class="form-label fw-bold">Método de pago</label>
-                        <select name="payment_method" class="form-select form-select-lg" x-model="method" @change="updateDest()">
-                            <option value="Efectivo">Efectivo</option>
-                            <option value="Tarjeta">Tarjeta (Deb/Cred)</option>
-                            <option value="Transferencia">Transferencia</option>
-                            <option value="Otro">Otro</option>
+                        <select name="payment_method_code" class="form-select form-select-lg" x-model="methodCode" required>
+                            <option value="">Selecciona...</option>
+                            @foreach($paymentMethods as $pm)
+                                <option value="{{ $pm->code }}">{{ $pm->name }}</option>
+                            @endforeach
                         </select>
-                    </div>
-                    <div class="col-md-5">
-                        <label class="form-label fw-bold">Destino</label>
-                        <select name="destination" class="form-select form-select-lg" x-model="destination" :class="destination === 'banco' ? 'bg-info-subtle border-info' : 'bg-warning-subtle border-warning'">
-                            <option value="caja">En Caja</option>
-                            <option value="banco">En Banco</option>
-                        </select>
+                        <div class="form-text" x-show="methodCode" x-cloak>
+                            Destino: <span :class="isCash ? 'text-warning fw-bold' : 'text-info fw-bold'" x-text="isCash ? 'En Caja' : 'En Banco'"></span>
+                        </div>
                     </div>
                     <div class="col-12">
                         <label class="form-label small fw-bold text-body-secondary text-uppercase">Notas de la transacción</label>

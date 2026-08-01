@@ -4,6 +4,7 @@ namespace App\Domain\Commercial\Contracts;
 
 use App\Models\Quote;
 use App\Models\SpaBooking;
+use Illuminate\Database\Eloquent\Model;
 
 interface QuoteServiceInterface
 {
@@ -23,7 +24,9 @@ interface QuoteServiceInterface
     public function rejectQuote(Quote $quote, ?string $reason = null): Quote;
 
     /**
-     * Register a payment (advance or full) linked to a quote or booking.
+     * Register a payment (advance or full) linked to a quote or booking. BL-076: $data debe
+     * traer 'payment_method_code' (código real de PaymentMethod) y 'booking' (SpaBooking) —
+     * genera también el recibo real (Document + JournalEntry), ya no es opcional.
      */
-    public function registerPayment(int $clientId, float $amount, array $data): \Illuminate\Database\Eloquent\Model;
+    public function registerPayment(int $clientId, float $amount, array $data): Model;
 }

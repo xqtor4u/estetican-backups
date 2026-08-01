@@ -15,11 +15,13 @@ class JournalEntry extends Model
         'created_by_user_id', 'posted_by_user_id', 'posted_at',
         'reference_id', 'reference_type',
         'notes',
+        'cancelled_at', 'cancelled_by_user_id',
     ];
 
     protected $casts = [
         'entry_date' => 'date',
-        'posted_at'  => 'datetime',
+        'posted_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     const STATUSES = ['borrador', 'aplicado', 'cancelado'];
@@ -42,6 +44,11 @@ class JournalEntry extends Model
     public function postedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'posted_by_user_id');
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by_user_id');
     }
 
     public function reference(): MorphTo

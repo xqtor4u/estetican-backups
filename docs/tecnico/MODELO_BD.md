@@ -640,7 +640,7 @@ Líneas de servicio **o artículo** dentro de un presupuesto (Grupos).
 ---
 
 ### `payments`
-Tabla heredada de pagos (pre-ledgers). Mantener para compatibilidad.
+**Corrección 31/07/2026 (BL-076):** esta nota decía "tabla heredada, pre-ledgers, mantener por compatibilidad" — al investigar se confirmó lo contrario: es la tabla real que usa el cobro desde la **app móvil** (`Api\PaymentController::store()`), el flujo de pago más usado en producción hoy (el flujo formal de `quote_items` casi no se usa — 0 filas en producción al momento de investigar). El flujo **web** (anticipos/liquidación vía `QuoteService`) sigue usando `cash_ledgers`/`bank_ledgers` en paralelo, a propósito — no se unificaron en una sola tabla porque `DashboardController` ("ingresos del día") solo lee `cash_ledgers`+`bank_ledgers`, no `payments`; migrar el flujo web a `payments` habría dejado ciego ese reporte. Ambos caminos ahora generan el mismo recibo real (`Document`+`JournalEntry`, ver esa tabla) — la diferencia es solo en qué tabla queda el registro de dinero.
 
 | Columna | Tipo | Notas |
 |---|---|---|
@@ -648,6 +648,7 @@ Tabla heredada de pagos (pre-ledgers). Mantener para compatibilidad.
 | `client_id` | FK → `clients` | |
 | `payable_id` | bigint nullable | Polimórfico |
 | `payable_type` | string nullable | |
+| `document_id` | FK → `documents` nullable | BL-076 — el recibo real generado para este pago (`AccountingService::recordBookingPayment()`). Nulo solo si el pago se registró sin `payment_method_code` (payload legacy sin cuenta contable identificable) |
 | `amount` | decimal(10,2) | |
 | `processing_fee` | decimal(10,2) | |
 | `payment_method` | string nullable | |
@@ -661,7 +662,7 @@ Tabla heredada de pagos (pre-ledgers). Mantener para compatibilidad.
 ---
 
 ### `cash_ledgers`
-Ingresos a caja (efectivo). Fuente de verdad para contabilidad de efectivo.
+Ingresos a caja (efectivo). Fuente de verdad para contabilidad de efectivo — usado por el flujo **web** (anticipos al aceptar presupuesto, liquidación en `_billing_summary.blade.php`). El flujo **móvil** usa `payments` en su lugar (ver esa tabla) — son dos caminos paralelos, no uno reemplaza al otro; `DashboardController` ("ingresos del día") solo lee `cash_ledgers`+`bank_ledgers`, así que el camino web se mantuvo escribiendo aquí a propósito al construir BL-076 (no se migró a `payments`, para no dejar ciego ese dashboard).
 
 | Columna | Tipo | Notas |
 |---|---|---|
@@ -669,8 +670,9 @@ Ingresos a caja (efectivo). Fuente de verdad para contabilidad de efectivo.
 | `client_id` | FK → `clients` | |
 | `payable_id` | bigint | Polimórfico (normalmente → `Quote`) |
 | `payable_type` | string | |
+| `document_id` | FK → `documents` nullable | BL-076 (31/07/2026) — el recibo real generado vía `AccountingService::recordBookingPaymentLedger()`. Antes esta tabla se escribía directo desde `QuoteService`, sin ningún recibo/asiento contable |
 | `amount` | decimal(10,2) | |
-| `payment_method` | string | Default `Efectivo` |
+| `payment_method` | string | Nombre real de `payment_methods.name` (BL-076) — antes texto libre sin relación a un método real |
 | `category` | string | `advance`, `liquidation`, `misc_charge` |
 | `notes` | text nullable | |
 | `timestamps` | | |
@@ -678,7 +680,7 @@ Ingresos a caja (efectivo). Fuente de verdad para contabilidad de efectivo.
 ---
 
 ### `bank_ledgers`
-Ingresos a banco (tarjeta, transferencia). Fuente de verdad para contabilidad bancaria.
+Ingresos a banco (tarjeta, transferencia). Fuente de verdad para contabilidad bancaria — mismo camino web que `cash_ledgers` (ver nota ahí sobre por qué no se unificó con `payments`).
 
 | Columna | Tipo | Notas |
 |---|---|---|
@@ -686,8 +688,9 @@ Ingresos a banco (tarjeta, transferencia). Fuente de verdad para contabilidad ba
 | `client_id` | FK → `clients` | |
 | `payable_id` | bigint | Polimórfico |
 | `payable_type` | string | |
+| `document_id` | FK → `documents` nullable | BL-076, igual que en `cash_ledgers` |
 | `amount` | decimal(10,2) | |
-| `payment_method` | string | Tarjeta, Transferencia, etc. |
+| `payment_method` | string | Nombre real de `payment_methods.name` (BL-076) |
 | `external_reference` | string nullable | ID de terminal o Mercado Pago |
 | `processing_fee` | decimal(10,2) | Comisión bancaria |
 | `category` | string | |
@@ -1235,15 +1238,23 @@ Documentos emitidos (recibos, facturas, notas). Cada documento tiene un folio ú
 | `subtotal` | decimal(12,2) | |
 | `tax_amount` | decimal(12,2) | default 0 |
 | `total` | decimal(12,2) | |
+| `line_items_snapshot` | JSON nullable | BL-076 (31/07/2026) — snapshot congelado al emitir: por línea, `type` (service/item), `name` (texto, sobrevive aunque el catálogo cambie/borre), `quantity`, `price`, `operator_name`, `is_external`, `external_cost`. Generado por `AccountingService::buildLineItemsSnapshot()`, no depende de joins a `quote_items`/`services`/`operators` para reimprimir un recibo viejo |
 | `email_to` | string nullable | Correo de envío |
 | `email_sent_at` | timestamp nullable | |
 | `fiscal_uuid` | string nullable | Reservado: UUID del CFDI SAT |
 | `gateway_reference` | string nullable | Reservado: referencia de pasarela |
 | `documentable_type` | string nullable | Morph: tipo del origen (`SpaBooking`, etc.) |
 | `documentable_id` | bigint nullable | Morph: ID del origen |
+| `cancelled_at` | timestamp nullable | BL-076 |
+| `cancelled_by_user_id` | bigint FK nullable → `users` | BL-076 |
+| `cancellation_type` | string nullable | BL-076 — `correction` (el dinero se queda donde está, solo se corrige el papel) o `refund` (reembolso real, dispara reversión en `cash_ledgers`/`bank_ledgers` vía `AccountingService::reverseDocumentMoney()`) |
+| `cancellation_reason` | text nullable | BL-076 |
+| `supersedes_document_id` | bigint FK nullable → `documents` (self) | BL-076 — si este documento reemplaza a uno cancelado. Un `Document` emitido nunca se borra ni se reutiliza su folio; cancelar + reemitir es el único camino |
 | `timestamps` | | |
 
 **Índice único:** `(document_series_id, folio_number)` — evita duplicados incluso en concurrencia.
+
+**Relación con `payments`:** `payments.document_id` liga cada pago a su recibo (BL-076). `Document::payment()` es un `hasOne` — se asume un `Payment` por `Document`, porque cada llamada a `recordBookingPayment()` genera un `Document` nuevo (no se reutiliza uno existente para acumular pagos).
 
 ---
 
@@ -1263,6 +1274,8 @@ Asientos contables. Cada asiento debe estar balanceado (suma débitos = suma cr�
 | `posted_at` | timestamp nullable | |
 | `reference_type` | string nullable | Morph: origen del asiento (`Quote`, `SpaBooking`, etc.) |
 | `reference_id` | bigint nullable | |
+| `cancelled_at` | timestamp nullable | BL-076 |
+| `cancelled_by_user_id` | bigint FK nullable → `users` | BL-076 — antes `AccountingService::cancelEntry()` recibía este dato como parámetro pero nunca lo guardaba en ningún lado (bug corregido en la misma sesión que agregó la columna) |
 | `notes` | text nullable | |
 | `timestamps` | | |
 

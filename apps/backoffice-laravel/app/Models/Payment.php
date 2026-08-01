@@ -6,13 +6,14 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 #[Fillable([
     'client_id',
     'payable_type',
     'payable_id',
+    'document_id',
     'amount',
     'processing_fee',
     'payment_method',
@@ -52,5 +53,10 @@ class Payment extends Model
     public function payable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function document(): BelongsTo
+    {
+        return $this->belongsTo(Document::class);
     }
 }

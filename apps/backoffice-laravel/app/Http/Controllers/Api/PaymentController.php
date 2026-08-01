@@ -11,7 +11,9 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\SpaBooking;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 class PaymentController extends Controller
 {
@@ -80,7 +82,7 @@ class PaymentController extends Controller
             $destination = $data['destination'];
         }
 
-        Payment::create([
+        $paymentAttributes = [
             'client_id' => $booking->pet->client_id,
             'payable_type' => SpaBooking::class,
             'payable_id' => $booking->id,
@@ -90,27 +92,38 @@ class PaymentController extends Controller
             'external_reference' => $data['reference'] ?? null,
             'category' => 'liquidacion',
             'notes' => $data['notes'] ?? null,
-        ]);
+        ];
 
-        if ($paymentMethod?->account_id) {
+        if ($paymentMethod) {
+            // Con método de pago identificado (payment_method_code), el recibo/asiento contable
+            // es obligatorio y transaccional (BL-076) — ya no se silencia si falla.
             try {
-                app(AccountingServiceInterface::class)->createEntryForBookingPayment(
-                    $booking,
-                    $paymentMethod,
-                    (float) $data['amount'],
-                    $data['reference'] ?? null,
-                    $data['notes'] ?? null
-                );
-            } catch (\Throwable $e) {
-                // No interrumpir el cobro si el asiento contable falla, pero sí dejar rastro —
-                // antes fallaba en silencio total (ver BL-076/NT sobre Payment/Document sin FK entre sí).
-                Log::error('No se pudo generar el asiento contable / Document para un pago móvil', [
+                DB::transaction(function () use ($booking, $paymentAttributes, $paymentMethod, $data) {
+                    $payment = Payment::create($paymentAttributes);
+
+                    app(AccountingServiceInterface::class)->recordBookingPayment(
+                        $booking,
+                        $payment,
+                        $paymentMethod,
+                        (float) $data['amount'],
+                        $data['reference'] ?? null,
+                        $data['notes'] ?? null
+                    );
+                });
+            } catch (RuntimeException $e) {
+                Log::warning('No se pudo generar el recibo/asiento contable de un cobro móvil — falta configuración', [
                     'booking_id' => $booking->id,
-                    'amount' => $data['amount'],
                     'payment_method_id' => $paymentMethod->id,
                     'exception' => $e->getMessage(),
                 ]);
+
+                return response()->json(['message' => $e->getMessage()], 422);
             }
+        } else {
+            // Payload legacy sin payment_method_code (payment_method/destination sueltos):
+            // sin PaymentMethod no hay cuenta contable a la que ligar el recibo — se registra
+            // el cobro igual, pero sin Document/JournalEntry, como ya funcionaba antes de BL-076.
+            Payment::create($paymentAttributes);
         }
 
         if ($data['mark_completed'] ?? true) {

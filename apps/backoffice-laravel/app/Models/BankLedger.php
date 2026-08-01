@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
     'client_id',
     'payable_type',
     'payable_id',
+    'document_id',
     'amount',
     'payment_method',
     'external_reference',
@@ -38,5 +39,10 @@ class BankLedger extends Model
     public function payable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function document(): BelongsTo
+    {
+        return $this->belongsTo(Document::class);
     }
 }

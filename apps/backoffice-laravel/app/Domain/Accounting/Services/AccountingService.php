@@ -4,10 +4,13 @@ namespace App\Domain\Accounting\Services;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Models\Account;
+use App\Models\BankLedger;
+use App\Models\CashLedger;
 use App\Models\Document;
 use App\Models\DocumentSeries;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Quote;
 use App\Models\SpaBooking;
@@ -26,7 +29,7 @@ class AccountingService implements AccountingServiceInterface
             // Bloqueo a nivel de fila para evitar folios duplicados en concurrencia
             $series = DocumentSeries::lockForUpdate()->findOrFail($documentSeriesId);
 
-            $number  = $series->next_number;
+            $number = $series->next_number;
             $display = $series->formatFolio($number);
 
             $series->increment('next_number');
@@ -36,14 +39,14 @@ class AccountingService implements AccountingServiceInterface
     }
 
     public function createPaymentEntry(
-        Quote         $quote,
+        Quote $quote,
         PaymentMethod $paymentMethod,
-        int           $documentSeriesId,
-        float         $amount,
-        User          $issuedBy,
-        ?string       $emailTo = null,
-        ?string       $reference = null,
-        ?string       $notes = null
+        int $documentSeriesId,
+        float $amount,
+        User $issuedBy,
+        ?string $emailTo = null,
+        ?string $reference = null,
+        ?string $notes = null
     ): JournalEntry {
         if (! $paymentMethod->account_id) {
             throw new RuntimeException("El método de pago '{$paymentMethod->name}' no tiene una cuenta contable asignada.");
@@ -53,8 +56,8 @@ class AccountingService implements AccountingServiceInterface
             $quote, $paymentMethod, $documentSeriesId,
             $amount, $issuedBy, $emailTo, $reference, $notes
         ) {
-            $booking  = $quote->spaBooking;
-            $client   = $booking->pet->client;
+            $booking = $quote->spaBooking;
+            $client = $booking->pet->client;
 
             // 1. Folio
             $folio = $this->getNextFolio($documentSeriesId);
@@ -63,36 +66,36 @@ class AccountingService implements AccountingServiceInterface
 
             // 2. Documento de respaldo
             $document = Document::create([
-                'document_series_id'  => $documentSeriesId,
-                'document_type'       => $series->document_type,
-                'folio_number'        => $folio['number'],
-                'folio_display'       => $folio['display'],
-                'status'              => 'emitido',
-                'client_id'           => $client->id,
-                'branch_id'           => $issuedBy->branch_id ?? null,
-                'issued_by_user_id'   => $issuedBy->id,
-                'subtotal'            => $amount,
-                'tax_amount'          => 0,
-                'total'               => $amount,
-                'email_to'            => $emailTo,
-                'gateway_reference'   => $reference,
-                'documentable_id'     => $booking->id,
-                'documentable_type'   => \App\Models\SpaBooking::class,
+                'document_series_id' => $documentSeriesId,
+                'document_type' => $series->document_type,
+                'folio_number' => $folio['number'],
+                'folio_display' => $folio['display'],
+                'status' => 'emitido',
+                'client_id' => $client->id,
+                'branch_id' => $issuedBy->branch_id ?? null,
+                'issued_by_user_id' => $issuedBy->id,
+                'subtotal' => $amount,
+                'tax_amount' => 0,
+                'total' => $amount,
+                'email_to' => $emailTo,
+                'gateway_reference' => $reference,
+                'documentable_id' => $booking->id,
+                'documentable_type' => SpaBooking::class,
             ]);
 
             // 3. Asiento contable
             $entry = JournalEntry::create([
-                'entry_date'          => now()->toDateString(),
-                'description'         => "Cobro {$folio['display']} — {$client->first_name} {$client->last_name}",
-                'status'              => 'aplicado',
-                'document_id'         => $document->id,
-                'branch_id'           => $document->branch_id,
-                'created_by_user_id'  => $issuedBy->id,
-                'posted_by_user_id'   => $issuedBy->id,
-                'posted_at'           => now(),
-                'reference_id'        => $booking->id,
-                'reference_type'      => \App\Models\SpaBooking::class,
-                'notes'               => $notes,
+                'entry_date' => now()->toDateString(),
+                'description' => "Cobro {$folio['display']} — {$client->first_name} {$client->last_name}",
+                'status' => 'aplicado',
+                'document_id' => $document->id,
+                'branch_id' => $document->branch_id,
+                'created_by_user_id' => $issuedBy->id,
+                'posted_by_user_id' => $issuedBy->id,
+                'posted_at' => now(),
+                'reference_id' => $booking->id,
+                'reference_type' => SpaBooking::class,
+                'notes' => $notes,
             ]);
 
             // 4. Líneas de DEBE — una por cuenta de ingresos de cada servicio
@@ -101,10 +104,10 @@ class AccountingService implements AccountingServiceInterface
             // 5. Línea de HABER — cuenta del método de pago (caja o banco)
             JournalEntryLine::create([
                 'journal_entry_id' => $entry->id,
-                'account_id'       => $paymentMethod->account_id,
-                'debit'            => 0,
-                'credit'           => $amount,
-                'description'      => $paymentMethod->name,
+                'account_id' => $paymentMethod->account_id,
+                'debit' => 0,
+                'credit' => $amount,
+                'description' => $paymentMethod->name,
             ]);
 
             return $entry->load('lines.account', 'document');
@@ -129,21 +132,65 @@ class AccountingService implements AccountingServiceInterface
 
         $booking->update([
             'order_series_id' => $series->id,
-            'order_folio'     => $folio['display'],
+            'order_folio' => $folio['display'],
         ]);
 
         return $folio['display'];
     }
 
-    public function createEntryForBookingPayment(
-        SpaBooking    $booking,
+    public function recordBookingPayment(
+        SpaBooking $booking,
+        Payment $payment,
         PaymentMethod $paymentMethod,
-        float         $amount,
-        ?string       $reference = null,
-        ?string       $notes = null
-    ): ?JournalEntry {
+        float $amount,
+        ?string $reference = null,
+        ?string $notes = null
+    ): Document {
+        return DB::transaction(function () use ($booking, $payment, $paymentMethod, $amount, $reference, $notes) {
+            $document = $this->createReceiptDocumentAndEntry($booking, $paymentMethod, $amount, $reference, $notes);
+
+            $payment->update(['document_id' => $document->id]);
+
+            return $document->load('journalEntry.lines.account', 'payment');
+        });
+    }
+
+    /**
+     * Igual que recordBookingPayment(), pero para el camino web de anticipos/liquidación,
+     * que registra el dinero en CashLedger/BankLedger en vez de Payment (así lo siguen viendo
+     * los reportes existentes que solo leen esas dos tablas, ej. DashboardController).
+     */
+    public function recordBookingPaymentLedger(
+        SpaBooking $booking,
+        CashLedger|BankLedger $ledgerEntry,
+        PaymentMethod $paymentMethod,
+        float $amount,
+        ?string $reference = null,
+        ?string $notes = null
+    ): Document {
+        return DB::transaction(function () use ($booking, $ledgerEntry, $paymentMethod, $amount, $reference, $notes) {
+            $document = $this->createReceiptDocumentAndEntry($booking, $paymentMethod, $amount, $reference, $notes);
+
+            $ledgerEntry->update(['document_id' => $document->id]);
+
+            return $document->load('journalEntry.lines.account');
+        });
+    }
+
+    /**
+     * Núcleo compartido: crea el Document (folio, snapshot de línea) y su JournalEntry de
+     * doble entrada. No liga el dinero (Payment vs CashLedger/BankLedger) — eso lo hace cada
+     * método público según qué tabla usa ese camino de cobro.
+     */
+    private function createReceiptDocumentAndEntry(
+        SpaBooking $booking,
+        PaymentMethod $paymentMethod,
+        float $amount,
+        ?string $reference,
+        ?string $notes
+    ): Document {
         if (! $paymentMethod->account_id) {
-            return null;
+            throw new RuntimeException("El método de pago '{$paymentMethod->name}' no tiene una cuenta contable asignada.");
         }
 
         $series = DocumentSeries::where('is_active', true)
@@ -151,71 +198,169 @@ class AccountingService implements AccountingServiceInterface
             ->first();
 
         if (! $series) {
-            return null;
+            throw new RuntimeException('No hay una serie de documentos activa de tipo "recibo". Configúrala en Finanzas → Series de documentos.');
         }
 
         $issuedBy = auth()->user();
-        $client   = $booking->pet->client;
+        $client = $booking->pet->client;
 
-        return DB::transaction(function () use (
-            $booking, $paymentMethod, $amount, $reference, $notes, $series, $issuedBy, $client
-        ) {
-            $folio = $this->getNextFolio($series->id);
+        $folio = $this->getNextFolio($series->id);
 
-            $document = Document::create([
-                'document_series_id' => $series->id,
-                'document_type'      => 'recibo',
-                'folio_number'       => $folio['number'],
-                'folio_display'      => $folio['display'],
-                'status'             => 'emitido',
-                'client_id'          => $client->id,
-                'branch_id'          => $issuedBy->branch_id ?? null,
-                'issued_by_user_id'  => $issuedBy->id,
-                'subtotal'           => $amount,
-                'tax_amount'         => 0,
-                'total'              => $amount,
-                'gateway_reference'  => $reference,
-                'documentable_id'    => $booking->id,
-                'documentable_type'  => SpaBooking::class,
-            ]);
+        $document = Document::create([
+            'document_series_id' => $series->id,
+            'document_type' => 'recibo',
+            'folio_number' => $folio['number'],
+            'folio_display' => $folio['display'],
+            'status' => 'emitido',
+            'client_id' => $client->id,
+            'branch_id' => $issuedBy->branch_id ?? null,
+            'issued_by_user_id' => $issuedBy->id,
+            'subtotal' => $amount,
+            'tax_amount' => 0,
+            'total' => $amount,
+            'gateway_reference' => $reference,
+            'documentable_id' => $booking->id,
+            'documentable_type' => SpaBooking::class,
+            'line_items_snapshot' => $this->snapshotBookingLineItems($booking),
+        ]);
 
-            $entry = JournalEntry::create([
-                'entry_date'         => now()->toDateString(),
-                'description'        => "Cobro {$folio['display']} — {$client->first_name} {$client->last_name}",
-                'status'             => 'aplicado',
-                'document_id'        => $document->id,
-                'branch_id'          => $document->branch_id,
-                'created_by_user_id' => $issuedBy->id,
-                'posted_by_user_id'  => $issuedBy->id,
-                'posted_at'          => now(),
-                'reference_id'       => $booking->id,
-                'reference_type'     => SpaBooking::class,
-                'notes'              => $notes,
-            ]);
+        $entry = JournalEntry::create([
+            'entry_date' => now()->toDateString(),
+            'description' => "Cobro {$folio['display']} — {$client->first_name} {$client->last_name}",
+            'status' => 'aplicado',
+            'document_id' => $document->id,
+            'branch_id' => $document->branch_id,
+            'created_by_user_id' => $issuedBy->id,
+            'posted_by_user_id' => $issuedBy->id,
+            'posted_at' => now(),
+            'reference_id' => $booking->id,
+            'reference_type' => SpaBooking::class,
+            'notes' => $notes,
+        ]);
 
-            $this->buildDebitLinesFromBooking($entry, $booking, $amount);
+        $this->buildDebitLinesFromBooking($entry, $booking, $amount);
 
-            JournalEntryLine::create([
-                'journal_entry_id' => $entry->id,
-                'account_id'       => $paymentMethod->account_id,
-                'debit'            => 0,
-                'credit'           => $amount,
-                'description'      => $paymentMethod->name,
-            ]);
+        JournalEntryLine::create([
+            'journal_entry_id' => $entry->id,
+            'account_id' => $paymentMethod->account_id,
+            'debit' => 0,
+            'credit' => $amount,
+            'description' => $paymentMethod->name,
+        ]);
 
-            return $entry->load('lines.account', 'document');
+        return $document;
+    }
+
+    /**
+     * Snapshot congelado de las líneas de la cita al momento de emitir el recibo — nombre
+     * de servicio/artículo como texto (sobrevive aunque el catálogo cambie o se borre después),
+     * operador, cantidad, precio de venta y costo externo (BL-075) por separado.
+     */
+    public function snapshotBookingLineItems(SpaBooking $booking): array
+    {
+        $booking->load('services.service', 'services.operator', 'items.item');
+
+        $lines = [];
+
+        foreach ($booking->services as $bookingService) {
+            $lines[] = [
+                'type' => 'service',
+                'name' => $bookingService->service?->name ?? '—',
+                'quantity' => (float) $bookingService->quantity,
+                'price' => (float) $bookingService->current_price,
+                'operator_name' => $bookingService->operator?->name,
+                'is_external' => (bool) $bookingService->is_external,
+                'external_cost' => $bookingService->external_cost !== null ? (float) $bookingService->external_cost : null,
+            ];
+        }
+
+        foreach ($booking->items as $bookingItem) {
+            $lines[] = [
+                'type' => 'item',
+                'name' => $bookingItem->item?->name ?? '—',
+                'quantity' => (float) $bookingItem->quantity,
+                'price' => (float) $bookingItem->current_price,
+                'operator_name' => null,
+                'is_external' => false,
+                'external_cost' => null,
+            ];
+        }
+
+        return $lines;
+    }
+
+    public function cancelDocument(Document $document, User $cancelledBy, string $cancellationType, string $reason): void
+    {
+        if (! in_array($cancellationType, [Document::CANCELLATION_TYPE_CORRECTION, Document::CANCELLATION_TYPE_REFUND], true)) {
+            throw new RuntimeException("Tipo de cancelación inválido: {$cancellationType}.");
+        }
+
+        if (! $document->isCancellable()) {
+            throw new RuntimeException("El documento {$document->folio_display} no se puede cancelar (estado: {$document->status}).");
+        }
+
+        DB::transaction(function () use ($document, $cancelledBy, $cancellationType, $reason) {
+            $cancelData = [
+                'status' => 'cancelado',
+                'cancelled_at' => now(),
+                'cancelled_by_user_id' => $cancelledBy->id,
+                'cancellation_type' => $cancellationType,
+                'cancellation_reason' => $reason,
+            ];
+
+            $document->update($cancelData);
+
+            if ($cancellationType === Document::CANCELLATION_TYPE_CORRECTION) {
+                // El dinero contabilizado sigue siendo correcto — solo el papel estaba mal.
+                // El asiento contable NO se toca: seguiría representando fielmente que el
+                // dinero sí entró, solo que el documento que lo respaldaba se reemplaza.
+                return;
+            }
+
+            // Reembolso real: el asiento sí se cancela (el ingreso ya no es tal) y se
+            // revierte el dinero en el libro auxiliar real (caja/banco).
+            $entry = $document->journalEntry;
+
+            if ($entry) {
+                $entry->update([
+                    'status' => 'cancelado',
+                    'cancelled_at' => now(),
+                    'cancelled_by_user_id' => $cancelledBy->id,
+                ]);
+            }
+
+            $this->reverseDocumentMoney($document, $cancelledBy, $reason);
         });
     }
 
-    public function cancelEntry(JournalEntry $entry, User $cancelledBy): void
+    /**
+     * Genera la reversión real de dinero (BL-076, rama "reembolso") — una entrada negativa
+     * en CashLedger/BankLedger según el destino del pago original, visible en el corte de
+     * caja del día como cancelación, nunca oculta ni borrada.
+     */
+    private function reverseDocumentMoney(Document $document, User $cancelledBy, string $reason): void
     {
-        DB::transaction(function () use ($entry, $cancelledBy) {
-            $entry->update(['status' => 'cancelado']);
+        $payment = $document->payment;
 
-            if ($entry->document) {
-                $entry->document->update(['status' => 'cancelado']);
-            }
-        });
+        if (! $payment) {
+            throw new RuntimeException('No se puede reembolsar: este documento no tiene un pago vinculado del que determinar el destino (caja/banco).');
+        }
+
+        $attributes = [
+            'client_id' => $payment->client_id,
+            'payable_type' => $payment->payable_type,
+            'payable_id' => $payment->payable_id,
+            'amount' => -1 * abs((float) $payment->amount),
+            'payment_method' => $payment->payment_method,
+            'category' => 'reembolso_cancelacion',
+            'notes' => "Reembolso de {$document->folio_display} — {$reason} (cancelado por {$cancelledBy->name})",
+        ];
+
+        if ($payment->destination === 'banco') {
+            BankLedger::create($attributes);
+        } else {
+            CashLedger::create($attributes);
+        }
     }
 
     /**
@@ -263,17 +408,17 @@ class AccountingService implements AccountingServiceInterface
         foreach ($byAccount as $accountId => $amount) {
             JournalEntryLine::create([
                 'journal_entry_id' => $entry->id,
-                'account_id'       => $accountId,
-                'debit'            => $amount,
-                'credit'           => 0,
-                'description'      => 'Ingreso por servicios',
+                'account_id' => $accountId,
+                'debit' => $amount,
+                'credit' => 0,
+                'description' => 'Ingreso por servicios',
             ]);
         }
     }
 
     private function buildDebitLinesFromBooking(JournalEntry $entry, SpaBooking $booking, float $totalAmount): void
     {
-        $fallback  = Account::where('code', self::FALLBACK_INCOME_CODE)->first();
+        $fallback = Account::where('code', self::FALLBACK_INCOME_CODE)->first();
         $byAccount = [];
 
         $booking->load('services.service', 'items.item');
@@ -312,7 +457,7 @@ class AccountingService implements AccountingServiceInterface
                 foreach ($byAccount as $accountId => $amount) {
                     $byAccount[$accountId] = round($amount * $ratio, 2);
                 }
-                $diff     = round($totalAmount - array_sum($byAccount), 2);
+                $diff = round($totalAmount - array_sum($byAccount), 2);
                 $firstKey = array_key_first($byAccount);
                 $byAccount[$firstKey] = round($byAccount[$firstKey] + $diff, 2);
             }
@@ -321,10 +466,10 @@ class AccountingService implements AccountingServiceInterface
         foreach ($byAccount as $accountId => $amount) {
             JournalEntryLine::create([
                 'journal_entry_id' => $entry->id,
-                'account_id'       => $accountId,
-                'debit'            => $amount,
-                'credit'           => 0,
-                'description'      => 'Ingreso por servicios',
+                'account_id' => $accountId,
+                'debit' => $amount,
+                'credit' => 0,
+                'description' => 'Ingreso por servicios',
             ]);
         }
     }
