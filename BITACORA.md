@@ -42,7 +42,7 @@ Se construyó el diseño completo de BL-076 (documentado en la sesión de diseñ
 
 ### 🛑 Pendientes activos
 - Diferido a propósito, documentado: re-cablear `ExecutedService`/`ExecutedServiceItem` (siguen huérfanos) y unificar `Payment` con `CashLedger`/`BankLedger` en una sola tabla de dinero (hoy son 2 caminos paralelos con el mismo contrato de recibo).
-- Falta commit/push de esta sesión.
+- Commit `0b89462`, pusheado.
 
 ---
 
@@ -64,9 +64,9 @@ BL-028 movido a Completados en `BACKLOG.md` con todo el detalle; el sub-punto de
 - `docs/tecnico/BACKLOG.md` — BL-028 movido a Completados con hallazgos reales
 
 ### 🛑 Pendientes activos
-- BL-076 completo (consolidación `Document`↔`Payment`, snapshot de línea, cancelar/reemitir) — sigue sin construir, requiere su propia sesión.
+- ~~BL-076 completo~~ — construido más tarde la misma sesión (ver cont. 8).
 - SSH por llave en el servidor OPi (`authorized_keys`) — diferido a pedido del usuario, requisito previo para poder desactivar `PasswordAuthentication`.
-- Falta commit/push de esta sesión.
+- Commit `ea31e9e`, pusheado.
 
 ---
 
@@ -92,8 +92,8 @@ A pedido del usuario, se revisó `BITACORA.md` completo en orden cronológico re
 - `mob_apps/operador/src/admin/ActiveService.tsx`, `GroomerDashboard.tsx`, `src/client/Booking.tsx`, `src/client/Dashboard.tsx` — eliminados (huérfanos, BL-037)
 
 ### 🛑 Pendientes activos
-- BL-076 completo (consolidación `Document`↔`Payment`, snapshot de línea, cancelar/reemitir) — sigue sin construir, requiere su propia sesión.
-- Falta commit/push de esta sesión.
+- ~~BL-076 completo~~ — construido más tarde la misma sesión (ver cont. 8).
+- Commit `cd792d6`, pusheado.
 
 ---
 
@@ -134,8 +134,8 @@ A pedido del usuario, se revisó `BITACORA.md` completo en orden cronológico re
 - `docs/tecnico/BACKLOG.md` — BL-075 movido a Completados; BL-076 anotado completo (diseño, sin construir)
 
 ### 🛑 Pendientes activos
-- BL-076 completo (consolidación `Document`↔`Payment`, snapshot de línea, cancelar/reemitir) — solo diseñado, sin construir, requiere su propia sesión.
-- Falta commit/push de esta sesión.
+- ~~BL-076 completo~~ — construido más tarde la misma sesión (ver cont. 8).
+- Commit `147e95f`, pusheado.
 
 ---
 

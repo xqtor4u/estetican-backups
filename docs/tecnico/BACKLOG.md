@@ -37,7 +37,7 @@
 | BL-004 | Zonas Horarias: reemplazar selector UTC por selector completo | Feature | Selector actual solo muestra offsets UTC, no nombres de zona |
 | BL-047 | Módulo Clínico Veterinario — Fase 2 (diferida a propósito, ver BL-046 en Completados). Pendiente: espejo automático "alergia severa → `pet_medical_alerts`", soporte en app móvil, catálogo real de `icd_code`. ~~`clinical_attachments` real~~ **COMPLETADO** 21/07/2026, ~~PDF/impresión oficial del expediente y receta~~ **COMPLETADO** 24/07/2026 — ver Completados | Feature | El módulo sigue apagado por defecto (`clinical_module_enabled=false`) hasta que el usuario decida arrancar ese lado del negocio |
 | BL-053 | Artículos de uso interno / equipo para servicios (máquinas, rasuradoras, herramientas) — concepto nuevo, distinto de `items` (catálogo de venta, BL-050/051) y de `Resources` (jaulas/cuartos vía `ResourceAllocation`, ya existe). Sin diseñar: ¿necesita mantenimiento/vida útil?, ¿se asigna a un operador?, ¿bitácora de uso? | Feature | Anotado el 15/07/2026 durante la conversación de reorganización de navegación (Inventario/RH); no se ha definido ni el modelo de datos ni si amerita su propio módulo de navegación |
-### Prioridad Alta — Módulo Financiero (sprint actual)
+### Prioridad Alta — Módulo Financiero (sprint actual) — ✅ cerrado 31/07/2026, ver BL-075/BL-076 en Completados
 
 | ID | Ítem | Tipo | Notas |
 |---|---|---|---|

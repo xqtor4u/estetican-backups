@@ -31,6 +31,28 @@
 
 ---
 
+## NT-047 — `QuoteService::acceptQuote()` registraba el anticipo antes de sincronizar los servicios de la cita — el snapshot del recibo nacía vacío
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-07-31 |
+| **Severidad** | P3 — Medio (el recibo se emitía igual, con el monto correcto, pero sin el detalle de línea — auditoría incompleta, no pérdida de dinero) |
+| **Componente** | `app/Domain/Commercial/Services/QuoteService.php::acceptQuote()` |
+| **Impacto** | `line_items_snapshot` (BL-076) vacío en el `Document` generado por el anticipo al aceptar un presupuesto con anticipo |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+No reportado — encontrado por un test propio (`QuoteAdvancePaymentAccountingTest`) al construir BL-076 fase web: `assertNotEmpty($document->line_items_snapshot)` fallaba con "an array is not empty" pese a que el presupuesto sí tenía servicios.
+
+**Causa raíz:**
+El método hacía, en este orden: (1) marcar el quote como aceptado, (2) rechazar otros quotes, (3) **registrar el anticipo** (que dispara `AccountingService::recordBookingPaymentLedger()` → `snapshotBookingLineItems($booking)`), (4) recién ahí sincronizar `spa_booking_services`/`spa_booking_items` desde el quote aceptado. En el paso 3, la cita todavía no tenía ninguna línea de servicio real (`$booking->services` seguía vacío) — el snapshot se armaba contra una cita sin servicios, aunque el presupuesto sí los tuviera.
+
+**Solución definitiva:** se invirtió el orden — sincronizar `spa_booking_services`/`items` (paso 3) **antes** de registrar el anticipo (paso 4, ahora al final). El snapshot del recibo del anticipo ahora refleja los servicios recién aceptados.
+
+**Lección:** cuando una operación dispara un efecto secundario que lee el estado "actual" de una entidad relacionada (acá: el snapshot de línea leyendo `$booking->services`), verificar que ese estado ya esté actualizado en el momento en que se dispara el efecto — no asumir que el orden de los pasos dentro de una transacción es irrelevante solo porque todos corren atómicamente. Atomicidad (todo o nada) no es lo mismo que orden correcto (qué se lee antes de que otra cosa se escriba).
+
+---
+
 ## NT-046 — Sincronizar `services` desde `Api\BookingController::update()` borraba y recreaba todas las líneas, perdiendo precio/operador/costo externo editados
 
 | Campo | Valor |
