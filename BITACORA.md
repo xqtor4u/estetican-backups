@@ -1,5 +1,32 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 31/07/2026 (cont. 6) — Auditoría completa de pendientes sueltos en toda la bitácora
+
+### ✅ Logros y Cambios
+
+A pedido del usuario, se revisó `BITACORA.md` completo en orden cronológico real (14/06 → hoy) cruzando cada "Pendientes activos" de cada sesión contra `BACKLOG.md` actual, buscando específicamente lo que se mencionó alguna vez y nunca se cerró ni se convirtió en ítem formal. 5 hallazgos, cada uno comprobado contra el estado real (código/BD/DNS, no solo contra lo que decían los documentos) antes de actuar:
+
+1. **`ExecutedServiceService::convertFromBooking()` sin decidir desde julio — decisión formal tomada y documentada.** Confirmado por grep: cero consumidores reales en todo el proyecto (solo 5 relaciones Eloquent sin uso — `SpaBooking`, `Operator`, `Service`, `ServiceStatusLog`, `ServicePhoto` — y ninguna se invoca desde ningún controlador/vista/comando). `executed_services` sigue en 0 filas en producción. Se confirmó además que `RecurrenceMessageController::lastServiceDatesByPet()` ya usa `spa_booking_services` como fuente real, con el mismo razonamiento documentado ahí desde antes. Decisión: `spa_booking_services` queda como fuente permanente, `ExecutedService` se queda sin cablear a propósito (no se borró código — 5 modelos entrelazados, no vale el riesgo por limpieza cosmética). Documentado en `MODELO_BD.md`.
+
+2. **4 archivos huérfanos de `mob_apps/operador` (BL-037) — eliminados.** `ActiveService.tsx`, `GroomerDashboard.tsx`, `client/Booking.tsx`, `client/Dashboard.tsx` (~730 líneas): confirmado por grep que ningún archivo los importaba. Borrados (recuperables vía git si hicieran falta). Efecto colateral bueno no buscado: el bundle CSS bajó de 69 KB a 57 KB — Tailwind los escaneaba en cada build aunque nunca se usaran, inflando el CSS con clases muertas. `tsc --noEmit` quedó con un solo error preexistente (`MobCajaMovimientos.tsx`, ya documentado en sesiones anteriores como conocido/aceptado, sin tocar — no era parte de los 5 hallazgos).
+
+3. **SPF de `estetican.org` — resuelto en la misma sesión.** Confirmado con `dig`: 0 registros TXT en el dominio (ni SPF ni DKIM en selectores comunes), DMARC existe pero en `p=none` (no aplica nada). El servidor de correo real es `mail.supremecenterhost.com` (confirmado en `SystemSettings` → sección mail, y coincide con los registros MX reales de `estetican.org`). Se le dieron al usuario los pasos exactos (Cloudflare DNS → TXT → `@` → `v=spf1 mx ~all`) y los aplicó él mismo en el dashboard; verificado después con `dig +short TXT estetican.org` → `"v=spf1 mx ~all"`, sin conflicto con nada preexistente.
+
+4. **BL-020 (cobro → contabilidad) — corregida una afirmación propia incorrecta, y hardening pequeño aplicado.** Al comprobar `journal_entries` (10 filas) vs `documents` (7 filas) se había interpretado como evidencia de divergencia real ya ocurrida — investigado a fondo: las 3 filas de más son 2 asientos históricos (`finanzas:migrar-ledgers-historicos`, BL-021) y 1 retiro de caja manual, ninguno de los cuales debía tener `Document` para empezar (no son ventas). No hay evidencia de que el mecanismo best-effort ya haya fallado en producción real — sigue siendo frágil por diseño (silencia cualquier excepción), pero no confirmado roto todavía. Se aplicó un hardening mínimo: `Api\PaymentController::store()` ahora deja rastro en el log (`Log::error`) si `createEntryForBookingPayment()` falla, en vez de tragarse el error por completo — así una futura divergencia real sería detectable. La consolidación completa (`Document` como única fuente de verdad, FK real `Payment`↔`Document`) sigue siendo el alcance de BL-076, sin construir.
+
+5. **Marca de agua en fotos (`photo_watermark_enabled`) — activada.** Se le preguntó directamente al usuario (no era una decisión técnica) y confirmó activarla. Aplicado vía `SystemSettings::saveFields('media', ['photo_watermark_enabled' => true])` en producción real, verificado que quedó en `true`.
+
+### 📁 Archivos Modificados/Creados
+- `docs/tecnico/MODELO_BD.md` — decisión formal sobre `ExecutedService` documentada
+- `app/Http/Controllers/Api/PaymentController.php` — logging del error silenciado en el asiento contable
+- `mob_apps/operador/src/admin/ActiveService.tsx`, `GroomerDashboard.tsx`, `src/client/Booking.tsx`, `src/client/Dashboard.tsx` — eliminados (huérfanos, BL-037)
+
+### 🛑 Pendientes activos
+- BL-076 completo (consolidación `Document`↔`Payment`, snapshot de línea, cancelar/reemitir) — sigue sin construir, requiere su propia sesión.
+- Falta commit/push de esta sesión.
+
+---
+
 ## 📅 Cierre de sesión: 31/07/2026 (cont. 5) — BL-075 (costo de proveedor externo) + BL-076 diseñado (auditoría de recibo/OT)
 
 ### ✅ Logros y Cambios

@@ -11,6 +11,7 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\SpaBooking;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
@@ -100,8 +101,15 @@ class PaymentController extends Controller
                     $data['reference'] ?? null,
                     $data['notes'] ?? null
                 );
-            } catch (\Throwable) {
-                // No interrumpir el cobro si el asiento contable falla
+            } catch (\Throwable $e) {
+                // No interrumpir el cobro si el asiento contable falla, pero sí dejar rastro —
+                // antes fallaba en silencio total (ver BL-076/NT sobre Payment/Document sin FK entre sí).
+                Log::error('No se pudo generar el asiento contable / Document para un pago móvil', [
+                    'booking_id' => $booking->id,
+                    'amount' => $data['amount'],
+                    'payment_method_id' => $paymentMethod->id,
+                    'exception' => $e->getMessage(),
+                ]);
             }
         }
 
