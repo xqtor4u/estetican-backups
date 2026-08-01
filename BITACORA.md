@@ -1,5 +1,29 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 31/07/2026 (cont. 7) — BL-028 (firewall OPi) verificado y resuelto
+
+### ✅ Logros y Cambios
+
+Continuación directa de la auditoría de pendientes (cont. 6): el usuario pidió revisar BL-028 puntualmente, ya que la nota en BACKLOG decía "verificado 03/07/2026" pero `/etc/ufw/user.rules` tenía fecha de modificación del 29/07 — señal de que había cambiado desde entonces sin actualizar la documentación.
+
+Sin sudo disponible desde este entorno, se le pidió al usuario correr `sudo ufw status numbered` en su propia sesión (con `!`). Resultado real: `DEFAULT_INPUT_POLICY="DROP"` (confirmado en `/etc/default/ufw`, legible sin root) + reglas explícitas: SSH/HTTP/HTTPS/NPM admin(81)/Portainer(9000,9443)/SMB(445)/dev server(3000) todos restringidos a `192.168.100.0/24`, más SSH abierto puntualmente a una sola IP de confianza (`192.168.90.90`).
+
+**Hallazgo que cambia la lectura de por qué 80/443 están en LAN-only:** confirmado que `cloudflared` corre activo (systemd) con un túnel configurado (`ps aux` mostró el proceso con token de túnel) — el tráfico público real del sitio entra por Cloudflare Tunnel (conexión saliente desde el OPi), no por puertos entrantes abiertos. No exponer 80/443 al mundo es la configuración correcta para este esquema, no un hueco. El puerto 139 (SMB legacy, visto escuchando en `0.0.0.0` vía `ss -tlnp`) no tiene regla propia — cae al `DROP` por default, ya bloqueado en la práctica.
+
+**Único punto real que queda de BL-028:** desactivar `PasswordAuthentication` en SSH. Antes de tocarlo se verificó `~/.ssh/authorized_keys` en el servidor — **no existe** (solo hay un keypair local `id_ed25519` usado para GitHub, sin copiar como llave autorizada de este host). Desactivar password auth ahora habría dejado al usuario sin poder entrar por SSH. El usuario pidió explícitamente dejar el login por llave pendiente — no se tocó `sshd_config`.
+
+BL-028 movido a Completados en `BACKLOG.md` con todo el detalle; el sub-punto de SSH quedó anotado ahí mismo como diferido a propósito, no como pendiente suelto.
+
+### 📁 Archivos Modificados/Creados
+- `docs/tecnico/BACKLOG.md` — BL-028 movido a Completados con hallazgos reales
+
+### 🛑 Pendientes activos
+- BL-076 completo (consolidación `Document`↔`Payment`, snapshot de línea, cancelar/reemitir) — sigue sin construir, requiere su propia sesión.
+- SSH por llave en el servidor OPi (`authorized_keys`) — diferido a pedido del usuario, requisito previo para poder desactivar `PasswordAuthentication`.
+- Falta commit/push de esta sesión.
+
+---
+
 ## 📅 Cierre de sesión: 31/07/2026 (cont. 6) — Auditoría completa de pendientes sueltos en toda la bitácora
 
 ### ✅ Logros y Cambios
