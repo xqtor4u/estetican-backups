@@ -31,6 +31,52 @@
 
 ---
 
+## NT-049 — Reprogramar una cita ya `work_order` era posible desde los endpoints (API móvil y web), aunque el dominio ya lo prohibía — causa real de citas "en proceso" con fecha a futuro
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-08-01 |
+| **Severidad** | P3 — Medio (dejaba datos inconsistentes — `work_order` con `scheduled_at` futuro — sin bloquear operación, pero rompía cualquier lógica que asumiera esa combinación imposible) |
+| **Componente** | `Api\BookingController::update()`, `SpaBookingController::update()` (web) |
+| **Impacto** | Citas "en proceso" apareciendo con fecha programada a futuro en la agenda (móvil y web) |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+El usuario reportó ver citas en `work_order` con fecha a futuro en la agenda semanal/mensual, sin haber ninguna acción visible que lo explicara.
+
+**Causa raíz:**
+`BookingService::rescheduleBooking()` (dominio) ya tenía la regla correcta: `if ($booking->status !== 'scheduled') return false;` — solo se puede reprogramar una cita que no ha iniciado. Pero **ni el endpoint API móvil (`Api\BookingController::update()`) ni el controlador web (`SpaBookingController::update()`) pasaban por ese método para validar** — el primero llenaba `scheduled_at` directo sobre el modelo sin chequear el estado actual; el segundo llamaba a `rescheduleBooking()` pero no verificaba su valor de retorno `false`, así que el resto del método seguía ejecutándose (incluyendo el cambio de `resource_id`) y reportaba éxito igual. La UI de edición (`MobCitaDet`) tampoco ocultaba los controles de fecha/hora para una cita ya iniciada — nada en la cadena impedía la operación.
+
+**Solución definitiva:** guardia explícita en ambos controladores (`if ($booking->status !== 'scheduled') return 422/error` antes de aplicar cualquier cambio de fecha). La UI móvil oculta las secciones de Fecha/Horario en modo edición cuando la cita ya no está en `scheduled`, con una nota explicando por qué.
+
+**Lección:** una regla de negocio en la capa de dominio (`BookingService`) no protege nada si los controladores que en teoría la usan tienen un camino alterno (fill directo sobre el modelo) que la evita, o si ignoran el `bool` de retorno de un método que puede fallar en silencio. Verificar siempre que **todos** los puntos de entrada (API, web, cualquier atajo) pasen por la misma validación — y que ningún código downstream siga corriendo tras un `false` no manejado.
+
+---
+
+## NT-048 — `app.timezone` en `UTC` mientras `scheduled_at` se guarda como hora local sin conversión — `now()` del backend adelantado 6 horas
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-08-01 |
+| **Severidad** | P2 — Alto (cualquier comparación de hora en el backend — alertas de citas, banner "Cita Vencida" — podía dar falsos positivos para eventos de esa misma tarde/noche) |
+| **Componente** | `config/app.php` (`timezone`), `App\Support\SystemSettings\SystemSettings::system_timezone`, `App\Http\Middleware\ApplySystemSettings` |
+| **Impacto** | Cualquier código que compare `now()` contra `scheduled_at` (u otra fecha) — el aviso "Cita Vencida" del backoffice web, y la nueva lógica de alertas de citas atípicas construida esta misma sesión |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:**
+El usuario reportó que dos citas de esa mañana (Tokyo 10:30, Molly 12:00) no aparecían marcadas como atípicas siendo ya las 16:xx. Al investigar, se confirmó algo más grave: `now()` del backend devolvía las 22:xx cuando la hora real en México era 16:xx — un desfase de 6 horas exacto.
+
+**Causa raíz:**
+`config/app.php` tenía `'timezone' => 'UTC'`. Todo el sistema (frontend móvil, formularios web) envía y guarda `scheduled_at` como texto de hora local de México sin ninguna conversión de zona horaria ("12:00:00" significa mediodía CDMX, no UTC). Con `app.timezone=UTC`, Carbon interpreta ese mismo texto **como si ya fuera UTC** — un booking real de "esta noche a las 20:00" (hora México) se interpretaba como "20:00 UTC", que es 6 horas **antes** de la hora México real en ese momento (`now()` = hora UTC real, adelantada 6h respecto a México) — cualquier cita de esta noche ya aparecía "vencida" desde la tarde. Se confirmó en vivo con un caso hipotético. Además: ya existía un campo "Zona horaria" en Configuración → Sistema con default `America/Mexico_City` — pero nunca estuvo conectado a nada (a diferencia de su campo hermano "Formato de hora", que sí usa el mecanismo `configOverrides()`), y en producción tenía guardado literal `"UTC"`.
+
+**Solución definitiva:** se agregó `'config' => 'backoffice.system.timezone'` a la definición del campo `system_timezone` en `SystemSettings.php` (mismo patrón que su hermano `system_time_format`), y se corrigió el valor guardado a `America/Mexico_City` vía `SystemSettings::saveFields()`. La fijación real de la zona horaria (`date_default_timezone_set()` + `config(['app.timezone' => ...])`) se movió de `ApplySystemSettings` (middleware, corre solo en requests HTTP, una vez por request) a `AppServiceProvider::boot()` (corre al bootstrap completo de la aplicación — antes de rutas, antes de cualquier comando artisan, antes del cuerpo de un test). El middleware quedó solo con locale/sesión.
+
+**Por qué importaba el lugar, no solo el valor:** al aplicar el fix solo en el middleware, los tests que construían un `scheduled_at` con `now()` **antes** de hacer el request HTTP (patrón normal en fixtures de test) quedaban calculados con una zona horaria distinta de la que el controlador usaba después — el middleware corre *durante* el request, cambiando `date_default_timezone_set()` (un estado global de PHP) a mitad de camino. Moverlo a `boot()` lo fija una sola vez, antes de que exista cualquier código (de test o real) que pueda leer `now()`.
+
+**Lección:** `date_default_timezone_set()` es un efecto global de PHP, no algo scoped al request — fijarlo dentro de un middleware (que corre *durante* cada request) puede dejar inconsistente cualquier `now()` calculado *antes* de que ese middleware corra en el mismo proceso (fixtures de test, comandos artisan, jobs en cola). Fijar zona horaria/locale derivados de configuración de negocio debe vivir en el boot de la aplicación (`ServiceProvider::boot()`), no en middleware, si se quiere que aplique de forma uniforme a *todo* el proceso, no solo al ciclo request→response.
+
+---
+
 ## NT-047 — `QuoteService::acceptQuote()` registraba el anticipo antes de sincronizar los servicios de la cita — el snapshot del recibo nacía vacío
 
 | Campo | Valor |

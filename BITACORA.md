@@ -1,5 +1,24 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 01/08/2026 (cont.) — Commit/push + auditoría de huérfanos en el móvil (sin hallazgos nuevos) + NT-048/NT-049
+
+### ✅ Logros y Cambios
+
+**Commit y push:** todo lo de la sesión principal (ver entrada de abajo) en dos commits — `924092d` (código) y `a4b907c` (bitácora/backlog). Pusheado a `origin/main` (`8ee88a2..a4b907c`). Verificación final en vivo contra producción real antes de dar por cerrado: suite completa (392 pasan, mismos 37 preexistentes), sin errores nuevos en `laravel.log`, día/semana/mes de `AgUniInd` responden 200 con todo lo esperado en el HTML, endpoints móviles (`/api/agenda/vencidas`, `/api/agenda`) responden 200.
+
+**Auditoría de huérfanos/basura en el móvil, a pedido del usuario:** sin archivos sin referencia (todo import resuelve a algo real), sin `console.log`/`debugger`/`TODO`/`FIXME` sueltos, sin archivos `.bak`/copia. Único hallazgo real — `Directory.tsx`/`AssignService.tsx` son mockups estáticos sin terminar (datos hardcodeados "Max"/"Carlos Mendoza", imagen externa de Google, formularios sin estado ni `fetch`) — **pero ya estaban desenlazados a propósito desde el 10/07/2026** (`MENU_SECTIONS` real hoy es Agenda/Mascotas/Clientes/Operador, sin Directorio) y documentados desde entonces en BL-037 junto con otros 4 huérfanos reales (`ActiveService.tsx`, `GroomerDashboard.tsx`, `client/Booking.tsx`, `client/Dashboard.tsx`) que el usuario ya había pedido dejar sin tocar. El usuario confirmó no tocar nada de esto de nuevo. Único resto menor sin resolver: `@types/express` y `tsx` en `devDependencies` de `package.json` (parecen leftover de la plantilla base `react-example`, sin uso real) — quedó pendiente de confirmar si se desinstalan.
+
+**Documentación técnica:** agregadas `NT-048` (zona horaria del servidor) y `NT-049` (reprogramar cita ya iniciada) a `NOTAS_TECNICAS.md` — los dos bugs de causa raíz no obvia de la sesión.
+
+### 📁 Archivos Modificados/Creados
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-048, NT-049
+
+### 🛑 Pendientes activos
+- Confirmar si se desinstalan `@types/express`/`tsx` de `mob_apps/operador/package.json` (sin uso detectado).
+- Los 6 archivos huérfanos conocidos desde BL-037 (`Directory.tsx`, `AssignService.tsx`, `ActiveService.tsx`, `GroomerDashboard.tsx`, `client/Booking.tsx`, `client/Dashboard.tsx`) siguen sin tocarse, a pedido explícito y repetido del usuario.
+
+---
+
 ## 📅 Cierre de sesión: 01/08/2026 — "No se realizó" unificado, alertas de citas atípicas, cobro pendiente y fix de zona horaria (móvil + web)
 
 ### ✅ Logros y Cambios
@@ -31,7 +50,7 @@ Sesión larga, arrancó de un pedido puntual en `MobCitaDet` y fue destapando va
 Suite completa: 392 pasan (mismos 37 preexistentes documentados, sin relación — `actingAs()` faltante en tests viejos, deuda técnica ya conocida). Build de móvil y de backoffice (Vite) reconstruidos; cada cambio verificado en vivo contra producción real (bookings reales, `now()` real) antes de darlo por cerrado. Commit `924092d`, sin pushear todavía.
 
 ### 🛑 Pendientes activos
-- Push a GitHub (el usuario pidió commitear, no pushear).
+- ~~Push a GitHub~~ — pedido después en la misma sesión, hecho (ver cont.). Commits `924092d`, `a4b907c`.
 - La alerta de "no iniciada/sin cerrar/fecha inválida" solo vive en `AgUniInd`/agenda móvil — no se extendió a otras pantallas donde también aparecen citas (ej. `MobPetJobs`, historial por mascota).
 - Colores por estado en la tabla de `AgUniInd` — no extendido a los chips de semana/mes web (esos solo distinguen SPA/Hotel + alerta, no el resto de los estados cerrados).
 
