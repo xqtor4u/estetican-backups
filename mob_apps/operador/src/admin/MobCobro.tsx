@@ -7,13 +7,14 @@ import { ScreenHeader } from '../ScreenHeader';
 /* ── Tipos ────────────────────────────────────────────────── */
 interface BookingSummary {
   id: number;
+  scheduled_at: string;
   time: string;
   end_time: string | null;
   total: number;
   notes: string | null;
   pet: { id: number; name: string; species: string | null; photo: string | null };
   client: { id: number; name: string } | null;
-  services: { name: string; price: number }[];
+  services: { booking_service_id: number; name: string; price: number }[];
   operator: { name: string } | null;
   status: string;
 }
@@ -40,12 +41,31 @@ interface PaymentMethodOption {
 type Screen = 'form' | 'confirm' | 'saving' | 'done';
 interface DoneSummary {
   amount: number;
-  methodName: string;
-  dest: 'caja' | 'banco';
+  methodName: string | null;
+  dest: 'caja' | 'banco' | null;
   bookingId: number;
   petId: number;
   petName: string;
+  /** true si se cerró sin cobrar (ver botón "Pendiente de cobro") — no hubo Payment. */
+  pending?: boolean;
 }
+
+const STATUS_LABEL: Record<string, string> = {
+  scheduled:     'Programada',
+  work_order:    'En proceso',
+  completed:     'Completada',
+  cancelled:     'Cancelada',
+  no_show:       'No se presentó',
+  unfulfillable: 'No realizada',
+};
+const STATUS_COLOR: Record<string, string> = {
+  scheduled:     'bg-primary/10 text-primary border-primary/30',
+  work_order:    'bg-secondary-container text-on-secondary-container border-secondary-fixed',
+  completed:     'bg-tertiary-container/40 text-on-tertiary-container border-tertiary-fixed-dim',
+  cancelled:     'bg-error/10 text-error border-error/30',
+  no_show:       'bg-error/10 text-error border-error/30',
+  unfulfillable: 'bg-amber-500 text-white border-amber-500',
+};
 
 /* ── Helpers ─────────────────────────────────────────────── */
 function fmtMoney(n: number) {
@@ -53,6 +73,16 @@ function fmtMoney(n: number) {
 }
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+}
+/** "2026-08-01 09:00:00" → Date local (sin conversión UTC), mismo patrón que MobCitaDet. */
+function parseDateLocal(datetimeStr: string): Date {
+  const [date, time] = datetimeStr.split(' ');
+  const [y, mo, d] = date.split('-').map(Number);
+  const [hh, mm] = (time ?? '00:00').split(':').map(Number);
+  return new Date(y, mo - 1, d, hh, mm);
+}
+function fmtDate(d: Date) {
+  return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
 /* ══════════════════════════════════════════════════════════ */
@@ -91,6 +121,20 @@ export function MobCobro() {
   const [saveErr,     setSaveErr]     = useState<string | null>(null);
   const [attempt,     setAttempt]     = useState(0);
   const [doneSummary, setDoneSummary] = useState<DoneSummary | null>(null);
+
+  /* Edición de precio por línea de servicio (descuento/gratis puntual antes de cobrar) */
+  const [editingLineId,    setEditingLineId]    = useState<number | null>(null);
+  const [editingLinePrice, setEditingLinePrice] = useState('');
+  const [savingLineId,     setSavingLineId]     = useState<number | null>(null);
+  const [lineErr,          setLineErr]          = useState<string | null>(null);
+
+  /* "Pendiente de cobro": cierra la cita sin registrar ningún pago — nada de
+     entradas falsas ($0/$0.10) en caja. El saldo pendiente queda como pasivo
+     real, cobrable después (ver botón en MobCitaDet cuando status=completed
+     con saldo > 0), y se lista en la alerta de vencidas hasta que se liquide. */
+  const [showPending,  setShowPending]  = useState(false);
+  const [savingPending, setSavingPending] = useState(false);
+  const [pendingErr,   setPendingErr]   = useState<string | null>(null);
 
   /* ── Carga inicial ────────────────────────────────────── */
   useEffect(() => {
@@ -236,22 +280,86 @@ export function MobCobro() {
     }
   };
 
+  /* ── Editar el precio de una línea de servicio (descuento o gratis) ──── */
+  const startEditLine = (line: BookingSummary['services'][number]) => {
+    setEditingLineId(line.booking_service_id);
+    setEditingLinePrice(line.price.toFixed(2));
+    setLineErr(null);
+  };
+  const cancelEditLine = () => { setEditingLineId(null); setEditingLinePrice(''); setLineErr(null); };
+  const saveEditLine = async () => {
+    if (!booking || editingLineId == null) return;
+    const price = parseFloat(editingLinePrice.replace(',', '.'));
+    if (!Number.isFinite(price) || price < 0) { setLineErr('Precio inválido.'); return; }
+    setSavingLineId(editingLineId);
+    setLineErr(null);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/services/${editingLineId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_price: price }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setLineErr(data.message ?? 'Error'); setSavingLineId(null); return; }
+      setBooking(data);
+      setEditingLineId(null);
+      setEditingLinePrice('');
+    } catch { setLineErr('No se pudo conectar con el servidor.'); }
+    setSavingLineId(null);
+  };
+
+  /* ── "Pendiente de cobro": cierra la cita sin crear ningún Payment ───── */
+  const confirmPending = async () => {
+    if (!booking) return;
+    setSavingPending(true);
+    setPendingErr(null);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setPendingErr(data.message ?? `Error ${res.status}`); setSavingPending(false); return; }
+      setDoneSummary({
+        amount: balance,
+        methodName: null,
+        dest: null,
+        bookingId: booking.id,
+        petId: booking.pet.id,
+        petName: booking.pet.name,
+        pending: true,
+      });
+      setScreen('done');
+    } catch { setPendingErr('No se pudo conectar con el servidor.'); }
+    setSavingPending(false);
+  };
+
   /* ══════════════════════════════════════════════════════ */
   /* ── Pantalla de éxito ────────────────────────────────── */
   if (screen === 'done' && doneSummary) {
     const ds = doneSummary;
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-8 px-6 text-center">
-        <div className="w-24 h-24 rounded-full bg-tertiary-container flex items-center justify-center">
-          <span className="material-symbols-outlined text-on-tertiary-container"
-            style={{ fontSize: 56, fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+        <div className={`w-24 h-24 rounded-full flex items-center justify-center ${ds.pending ? 'bg-secondary-container' : 'bg-tertiary-container'}`}>
+          <span className={`material-symbols-outlined ${ds.pending ? 'text-on-secondary-container' : 'text-on-tertiary-container'}`}
+            style={{ fontSize: 56, fontVariationSettings: "'FILL' 1" }}>{ds.pending ? 'schedule' : 'check_circle'}</span>
         </div>
 
         <div className="flex flex-col items-center gap-1">
-          <p className="text-3xl font-bold text-on-surface">{fmtMoney(ds.amount)}</p>
-          <p className="text-base text-on-surface-variant">
-            {ds.methodName} · {ds.dest === 'caja' ? 'Caja' : 'Banco'}
-          </p>
+          {ds.pending ? (
+            <>
+              <p className="text-2xl font-bold text-on-surface">Pendiente de cobro</p>
+              <p className="text-base text-on-surface-variant">{fmtMoney(ds.amount)} por cobrar después</p>
+            </>
+          ) : (
+            <>
+              <p className="text-3xl font-bold text-on-surface">{fmtMoney(ds.amount)}</p>
+              <p className="text-base text-on-surface-variant">
+                {ds.methodName} · {ds.dest === 'caja' ? 'Caja' : 'Banco'}
+              </p>
+            </>
+          )}
           <p className="text-sm text-on-surface-variant/60 mt-1">
             Cita #{ds.bookingId} · {ds.petName} · completada
           </p>
@@ -400,6 +508,14 @@ export function MobCobro() {
 
         {/* ── Resumen de la cita ──────────────────────── */}
         <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-4 pt-3">
+            <p className="text-xs font-semibold text-on-surface-variant capitalize">
+              {fmtDate(parseDateLocal(booking.scheduled_at))}
+            </p>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${STATUS_COLOR[booking.status] ?? 'bg-surface-container text-on-surface-variant border-outline-variant'}`}>
+              {STATUS_LABEL[booking.status] ?? booking.status}
+            </span>
+          </div>
           <div className="flex items-center gap-3 px-4 py-3">
             <div className="w-12 h-12 rounded-xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
               {booking.pet.photo
@@ -421,13 +537,50 @@ export function MobCobro() {
             </div>
           </div>
           {booking.services.length > 0 && (
-            <div className="border-t border-outline-variant px-4 py-3 flex flex-col gap-1">
-              {booking.services.map((s, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <span className="text-sm text-on-surface">{s.name}</span>
-                  {s.price > 0 && <span className="text-sm font-semibold">{fmtMoney(s.price)}</span>}
-                </div>
-              ))}
+            <div className="border-t border-outline-variant px-4 py-3 flex flex-col gap-2">
+              {booking.services.map(s => {
+                const editable = booking.status !== 'completed';
+                if (editingLineId === s.booking_service_id) {
+                  return (
+                    <div key={s.booking_service_id} className="flex items-center gap-2">
+                      <span className="flex-1 text-sm text-on-surface truncate">{s.name}</span>
+                      <span className="text-sm font-bold text-on-surface-variant">$</span>
+                      <input
+                        type="number" inputMode="decimal" step="0.01" min="0" autoFocus
+                        value={editingLinePrice}
+                        onChange={e => setEditingLinePrice(e.target.value)}
+                        className="w-20 bg-surface-container border border-primary/40 rounded-lg px-2 py-1 text-sm font-semibold text-right outline-none focus:border-primary"
+                      />
+                      <button onClick={cancelEditLine} className="p-1.5 rounded-full text-on-surface-variant active:bg-surface-container">
+                        <span className="material-symbols-outlined text-base">close</span>
+                      </button>
+                      <button onClick={saveEditLine} disabled={savingLineId === s.booking_service_id}
+                        className="p-1.5 rounded-full text-primary active:bg-primary/10 disabled:opacity-50">
+                        <span className="material-symbols-outlined text-base">
+                          {savingLineId === s.booking_service_id ? 'progress_activity' : 'check'}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    key={s.booking_service_id}
+                    onClick={() => editable && startEditLine(s)}
+                    disabled={!editable}
+                    className="flex items-center justify-between text-left disabled:cursor-default"
+                  >
+                    <span className="text-sm text-on-surface flex items-center gap-1">
+                      {s.name}
+                      {editable && <span className="material-symbols-outlined text-xs text-on-surface-variant/50">edit</span>}
+                    </span>
+                    <span className={`text-sm font-semibold ${s.price === 0 ? 'text-tertiary' : ''}`}>
+                      {s.price === 0 ? 'Gratis' : fmtMoney(s.price)}
+                    </span>
+                  </button>
+                );
+              })}
+              {lineErr && <p className="text-xs text-error">{lineErr}</p>}
             </div>
           )}
         </div>
@@ -540,6 +693,39 @@ export function MobCobro() {
             </span>
           </div>
         </div>
+
+        {/* ── "Pendiente de cobro": cerrar sin cobrar ahora (el dueño viene después) ── */}
+        {booking.status !== 'completed' && balance > 0 && !showPending && (
+          <button onClick={() => setShowPending(true)}
+            className="flex items-center justify-center gap-2 text-sm font-semibold text-secondary py-2">
+            <span className="material-symbols-outlined text-base">schedule</span>
+            El dueño vendrá después por su mascota — dejar pendiente de cobro
+          </button>
+        )}
+
+        {booking.status !== 'completed' && showPending && (
+          <div className="bg-secondary-container/30 border border-secondary-fixed rounded-2xl px-4 py-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-secondary text-xl">schedule</span>
+              <p className="text-sm font-semibold text-on-secondary-container">Pendiente de cobro</p>
+            </div>
+            <p className="text-xs text-on-secondary-container/80">
+              Cierra la cita como completada sin registrar ningún pago — no se mete un movimiento falso a caja.
+              Quedan {fmtMoney(balance)} pendientes de cobro; podrás cobrarlos después desde la ficha de esta cita.
+            </p>
+            {pendingErr && <p className="text-xs text-error">{pendingErr}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => { setShowPending(false); setPendingErr(null); }}
+                className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                Cancelar
+              </button>
+              <button onClick={confirmPending} disabled={savingPending}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-secondary text-on-secondary disabled:opacity-50">
+                {savingPending ? 'Cerrando…' : 'Confirmar, sin cobrar'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Método de pago ──────────────────────────── */}
         <section>

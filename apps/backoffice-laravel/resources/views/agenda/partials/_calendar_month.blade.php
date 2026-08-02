@@ -29,8 +29,20 @@
             </span>
             <div class="agenda-calendar-month__chips">
                 @foreach($day['items']->take(3) as $item)
-                    @php $isHotel = $item->agenda_type === 'hotel'; @endphp
-                    <span class="agenda-calendar-event-chip agenda-calendar-event-chip--static {{ $isHotel ? 'agenda-calendar-event-chip--hotel' : 'agenda-calendar-event-chip--spa' }}">
+                    @php
+                        $isHotel = $item->agenda_type === 'hotel';
+                        $alertReason = $isHotel ? null : $item->alert_reason;
+                        $alertLabel = match ($alertReason) {
+                            'not_started' => 'No se ha iniciado',
+                            'overdue' => 'Sin cerrar',
+                            'future' => 'Fecha inválida',
+                            default => null,
+                        };
+                    @endphp
+                    <span
+                        class="agenda-calendar-event-chip agenda-calendar-event-chip--static {{ $isHotel ? 'agenda-calendar-event-chip--hotel' : 'agenda-calendar-event-chip--spa' }} {{ $alertReason ? 'agenda-calendar-event-chip--alert' : '' }}"
+                        @if($alertLabel) title="{{ $alertLabel }}" @endif
+                    >
                         <span class="agenda-calendar-event-chip__time">{{ $item->scheduled_at?->format($timeFormat) }}</span>
                         <span class="agenda-calendar-event-chip__label">{{ $item->pet?->name ?: 'Mascota' }}</span>
                     </span>

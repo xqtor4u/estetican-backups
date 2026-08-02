@@ -86,4 +86,32 @@ class SpaBooking extends Model
     {
         return $this->hasMany(BookingProcessNote::class)->orderBy('created_at');
     }
+
+    /**
+     * Anomalía que requiere revisión, o null si no hay ninguna. Mismo criterio que
+     * `Api\AgendaController::vencidas()` y el `agendaAlertKind()` del móvil — se
+     * mantiene aquí como fuente única para no duplicar el umbral en cada vista web.
+     * `$graceMinutes` es `booking_grace_minutes` (default 15, misma tolerancia que
+     * ya usa "Iniciar servicio").
+     */
+    public function alertReason(int $graceMinutes = 15): ?string
+    {
+        if ($this->status === 'scheduled') {
+            return $this->scheduled_at->copy()->addMinutes($graceMinutes)->isPast() ? 'not_started' : null;
+        }
+
+        if ($this->status !== 'work_order') {
+            return null;
+        }
+
+        if ($this->scheduled_at->isFuture()) {
+            return 'future';
+        }
+
+        if ($this->duration_minutes && $this->scheduled_at->copy()->addMinutes($this->duration_minutes)->isPast()) {
+            return 'overdue';
+        }
+
+        return null;
+    }
 }

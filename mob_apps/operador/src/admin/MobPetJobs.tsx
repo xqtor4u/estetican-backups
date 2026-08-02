@@ -43,20 +43,24 @@ const COMPLETED_STATUSES = ['completed', 'fulfilled'];
 const CANCELLED_STATUSES = ['cancelled'];
 
 const STATUS_LABEL: Record<string, string> = {
-  scheduled:  'Agendada',
-  work_order: 'En proceso',
-  completed:  'Completada',
-  fulfilled:  'Completada',
-  cancelled:  'Cancelada',
-  no_show:    'No se presentó',
+  scheduled:     'Agendada',
+  work_order:    'En proceso',
+  completed:     'Completada',
+  fulfilled:     'Completada',
+  cancelled:     'Cancelada',
+  no_show:       'No se presentó',
+  unfulfillable: 'No realizada',
 };
 const STATUS_BG: Record<string, string> = {
-  scheduled:  'text-primary bg-primary/10',
-  work_order: 'text-secondary bg-secondary/10',
-  completed:  'text-tertiary bg-tertiary/10',
-  fulfilled:  'text-tertiary bg-tertiary/10',
-  cancelled:  'text-error bg-error/10',
-  no_show:    'text-error bg-error/10',
+  scheduled:     'text-primary bg-primary/10',
+  work_order:    'text-secondary bg-secondary/10',
+  completed:     'text-tertiary bg-tertiary/10',
+  fulfilled:     'text-tertiary bg-tertiary/10',
+  cancelled:     'text-error bg-error/10',
+  no_show:       'text-error bg-error/10',
+  // Ámbar sólido, no token del tema — mismo color que en el resto de la app,
+  // distinto de "en proceso" (verde/secondary).
+  unfulfillable: 'text-white bg-amber-500',
 };
 const TYPE_ICON: Record<string, string> = {
   spa:   'content_cut',

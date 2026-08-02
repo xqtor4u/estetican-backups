@@ -67,9 +67,12 @@
             <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Mascota, cliente o servicio">
         </div>
         <div class="col-lg-3 col-md-6">
-            <label class="form-label d-block">Estado</label>
+            <div class="d-flex align-items-center justify-content-between">
+                <label class="form-label d-block mb-0">Estado</label>
+                <button type="button" id="agenda-status-toggle-all" class="btn btn-link btn-sm p-0">Marcar todos</button>
+            </div>
             <input type="hidden" name="status_touched" value="1">
-            <div class="d-flex flex-wrap gap-2">
+            <div class="d-flex flex-wrap gap-2 mt-1" id="agenda-status-checkboxes">
                 <div class="form-check form-check-inline mb-0">
                     <input type="checkbox" class="form-check-input" name="status[]" value="scheduled" id="status-scheduled" @checked(in_array('scheduled', $statuses, true))>
                     <label class="form-check-label" for="status-scheduled">Programados</label>
@@ -88,7 +91,7 @@
                 </div>
                 <div class="form-check form-check-inline mb-0">
                     <input type="checkbox" class="form-check-input" name="status[]" value="no_show" id="status-no_show" @checked(in_array('no_show', $statuses, true))>
-                    <label class="form-check-label" for="status-no_show">No show</label>
+                    <label class="form-check-label" for="status-no_show">No se presentó</label>
                 </div>
                 <div class="form-check form-check-inline mb-0">
                     <input type="checkbox" class="form-check-input" name="status[]" value="unfulfillable" id="status-unfulfillable" @checked(in_array('unfulfillable', $statuses, true))>
@@ -121,105 +124,13 @@
         </div>
     </x-list-filters>
 
+    {{-- Orden: SPA primero (uso principal, cuestión práctica), Hotel después.
+    Antes la sección de Hotel duplicaba SPA con la tabla de abajo (mismas citas
+    del día, dos veces en la misma página, sin ninguna razón real). El SPA ya
+    vive solo en la tabla (ordenable, paginada, con las mismas alertas); la
+    sección de tarjetas quedó solo para Hotel, que la tabla no cubre (es
+    consulta SpaBooking-only). --}}
     @if($calView === 'day')
-    <section class="card shadow-sm border-0 mb-4">
-        <div class="card-body p-4">
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-3">
-                <div>
-                    <div class="text-uppercase small text-body-secondary fw-semibold mb-1">Lectura operativa</div>
-                    <h2 class="h4 mb-2">Bloques horarios visibles</h2>
-                    <p class="text-body-secondary mb-0">Esta vista ordena la carga de Agenda SPA por hora de entrada y duración estimada para lectura rápida de recepción y coordinación.</p>
-                </div>
-                <span class="badge rounded-pill text-bg-light border">{{ $operationalDateLabel }}</span>
-            </div>
-
-            @if(($blockedToday ?? collect())->isNotEmpty())
-                <div class="alert alert-secondary d-flex flex-column gap-1 mb-3">
-                    <strong>Operadores no disponibles hoy:</strong>
-                    @foreach($blockedToday as $w)
-                        <span>🔒 {{ $w->operator?->full_name ?? 'Operador #'.$w->operator_id }} — {{ $w->starts_at->format('H:i') }}–{{ $w->ends_at->format('H:i') }}{{ $w->reason ? ' ('.$w->reason.')' : '' }}</span>
-                    @endforeach
-                </div>
-            @endif
-
-            <div class="agenda-timeline">
-                @forelse($timelineBookings as $booking)
-                    @php
-                        $isHotel = $booking instanceof \App\Models\HotelReservation;
-                        $detailUrl = $isHotel ? route('hotel-reservations.show', $booking) : route('agenda.show', $booking);
-                    @endphp
-                    <article class="agenda-timeline-item {{ $isHotel ? 'agenda-timeline-item--hotel' : '' }}"
-                        style="cursor: pointer;"
-                        onclick="if(!event.target.closest('a,button')) window.location='{{ $detailUrl }}'">
-                        <div class="agenda-timeline-item__time">
-                            <div class="agenda-timeline-item__time-main">{{ $booking->time_window_label ?? $booking->scheduled_at?->format($timeFormat) }}</div>
-                            <div class="agenda-timeline-item__time-sub">
-                                @if(!$isHotel)
-                                    {{ $booking->estimated_duration_minutes }} min estimados
-                                @else
-                                    Estancia Hotel
-                                @endif
-                            </div>
-                        </div>
-                        <div class="agenda-timeline-item__body">
-                            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
-                                <div>
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        @if($isHotel)
-                                            <span class="badge bg-info text-white fw-bold" style="font-size: 0.75rem;">HOTEL</span>
-                                        @else
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold" style="font-size: 0.75rem;">SPA</span>
-                                        @endif
-                                        <div class="catalog-title-stack__title mb-0">{{ $booking->pet?->name ?: 'Mascota sin nombre' }}</div>
-                                    </div>
-                                    <div class="catalog-title-stack__description">{{ trim(($booking->pet?->client?->first_name ?? '') . ' ' . ($booking->pet?->client?->last_name ?? '')) ?: 'Cliente sin nombre visible' }}</div>
-                                </div>
-                                <span class="catalog-status-badge {{ $booking->status === 'scheduled' ? 'catalog-status-badge--active' : 'catalog-status-badge--inactive' }}">
-                                    {{ $booking->status === 'scheduled' ? 'Programado' : ucfirst(str_replace('_', ' ', $booking->status)) }}
-                                </span>
-                            </div>
-
-                            <div class="catalog-inline-tags mt-2">
-                                @if(!$isHotel)
-                                    @foreach($booking->services as $bookingService)
-                                        <span class="catalog-inline-tag">{{ $bookingService->service?->name ?? 'Servicio' }}</span>
-                                    @endforeach
-                                @else
-                                    <span class="catalog-inline-tag">Hospedaje / Estancia</span>
-                                @endif
-                            </div>
-
-                            @if($booking->notes)
-                                <p class="text-body-secondary small mb-0 mt-2">{{ $booking->notes }}</p>
-                            @endif
-                        </div>
-                        <div class="agenda-timeline-item__meta">
-                            <div class="catalog-stat">
-                                @if(!$isHotel)
-                                    ${{ number_format((float) $booking->total_estimated_price, 2) }}
-                                @else
-                                    --
-                                @endif
-                            </div>
-                            <div class="catalog-stat__hint">{{ !$isHotel ? 'estimado' : 'hotel cost' }}</div>
-                            <div class="catalog-actions-cluster mt-2">
-                                @if(!$isHotel)
-                                    <a href="{{ $detailUrl }}" class="btn btn-sm btn-outline-dark">Detalle</a>
-                                @else
-                                    <a href="{{ $detailUrl }}" class="btn btn-sm btn-outline-info">Ver Estancia</a>
-                                @endif
-                                <a href="{{ route('pets.show', ['pet' => $booking->pet, 'view' => 'blocks']) }}" class="btn btn-sm btn-outline-primary">Mascota</a>
-                                <a href="{{ route('clients.show', $booking->pet?->client) }}" class="btn btn-sm btn-outline-secondary">Cliente</a>
-                            </div>
-                        </div>
-                    </article>
-                @empty
-                    <div class="text-center py-4 text-body-secondary">No hay bloques operativos visibles para esta ventana.</div>
-                @endforelse
-            </div>
-        </div>
-    </section>
-
     <x-list-table :paginator="$bookings">
         <thead>
             <tr>
@@ -270,8 +181,30 @@
                         </div>
                     </td>
                     <td>
-                        <span class="catalog-status-badge {{ $booking->status === 'scheduled' ? 'catalog-status-badge--active' : 'catalog-status-badge--inactive' }}">
-                            {{ $booking->status === 'scheduled' ? 'Programado' : ucfirst(str_replace('_', ' ', $booking->status)) }}
+                        @php $alertReason = $booking->alert_reason; @endphp
+                        <span @class([
+                            'catalog-status-badge',
+                            'agenda-alert-badge' => $alertReason,
+                            'agenda-status-badge--completed' => !$alertReason && $booking->status === 'completed',
+                            'agenda-status-badge--work-order' => !$alertReason && $booking->status === 'work_order',
+                            'agenda-status-badge--no-show' => !$alertReason && $booking->status === 'no_show',
+                            'agenda-status-badge--unfulfillable' => !$alertReason && $booking->status === 'unfulfillable',
+                            'catalog-status-badge--active' => !$alertReason && $booking->status === 'scheduled',
+                            'catalog-status-badge--inactive' => !$alertReason && $booking->status === 'cancelled',
+                        ])>
+                            {{ $alertReason ? match ($alertReason) {
+                                'not_started' => 'No se ha iniciado',
+                                'overdue' => 'Sin cerrar',
+                                'future' => 'Fecha inválida',
+                            } : match ($booking->status) {
+                                'scheduled' => 'Programado',
+                                'work_order' => 'En proceso',
+                                'completed' => 'Completado',
+                                'cancelled' => 'Cancelado',
+                                'no_show' => 'No se presentó',
+                                'unfulfillable' => 'No realizado',
+                                default => ucfirst(str_replace('_', ' ', $booking->status)),
+                            } }}
                         </span>
                     </td>
                     <td>
@@ -303,6 +236,128 @@
             @endforelse
         </tbody>
     </x-list-table>
+
+    @if($hotelModuleEnabled)
+    <section class="card shadow-sm border-0 mb-4 mt-4">
+        <div class="card-body p-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-3">
+                <div>
+                    <div class="text-uppercase small text-body-secondary fw-semibold mb-1">Lectura operativa</div>
+                    <h2 class="h4 mb-2">Estancias de Hotel</h2>
+                    <p class="text-body-secondary mb-0">Reservaciones de Hotel activas en esta ventana — SPA se lee en la tabla de arriba.</p>
+                </div>
+                <span class="badge rounded-pill text-bg-light border">{{ $operationalDateLabel }}</span>
+            </div>
+
+            @if(($blockedToday ?? collect())->isNotEmpty())
+                <div class="alert alert-secondary d-flex flex-column gap-1 mb-3">
+                    <strong>Operadores no disponibles hoy:</strong>
+                    @foreach($blockedToday as $w)
+                        <span>🔒 {{ $w->operator?->full_name ?? 'Operador #'.$w->operator_id }} — {{ $w->starts_at->format('H:i') }}–{{ $w->ends_at->format('H:i') }}{{ $w->reason ? ' ('.$w->reason.')' : '' }}</span>
+                    @endforeach
+                </div>
+            @endif
+
+            <div class="agenda-timeline">
+                @forelse($timelineBookings->where('agenda_type', 'hotel') as $booking)
+                    @php
+                        $isHotel = $booking instanceof \App\Models\HotelReservation;
+                        $detailUrl = $isHotel ? route('hotel-reservations.show', $booking) : route('agenda.show', $booking);
+                    @endphp
+                    <article class="agenda-timeline-item {{ $isHotel ? 'agenda-timeline-item--hotel' : '' }}"
+                        style="cursor: pointer;"
+                        onclick="if(!event.target.closest('a,button')) window.location='{{ $detailUrl }}'">
+                        <div class="agenda-timeline-item__time">
+                            <div class="agenda-timeline-item__time-main">{{ $booking->time_window_label ?? $booking->scheduled_at?->format($timeFormat) }}</div>
+                            <div class="agenda-timeline-item__time-sub">
+                                @if(!$isHotel)
+                                    {{ $booking->estimated_duration_minutes }} min estimados
+                                @else
+                                    Estancia Hotel
+                                @endif
+                            </div>
+                        </div>
+                        <div class="agenda-timeline-item__body">
+                            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        @if($isHotel)
+                                            <span class="badge bg-info text-white fw-bold" style="font-size: 0.75rem;">HOTEL</span>
+                                        @else
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold" style="font-size: 0.75rem;">SPA</span>
+                                        @endif
+                                        <div class="catalog-title-stack__title mb-0">{{ $booking->pet?->name ?: 'Mascota sin nombre' }}</div>
+                                    </div>
+                                    <div class="catalog-title-stack__description">{{ trim(($booking->pet?->client?->first_name ?? '') . ' ' . ($booking->pet?->client?->last_name ?? '')) ?: 'Cliente sin nombre visible' }}</div>
+                                </div>
+                                @php $alertReason = $isHotel ? null : $booking->alert_reason; @endphp
+                                <span @class([
+                                    'catalog-status-badge',
+                                    'agenda-alert-badge' => $alertReason,
+                                    'agenda-status-badge--completed' => !$alertReason && $booking->status === 'completed',
+                                    'agenda-status-badge--work-order' => !$alertReason && $booking->status === 'work_order',
+                                    'agenda-status-badge--no-show' => !$alertReason && $booking->status === 'no_show',
+                                    'agenda-status-badge--unfulfillable' => !$alertReason && $booking->status === 'unfulfillable',
+                                    'catalog-status-badge--active' => !$alertReason && $booking->status === 'scheduled',
+                                    'catalog-status-badge--inactive' => !$alertReason && $booking->status === 'cancelled',
+                                ])>
+                                    {{ $alertReason ? match ($alertReason) {
+                                        'not_started' => 'No se ha iniciado',
+                                        'overdue' => 'Sin cerrar',
+                                        'future' => 'Fecha inválida',
+                                    } : match ($booking->status) {
+                                        'scheduled' => 'Programado',
+                                        'work_order' => 'En proceso',
+                                        'completed' => 'Completado',
+                                        'cancelled' => 'Cancelado',
+                                        'no_show' => 'No se presentó',
+                                        'unfulfillable' => 'No realizado',
+                                        default => ucfirst(str_replace('_', ' ', $booking->status)),
+                                    } }}
+                                </span>
+                            </div>
+
+                            <div class="catalog-inline-tags mt-2">
+                                @if(!$isHotel)
+                                    @foreach($booking->services as $bookingService)
+                                        <span class="catalog-inline-tag">{{ $bookingService->service?->name ?? 'Servicio' }}</span>
+                                    @endforeach
+                                @else
+                                    <span class="catalog-inline-tag">Hospedaje / Estancia</span>
+                                @endif
+                            </div>
+
+                            @if($booking->notes)
+                                <p class="text-body-secondary small mb-0 mt-2">{{ $booking->notes }}</p>
+                            @endif
+                        </div>
+                        <div class="agenda-timeline-item__meta">
+                            <div class="catalog-stat">
+                                @if(!$isHotel)
+                                    ${{ number_format((float) $booking->total_estimated_price, 2) }}
+                                @else
+                                    --
+                                @endif
+                            </div>
+                            <div class="catalog-stat__hint">{{ !$isHotel ? 'estimado' : 'hotel cost' }}</div>
+                            <div class="catalog-actions-cluster mt-2">
+                                @if(!$isHotel)
+                                    <a href="{{ $detailUrl }}" class="btn btn-sm btn-outline-dark">Detalle</a>
+                                @else
+                                    <a href="{{ $detailUrl }}" class="btn btn-sm btn-outline-info">Ver Estancia</a>
+                                @endif
+                                <a href="{{ route('pets.show', ['pet' => $booking->pet, 'view' => 'blocks']) }}" class="btn btn-sm btn-outline-primary">Mascota</a>
+                                <a href="{{ route('clients.show', $booking->pet?->client) }}" class="btn btn-sm btn-outline-secondary">Cliente</a>
+                            </div>
+                        </div>
+                    </article>
+                @empty
+                    <div class="text-center py-4 text-body-secondary">No hay estancias de hotel activas en esta ventana.</div>
+                @endforelse
+            </div>
+        </div>
+    </section>
+    @endif
     @elseif($calView === 'week')
         @include('agenda.partials._calendar_week')
     @elseif($calView === 'month')
@@ -315,5 +370,35 @@
     background-color: rgba(13, 202, 240, 0.05);
     border-left: 3px solid #0dcaf0;
 }
+/* Mismo ámbar que ya usa la app móvil para "en proceso"/"programada" atípica —
+   requiere revisión ahora, a diferencia de los demás badges de estado (ya resueltos). */
+.agenda-alert-badge {
+    background-color: #f59e0b !important;
+    color: #fff !important;
+    border-color: #f59e0b !important;
+    animation: agenda-alert-pulse 1.6s ease-in-out infinite;
+}
+@keyframes agenda-alert-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
 </style>
+
+<script nonce="{{ csp_nonce() }}">
+(function () {
+    var toggleBtn = document.getElementById('agenda-status-toggle-all');
+    var container = document.getElementById('agenda-status-checkboxes');
+    if (!toggleBtn || !container) return;
+    var checkboxes = container.querySelectorAll('input[type="checkbox"]');
+
+    function allChecked() {
+        return Array.prototype.every.call(checkboxes, function (cb) { return cb.checked; });
+    }
+
+    toggleBtn.addEventListener('click', function () {
+        var checkAll = !allChecked();
+        checkboxes.forEach(function (cb) { cb.checked = checkAll; });
+    });
+})();
+</script>
 @endsection

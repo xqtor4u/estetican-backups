@@ -15,5 +15,7 @@ interface BookingServiceInterface
 
     public function markNoShow(int $bookingId, ?string $reason = null): bool;
 
+    public function markUnfulfillable(int $bookingId, ?string $reason = null): bool;
+
     public function getUpcomingBookings(): Collection;
 }

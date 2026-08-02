@@ -5,6 +5,7 @@ import { clearNavCrumbs, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
   CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap, expandDateRange,
+  agendaAlertKind, AGENDA_ALERT_LABEL,
 } from './agendaViews';
 import { WeekGrid, MonthGrid } from './AgendaCalendarGrid';
 
@@ -29,10 +30,19 @@ interface Vencida {
   time: string;
   date_label: string;
   status: string;
+  reason: 'stale_day' | 'not_started' | 'overdue' | 'future' | 'pending_balance';
+  balance: number;
   pet: { id: number; name: string; photo: string | null };
   client: { id: number; name: string } | null;
   services: { name: string }[];
 }
+const VENCIDA_REASON_LABEL: Record<Vencida['reason'], string> = {
+  stale_day:       'Sin resolver desde un día anterior',
+  not_started:     'Programada — nunca se inició',
+  overdue:         'En proceso, ya pasó su hora estimada de cierre',
+  future:          'En proceso con fecha programada a futuro',
+  pending_balance: 'Completada — saldo pendiente de cobro',
+};
 interface Unavailability {
   operator_id: number;
   operator_name: string | null;
@@ -42,16 +52,22 @@ interface Unavailability {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  scheduled: 'Programada',
-  work_order: 'En proceso',
-  completed:  'Completada',
-  no_show:    'No se presentó',
+  scheduled:     'Programada',
+  work_order:    'En proceso',
+  completed:     'Completada',
+  no_show:       'No se presentó',
+  unfulfillable: 'No realizada',
 };
 const STATUS_COLOR: Record<string, string> = {
-  scheduled:  'bg-primary/10 text-primary border-primary/30',
-  work_order: 'bg-secondary-container text-on-secondary-container border-secondary-fixed',
-  completed:  'bg-tertiary-container/40 text-on-tertiary-container border-tertiary-fixed-dim',
-  no_show:    'bg-error/10 text-error border-error/30',
+  scheduled:     'bg-primary/10 text-primary border-primary/30',
+  work_order:    'bg-secondary-container text-on-secondary-container border-secondary-fixed',
+  completed:     'bg-tertiary-container/40 text-on-tertiary-container border-tertiary-fixed-dim',
+  no_show:       'bg-error/10 text-error border-error/30',
+  // Ámbar sólido a propósito, no un token del tema: mismo color que ya usamos
+  // en los puntos de semana/mes y en la alerta parpadeante — "no realizada por
+  // otro motivo" no es culpa del cliente ni del operador, pero tampoco es un
+  // "en proceso" normal (verde/secondary), así que no debe compartir su color.
+  unfulfillable: 'bg-amber-500 text-white border-amber-500',
 };
 
 export function GlobalAgenda() {
@@ -109,7 +125,9 @@ export function GlobalAgenda() {
   const isTomorrow = isSameDay(selectedDate, addDays(today, 1));
 
 
-  const renderBookingCard = (b: Booking) => (
+  const renderBookingCard = (b: Booking) => {
+    const alert = agendaAlertKind(b, new Date());
+    return (
     <div
       key={b.id}
       className="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
@@ -117,9 +135,11 @@ export function GlobalAgenda() {
     >
       {/* Franja de estado */}
       <div className={`h-1 w-full ${
-        b.status === 'work_order' ? 'bg-secondary' :
-        b.status === 'completed'  ? 'bg-tertiary'  :
-        b.status === 'no_show'    ? 'bg-error'     : 'bg-primary'
+        alert                        ? 'bg-amber-500 animate-pulse' :
+        b.status === 'work_order'    ? 'bg-secondary' :
+        b.status === 'completed'     ? 'bg-tertiary'  :
+        b.status === 'no_show'       ? 'bg-error'     :
+        b.status === 'unfulfillable' ? 'bg-amber-500' : 'bg-primary'
       }`} />
 
       <div className="p-3 flex gap-3">
@@ -141,8 +161,10 @@ export function GlobalAgenda() {
                 <p className="text-xs text-on-surface-variant truncate">{b.pet.breed}</p>
               )}
             </div>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${STATUS_COLOR[b.status] ?? 'bg-surface-container text-on-surface-variant border-outline-variant'}`}>
-              {STATUS_LABEL[b.status] ?? b.status}
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${
+              alert ? 'bg-amber-500 text-white border-amber-500 animate-pulse' : (STATUS_COLOR[b.status] ?? 'bg-surface-container text-on-surface-variant border-outline-variant')
+            }`}>
+              {alert ? AGENDA_ALERT_LABEL[alert] : (STATUS_LABEL[b.status] ?? b.status)}
             </span>
           </div>
 
@@ -176,6 +198,7 @@ export function GlobalAgenda() {
       </div>
     </div>
   );
+  };
 
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20 md:pb-0">
@@ -505,6 +528,10 @@ export function GlobalAgenda() {
                 <p className="text-xs text-error/80">
                   {v.date_label} {v.time}
                   {v.services.length > 0 && ` · ${v.services.map(s => s.name).join(', ')}`}
+                </p>
+                <p className="text-[11px] font-semibold text-amber-600 mt-0.5">
+                  {VENCIDA_REASON_LABEL[v.reason]}
+                  {v.reason === 'pending_balance' && ` · $${v.balance.toFixed(2)}`}
                 </p>
               </div>
               <span className="material-symbols-outlined text-error/50 text-base shrink-0">chevron_right</span>

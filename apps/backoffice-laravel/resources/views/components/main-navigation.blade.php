@@ -31,6 +31,21 @@
                         {{ $screenDebugId }}
                     </span>
                 @endif
+
+                {{-- Reloj en vivo del servidor, en su zona horaria configurada — para poder
+                verificar de un vistazo que el server está a tiempo (ver NT del bug de zona
+                horaria: app.timezone estuvo en UTC en vez de America/Mexico_City). --}}
+                <span
+                    id="app-server-clock"
+                    class="app-server-clock ms-2 d-none d-sm-inline-flex align-items-center gap-1"
+                    data-epoch="{{ now()->timestamp }}"
+                    data-tz="{{ config('app.timezone') }}"
+                    title="Hora actual del servidor, en su zona horaria configurada ({{ config('app.timezone') }}) — compárala con tu hora real"
+                    style="font-size: 0.75rem; font-variant-numeric: tabular-nums; opacity: 0.75; white-space: nowrap;"
+                >
+                    <i class="bi bi-clock" aria-hidden="true"></i>
+                    <span class="app-server-clock__text">—</span>
+                </span>
             </div>
 
 
@@ -159,3 +174,26 @@
         </div>
     </div>
 </nav>
+
+<script nonce="{{ csp_nonce() }}">
+(function () {
+    var el = document.getElementById('app-server-clock');
+    if (!el) return;
+    var textEl = el.querySelector('.app-server-clock__text');
+    var baseEpochMs = parseInt(el.dataset.epoch, 10) * 1000;
+    var tz = el.dataset.tz;
+    var loadedAt = Date.now();
+    var formatter = new Intl.DateTimeFormat('es-MX', {
+        timeZone: tz,
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false,
+    });
+    function tick() {
+        var now = new Date(baseEpochMs + (Date.now() - loadedAt));
+        textEl.textContent = formatter.format(now) + ' (' + tz + ')';
+    }
+    tick();
+    setInterval(tick, 1000);
+})();
+</script>

@@ -54,40 +54,47 @@ interface TxRow {
 
 /* ── Status UI ───────────────────────────────────────────── */
 const STATUS_LABEL: Record<string, string> = {
-  scheduled:  'Programada',
-  work_order: 'En proceso',
-  completed:  'Completada',
-  cancelled:  'Cancelada',
-  no_show:    'No se presentó',
+  scheduled:     'Programada',
+  work_order:    'En proceso',
+  completed:     'Completada',
+  cancelled:     'Cancelada',
+  no_show:       'No se presentó',
+  unfulfillable: 'No realizada',
 };
 const STATUS_COLOR: Record<string, string> = {
-  scheduled:  'bg-primary/10 text-primary border-primary/30',
-  work_order: 'bg-secondary-container text-on-secondary-container border-secondary-fixed',
-  completed:  'bg-tertiary-container/40 text-on-tertiary-container border-tertiary-fixed-dim',
-  cancelled:  'bg-error/10 text-error border-error/30',
-  no_show:    'bg-error/10 text-error border-error/30',
+  scheduled:     'bg-primary/10 text-primary border-primary/30',
+  work_order:    'bg-secondary-container text-on-secondary-container border-secondary-fixed',
+  completed:     'bg-tertiary-container/40 text-on-tertiary-container border-tertiary-fixed-dim',
+  cancelled:     'bg-error/10 text-error border-error/30',
+  no_show:       'bg-error/10 text-error border-error/30',
+  // Ámbar sólido a propósito (no un token del tema, ninguno es ámbar): mismo
+  // color que ya usamos en semana/mes — distinto de no_show (no es falta del
+  // cliente) y distinto de work_order/verde (no es un servicio normal en curso).
+  unfulfillable: 'bg-amber-500 text-white border-amber-500',
 };
 const STATUS_BAR: Record<string, string> = {
-  scheduled:  'bg-primary',
-  work_order: 'bg-secondary',
-  completed:  'bg-tertiary',
-  cancelled:  'bg-error',
-  no_show:    'bg-error',
+  scheduled:     'bg-primary',
+  work_order:    'bg-secondary',
+  completed:     'bg-tertiary',
+  cancelled:     'bg-error',
+  no_show:       'bg-error',
+  unfulfillable: 'bg-amber-500',
 };
 // 'cobro' no es un status real — es la acción de navegar a MobCobro.
 // 'realizada' tampoco — marca la cita como llevada a cabo tal como se programó,
 // sin importar la hora real de inicio/fin, y lleva directo a cobro.
-const NEXT_STATUSES: Record<string, { value: string; label: string; icon: string; danger?: boolean; cobro?: boolean; realizada?: boolean }[]> = {
+const NEXT_STATUSES: Record<string, { value: string; label: string; icon: string; danger?: boolean; cobro?: boolean; realizada?: boolean; unfulfilled?: boolean }[]> = {
   scheduled:  [
-    { value: 'work_order', label: 'Iniciar servicio', icon: 'play_arrow' },
-    { value: 'realizada',  label: 'Realizada',        icon: 'task_alt',    realizada: true },
-    { value: 'no_show',    label: 'No se presentó',  icon: 'person_off', danger: true },
-    { value: 'cancelled',  label: 'Cancelar cita',   icon: 'cancel',     danger: true },
+    { value: 'work_order',    label: 'Iniciar servicio', icon: 'play_arrow' },
+    { value: 'realizada',     label: 'Realizada',        icon: 'task_alt',    realizada: true },
+    { value: 'unfulfillable', label: 'No se realizó',    icon: 'person_off', danger: true, unfulfilled: true },
+    { value: 'cancelled',     label: 'Cancelar cita',    icon: 'cancel',     danger: true },
   ],
   work_order: [
-    { value: 'cobro',     label: 'Completar y cobrar', icon: 'point_of_sale', cobro: true },
-    { value: 'realizada', label: 'Realizada',          icon: 'task_alt',      realizada: true },
-    { value: 'cancelled', label: 'Cancelar',           icon: 'cancel', danger: true },
+    { value: 'cobro',         label: 'Completar y cobrar', icon: 'point_of_sale', cobro: true },
+    { value: 'realizada',     label: 'Realizada',          icon: 'task_alt',      realizada: true },
+    { value: 'unfulfillable', label: 'No se pudo completar', icon: 'report', danger: true, unfulfilled: true },
+    { value: 'cancelled',     label: 'Cancelar',           icon: 'cancel', danger: true },
   ],
 };
 
@@ -183,9 +190,10 @@ export function MobCitaDet() {
   const [cancelReason, setCancelReason] = useState('');
   const [showCancel,   setShowCancel]   = useState(false);
 
-  /* No se presentó */
-  const [noShowReason, setNoShowReason] = useState('');
-  const [showNoShow,   setShowNoShow]   = useState(false);
+  /* No se realizó — no_show (falta del cliente) o unfulfillable (cualquier otro motivo, no punitivo) */
+  const [showUnfulfilled,   setShowUnfulfilled]   = useState(false);
+  const [unfulfilledType,   setUnfulfilledType]   = useState<'no_show' | 'unfulfillable'>('no_show');
+  const [unfulfilledNote,   setUnfulfilledNote]   = useState('');
 
   /* Tolerancia de inicio */
   const [graceMinutes, setGraceMinutes] = useState(15);
@@ -446,7 +454,7 @@ export function MobCitaDet() {
   }, []);
 
   useEffect(() => {
-    if (editing && booking) loadOccupied(selDate, booking.id);
+    if (editing && booking && booking.status === 'scheduled') loadOccupied(selDate, booking.id);
   }, [editing, selDate, booking, loadOccupied]);
 
   /* ── Duración ──────────────────────────────────────────── */
@@ -497,8 +505,8 @@ export function MobCitaDet() {
       const data = await res.json();
       if (!res.ok) { setSaveErr(data.message ?? 'Error'); setSaving(false); return; }
       setBooking(data);
-      setShowCancel(false);  setCancelReason('');
-      setShowNoShow(false);  setNoShowReason('');
+      setShowCancel(false);      setCancelReason('');
+      setShowUnfulfilled(false); setUnfulfilledNote('');
       showToast(STATUS_LABEL[newStatus] ? `Cita marcada como: ${STATUS_LABEL[newStatus]}` : 'Estado actualizado');
     } catch { setSaveErr('No se pudo conectar con el servidor.'); }
     setSaving(false);
@@ -543,7 +551,9 @@ export function MobCitaDet() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           operator_id:      selOp,
-          scheduled_at:     `${localDateStr(selDate)} ${selSlot}:00`,
+          // Una cita ya iniciada no se reprograma (mismo límite que el resto del
+          // sistema) — mandar scheduled_at aquí para un work_order lo rechaza el API.
+          ...(booking.status === 'scheduled' ? { scheduled_at: `${localDateStr(selDate)} ${selSlot}:00` } : {}),
           duration_minutes: effectiveDuration,
           services:         selSvcs,
           notes:            notes.trim() || null,
@@ -695,8 +705,13 @@ export function MobCitaDet() {
                   onClick={() => {
                     if (action.realizada)            { markRealizada(); return; }
                     if (action.cobro)                { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/citas/${booking.id}/cobro`); return; }
-                    if (action.value === 'cancelled') { setShowCancel(true);  return; }
-                    if (action.value === 'no_show')   { setShowNoShow(true);  return; }
+                    if (action.value === 'cancelled') { setShowCancel(true); return; }
+                    if (action.unfulfilled) {
+                      setUnfulfilledType(booking.status === 'scheduled' ? 'no_show' : 'unfulfillable');
+                      setUnfulfilledNote('');
+                      setShowUnfulfilled(true);
+                      return;
+                    }
                     if (action.value === 'work_order') {
                       const now = new Date();
                       const scheduled = parseDateLocal(booking.scheduled_at);
@@ -725,6 +740,25 @@ export function MobCitaDet() {
           </section>
         )}
 
+        {/* ── Saldo pendiente de una cita ya cerrada ("Pendiente de cobro") ── */}
+        {!editing && booking.status === 'completed' && booking.total - totalPaid > 0.01 && (
+          <div className="flex items-center gap-3 bg-secondary-container/40 border border-secondary-fixed rounded-2xl px-4 py-3.5">
+            <span className="material-symbols-outlined text-on-secondary-container text-xl shrink-0">payments</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-on-secondary-container">
+                Saldo pendiente: ${(booking.total - totalPaid).toFixed(2)}
+              </p>
+              <p className="text-xs text-on-secondary-container/80">Cerrada sin cobrar del todo — el cliente pagará después.</p>
+            </div>
+            <button
+              onClick={() => { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/citas/${booking.id}/cobro`); }}
+              className="shrink-0 flex items-center gap-1.5 bg-secondary text-on-secondary px-3 py-2 rounded-xl text-xs font-bold active:scale-95 transition-transform">
+              <span className="material-symbols-outlined text-base">point_of_sale</span>
+              Cobrar
+            </button>
+          </div>
+        )}
+
         {/* ── Modal cancelación ────────────────────────── */}
         {showCancel && (
           <div className="bg-error/8 border border-error/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
@@ -749,26 +783,41 @@ export function MobCitaDet() {
           </div>
         )}
 
-        {/* ── Modal no se presentó ─────────────────────── */}
-        {showNoShow && (
+        {/* ── Modal "No se realizó" — no_show (falta del cliente) u otro motivo (no punitivo) ── */}
+        {showUnfulfilled && (
           <div className="bg-error/8 border border-error/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-error text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>person_off</span>
-              <p className="text-sm font-semibold text-error">¿El cliente no se presentó?</p>
+              <p className="text-sm font-semibold text-error">No se realizó</p>
             </div>
+
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">¿Qué pasó?</p>
+              <label className="flex items-center gap-2 text-sm text-on-surface">
+                <input type="radio" name="unfulfilledType" checked={unfulfilledType === 'no_show'}
+                  onChange={() => setUnfulfilledType('no_show')} className="w-4 h-4 accent-error" />
+                El cliente no asistió — queda marcado como falta del cliente
+              </label>
+              <label className="flex items-center gap-2 text-sm text-on-surface">
+                <input type="radio" name="unfulfilledType" checked={unfulfilledType === 'unfulfillable'}
+                  onChange={() => setUnfulfilledType('unfulfillable')} className="w-4 h-4 accent-error" />
+                Otro motivo (ej. la mascota no cooperó, el operador se lastimó) — no se marca como falta del cliente
+              </label>
+            </div>
+
             <textarea
-              value={noShowReason}
-              onChange={e => setNoShowReason(e.target.value)}
+              value={unfulfilledNote}
+              onChange={e => setUnfulfilledNote(e.target.value)}
               rows={2}
-              placeholder="Observación (opcional): no avisó, llegó tarde, error de agenda…"
+              placeholder="Nota (opcional): el animal no cooperó, el groomer se lastimó…"
               className="w-full bg-background border border-error/30 rounded-xl px-3 py-2 text-sm outline-none resize-none focus:border-error"
             />
             <div className="flex gap-2">
-              <button onClick={() => { setShowNoShow(false); setNoShowReason(''); }}
+              <button onClick={() => { setShowUnfulfilled(false); setUnfulfilledNote(''); }}
                 className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
                 Cancelar
               </button>
-              <button onClick={() => changeStatus('no_show', noShowReason)} disabled={saving}
+              <button onClick={() => changeStatus(unfulfilledType, unfulfilledNote)} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-error text-on-error disabled:opacity-50">
                 Confirmar
               </button>
@@ -917,7 +966,17 @@ export function MobCitaDet() {
             ══════════════════════════════════════════════ */}
         {editing && (
           <>
+            {booking.status !== 'scheduled' && (
+              <div className="flex items-start gap-2 bg-surface-container rounded-2xl px-4 py-3">
+                <span className="material-symbols-outlined text-on-surface-variant text-lg shrink-0">info</span>
+                <p className="text-xs text-on-surface-variant">
+                  Esta cita ya está en proceso — la fecha y hora ya no se pueden mover. Puedes seguir editando servicios, operador y notas.
+                </p>
+              </div>
+            )}
+
             {/* Fecha */}
+            {booking.status === 'scheduled' && (
             <section>
               <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Fecha</p>
               <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
@@ -947,6 +1006,7 @@ export function MobCitaDet() {
                 </label>
               </div>
             </section>
+            )}
 
             {/* Servicios */}
             <section>
@@ -1043,6 +1103,7 @@ export function MobCitaDet() {
             </section>
 
             {/* Horario */}
+            {booking.status === 'scheduled' && (
             <section>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">
@@ -1079,6 +1140,7 @@ export function MobCitaDet() {
                 </div>
               )}
             </section>
+            )}
 
             {/* Notas */}
             <section>

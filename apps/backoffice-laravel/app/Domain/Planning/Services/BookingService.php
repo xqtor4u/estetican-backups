@@ -83,12 +83,32 @@ class BookingService implements BookingServiceInterface
     {
         $booking = $this->spaBookingRepository->findById($bookingId);
 
-        if (! $booking || $booking->status !== 'scheduled') {
+        if (! $booking || ! in_array($booking->status, ['scheduled', 'work_order'], true)) {
             return false;
         }
 
         return $this->spaBookingRepository->update($bookingId, [
             'status' => 'no_show',
+            'cancellation_reason' => $reason,
+        ]);
+    }
+
+    /**
+     * A diferencia de no_show (el cliente no llegó — sí es atribuible al cliente),
+     * unfulfillable cubre cualquier otro motivo por el que el servicio no se completó
+     * (mascota no cooperó, operador se lastimó, etc.) — puede ocurrir tanto antes de
+     * empezar como ya iniciado el servicio, por eso acepta ambos estados de origen.
+     */
+    public function markUnfulfillable(int $bookingId, ?string $reason = null): bool
+    {
+        $booking = $this->spaBookingRepository->findById($bookingId);
+
+        if (! $booking || ! in_array($booking->status, ['scheduled', 'work_order'], true)) {
+            return false;
+        }
+
+        return $this->spaBookingRepository->update($bookingId, [
+            'status' => 'unfulfillable',
             'cancellation_reason' => $reason,
         ]);
     }

@@ -18,18 +18,20 @@ class ApplySystemSettings
             config($configOverrides);
         }
 
+        // La zona horaria ya se fija una sola vez al boot de la app (AppServiceProvider::boot())
+        // — hacerlo también aquí, por request, es lo que causaba que un now() calculado antes
+        // de que corriera este middleware (ej. en un test, o en cualquier código que arma una
+        // fecha antes de llegar al controlador) quedara en una zona horaria distinta del now()
+        // que ve el controlador después de este punto.
         $locale = (string) config('backoffice.system.locale', config('app.locale', 'es'));
-        $timezone = (string) config('backoffice.system.timezone', config('app.timezone', 'UTC'));
         $sessionLifetime = max(5, (int) config('backoffice.security.session_idle_minutes', config('session.lifetime', 120)));
 
         config([
             'app.locale' => $locale,
-            'app.timezone' => $timezone,
             'session.lifetime' => $sessionLifetime,
         ]);
 
         app()->setLocale($locale);
-        date_default_timezone_set($timezone);
 
         $is24h = config('backoffice.system.time_format') === '24h';
         $dateFormat = (string) config('backoffice.system.date_format', 'd/m/Y');

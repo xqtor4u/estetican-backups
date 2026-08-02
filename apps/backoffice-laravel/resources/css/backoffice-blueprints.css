@@ -524,6 +524,34 @@ body.catalog-resize-active {
     color: #535b63;
 }
 
+/* Colores propios de estado de cita — mismos que ya usa la app móvil (puntos de
+   semana/mes y chips): azul = completada, rosa = en proceso, rojo = no se
+   presentó (falta del cliente). "No realizada" reutiliza el ámbar de
+   agenda-alert-badge (mismo significado: atípico, no es culpa de nadie).
+   Programada/Cancelada se quedan con el verde/gris genérico de --active/--inactive. */
+.agenda-status-badge--completed {
+    background: #3b82f6 !important;
+    color: #fff !important;
+    border-color: #3b82f6 !important;
+}
+.agenda-status-badge--work-order {
+    background: #ec4899 !important;
+    color: #fff !important;
+    border-color: #ec4899 !important;
+}
+.agenda-status-badge--no-show {
+    background: #ef4444 !important;
+    color: #fff !important;
+    border-color: #ef4444 !important;
+}
+/* Mismo ámbar que agenda-alert-badge pero sólido, sin parpadeo — "no realizada"
+   ya es un estado cerrado/resuelto, no algo que requiera revisión ahora mismo. */
+.agenda-status-badge--unfulfillable {
+    background: #f59e0b !important;
+    color: #fff !important;
+    border-color: #f59e0b !important;
+}
+
 .catalog-title-stack__title,
 .catalog-role-stack__name,
 .catalog-stat {
@@ -917,6 +945,19 @@ body.catalog-resize-active {
     background: rgba(13, 202, 240, 0.12);
     color: #0dcaf0;
     border-color: rgba(13, 202, 240, 0.3);
+}
+
+/* Cita atípica (no iniciada / en proceso sin cerrar / fecha inválida) — mismo
+   ámbar que ya usa la app móvil, con parpadeo porque requiere revisión ahora. */
+.agenda-calendar-event-chip--alert {
+    background: #f59e0b !important;
+    color: #fff !important;
+    border-color: #f59e0b !important;
+    animation: agenda-alert-pulse 1.6s ease-in-out infinite;
+}
+@keyframes agenda-alert-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
 }
 
 .bandeja-calendar-dots {

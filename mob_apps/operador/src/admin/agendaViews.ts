@@ -96,6 +96,66 @@ export function groupByDateMap<T extends { date: string }>(items: T[]): Map<stri
   return map;
 }
 
+/* ── Alertas de cita atípica ────────────────────────────────────────
+ * Tres anomalías detectables solo con los datos que ya trae cada cita
+ * (sin pedir nada nuevo al backend): sigue "Programada" mucho después
+ * de su hora (nunca se inició — se le pudo haber olvidado por completo
+ * al staff, ni siquiera llegó a "en proceso"), quedó "en proceso"
+ * abierta mucho después de su duración esperada (probablemente se le
+ * olvidó cerrar), o quedó "en proceso" con su hora programada en el
+ * futuro (no debería poder estar en proceso todavía — típicamente una
+ * reprogramación indebida de una cita ya iniciada). Las tres comparten
+ * tratamiento visual (ámbar, parpadeante) porque las tres requieren que
+ * alguien las revise ahora, a diferencia de no_show/unfulfillable que
+ * son estados ya resueltos/informativos. */
+interface AlertableBooking {
+  status: string;
+  date: string;
+  time: string;
+  end_time?: string | null;
+}
+
+function bookingStart(b: AlertableBooking): Date {
+  const [h, m] = b.time.split(':').map(Number);
+  const d = new Date(`${b.date}T00:00:00`);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+function bookingEnd(b: AlertableBooking): Date | null {
+  if (!b.end_time) return null;
+  const [h, m] = b.end_time.split(':').map(Number);
+  const d = new Date(`${b.date}T00:00:00`);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+export type AgendaAlertKind = 'not_started' | 'overdue' | 'future' | null;
+
+/**
+ * `null` si la cita no tiene ninguna anomalía; si no, cuál.
+ * `graceMinutes` es la misma tolerancia de `booking_grace_minutes` que ya
+ * se usa para "Iniciar servicio" (default 15) — evita marcar como atípica
+ * una cita que apenas se pasó por un par de minutos.
+ */
+export function agendaAlertKind(b: AlertableBooking, now: Date, graceMinutes = 15): AgendaAlertKind {
+  if (b.status === 'scheduled') {
+    const dueBy = bookingStart(b).getTime() + graceMinutes * 60000;
+    return now.getTime() > dueBy ? 'not_started' : null;
+  }
+  if (b.status !== 'work_order') return null;
+  if (bookingStart(b).getTime() > now.getTime()) return 'future';
+  const end = bookingEnd(b);
+  if (end && now.getTime() > end.getTime()) return 'overdue';
+  return null;
+}
+
+export const AGENDA_ALERT_LABEL: Record<Exclude<AgendaAlertKind, null>, string> = {
+  not_started: 'No se ha iniciado',
+  overdue:     'Sin cerrar',
+  future:      'Fecha inválida',
+};
+
 /** Expande un rango datetime ("YYYY-MM-DD HH:MM:SS") a la lista de fechas ("YYYY-MM-DD") que toca — usado para marcar bloqueos de disponibilidad que abarcan varios días en los grids de semana/mes. */
 export function expandDateRange(startsAt: string, endsAt: string): string[] {
   const start = new Date(startsAt.replace(' ', 'T'));

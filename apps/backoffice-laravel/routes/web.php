@@ -159,6 +159,7 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::post('agenda/{booking}/items/{item}/assign', [SpaBookingController::class, 'assignProfessional'])->name('agenda.items.assign');
     Route::post('agenda/{booking}/cancel', [SpaBookingController::class, 'cancel'])->name('agenda.cancel');
     Route::post('agenda/{booking}/no-show', [SpaBookingController::class, 'markNoShow'])->name('agenda.no-show');
+    Route::post('agenda/{booking}/unfulfillable', [SpaBookingController::class, 'markUnfulfillable'])->name('agenda.unfulfillable');
     Route::post('services/{service}/duplicate', [ServiceController::class, 'duplicate'])->name('services.duplicate');
     Route::post('hotel-reservations/{hotelReservation}/cancel', [HotelReservationController::class, 'cancel'])->name('hotel-reservations.cancel')->middleware('hotel.module');
 

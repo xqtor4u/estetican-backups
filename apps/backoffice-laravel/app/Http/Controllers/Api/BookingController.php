@@ -196,7 +196,7 @@ class BookingController extends Controller
             'operator_id' => 'sometimes|exists:operators,id',
             'scheduled_at' => 'sometimes|date_format:Y-m-d H:i:s',
             'duration_minutes' => 'sometimes|nullable|integer|min:15|max:480',
-            'status' => 'sometimes|in:scheduled,work_order,completed,cancelled,no_show',
+            'status' => 'sometimes|in:scheduled,work_order,completed,cancelled,no_show,unfulfillable',
             'services' => 'sometimes|array',
             'services.*' => 'integer|exists:services,id',
             'notes' => 'sometimes|nullable|string|max:1000',
@@ -206,6 +206,14 @@ class BookingController extends Controller
 
         // Re-validar horario/traslape solo si el request realmente reprograma la cita
         if (array_key_exists('scheduled_at', $data)) {
+            // Mismo límite que el dominio (BookingService::rescheduleBooking): una cita
+            // ya iniciada no se "reprograma" — mover su fecha dejaría un work_order con
+            // scheduled_at en el futuro, un estado inconsistente que la agenda no sabe
+            // representar (una cita "en proceso" que técnicamente no ha llegado su hora).
+            if ($booking->status !== 'scheduled') {
+                return response()->json(['message' => 'Solo se puede reprogramar una cita mientras está Programada.'], 422);
+            }
+
             $resolvedOperatorId = $data['operator_id'] ?? $booking->operator_id;
 
             if (! $resolvedOperatorId) {
@@ -286,23 +294,35 @@ class BookingController extends Controller
         return response()->json($this->serialize($booking->fresh()));
     }
 
-    /** Asigna profesional / costo externo a una línea de servicio específica de la cita (mismo mecanismo que el work order web). */
+    /**
+     * Edita una línea de servicio de la cita: profesional/costo externo (BL-075,
+     * work order) y/o precio de venta (usado también desde el cobro — MobCobro —
+     * para poder ajustar o regalar un servicio puntual antes de cerrar la cita).
+     * `operator_id` es opcional a propósito: un ajuste de precio al cobrar no
+     * tiene por qué venir acompañado de una reasignación de profesional.
+     */
     public function assignServiceProfessional(Request $request, SpaBooking $booking, SpaBookingService $line)
     {
         abort_unless($line->spa_booking_id === $booking->id, 404);
 
         $validated = $request->validate([
-            'operator_id' => 'required|exists:operators,id',
+            'operator_id' => 'sometimes|exists:operators,id',
+            'is_external' => 'sometimes|boolean',
             'external_cost' => 'nullable|numeric|min:0',
-            'current_price' => 'nullable|numeric|min:0',
+            'current_price' => 'sometimes|numeric|min:0',
         ]);
 
-        $line->update([
-            'operator_id' => $validated['operator_id'],
-            'is_external' => $request->boolean('is_external'),
-            'external_cost' => $validated['external_cost'] ?? null,
-            'current_price' => $validated['current_price'] ?? $line->current_price,
-        ]);
+        $fillData = [];
+        foreach (['operator_id', 'is_external', 'external_cost', 'current_price'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $fillData[$field] = $validated[$field];
+            }
+        }
+        $line->update($fillData);
+
+        if (array_key_exists('current_price', $fillData)) {
+            $booking->update(['total_estimated_price' => $booking->services()->sum('current_price')]);
+        }
 
         return response()->json($this->serialize($booking->fresh()));
     }

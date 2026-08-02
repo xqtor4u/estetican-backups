@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\SystemSettings\SystemSettings;
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Accounting\Services\AccountingService;
 use App\Domain\Catalog\Contracts\ServiceCatalogRepositoryInterface;
@@ -54,6 +55,22 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Fija la zona horaria real ANTES de que corra cualquier otra cosa (rutas,
+        // middleware, comandos artisan, jobs en cola) — a diferencia de aplicarlo
+        // solo en ApplySystemSettings (middleware, solo corre en requests HTTP),
+        // esto cubre también artisan/queue/tests, y evita que un now() calculado
+        // antes del middleware quede en una zona horaria distinta del now() que
+        // ve el controlador después. date_default_timezone_set() es un estado
+        // global de PHP — fijarlo aquí, una sola vez al boot, es lo que lo hace
+        // consistente en todo el proceso.
+        try {
+            $timezone = (string) (app(SystemSettings::class)->all()['system_timezone'] ?? '');
+            if ($timezone !== '') {
+                date_default_timezone_set($timezone);
+                config(['app.timezone' => $timezone]);
+            }
+        } catch (\Throwable) {
+            // Tabla de configuración aún no existe (ej. antes de la primera migración) — se queda con el default de config/app.php.
+        }
     }
 }

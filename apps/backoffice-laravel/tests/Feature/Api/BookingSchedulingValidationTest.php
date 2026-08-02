@@ -207,4 +207,50 @@ class BookingSchedulingValidationTest extends TestCase
             'created_by_user_id' => $user->id,
         ]);
     }
+
+    public function test_cannot_reschedule_a_booking_that_already_started(): void
+    {
+        $pet = $this->pet();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $booking = SpaBooking::create([
+            'pet_id' => $pet->id,
+            'operator_id' => $operator->id,
+            'scheduled_at' => now(),
+            'status' => 'work_order',
+            'total_estimated_price' => 0,
+        ]);
+        $originalScheduledAt = $booking->scheduled_at;
+
+        $response = $this->withHeaders($this->authHeader())->patchJson("/api/bookings/{$booking->id}", [
+            'scheduled_at' => now()->addDay()->setTime(11, 0)->format('Y-m-d H:i:s'),
+        ]);
+
+        $response->assertStatus(422);
+        $booking->refresh();
+        $this->assertTrue($originalScheduledAt->equalTo($booking->scheduled_at));
+        $this->assertSame('work_order', $booking->status);
+    }
+
+    public function test_can_still_edit_other_fields_of_a_started_booking_without_touching_the_schedule(): void
+    {
+        $pet = $this->pet();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $booking = SpaBooking::create([
+            'pet_id' => $pet->id,
+            'operator_id' => $operator->id,
+            'scheduled_at' => now(),
+            'status' => 'work_order',
+            'total_estimated_price' => 0,
+        ]);
+
+        $response = $this->withHeaders($this->authHeader())->patchJson("/api/bookings/{$booking->id}", [
+            'notes' => 'El animal llegó agitado, se calmó a los 10 min',
+        ]);
+
+        $response->assertOk();
+        $this->assertDatabaseHas('spa_bookings', [
+            'id' => $booking->id,
+            'notes' => 'El animal llegó agitado, se calmó a los 10 min',
+        ]);
+    }
 }

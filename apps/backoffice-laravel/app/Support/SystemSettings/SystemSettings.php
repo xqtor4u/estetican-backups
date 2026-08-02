@@ -670,6 +670,7 @@ class SystemSettings
                         'label' => 'Zona horaria',
                         'type' => 'text',
                         'default' => 'America/Mexico_City',
+                        'config' => 'backoffice.system.timezone',
                         'rules' => ['required', 'timezone'],
                     ],
                     'system_currency_code' => [

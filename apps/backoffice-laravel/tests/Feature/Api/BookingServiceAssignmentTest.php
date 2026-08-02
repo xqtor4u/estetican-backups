@@ -151,4 +151,39 @@ class BookingServiceAssignmentTest extends TestCase
         $this->assertCount(1, $booking->services);
         $this->assertSame($serviceA->id, $booking->services->first()->service_id);
     }
+
+    public function test_can_edit_a_line_price_alone_without_reassigning_an_operator(): void
+    {
+        [$booking, $line] = $this->bookingWithServiceLine(price: 500);
+
+        $response = $this->withHeaders($this->apiHeaders())->patchJson("/api/bookings/{$booking->id}/services/{$line->id}", [
+            'current_price' => 0,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('services.0.price', 0);
+        $response->assertJsonPath('total', 0);
+        $line->refresh();
+        $this->assertNull($line->operator_id, 'no debió forzar/tocar el operador');
+        $this->assertEquals(0.0, (float) $line->current_price);
+
+        $booking->refresh();
+        $this->assertEquals(0.0, (float) $booking->total_estimated_price);
+    }
+
+    public function test_editing_one_lines_price_recomputes_the_booking_total_from_all_lines(): void
+    {
+        [$booking, $lineA, $serviceA] = $this->bookingWithServiceLine(price: 500);
+        $serviceB = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 300, 'duration_minutes' => 30, 'is_active' => true]);
+        $booking->services()->create(['service_id' => $serviceB->id, 'current_price' => 300]);
+        $booking->update(['total_estimated_price' => 800]);
+
+        $response = $this->withHeaders($this->apiHeaders())->patchJson("/api/bookings/{$booking->id}/services/{$lineA->id}", [
+            'current_price' => 0,
+        ]);
+
+        $response->assertOk();
+        $booking->refresh();
+        $this->assertEquals(300.0, (float) $booking->total_estimated_price); // 0 (regalado) + 300
+    }
 }

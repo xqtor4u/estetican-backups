@@ -480,6 +480,13 @@ class SpaBookingController extends Controller
             return redirect()->route('agenda.show', $booking)->with('success', 'Sesión finalizada con éxito. Se ha generado el estado de cuenta y enviado el reporte al cliente.');
         }
 
+        // Mismo límite que el dominio (BookingService::rescheduleBooking): una cita ya
+        // iniciada no se "reprograma" — antes esto fallaba en silencio (rescheduleBooking
+        // devolvía false sin avisar) y la vista igual reportaba éxito.
+        if ($booking->status !== 'scheduled') {
+            return redirect()->back()->with('error', 'Solo se puede reprogramar una cita mientras está Programada.');
+        }
+
         $validated = $request->validate([
             'scheduled_at' => 'required|date',
             'operator_id' => 'required|exists:operators,id',
@@ -558,11 +565,26 @@ class SpaBookingController extends Controller
         return redirect()->route('agenda.index')->with('success', 'Sesión cancelada.');
     }
 
-    public function markNoShow(SpaBooking $booking): RedirectResponse
+    public function markNoShow(Request $request, SpaBooking $booking): RedirectResponse
     {
-        $this->bookingService->markNoShow($booking->id);
+        $validated = $request->validate(['reason' => 'nullable|string|max:500']);
+
+        $this->bookingService->markNoShow($booking->id, $validated['reason'] ?? null);
 
         return redirect()->route('agenda.index')->with('success', 'Sesión marcada como No se presentó.');
+    }
+
+    public function markUnfulfillable(Request $request, SpaBooking $booking): RedirectResponse
+    {
+        $validated = $request->validate(['reason' => 'nullable|string|max:500']);
+
+        $ok = $this->bookingService->markUnfulfillable($booking->id, $validated['reason'] ?? null);
+
+        if (! $ok) {
+            return redirect()->route('agenda.show', $booking)->with('error', 'No se pudo marcar la sesión como no realizada.');
+        }
+
+        return redirect()->route('agenda.show', $booking)->with('success', 'Sesión marcada como No realizada.');
     }
 
     public function createForClientPet(Client $client, Pet $pet): View
@@ -750,8 +772,16 @@ class SpaBookingController extends Controller
                 ? $booking->scheduled_at->format('H:i').($estimatedEndAt ? ' - '.$estimatedEndAt->format('H:i') : '')
                 : null
         );
+        $booking->setAttribute('alert_reason', $booking->alertReason($this->bookingGraceMinutes()));
 
         return $booking;
+    }
+
+    private ?int $bookingGraceMinutesCache = null;
+
+    private function bookingGraceMinutes(): int
+    {
+        return $this->bookingGraceMinutesCache ??= (int) (app(SystemSettings::class)->all()['booking_grace_minutes'] ?? 15);
     }
 
     private function formatOperationalDateLabel(Carbon $selectedDate, string $dateScope): string

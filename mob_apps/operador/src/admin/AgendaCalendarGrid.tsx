@@ -1,20 +1,37 @@
 import React from 'react';
-import { toDateStr } from './agendaViews';
+import { toDateStr, agendaAlertKind } from './agendaViews';
 
 interface GridBooking {
   id: number;
   date: string;
   time: string;
+  end_time?: string | null;
   status: string;
   pet: { name: string };
 }
 
-const STATUS_DOT: Record<string, string> = {
-  scheduled: 'bg-primary',
-  work_order: 'bg-secondary',
-  completed: 'bg-tertiary',
-  no_show: 'bg-error',
-};
+/**
+ * Colores fijos (no tokens de tema — ninguno del tema admin es rosa/amarillo)
+ * para que el punto se lea igual sin importar el tema de marca activo:
+ * azul = terminó bien, rosa = en proceso (a tiempo), amarillo = atípico
+ * (no se realizó por otro motivo), rojo = falta del cliente. Además, si
+ * `agendaAlertKind` detecta que una "en proceso" quedó sin cerrar o tiene
+ * fecha inválida, el punto se pinta ámbar y parpadea (animate-pulse) —
+ * a diferencia de unfulfillable/no_show, que son estados ya resueltos y
+ * se muestran sólidos, sin parpadeo.
+ */
+function dotClasses(b: GridBooking, now: Date): string {
+  const alert = agendaAlertKind(b, now);
+  if (alert) return 'bg-amber-500 animate-pulse';
+
+  switch (b.status) {
+    case 'completed':     return 'bg-blue-500';
+    case 'no_show':       return 'bg-red-500';
+    case 'unfulfillable': return 'bg-amber-500';
+    case 'work_order':    return 'bg-pink-500';
+    default:              return 'bg-outline'; // scheduled / cancelled — aún no aplica o ya cerrado sin incidente
+  }
+}
 
 interface WeekGridProps {
   days: Date[];
@@ -28,6 +45,7 @@ interface WeekGridProps {
 /** Grid semanal estilo Google Calendar: 7 columnas (lun-dom) con scroll horizontal, cada una con sus citas del día. */
 export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelectDay, blockedDates }: WeekGridProps) {
   const todayStr = toDateStr(today);
+  const now = new Date();
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory hide-scrollbar">
       {days.map(d => {
@@ -75,7 +93,7 @@ export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelec
                     className="text-left rounded-lg bg-surface-container px-1.5 py-1 active:scale-[0.97] transition-transform"
                   >
                     <span className="flex items-center gap-1">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[b.status] ?? 'bg-outline'}`} />
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClasses(b, now)}`} />
                       <span className="text-[10px] font-mono text-on-surface-variant">{b.time}</span>
                     </span>
                     <span className="block text-[11px] font-semibold text-on-surface truncate">{b.pet.name}</span>
@@ -103,6 +121,7 @@ interface MonthGridProps {
 /** Grid mensual estilo Google Calendar: 7x5/6 celdas con puntos de color por cita; tocar un día abre su vista Día. */
 export function MonthGrid({ days, bookingsByDate, today, onSelectDay, blockedDates }: MonthGridProps) {
   const todayStr = toDateStr(today);
+  const now = new Date();
   return (
     <div>
       <div className="grid grid-cols-7 gap-1 mb-1">
@@ -141,7 +160,7 @@ export function MonthGrid({ days, bookingsByDate, today, onSelectDay, blockedDat
               {items.length > 0 && (
                 <span className="flex items-center gap-0.5">
                   {items.slice(0, 3).map(b => (
-                    <span key={b.id} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[b.status] ?? 'bg-outline'}`} />
+                    <span key={b.id} className={`w-1.5 h-1.5 rounded-full ${dotClasses(b, now)}`} />
                   ))}
                   {items.length > 3 && <span className="text-[8px] text-on-surface-variant">+{items.length - 3}</span>}
                 </span>

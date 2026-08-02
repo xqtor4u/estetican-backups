@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Http\Controllers\Controller;
+use App\Models\Payment;
 use App\Models\SpaBooking;
+use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -142,11 +144,50 @@ class AgendaController extends Controller
         ]));
     }
 
-    /** Citas abiertas de días anteriores sin resolver (scheduled/work_order) */
+    /**
+     * Citas que requieren revisión: abiertas de días anteriores sin resolver
+     * (scheduled/work_order — como ya hacía), citas de HOY que siguen
+     * "Programada" mucho después de su hora (nunca se llegaron a iniciar —
+     * más grave que "en proceso sin cerrar", porque ni siquiera eso pasó),
+     * dos anomalías propias de "en proceso" (quedó abierta mucho después de
+     * su duración esperada del mismo día — probablemente se le olvidó
+     * cerrar; o su hora programada quedó en el futuro — normalmente una
+     * reprogramación indebida de una cita ya iniciada), y citas ya
+     * "completed" con saldo pendiente de cobro (cerradas a propósito sin
+     * cobrar del todo — el staff volverá a cobrar después — pero el pasivo
+     * no debe perderse de vista).
+     */
     public function vencidas()
     {
-        $bookings = SpaBooking::whereIn('status', ['scheduled', 'work_order'])
-            ->where('scheduled_at', '<', now()->startOfDay())
+        $now = now();
+        $graceMinutes = (int) (app(SystemSettings::class)->all()['booking_grace_minutes'] ?? 15);
+
+        $bookings = SpaBooking::where(function ($q) use ($now, $graceMinutes) {
+                $q->where(function ($q1) use ($now) {
+                    $q1->whereIn('status', ['scheduled', 'work_order'])
+                        ->where('scheduled_at', '<', $now->copy()->startOfDay());
+                })
+                    ->orWhere(function ($q2) use ($now, $graceMinutes) {
+                        $q2->where('status', 'scheduled')
+                            ->where('scheduled_at', '>=', $now->copy()->startOfDay())
+                            ->whereRaw('DATE_ADD(scheduled_at, INTERVAL ? MINUTE) < ?', [$graceMinutes, $now]);
+                    })
+                    ->orWhere(function ($q3) use ($now) {
+                        $q3->where('status', 'work_order')->where('scheduled_at', '>', $now);
+                    })
+                    ->orWhere(function ($q4) use ($now) {
+                        $q4->where('status', 'work_order')
+                            ->whereNotNull('duration_minutes')
+                            ->whereRaw('DATE_ADD(scheduled_at, INTERVAL duration_minutes MINUTE) < ?', [$now]);
+                    })
+                    ->orWhere(function ($q5) {
+                        $q5->where('status', 'completed')
+                            ->whereRaw(
+                                'total_estimated_price > (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payable_type = ? AND payable_id = spa_bookings.id)',
+                                [SpaBooking::class]
+                            );
+                    });
+            })
             ->with([
                 'pet:id,name,species,breed,profile_photo_path,client_id',
                 'pet.client:id,first_name,apellido_paterno,apellido_materno',
@@ -155,18 +196,34 @@ class AgendaController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
-        return response()->json($bookings->map(function (SpaBooking $b) {
-            $endTime = $b->duration_minutes
-                ? $b->scheduled_at->copy()->addMinutes($b->duration_minutes)->format('H:i')
-                : null;
+        $paidByBooking = Payment::where('payable_type', SpaBooking::class)
+            ->whereIn('payable_id', $bookings->pluck('id'))
+            ->get()
+            ->groupBy('payable_id')
+            ->map(fn ($payments) => $payments->sum('amount'));
+
+        return response()->json($bookings->map(function (SpaBooking $b) use ($now, $paidByBooking) {
+            $endsAt = $b->duration_minutes ? $b->scheduled_at->copy()->addMinutes($b->duration_minutes) : null;
+            $paid = (float) ($paidByBooking[$b->id] ?? 0);
+            $balance = max(0, (float) $b->total_estimated_price - $paid);
+
+            $reason = match (true) {
+                $b->status === 'completed' => 'pending_balance',
+                $b->status === 'work_order' && $b->scheduled_at->greaterThan($now) => 'future',
+                $b->status === 'work_order' && $endsAt && $endsAt->lessThan($now) => 'overdue',
+                $b->status === 'scheduled' && $b->scheduled_at->isToday() => 'not_started',
+                default => 'stale_day',
+            };
 
             return [
                 'id' => $b->id,
                 'scheduled_at' => $b->scheduled_at,
                 'time' => $b->scheduled_at->format('H:i'),
                 'date_label' => $b->scheduled_at->translatedFormat('D j M'),
-                'end_time' => $endTime,
+                'end_time' => $endsAt?->format('H:i'),
                 'status' => $b->status,
+                'reason' => $reason,
+                'balance' => $balance,
                 'notes' => $b->notes,
                 'total' => $b->total_estimated_price,
                 'pet' => [
