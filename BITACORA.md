@@ -1,5 +1,42 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 01/08/2026 — "No se realizó" unificado, alertas de citas atípicas, cobro pendiente y fix de zona horaria (móvil + web)
+
+### ✅ Logros y Cambios
+
+Sesión larga, arrancó de un pedido puntual en `MobCitaDet` y fue destapando varios hallazgos reales encadenados.
+
+**"No se realizó" (no_show/unfulfillable) unificado:** antes "No se presentó" solo se podía marcar con la cita en `scheduled`. Ahora un solo flujo con dos motivos — el cliente no asistió (falta del cliente, status `no_show`) vs. otro motivo (mascota no cooperó, operador se lastimó, etc. — no es culpa de nadie, status `unfulfillable`) — disponible tanto en `scheduled` como `work_order`. `BookingService::markNoShow()`/`markUnfulfillable()` ya no restringen por estado de origen. Web (`agenda/show.blade.php`) y móvil (`MobCitaDet.tsx`) actualizados con el mismo modal de dos radios + nota opcional.
+
+**Alertas de citas atípicas — móvil y web (AgUniInd):** tres anomalías reales, ninguna cubierta antes: "Programada" que nunca se inició pasada su tolerancia (`booking_grace_minutes`), "En proceso" que quedó sin cerrar pasada su duración esperada, "En proceso" con hora programada a futuro (reprogramación indebida de una cita ya iniciada). Móvil: puntos de semana/mes y badges de día en ámbar parpadeante, lógica compartida en `agendaViews.ts` (`agendaAlertKind()`) usada por `AgendaCalendarGrid`/`GlobalAgenda`/`GroomerAgenda`. De paso se corrigieron 5 pantallas móviles que se habían quedado con verde (`secondary`) para "No realizada" en vez del ámbar acordado. Web: `SpaBooking::alertReason()` como fuente única en PHP, aplicado en tabla, timeline y chips de semana/mes. La campanita de vencidas (`Api\AgendaController::vencidas()`) se amplió con las mismas 3 anomalías más "completada con saldo pendiente de cobro".
+
+**Bug real encontrado y corregido — zona horaria del servidor:** `config('app.timezone')` estaba en `UTC` mientras `scheduled_at` se guarda como hora local de México sin conversión — `now()` del backend estaba 6h adelantado de la hora real (confirmado en vivo: una cita de esa misma noche ya se marcaba "vencida" desde la tarde). Encontrado también: ya existía un campo "Zona horaria" en Configuración → Sistema con default `America/Mexico_City`, pero nunca estuvo conectado a nada (a diferencia de su campo hermano "Formato de hora" que sí lo estaba), y tenía guardado literal "UTC" en producción. Se conectó vía el mecanismo `configOverrides()` ya existente y se corrigió el valor guardado. Se movió la fijación de la zona horaria de `ApplySystemSettings` (middleware, por request) a `AppServiceProvider::boot()` (una sola vez al boot del proceso) — la versión por middleware causaba que un `now()` calculado *antes* de que corriera el middleware (ej. en fixtures de tests) quedara en una zona horaria distinta del `now()` que ve el controlador después, un patrón de bug real más allá de solo los tests.
+
+**Cobro pendiente y precio editable por línea (MobCobro):** cada servicio ahora es editable inline al momento de cobrar (para dar un descuento puntual o regalar el servicio) — reutiliza y generaliza el endpoint de BL-075 `assignServiceProfessional` (antes exigía `operator_id` obligatorio incluso para solo tocar el precio; ahora es opcional, solo se tocan los campos que llegan). De paso se corrigió un bug real preexistente: ese endpoint nunca recalculaba `total_estimated_price` tras cambiar el precio de una línea. Nuevo botón "Pendiente de cobro": cierra la cita como `completed` sin crear ningún `Payment`/`Document` — nada de movimientos falsos de $0/$0.10 en caja. El saldo real queda seguible después vía un botón "Cobrar saldo pendiente" en `MobCitaDet` (visible en citas completadas con saldo > 0) y en la campanita de vencidas (razón `pending_balance`). La cabecera de MobCobro ahora también muestra fecha y estado de la cita.
+
+**Bloqueo de reprogramar una cita ya iniciada:** el dominio (`BookingService::rescheduleBooking()`) ya exigía `scheduled` para poder reprogramar, pero ni el endpoint API móvil ni `SpaBookingController::update()` (web) lo respetaban — se podía editar la fecha de una cita `work_order` y dejarla con hora futura (la causa raíz real detrás de por qué aparecían citas "en proceso" con fecha a futuro). Cerrado en ambos lados; la edición móvil ahora oculta Fecha/Horario cuando ya no aplica, con una nota explicando por qué.
+
+**AgUniInd — limpieza de la vista Día:** la sección de tarjetas "Bloques horarios visibles" duplicaba SPA con la tabla de abajo (mismas citas, dos veces, sin razón real) — ahora esa sección solo lista Hotel (que la tabla no cubre, es consulta SpaBooking-only); SPA vive solo en la tabla. Reordenado a pedido del usuario: tabla SPA primero, Hotel después. Bug real encontrado de paso al hacer este cambio: al condicionarle a la sección de Hotel el flag del módulo, había quedado compartiendo el mismo `@if` que la tabla — con el módulo de Hotel apagado, la tabla entera de SPA habría desaparecido con ella. Separado en dos condiciones independientes, con test específico. También: colores de Estado por status en la tabla (antes solo verde/gris binario activo/inactivo) — azul completada, rosa en proceso, rojo no se presentó, ámbar no realizada. Botón "Marcar todos" (toggle real, marca/desmarca) en el filtro de Estado. Reloj en vivo del servidor en el header compartido (`main-navigation.blade.php`), en su zona horaria configurada, para poder verificar de un vistazo que el server está a tiempo.
+
+**Hallazgo de proceso, no relacionado al código:** el backoffice web tiene su propio build de Vite, separado del de la app móvil — varias correcciones de CSS de esta sesión no se vieron en vivo hasta caer en cuenta de que nunca se había corrido `npm run build` dentro de `apps/backoffice-laravel` (solo se estaba reconstruyendo el de `mob_apps/operador`). Documentado para no repetir el olvido: **cualquier cambio a `resources/css/*.css` o Blade con estilos nuevos en el backoffice necesita su propio `npm run build` dentro de ese directorio, aparte del de móvil.**
+
+### 📁 Archivos Modificados/Creados
+- Backend: `BookingService(Interface).php`, `Api/AgendaController.php`, `Api/BookingController.php`, `SpaBookingController.php`, `ApplySystemSettings.php`, `SpaBooking.php` (modelo, nuevo `alertReason()`), `AppServiceProvider.php`, `SystemSettings.php` (config de `system_timezone`)
+- Vistas web: `agenda/index.blade.php`, `agenda/partials/_calendar_chip.blade.php`, `agenda/partials/_calendar_month.blade.php`, `agenda/show.blade.php`, `components/main-navigation.blade.php`
+- `routes/web.php`, `resources/css/backoffice-blueprints.css`
+- Móvil: `AgendaCalendarGrid.tsx`, `GlobalAgenda.tsx`, `GroomerAgenda.tsx`, `MobCitaDet.tsx`, `MobCobro.tsx`, `MobPetJobs.tsx`, `agendaViews.ts`
+- Tests nuevos: `AgendaAlertBadgeTest`, `AgendaDayViewDeduplicationTest`, `BookingRescheduleGuardTest`, `BookingUnfulfillableTest`, `AgendaVencidasTest`, `BookingUnfulfillableStatusTest`, `SpaBookingAlertReasonTest` (24 tests nuevos en total)
+
+### 🔧 Verificación
+Suite completa: 392 pasan (mismos 37 preexistentes documentados, sin relación — `actingAs()` faltante en tests viejos, deuda técnica ya conocida). Build de móvil y de backoffice (Vite) reconstruidos; cada cambio verificado en vivo contra producción real (bookings reales, `now()` real) antes de darlo por cerrado. Commit `924092d`, sin pushear todavía.
+
+### 🛑 Pendientes activos
+- Push a GitHub (el usuario pidió commitear, no pushear).
+- La alerta de "no iniciada/sin cerrar/fecha inválida" solo vive en `AgUniInd`/agenda móvil — no se extendió a otras pantallas donde también aparecen citas (ej. `MobPetJobs`, historial por mascota).
+- Colores por estado en la tabla de `AgUniInd` — no extendido a los chips de semana/mes web (esos solo distinguen SPA/Hotel + alerta, no el resto de los estados cerrados).
+
+---
+
 ## 📅 Cierre de sesión: 31/07/2026 (cont. 8) — BL-076 construido completo — recibo real, auditoría de cancelación, reemisión (móvil + web)
 
 ### ✅ Logros y Cambios
