@@ -446,7 +446,7 @@ const initClientEditForm = () => {
         document.getElementById('modalPetDeathDate').value = '';
         document.getElementById('modalPetMicrochip').value = '';
         document.getElementById('modalPetTattoo').value = '';
-        document.getElementById('modalPetSex').value = '';
+        document.getElementById('modalPetSex').value = 'unknown';
         document.getElementById('modalPetCoatColor').value = '';
         document.getElementById('modalPetSize').value = '';
         document.getElementById('modalPetSterilized').checked = false;
@@ -487,10 +487,9 @@ const initClientEditForm = () => {
                 <td><input type="text" name="pets[${petIndex}][tattoo_code]" value="${tattoo}" class="form-control"></td>
                 <td>
                     <select name="pets[${petIndex}][sex]" class="form-control">
-                        <option value="" ${sex === '' ? 'selected' : ''}>Seleccionar</option>
                         <option value="male" ${sex === 'male' ? 'selected' : ''}>Macho</option>
                         <option value="female" ${sex === 'female' ? 'selected' : ''}>Hembra</option>
-                        <option value="unknown" ${sex === 'unknown' ? 'selected' : ''}>No definido</option>
+                        <option value="unknown" ${sex === 'unknown' || sex === '' ? 'selected' : ''}>No definido</option>
                     </select>
                 </td>
                 <td><input type="text" name="pets[${petIndex}][coat_color]" value="${coatColor}" class="form-control"></td>

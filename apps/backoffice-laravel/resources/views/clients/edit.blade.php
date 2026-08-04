@@ -22,19 +22,19 @@
     @csrf
     @method('PUT')
     <div class="mb-2">
-        <label class="form-label small mb-1">Nombre</label>
+        <x-form-label small required>Nombre</x-form-label>
         <input type="text" name="first_name" value="{{ old('first_name', $client->first_name) }}" class="form-control form-control-sm" required>
     </div>
     <div class="mb-2">
-        <label class="form-label small mb-1">Apellido paterno</label>
+        <x-form-label small>Apellido paterno</x-form-label>
         <input type="text" name="apellido_paterno" value="{{ old('apellido_paterno', $client->apellido_paterno) }}" class="form-control form-control-sm">
     </div>
     <div class="mb-2">
-        <label class="form-label small mb-1">Apellido materno</label>
+        <x-form-label small>Apellido materno</x-form-label>
         <input type="text" name="apellido_materno" value="{{ old('apellido_materno', $client->apellido_materno) }}" class="form-control form-control-sm">
     </div>
     <div class="mb-3">
-        <label class="form-label small mb-1">Email</label>
+        <x-form-label small>Email</x-form-label>
         <input type="email" name="email" value="{{ old('email', $client->email) }}" class="form-control form-control-sm">
         <div class="form-text">Opcional. Debe existir al menos un telefono activo para conservar la captura.</div>
     </div>
@@ -102,8 +102,8 @@
     <table class="table table-bordered" id="phones">
         <thead>
             <tr>
-                <th>Tipo</th>
-                <th>Número</th>
+                <th>Tipo <span class="text-danger" title="Obligatorio">*</span></th>
+                <th>Número <span class="text-danger" title="Obligatorio">*</span></th>
                 <th>Eliminar</th>
             </tr>
         </thead>
@@ -131,7 +131,7 @@
     <table class="table table-bordered" id="pets">
         <thead>
             <tr>
-                <th>Nombre</th>
+                <th>Nombre <span class="text-danger" title="Obligatorio">*</span></th>
                 <th>Especie</th>
                 <th>Raza</th>
                 <th>Fecha nac.</th>
@@ -174,10 +174,9 @@
                 <td><input type="text" name="pets[{{ $k }}][tattoo_code]" value="{{ $pet->tattoo_code }}" class="form-control"></td>
                 <td>
                     <select name="pets[{{ $k }}][sex]" class="form-control">
-                        <option value="" @selected(!$pet->sex)>Seleccionar</option>
                         <option value="male" @selected($pet->sex === 'male')>Macho</option>
                         <option value="female" @selected($pet->sex === 'female')>Hembra</option>
-                        <option value="unknown" @selected($pet->sex === 'unknown')>No definido</option>
+                        <option value="unknown" @selected(!$pet->sex || $pet->sex === 'unknown')>No definido</option>
                     </select>
                 </td>
                 <td><input type="text" name="pets[{{ $k }}][coat_color]" value="{{ $pet->coat_color }}" class="form-control"></td>
@@ -260,22 +259,22 @@
             </div>
             <div class="modal-body">
                 <div class="mb-2">
-                    <label>Tipo:</label>
+                    <x-form-label required>Tipo</x-form-label>
                     <select id="modalAddressType" class="form-control">
                         <option value="home">Casa</option>
                         <option value="work">Trabajo</option>
                     </select>
                 </div>
-                <div class="mb-2"><label>Calle:</label><input type="text" id="modalAddressStreet" class="form-control"></div>
-                <div class="mb-2"><label>Número exterior:</label><input type="text" id="modalAddressExteriorNumber" class="form-control"></div>
-                <div class="mb-2"><label>Interior:</label><input type="text" id="modalAddressInteriorNumber" class="form-control"></div>
-                <div class="mb-2"><label>Colonia:</label><input type="text" id="modalAddressColonia" class="form-control"></div>
-                <div class="mb-2"><label>Ciudad:</label><input type="text" id="modalAddressCity" class="form-control"></div>
-                <div class="mb-2"><label>Estado:</label><input type="text" id="modalAddressState" class="form-control"></div>
-                <div class="mb-2"><label>Código postal:</label><input type="text" id="modalAddressZip" class="form-control"></div>
-                <div class="mb-2"><label>País:</label><input type="text" id="modalAddressCountry" class="form-control" value="México"></div>
-                <div class="mb-2"><label>Latitud:</label><input type="number" id="modalAddressLat" class="form-control" step="0.00000001" min="-90" max="90"></div>
-                <div class="mb-2"><label>Longitud:</label><input type="number" id="modalAddressLng" class="form-control" step="0.00000001" min="-180" max="180"></div>
+                <div class="mb-2"><x-form-label required>Calle</x-form-label><input type="text" id="modalAddressStreet" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Número exterior</x-form-label><input type="text" id="modalAddressExteriorNumber" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Interior</x-form-label><input type="text" id="modalAddressInteriorNumber" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Colonia</x-form-label><input type="text" id="modalAddressColonia" class="form-control"></div>
+                <div class="mb-2"><x-form-label required>Ciudad</x-form-label><input type="text" id="modalAddressCity" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Estado</x-form-label><input type="text" id="modalAddressState" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Código postal</x-form-label><input type="text" id="modalAddressZip" class="form-control"></div>
+                <div class="mb-2"><x-form-label required>País</x-form-label><input type="text" id="modalAddressCountry" class="form-control" value="México"></div>
+                <div class="mb-2"><x-form-label>Latitud</x-form-label><input type="number" id="modalAddressLat" class="form-control" step="0.00000001" min="-90" max="90"></div>
+                <div class="mb-2"><x-form-label>Longitud</x-form-label><input type="number" id="modalAddressLng" class="form-control" step="0.00000001" min="-180" max="180"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -295,13 +294,13 @@
             </div>
             <div class="modal-body">
                 <div class="mb-2">
-                    <label>Tipo:</label>
+                    <x-form-label required>Tipo</x-form-label>
                     <select id="modalPhoneType" class="form-control">
                         <option value="mobile">Móvil</option>
                         <option value="fixed">Fijo</option>
                     </select>
                 </div>
-                <div class="mb-2"><label>Número:</label><input type="text" id="modalPhoneNumber" class="form-control"></div>
+                <div class="mb-2"><x-form-label required>Número</x-form-label><input type="text" id="modalPhoneNumber" class="form-control"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -320,25 +319,24 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-2"><label>Nombre:</label><input type="text" id="modalPetName" class="form-control"></div>
-                <div class="mb-2"><label>Especie:</label><input type="text" id="modalPetSpecies" class="form-control" placeholder="Perro, Gato, Pajaro..."></div>
-                <div class="mb-2"><label>Raza:</label><input type="text" id="modalPetBreed" class="form-control"></div>
-                <div class="mb-2"><label>Fecha de nacimiento:</label><input type="date" id="modalPetBirthDate" class="form-control"></div>
-                <div class="mb-2"><label>Fecha de deceso:</label><input type="date" id="modalPetDeathDate" class="form-control"></div>
-                <div class="mb-2"><label>Numero de chip:</label><input type="text" id="modalPetMicrochip" class="form-control"></div>
-                <div class="mb-2"><label>Numero de tatuaje:</label><input type="text" id="modalPetTattoo" class="form-control"></div>
+                <div class="mb-2"><x-form-label required>Nombre</x-form-label><input type="text" id="modalPetName" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Especie</x-form-label><input type="text" id="modalPetSpecies" class="form-control" placeholder="Perro, Gato, Pajaro..."></div>
+                <div class="mb-2"><x-form-label>Raza</x-form-label><input type="text" id="modalPetBreed" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Fecha de nacimiento</x-form-label><input type="date" id="modalPetBirthDate" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Fecha de deceso</x-form-label><input type="date" id="modalPetDeathDate" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Numero de chip</x-form-label><input type="text" id="modalPetMicrochip" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Numero de tatuaje</x-form-label><input type="text" id="modalPetTattoo" class="form-control"></div>
                 <div class="mb-2">
-                    <label>Sexo:</label>
+                    <x-form-label>Sexo <small class="text-body-secondary fw-normal">(opcional)</small></x-form-label>
                     <select id="modalPetSex" class="form-control">
-                        <option value="">Seleccionar</option>
                         <option value="male">Macho</option>
                         <option value="female">Hembra</option>
-                        <option value="unknown">No definido</option>
+                        <option value="unknown" selected>No definido</option>
                     </select>
                 </div>
-                <div class="mb-2"><label>Color:</label><input type="text" id="modalPetCoatColor" class="form-control"></div>
+                <div class="mb-2"><x-form-label>Color</x-form-label><input type="text" id="modalPetCoatColor" class="form-control"></div>
                 <div class="mb-2">
-                    <label>Tamano:</label>
+                    <x-form-label>Tamano</x-form-label>
                     <select id="modalPetSize" class="form-control">
                         <option value="">Seleccionar</option>
                         <option value="mini">Mini</option>
@@ -352,7 +350,7 @@
                     <input class="form-check-input" type="checkbox" id="modalPetSterilized">
                     <label class="form-check-label" for="modalPetSterilized">Esterilizado</label>
                 </div>
-                <div class="mb-2"><label>Notas:</label><textarea id="modalPetNotes" class="form-control" rows="2"></textarea></div>
+                <div class="mb-2"><x-form-label>Notas</x-form-label><textarea id="modalPetNotes" class="form-control" rows="2"></textarea></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>

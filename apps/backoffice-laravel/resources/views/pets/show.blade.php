@@ -96,40 +96,39 @@
                     <input type="hidden" name="return_view_mode" value="{{ $returnViewMode }}">
                 @endif
                 <div class="col-md-4">
-                    <label class="form-label">Nombre</label>
+                    <x-form-label required>Nombre</x-form-label>
                     <input type="text" name="name" value="{{ old('name', $pet->name) }}" class="form-control" required>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Especie</label>
+                    <x-form-label>Especie</x-form-label>
                     <input type="text" name="species" value="{{ old('species', $pet->species) }}" class="form-control" placeholder="Perro, Gato, Pajaro...">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Raza</label>
+                    <x-form-label>Raza</x-form-label>
                     <input type="text" name="breed" value="{{ old('breed', $pet->breed) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Fecha de nacimiento</label>
+                    <x-form-label>Fecha de nacimiento</x-form-label>
                     <input type="date" name="birth_date" value="{{ old('birth_date', optional($pet->birth_date)->format('Y-m-d')) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Fecha de deceso</label>
+                    <x-form-label>Fecha de deceso</x-form-label>
                     <input type="date" name="death_date" value="{{ old('death_date', optional($pet->death_date)->format('Y-m-d')) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Numero de chip</label>
+                    <x-form-label>Numero de chip</x-form-label>
                     <input type="text" name="microchip_code" value="{{ old('microchip_code', $pet->microchip_code) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Numero de tatuaje</label>
+                    <x-form-label>Numero de tatuaje</x-form-label>
                     <input type="text" name="tattoo_code" value="{{ old('tattoo_code', $pet->tattoo_code) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Sexo</label>
+                    <x-form-label>Sexo <small class="text-body-secondary fw-normal">(opcional)</small></x-form-label>
                     <select name="sex" class="form-select">
-                        <option value="" @selected(old('sex', $pet->sex) === null)>Seleccionar</option>
                         <option value="male" @selected(old('sex', $pet->sex) === 'male')>Macho</option>
                         <option value="female" @selected(old('sex', $pet->sex) === 'female')>Hembra</option>
-                        <option value="unknown" @selected(old('sex', $pet->sex) === 'unknown')>No definido</option>
+                        <option value="unknown" @selected(old('sex', $pet->sex) !== 'male' && old('sex', $pet->sex) !== 'female')>No definido</option>
                     </select>
                 </div>
                 <div class="col-md-3">

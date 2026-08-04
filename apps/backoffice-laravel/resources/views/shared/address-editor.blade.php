@@ -52,57 +52,57 @@
     <div class="row g-2 align-items-end">
         @if($showType)
             <div class="col-md-3">
-                <label class="form-label small mb-1">Tipo</label>
+                <x-form-label small required>Tipo</x-form-label>
                 <select name="{{ $inputName('type') }}" class="form-control form-control-sm address-editor-type" required>
                     <option value="home" @selected($fieldValue('type', 'home') === 'home')>Casa</option>
                     <option value="work" @selected($fieldValue('type') === 'work')>Trabajo</option>
                 </select>
             </div>
             <div class="col-md-5">
-                <label class="form-label small mb-1">Calle</label>
+                <x-form-label small required>Calle</x-form-label>
                 <input type="text" name="{{ $inputName('street') }}" value="{{ $fieldValue('street') }}" class="form-control form-control-sm address-editor-street" required>
             </div>
             <div class="col-md-2">
         @else
             <div class="col-md-7">
-                <label class="form-label small mb-1">Calle</label>
+                <x-form-label small>Calle</x-form-label>
                 <input type="text" name="{{ $inputName('street') }}" value="{{ $fieldValue('street') }}" class="form-control form-control-sm address-editor-street">
             </div>
             <div class="col-md-3">
         @endif
-                <label class="form-label small mb-1">Número exterior</label>
+                <x-form-label small>Número exterior</x-form-label>
                 <input type="text" name="{{ $inputName('exterior_number') }}" value="{{ $fieldValue('exterior_number') }}" class="form-control form-control-sm address-editor-exterior">
             </div>
         <div class="col-md-2">
-            <label class="form-label small mb-1">Interior</label>
+            <x-form-label small>Interior</x-form-label>
             <input type="text" name="{{ $inputName('interior_number') }}" value="{{ $fieldValue('interior_number') }}" class="form-control form-control-sm address-editor-interior">
         </div>
         <div class="col-md-4">
-            <label class="form-label small mb-1">Colonia</label>
+            <x-form-label small>Colonia</x-form-label>
             <input type="text" name="{{ $inputName('colonia') }}" value="{{ $fieldValue('colonia') }}" class="form-control form-control-sm address-editor-colonia">
         </div>
         <div class="col-md-4">
-            <label class="form-label small mb-1">{{ $cityLabel }}</label>
+            <x-form-label small required>{{ $cityLabel }}</x-form-label>
             <input type="text" name="{{ $inputName('city') }}" value="{{ $fieldValue('city', $cityDefault) }}" class="form-control form-control-sm address-editor-city" required>
         </div>
         <div class="col-md-4">
-            <label class="form-label small mb-1">Estado</label>
+            <x-form-label small>Estado</x-form-label>
             <input type="text" name="{{ $inputName('state') }}" value="{{ $fieldValue('state', $stateDefault) }}" class="form-control form-control-sm address-editor-state">
         </div>
         <div class="col-md-3">
-            <label class="form-label small mb-1">Código postal</label>
+            <x-form-label small>Código postal</x-form-label>
             <input type="text" name="{{ $inputName('zip') }}" value="{{ $fieldValue('zip') }}" class="form-control form-control-sm address-editor-zip">
         </div>
         <div class="col-md-5">
-            <label class="form-label small mb-1">País</label>
+            <x-form-label small required>País</x-form-label>
             <input type="text" name="{{ $inputName('country') }}" value="{{ $fieldValue('country', $countryDefault) }}" class="form-control form-control-sm address-editor-country" required>
         </div>
         <div class="col-md-2">
-            <label class="form-label small mb-1">Latitud</label>
+            <x-form-label small>Latitud</x-form-label>
             <input type="number" step="0.00000001" min="-90" max="90" name="{{ $inputName('lat') }}" value="{{ $fieldValue('lat') }}" class="form-control form-control-sm address-editor-lat">
         </div>
         <div class="col-md-2">
-            <label class="form-label small mb-1">Longitud</label>
+            <x-form-label small>Longitud</x-form-label>
             <input type="number" step="0.00000001" min="-180" max="180" name="{{ $inputName('lng') }}" value="{{ $fieldValue('lng') }}" class="form-control form-control-sm address-editor-lng">
         </div>
         <div class="col-12">
