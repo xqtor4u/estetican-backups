@@ -5,6 +5,7 @@ namespace App\Domain\Accounting\Contracts;
 use App\Models\BankLedger;
 use App\Models\CashLedger;
 use App\Models\Document;
+use App\Models\HotelReservation;
 use App\Models\JournalEntry;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
@@ -41,6 +42,13 @@ interface AccountingServiceInterface
      * No hace nada si ya tiene folio o no hay serie configurada.
      */
     public function assignOrderFolio(SpaBooking $booking): ?string;
+
+    /**
+     * Igual que assignOrderFolio(), pero para HotelReservation (serie 'orden_hotel').
+     * Se asigna en la creación de la reserva — Hotel no tiene un paso de "compromiso"
+     * equivalente a aceptar presupuesto en SPA.
+     */
+    public function assignHotelOrderFolio(HotelReservation $reservation): ?string;
 
     /**
      * Registra el recibo real de un cobro de cita (BL-076): crea el Document (folio),

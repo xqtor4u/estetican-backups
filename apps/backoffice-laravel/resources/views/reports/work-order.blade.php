@@ -15,14 +15,14 @@
     </div>
     <div class="document-info">
         <h2 class="document-type" style="color: #f39c12;">Orden de Trabajo</h2>
-        <div class="document-number">Sesión #{{ $booking->id }}</div>
+        <div class="document-number">{{ $booking->order_folio ?? ('Sesión #'.$booking->id) }}</div>
         <div class="document-date">{{ now()->format($datetimeFormat) }}</div>
     </div>
 </div>
 
 <div class="info-grid">
     <div class="info-box">
-        <div class="info-title">Paciente / Mascota</div>
+        <div class="info-title">Mascota</div>
         <div class="info-content">
             <div style="font-size: 16px; font-weight: bold;">{{ $booking->pet->name }}</div>
             <div>{{ ucfirst($booking->pet->species ?? '') }} | {{ $booking->pet->breed ?? 'N/D' }}</div>

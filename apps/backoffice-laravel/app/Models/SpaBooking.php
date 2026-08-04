@@ -77,6 +77,11 @@ class SpaBooking extends Model
         return $this->hasMany(Quote::class);
     }
 
+    public function payments(): MorphMany
+    {
+        return $this->morphMany(Payment::class, 'payable');
+    }
+
     public function messages(): HasMany
     {
         return $this->hasMany(BookingMessage::class);
@@ -85,6 +90,44 @@ class SpaBooking extends Model
     public function processNotes(): HasMany
     {
         return $this->hasMany(BookingProcessNote::class)->orderBy('created_at');
+    }
+
+    /**
+     * Suma de todo lo cobrado por esta cita, sin importar el camino: CashLedger/BankLedger
+     * ligados al presupuesto aceptado (camino web) + Payment directo (camino móvil, el más
+     * usado en producción real — la mayoría de citas no tiene Quote de por medio). El total
+     * "Total" de la tabla de Agenda solo sumaba lo primero y quedaba en $0 para toda cita
+     * cobrada desde móvil sin Quote, aunque sí estuviera pagada — mismo patrón de bug ya
+     * corregido antes en reports/invoice.blade.php (ver BITACORA 27/07/2026).
+     */
+    public function totalPaid(): float
+    {
+        $acceptedQuote = $this->quotes->firstWhere('status', 'accepted');
+        $ledgerPaid = $acceptedQuote
+            ? (float) $acceptedQuote->cashLedgers->sum('amount') + (float) $acceptedQuote->bankLedgers->sum('amount')
+            : 0.0;
+
+        return $ledgerPaid + (float) $this->payments->sum('amount');
+    }
+
+    /**
+     * Una cita cancelada nunca se llegó a prestar — su total_estimated_price/monto de
+     * presupuesto no representa dinero pendiente de verdad, solo lo que se había cotizado
+     * antes de cancelar. Mostrarlo como "saldo pendiente" es engañoso (a pedido del usuario,
+     * 03/08/2026): si ya se había cobrado algo antes de cancelar (ej. anticipo con
+     * penalización), esa transacción real ya quedó registrada y liquidada aparte — no es
+     * "pendiente".
+     */
+    public function unpaidBalance(): float
+    {
+        if ($this->status === 'cancelled') {
+            return 0.0;
+        }
+
+        $acceptedQuote = $this->quotes->firstWhere('status', 'accepted');
+        $total = $acceptedQuote ? (float) $acceptedQuote->total_amount : (float) $this->total_estimated_price;
+
+        return max(0, $total - $this->totalPaid());
     }
 
     /**

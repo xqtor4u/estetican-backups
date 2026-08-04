@@ -8,6 +8,7 @@ use App\Models\BankLedger;
 use App\Models\CashLedger;
 use App\Models\Document;
 use App\Models\DocumentSeries;
+use App\Models\HotelReservation;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\Payment;
@@ -116,11 +117,21 @@ class AccountingService implements AccountingServiceInterface
 
     public function assignOrderFolio(SpaBooking $booking): ?string
     {
-        if ($booking->order_folio) {
-            return $booking->order_folio;
+        return $this->assignOrderFolioFor($booking, 'orden_spa');
+    }
+
+    public function assignHotelOrderFolio(HotelReservation $reservation): ?string
+    {
+        return $this->assignOrderFolioFor($reservation, 'orden_hotel');
+    }
+
+    private function assignOrderFolioFor(SpaBooking|HotelReservation $record, string $documentType): ?string
+    {
+        if ($record->order_folio) {
+            return $record->order_folio;
         }
 
-        $series = DocumentSeries::where('document_type', 'orden_spa')
+        $series = DocumentSeries::where('document_type', $documentType)
             ->where('is_active', true)
             ->first();
 
@@ -130,7 +141,7 @@ class AccountingService implements AccountingServiceInterface
 
         $folio = $this->getNextFolio($series->id);
 
-        $booking->update([
+        $record->update([
             'order_series_id' => $series->id,
             'order_folio' => $folio['display'],
         ]);

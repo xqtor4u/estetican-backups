@@ -38,10 +38,23 @@
                             'future' => 'Fecha inválida',
                             default => null,
                         };
+                        $statusClass = $isHotel ? 'agenda-calendar-event-chip--hotel' : match ($item->status) {
+                            'scheduled' => 'agenda-calendar-event-chip--scheduled',
+                            'completed' => 'agenda-calendar-event-chip--completed',
+                            'work_order' => 'agenda-calendar-event-chip--work-order',
+                            'no_show' => 'agenda-calendar-event-chip--no-show',
+                            'unfulfillable' => 'agenda-calendar-event-chip--unfulfillable',
+                            'cancelled' => 'agenda-calendar-event-chip--cancelled',
+                            default => 'agenda-calendar-event-chip--spa',
+                        };
+                        $folio = $isHotel ? null : $item->order_folio;
+                        // El grid de mes es demasiado angosto para mostrar el folio como texto —
+                        // se ofrece como tooltip; visible siempre en Semana/Día.
+                        $titleParts = array_filter([$alertLabel, $folio]);
                     @endphp
                     <span
-                        class="agenda-calendar-event-chip agenda-calendar-event-chip--static {{ $isHotel ? 'agenda-calendar-event-chip--hotel' : 'agenda-calendar-event-chip--spa' }} {{ $alertReason ? 'agenda-calendar-event-chip--alert' : '' }}"
-                        @if($alertLabel) title="{{ $alertLabel }}" @endif
+                        class="agenda-calendar-event-chip agenda-calendar-event-chip--static {{ $statusClass }} {{ $alertReason ? 'agenda-calendar-event-chip--alert' : '' }}"
+                        @if($titleParts) title="{{ implode(' · ', $titleParts) }}" @endif
                     >
                         <span class="agenda-calendar-event-chip__time">{{ $item->scheduled_at?->format($timeFormat) }}</span>
                         <span class="agenda-calendar-event-chip__label">{{ $item->pet?->name ?: 'Mascota' }}</span>

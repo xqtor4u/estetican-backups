@@ -926,6 +926,7 @@ body.catalog-resize-active {
 .agenda-calendar-event-chip {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.35rem;
     padding: 0.25rem 0.5rem;
     border-radius: 999px;
@@ -945,6 +946,54 @@ body.catalog-resize-active {
     background: rgba(13, 202, 240, 0.12);
     color: #0dcaf0;
     border-color: rgba(13, 202, 240, 0.3);
+}
+
+/* Mismos colores por estado que ya usa la tabla de Día (agenda-status-badge--*)
+   y la app móvil — antes los chips de Semana/Mes solo distinguían SPA/Hotel. */
+.agenda-calendar-event-chip--scheduled {
+    background: rgba(40, 167, 69, 0.14);
+    color: #17643a;
+    border-color: rgba(40, 167, 69, 0.3);
+}
+.agenda-calendar-event-chip--completed {
+    background: #3b82f6 !important;
+    color: #fff !important;
+    border-color: #3b82f6 !important;
+}
+.agenda-calendar-event-chip--work-order {
+    background: #ec4899 !important;
+    color: #fff !important;
+    border-color: #ec4899 !important;
+}
+.agenda-calendar-event-chip--no-show {
+    background: #ef4444 !important;
+    color: #fff !important;
+    border-color: #ef4444 !important;
+}
+.agenda-calendar-event-chip--unfulfillable {
+    background: #f59e0b !important;
+    color: #fff !important;
+    border-color: #f59e0b !important;
+}
+.agenda-calendar-event-chip--cancelled {
+    background: rgba(108, 117, 125, 0.14);
+    color: #535b63;
+    border-color: rgba(108, 117, 125, 0.3);
+}
+
+.agenda-calendar-event-chip__folio {
+    flex-basis: 100%;
+    font-size: 0.65rem;
+    font-weight: 600;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Chips de Semana con folio quedan de 2 líneas — un pill 999px se ve raro ahí. */
+.agenda-calendar-event-chip--with-folio {
+    border-radius: 0.75rem;
 }
 
 /* Cita atípica (no iniciada / en proceso sin cerrar / fecha inválida) — mismo

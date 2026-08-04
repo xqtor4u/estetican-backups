@@ -17,7 +17,7 @@
     </div>
     <div class="document-info">
         <h2 class="document-type" style="color: #27ae60;">Recibo de Pago</h2>
-        <div class="document-number">Folio #R-{{ str_pad($booking->id, 6, '0', STR_PAD_LEFT) }}</div>
+        <div class="document-number">{{ $booking->order_folio ?? ('Folio #R-'.str_pad($booking->id, 6, '0', STR_PAD_LEFT)) }}</div>
         <div class="document-date">{{ now()->format($settings['system']['date_format']) }}</div>
     </div>
 </div>

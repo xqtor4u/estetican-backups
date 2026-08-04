@@ -128,9 +128,9 @@
                     @endif
                 </div>
                 <div>
-                    <span class="catalog-overview-card__eyebrow">Paciente</span>
+                    <span class="catalog-overview-card__eyebrow">Mascota</span>
                     <div class="h5 mb-0 fw-bold">{{ $pet?->name }}</div>
-                    <p class="mb-0 small opacity-75">{{ $client?->full_name }}</p>
+                    <p class="mb-0 small opacity-75"><span class="fw-semibold">Cliente:</span> {{ $client?->full_name }}</p>
                 </div>
             </article>
             <article class="catalog-overview-card">
@@ -146,11 +146,13 @@
             <article class="catalog-overview-card {{ $booking->status === 'completed' ? 'border-success border-2' : '' }}">
                 <span class="catalog-overview-card__eyebrow">Balance</span>
                 @php
-                    $totalPaid = $acceptedQuote
-                        ? (float) $acceptedQuote->cashLedgers->sum('amount') + (float) $acceptedQuote->bankLedgers->sum('amount')
-                        : 0.0;
+                    // totalPaid()/unpaidBalance() suman CashLedger/BankLedger (vía presupuesto
+                    // aceptado) + Payment directo (móvil) — el cálculo anterior solo veía lo
+                    // primero, así que esta tarjeta mostraba "Por liquidar" en toda cita cobrada
+                    // desde móvil sin presupuesto de por medio, aunque sí estuviera pagada.
+                    $totalPaid = $booking->totalPaid();
+                    $balance = $booking->unpaidBalance();
                     $quoteTotal = (float) ($acceptedQuote?->total_amount ?? $booking->total_estimated_price ?? 0);
-                    $balance = $quoteTotal - $totalPaid;
                 @endphp
                 <div class="catalog-overview-card__value-sm text-{{ $balance > 0 ? 'danger' : 'success' }}">${{ number_format($balance, 2) }}</div>
                 <div class="catalog-overview-card__label">

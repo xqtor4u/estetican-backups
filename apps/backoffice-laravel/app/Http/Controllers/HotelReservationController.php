@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Models\HotelReservation;
@@ -75,6 +76,14 @@ class HotelReservationController extends Controller
             });
         } catch (RuntimeException $exception) {
             return back()->withErrors(['resource_id' => $exception->getMessage()])->withInput();
+        }
+
+        // Folio de orden al crear — Hotel no tiene un paso de "compromiso" propio (sin
+        // presupuesto de por medio) equivalente a aceptar el presupuesto en SPA.
+        try {
+            app(AccountingServiceInterface::class)->assignHotelOrderFolio($reservation->fresh());
+        } catch (\Throwable) {
+            // No interrumpir el flujo si falla la asignación del folio
         }
 
         $vaccinationWarning = $this->vaccinationChecker->check($reservation->pet);

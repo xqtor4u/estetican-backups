@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Models\Payment;
 use App\Models\SpaBooking;
 use App\Models\Quote;
@@ -13,8 +14,10 @@ class ReportController extends Controller
 {
     protected SystemSettings $settings;
 
-    public function __construct(SystemSettings $settings)
-    {
+    public function __construct(
+        SystemSettings $settings,
+        private readonly AccountingServiceInterface $accountingService,
+    ) {
         $this->settings = $settings;
     }
 
@@ -25,6 +28,7 @@ class ReportController extends Controller
     {
         $quote->load(['spaBooking.pet.client.phones', 'items.service', 'items.item']);
         $booking = $quote->spaBooking;
+        $this->ensureOrderFolio($booking);
         $settings = $this->getReportSettings();
 
         return view('reports.quote', compact('quote', 'booking', 'settings'));
@@ -48,6 +52,7 @@ class ReportController extends Controller
             'operator',
             'processNotes.user:id,name',
         ]);
+        $this->ensureOrderFolio($booking);
         $settings = $this->getReportSettings();
 
         $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');
@@ -69,6 +74,7 @@ class ReportController extends Controller
             'services.service',
             'processNotes.user:id,name',
         ]);
+        $this->ensureOrderFolio($booking);
         $settings = $this->getReportSettings();
 
         $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');
@@ -79,6 +85,19 @@ class ReportController extends Controller
             ->get();
 
         return view('reports.invoice', compact('booking', 'acceptedQuote', 'settings', 'directPayments'));
+    }
+
+    /**
+     * Presupuesto, orden de trabajo y recibo comparten el mismo folio (order_folio) —
+     * el que se imprima primero lo asigna, y los demás lo heredan (assignOrderFolio()
+     * ya es idempotente si el booking ya tiene uno).
+     */
+    private function ensureOrderFolio(?SpaBooking $booking): void
+    {
+        if ($booking && ! $booking->order_folio) {
+            $this->accountingService->assignOrderFolio($booking);
+            $booking->refresh();
+        }
     }
 
     /**

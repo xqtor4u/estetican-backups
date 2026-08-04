@@ -51,6 +51,15 @@
         <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'full'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'full' ? 'agenda-scope-switch__item--active' : '' }}">Todas</a>
         <span class="agenda-scope-switch__hint">{{ $hotelModuleEnabled ? 'Agenda unificada: SPA y Hotel integrados para lectura rápida.' : 'Agenda de SPA.' }}</span>
     </section>
+
+    @if(in_array($dateScope, ['today', 'tomorrow', 'custom'], true))
+    <div class="agenda-calendar-nav mb-3">
+        <a class="btn btn-sm btn-outline-dark" href="{{ route('agenda.index', array_merge(request()->except(['page', 'date', 'date_scope']), ['date_scope' => 'custom', 'date' => $selectedDate->copy()->subDay()->format('Y-m-d')])) }}">&laquo; Día anterior</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ route('agenda.index', array_merge(request()->except(['page', 'date', 'date_scope']), ['date_scope' => 'today'])) }}">Hoy</a>
+        <a class="btn btn-sm btn-outline-dark" href="{{ route('agenda.index', array_merge(request()->except(['page', 'date', 'date_scope']), ['date_scope' => 'custom', 'date' => $selectedDate->copy()->addDay()->format('Y-m-d')])) }}">Día siguiente &raquo;</a>
+        <span class="agenda-calendar-nav__label">{{ $operationalDateLabel }}</span>
+    </div>
+    @endif
     @endif
 
     <section class="agenda-scope-switch mb-3" aria-label="Vista de calendario">
@@ -167,7 +176,12 @@
                         <div class="catalog-stat__hint">bloque estimado</div>
                     </td>
                     <td>
-                        <div class="catalog-title-stack__title">{{ $booking->pet?->name }}</div>
+                        <div class="catalog-title-stack__title">
+                            {{ $booking->pet?->name }}
+                            @if($booking->order_folio)
+                                <span class="badge bg-light text-dark border ms-1" style="font-size: 0.65rem; font-weight: 700;" title="Folio de orden de trabajo — el mismo número que se imprime en recibo, orden de trabajo y presupuesto.">{{ $booking->order_folio }}</span>
+                            @endif
+                        </div>
                         <div class="catalog-title-stack__description">{{ $booking->pet?->species_label ?: 'Sin especie' }}</div>
                     </td>
                     <td>
@@ -181,7 +195,10 @@
                         </div>
                     </td>
                     <td>
-                        @php $alertReason = $booking->alert_reason; @endphp
+                        @php
+                            $alertReason = $booking->alert_reason;
+                            $unpaidWhenCompleted = !$alertReason && $booking->status === 'completed' && $booking->unpaidBalance() > 0;
+                        @endphp
                         <span @class([
                             'catalog-status-badge',
                             'agenda-alert-badge' => $alertReason,
@@ -205,6 +222,9 @@
                                 'unfulfillable' => 'No realizado',
                                 default => ucfirst(str_replace('_', ' ', $booking->status)),
                             } }}
+                            @if($unpaidWhenCompleted)
+                                <span class="text-danger fw-bold" title="Completado sin registro de pago — saldo pendiente ${{ number_format($booking->unpaidBalance(), 2) }}">*</span>
+                            @endif
                         </span>
                     </td>
                     <td>
@@ -213,12 +233,15 @@
                     </td>
                     <td>
                         @php
-                            $aq = $booking->quotes->firstWhere('status', 'accepted');
-                            $paid = $aq ? $aq->cashLedgers->sum('amount') + $aq->bankLedgers->sum('amount') : 0;
-                            $total = $aq ? $aq->total_amount : (float) $booking->total_estimated_price;
-                            $balance = $total - $paid;
+                            // unpaidBalance()/totalPaid() suman CashLedger/BankLedger (vía presupuesto
+                            // aceptado) + Payment directo (móvil) — antes solo sumaba lo primero, así
+                            // que toda cita cobrada desde móvil sin Quote de por medio (el camino más
+                            // usado en producción real) mostraba el saldo completo aunque sí estuviera
+                            // pagada, y nunca se pintaba en rojo.
+                            $paid = $booking->totalPaid();
+                            $balance = $booking->unpaidBalance();
                         @endphp
-                        <div class="catalog-stat {{ $balance > 0 && $aq ? 'text-danger' : '' }}">${{ number_format($balance, 2) }}</div>
+                        <div class="catalog-stat {{ $balance > 0 ? 'text-danger' : '' }}">${{ number_format($balance, 2) }}</div>
                         <div class="catalog-stat__hint">{{ $paid > 0 ? 'saldo · pagado $' . number_format($paid, 2) : 'estimado' }}</div>
                     </td>
                     <td class="text-end">
@@ -287,6 +310,9 @@
                                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold" style="font-size: 0.75rem;">SPA</span>
                                         @endif
                                         <div class="catalog-title-stack__title mb-0">{{ $booking->pet?->name ?: 'Mascota sin nombre' }}</div>
+                                        @if($booking->order_folio)
+                                            <span class="badge bg-light text-dark border" style="font-size: 0.65rem; font-weight: 700;">{{ $booking->order_folio }}</span>
+                                        @endif
                                     </div>
                                     <div class="catalog-title-stack__description">{{ trim(($booking->pet?->client?->first_name ?? '') . ' ' . ($booking->pet?->client?->last_name ?? '')) ?: 'Cliente sin nombre visible' }}</div>
                                 </div>

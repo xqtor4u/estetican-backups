@@ -17,7 +17,7 @@
     </div>
     <div class="document-info">
         <h2 class="document-type">Presupuesto</h2>
-        <div class="document-number"># {{ str_pad($quote->id, 6, '0', STR_PAD_LEFT) }}</div>
+        <div class="document-number">{{ $booking->order_folio ?? ('# '.str_pad($quote->id, 6, '0', STR_PAD_LEFT)) }}</div>
         <div class="document-date">{{ now()->format($settings['system']['date_format']) }}</div>
     </div>
 </div>
@@ -32,7 +32,7 @@
         </div>
     </div>
     <div class="info-box">
-        <div class="info-title">Paciente / Mascota</div>
+        <div class="info-title">Mascota</div>
         <div class="info-content">
             <div class="info-row">
                 <span class="info-label">Nombre:</span>

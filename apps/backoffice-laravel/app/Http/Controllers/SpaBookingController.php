@@ -86,6 +86,7 @@ class SpaBookingController extends Controller
                 'services.service',
                 'quotes' => fn ($q) => $q->where('status', 'accepted')
                     ->with(['cashLedgers', 'bankLedgers']),
+                'payments',
             ]);
 
         $this->applyBookingFilters($bookingsQuery, $statuses, $search);
@@ -815,6 +816,7 @@ class SpaBookingController extends Controller
             'quotes.items.operator',
             'quotes.cashLedgers',
             'quotes.bankLedgers',
+            'payments',
         ])->loadCount('quotes');
     }
 
