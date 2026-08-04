@@ -34,18 +34,9 @@ class CatalogsNavigation
             ];
         }
 
-        if ($user?->can('ver usuarios') || $user?->is_super_admin) {
-            $items[] = [
-                'label' => 'Bitácora de actividad',
-                'description' => 'Registro de todas las operaciones realizadas por los usuarios.',
-                'route' => route('activity-log.index'),
-                'active' => request()->routeIs('activity-log.*'),
-            ];
-        }
-
         return [
             'label' => 'Catálogos',
-            'active' => request()->routeIs('services.*', 'groups.*', 'activity-log.*'),
+            'active' => request()->routeIs('services.*', 'groups.*'),
             'items' => $items,
         ];
     }

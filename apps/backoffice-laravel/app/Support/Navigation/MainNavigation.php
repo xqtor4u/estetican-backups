@@ -8,6 +8,7 @@ use App\Support\Navigation\Groups\FinanzasNavigation;
 use App\Support\Navigation\Groups\HrNavigation;
 use App\Support\Navigation\Groups\InventoryNavigation;
 use App\Support\Navigation\Groups\OperationsNavigation;
+use App\Support\Navigation\Groups\ReportesNavigation;
 use App\Support\Navigation\Groups\VeterinariaNavigation;
 use App\Support\Navigation\Groups\WhatsAppNavigation;
 
@@ -15,11 +16,15 @@ class MainNavigation
 {
     /**
      * Estructura única de navegación para ambos menús.
-     * "Administración" agrupa Inventario/RH/Finanzas/Veterinaria como sub-secciones dentro de
-     * un solo dropdown (persiana) — a pedido del usuario, para no saturar la barra superior con
-     * módulos de uso menos frecuente que Agenda/Operación del día a día. Clientes (temas de
-     * clientes/mascotas/sucursales) se queda como persiana propia de nivel superior — es de
-     * uso más frecuente y el usuario pidió no mezclarla con el resto.
+     * RH (Operadores/Tipos de operador/Usuarios) tiene su propia pestaña de nivel superior —
+     * antes vivía como sub-sección dentro de "Administración", a pedido del usuario (03/08/2026)
+     * se separó para no mezclarse con temas de negocio. "Operaciones del negocio" agrupa lo que
+     * queda de la antigua "Administración" (Inventario/Finanzas/Veterinaria) como sub-secciones
+     * dentro de un solo dropdown — distinto de "Operación" (Agenda/Recursos/Mapa/Config), que es
+     * de uso diario. "Reportes" es pestaña nueva, arranca solo con Bitácora de actividad (movida
+     * desde Catálogos, encaja mejor temáticamente ahí) hasta que se construya BL-008. Clientes
+     * (temas de clientes/mascotas/sucursales) se queda como persiana propia de nivel superior —
+     * es de uso más frecuente y el usuario pidió no mezclarla con el resto.
      */
     public static function structure(): array
     {
@@ -27,18 +32,19 @@ class MainNavigation
             ClientsNavigation::group(),
             OperationsNavigation::group(),
             CatalogsNavigation::group(),
-            static::administracionGroup(),
+            HrNavigation::group(),
+            static::operacionesDelNegocioGroup(),
+            ReportesNavigation::group(),
             WhatsAppNavigation::group(),
         ];
     }
 
-    private static function administracionGroup(): array
+    private static function operacionesDelNegocioGroup(): array
     {
         return [
-            'label' => 'Administración',
+            'label' => 'Operaciones del negocio',
             'subgroups' => [
                 InventoryNavigation::group(),
-                HrNavigation::group(),
                 FinanzasNavigation::group(),
                 VeterinariaNavigation::group(),
             ],
