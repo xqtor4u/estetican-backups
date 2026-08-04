@@ -1,5 +1,51 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 03/08/2026 — Saneamiento de Agenda/reportes/navegación/formularios (NT-050, NT-051)
+
+### ✅ Logros y Cambios
+
+Sesión larga, arrancó de "empecemos por lo más antiguo del backlog" (BL-001/002/004) y fue destapando una cadena de hallazgos reales, uno detrás de otro, cada uno verificado contra el código real antes de tocarlo (varios pedidos del usuario, verificados aparte antes de proponer cambios).
+
+**BL-001/BL-002 resultaron ya resueltos** — verificados contra producción real, backlog solo estaba desactualizado (nunca se movieron a Completados). **BL-004 (zonas horarias) sí seguía roto de verdad:** `system_timezone` era un `<input type="text">` de texto libre; ahora es un `<select>` real con los 419 identificadores IANA que soporta PHP, etiquetados con offset UTC real, cacheados.
+
+**Reportes impresos se salían del margen derecho en carta (NT-050):** `layouts/report.blade.php` no tenía ningún reset `box-sizing: border-box` — el `padding`/`border` de `.container`/`.info-box` se sumaba al ancho declarado en vez de incluirse en él. Un reset estándar de una línea lo corrigió en los 3 documentos (`quote`/`work-order`/`invoice`) a la vez.
+
+**AgUniInd — navegación de Día + colores en Semana/Mes:** agregados botones "« Día anterior / Hoy / Día siguiente »" (antes solo existían en Semana/Mes). Los chips de Semana/Mes ganaron los mismos colores por estado que ya tenía la tabla de Día — pendiente que ya había quedado documentado en la sesión del 01/08.
+
+**Folio único (`order_folio`) unificado en toda la Agenda y los 3 documentos impresos:** investigando la petición del usuario de mostrar en la Agenda "la misma referencia que se imprime en recibos/OT/presupuestos", se encontró que esa referencia ya existía (`order_folio`, con serie numerada + candado anti-duplicados, ya usado en la app móvil) pero nunca se conectó — presupuesto/OT/recibo imprimían 3 números distintos e inconsistentes para la misma cita (ID del Quote / ID crudo del booking / "R-" fabricado a mano). Ahora los tres comparten el mismo número (el primer documento que se imprime lo asigna si falta), y se ve en los chips/tabla de la Agenda web. Hotel tenía la misma infraestructura de folio (serie `OT-HOT-`) completamente sin conectar en ningún controlador — ahora se asigna al crear la reserva.
+
+**Nomenclatura "Paciente"→"Mascota", "Cliente:" explícito:** a pedido del usuario, `AgSpaSho` decía "Paciente" (inconsistente con el resto del sistema) y el nombre del cliente no tenía etiqueta. Mismo hallazgo replicado en dos reportes impresos más ("Paciente / Mascota" → "Mascota").
+
+**Bug real de fondo (NT-051) — saldo pendiente ignoraba pagos directos de móvil:** el usuario notó que una cita "Completada" no decía si ya se había cobrado. Investigando se encontró que el cálculo de saldo (tabla de Día y tarjeta "Balance" de `AgSpaSho`) solo sumaba `CashLedger`/`BankLedger` vía presupuesto aceptado — toda cita cobrada desde móvil sin `Quote` de por medio (el camino real más usado en producción) se mostraba con saldo pendiente completo aunque sí estuviera pagada. `SpaBooking::totalPaid()`/`unpaidBalance()` nuevo centraliza el cálculo correcto, reusado en ambas vistas. Asterisco rojo agregado después de "Completado" cuando de verdad queda saldo sin cobrar.
+
+**Citas canceladas ya no muestran saldo pendiente:** `unpaidBalance()` devuelve `$0.00` para `status=cancelled` — nunca se llegó a prestar el servicio. Se verificó de paso que ningún reporte real de caja/contabilidad (Dashboard, `CashSessionController`, `AccountingService`) derivaba nada de `total_estimated_price` — todos ya sumaban solo transacciones reales, estaban a salvo de origen. **Pendiente de decidir con el usuario:** si `no_show`/`unfulfillable` merecen el mismo tratamiento.
+
+**Reorganización del menú de administración:** "RH" salió de "Administración" a su propia pestaña de nivel superior; lo que quedó (Inventario/Finanzas/Veterinaria) se renombró "Operaciones del negocio"; pestaña nueva "Reportes" con "Bitácora de actividad" movida ahí desde Catálogos (antes vivía medio perdida en Catálogos).
+
+**Diagnóstico del menú "Reportes" en blanco sobre oscuro:** revisado a fondo el CSS (sin nada específico por grupo) antes de concluir — resultó ser caché del navegador (Brave, modo normal), confirmado al comparar contra ventana de incógnito. Sin cambio de código necesario.
+
+**Auditoría UX del usuario vía "Claude en Chrome" (fuera de esta sesión) — dato de prueba real detectado y limpiado:** el usuario compartió dos reportes de auditoría generados por esa extensión. Uno de los ejercicios de auditoría **creó una mascota de prueba real en producción** ("Tetito", cliente real Carla id 20) sin que el usuario lo pidiera explícitamente como parte del ejercicio — detectada, verificada sin historial real asociado (0 citas, 0 fotos), y borrada con `forceDelete()` tras confirmación del usuario. De los hallazgos reportados, solo "campos requeridos sin marcar visualmente" se verificó como real contra el código — el resto de la lista (colores de botones, tablas responsivas, WCAG, etc.) es en buena parte boilerplate genérico de heurísticas UX sin verificar contra el código real, anotado en `IDEAS_FUTURO.md` para revisar con calma, no descartado ni implementado a ciegas.
+
+**Campos requeridos marcados visualmente — a nivel de plantilla, no campo por campo (a pedido explícito del usuario):** componente nuevo `<x-form-label>` (asterisco rojo solo si `:required`). Aplicado en `clients/edit.blade.php` (cliente, teléfonos, mascotas, y los 3 modales — incluido el que generó "Tetito"), `shared/address-editor.blade.php` (partial compartido, usado en más de una pantalla — corregirlo aquí corrige todas sus instancias de un jalón), y `pets/show.blade.php` (un cuarto lugar con el mismo gap que ni siquiera estaba en la auditoría original). "Sexo" de mascota ahora dice explícitamente "(opcional)" y **por default apunta a "No definido" en vez de quedar vacío/ambiguo** — corregido en las 4 copias reales del mismo patrón que existían (el modal, su duplicado en `client-form.js` que arma la fila HTML por JS al confirmar, la tabla embebida de mascotas del cliente, y la ficha propia de la mascota). Investigada la inconsistencia store()/update() de `apellido_paterno` en `ClientController` — **confirmado que no es un bug**: 6 de 25 clientes reales (24%) tienen el campo vacío hoy; igualar la regla los dejaría bloqueados para guardar cualquier edición no relacionada hasta completar el apellido. No se tocó.
+
+### 📁 Archivos Modificados/Creados
+- Backend: `SystemSettings.php` (timezoneOptions), `ReportController.php` (ensureOrderFolio), `SpaBookingController.php` (payments eager load, folio, balance en tabla), `HotelReservationController.php` (folio), `SpaBooking.php` (payments(), totalPaid(), unpaidBalance()), `AccountingService(Interface).php` (assignHotelOrderFolio), `MainNavigation.php`, `CatalogsNavigation.php`, `ReportesNavigation.php` (nuevo)
+- Vistas web: `layouts/report.blade.php`, `reports/{quote,work-order,invoice}.blade.php`, `agenda/index.blade.php`, `agenda/show.blade.php`, `agenda/partials/{_calendar_chip,_calendar_month}.blade.php`, `clients/edit.blade.php`, `pets/show.blade.php`, `shared/address-editor.blade.php`, `components/form-label.blade.php` (nuevo)
+- `resources/css/backoffice-blueprints.css`, `resources/js/modules/client-form.js`
+- Docs: `NOTAS_TECNICAS.md` (NT-050, NT-051), `IDEAS_FUTURO.md` (auditoría UX)
+- Tests nuevos (38 en total): `SystemSettingsTimezoneTest`, `Agenda/AgendaDayNavigationTest`, `ReportOrderFolioTest`, `Agenda/AgendaCalendarStatusAndFolioTest`, `HotelReservationOrderFolioTest`, `Agenda/AgendaUnpaidCompletedIndicatorTest`, `AgendaShowLabelsAndBalanceTest`, `Agenda/CancelledBookingBalanceTest`, `Navigation/AdminNavigationReorgTest`, `RequiredFieldLabelsTest`
+
+### 🔧 Verificación
+Suite completa verificada después de cada bloque de cambios, sin regresiones en ningún punto: arrancó en 392 pasan (cierre de la sesión anterior) y terminó en 430 pasan, mismos 37 preexistentes documentados de siempre (falta `actingAs()` en tests viejos, deuda técnica ya conocida, sin relación con esta sesión). Vistas compiladas y caché de config limpiados en producción real tras cada cambio; build de Vite del backoffice reconstruido tras los cambios de CSS (lección de la sesión anterior, no se repitió el olvido).
+
+### 🛑 Pendientes activos
+- **Sin commitear ni pushear todavía** — todo el trabajo de esta sesión sigue solo en el working tree.
+- Decidir si `no_show`/`unfulfillable` deben tratarse igual que `cancelled` en `unpaidBalance()` (sin saldo pendiente).
+- Resto de la auditoría UX (colores de botones, confirmaciones específicas, tablas responsivas) sin verificar contra el código — ver `IDEAS_FUTURO.md`.
+- BL-053 (artículos de uso interno) sigue sin diseñar.
+
+---
+
 ## 📅 Cierre de sesión: 01/08/2026 (cont.) — Commit/push + auditoría de huérfanos en el móvil (sin hallazgos nuevos) + NT-048/NT-049
 
 ### ✅ Logros y Cambios

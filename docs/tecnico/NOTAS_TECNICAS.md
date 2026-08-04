@@ -31,6 +31,46 @@
 
 ---
 
+## NT-051 — El saldo pendiente de la Agenda solo veía pagos vía presupuesto aceptado, ignorando `Payment` directo — toda cita cobrada desde móvil sin Quote se veía como impaga
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-08-03 |
+| **Severidad** | P2 — Alto (dato financiero visible incorrecto en las pantallas operativas principales) |
+| **Componente** | `agenda/index.blade.php` (columna Total), `agenda/show.blade.php` (tarjeta Balance) |
+| **Impacto** | Cualquier cita cobrada desde la app móvil sin presupuesto (`Quote`) de por medio — el camino real más usado en producción — se mostraba con saldo pendiente completo aunque ya estuviera pagada |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:** el usuario preguntó por qué una cita "Completada" no decía si ya se había cobrado.
+
+**Causa raíz:** el cálculo de saldo en ambas vistas sumaba únicamente `CashLedger`/`BankLedger` ligados a un presupuesto aceptado (`$acceptedQuote->cashLedgers->sum('amount')`). El cobro desde la app móvil (`Api\PaymentController`) registra en `Payment` directo, sin pasar nunca por un `Quote` — el mismo patrón de bug ya corregido antes en `reports/invoice.blade.php` (27/07/2026), pero nunca replicado en la Agenda.
+
+**Solución definitiva:** `SpaBooking::totalPaid()`/`unpaidBalance()` — método único en el modelo que suma ambos caminos (ledger vía Quote + `Payment` directo), reutilizado en las dos vistas. También se agregó el guard `if ($this->status === 'cancelled') return 0.0` — una cita cancelada nunca se llegó a prestar, así que su `total_estimated_price` no es dinero pendiente real.
+
+**Lección:** cuando un cálculo de dinero se duplica a mano en más de una vista (ya iba en 4 lugares: `_billing_summary`, `reports/invoice`, `reports/work-order`, y ahora Agenda), cada copia nueva hereda el mismo riesgo de quedarse desincronizada la próxima vez que cambie la forma de cobrar. Centralizar en el modelo es más barato que seguir parchando cada aparición por separado (ver también `IDEAS_FUTURO.md`, ítem de unificar `BookingBillingSummary`).
+
+---
+
+## NT-050 — Los reportes impresos (recibo/OT/presupuesto) se salían del margen derecho al imprimir en carta — faltaba `box-sizing: border-box`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-08-03 |
+| **Severidad** | P3 — Medio (documento funcional pero mal recortado al imprimir) |
+| **Componente** | `layouts/report.blade.php` |
+| **Impacto** | Los 3 documentos impresos (`reports/quote`, `reports/work-order`, `reports/invoice`) se veían cortados por la derecha en tamaño carta |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:** el usuario reportó que los reportes no se ajustaban al tamaño de la página (carta), saliéndose por el margen derecho.
+
+**Causa raíz:** el CSS del layout no tenía ningún reset `box-sizing: border-box` en ningún lado — con el `box-sizing: content-box` por default del navegador, el `padding` y `border` de `.container` (en modo impresión, forzado a `width:100%` pero con su `padding:20px` original sin tocar) y de `.info-box` dentro del grid de 2 columnas se **sumaban** al ancho declarado en vez de quedar incluidos en él, empujando el contenido más allá del ancho real disponible dentro del `@page { margin: 1.5cm }`.
+
+**Solución definitiva:** `*, *::before, *::after { box-sizing: border-box; }` al inicio del `<style>` del layout — reset estándar, ausente en este archivo desde su creación.
+
+**Lección:** cualquier layout standalone que no herede de `layouts/app.blade.php` (que sí tiene el reset de Bootstrap) necesita su propio reset de `box-sizing` explícito — es fácil de omitir al escribir CSS desde cero y el síntoma (desborde en el lado que se suma según el modelo de caja) no es obvio a simple vista en el código.
+
+---
+
 ## NT-049 — Reprogramar una cita ya `work_order` era posible desde los endpoints (API móvil y web), aunque el dominio ya lo prohibía — causa real de citas "en proceso" con fecha a futuro
 
 | Campo | Valor |
