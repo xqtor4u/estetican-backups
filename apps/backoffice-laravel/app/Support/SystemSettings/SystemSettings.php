@@ -3,6 +3,8 @@
 namespace App\Support\SystemSettings;
 
 use App\Models\SystemSetting;
+use DateTime;
+use DateTimeZone;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Schema;
@@ -668,10 +670,11 @@ class SystemSettings
                 'fields' => [
                     'system_timezone' => [
                         'label' => 'Zona horaria',
-                        'type' => 'text',
+                        'type' => 'select',
                         'default' => 'America/Mexico_City',
                         'config' => 'backoffice.system.timezone',
                         'rules' => ['required', 'timezone'],
+                        'options' => $this->timezoneOptions(),
                     ],
                     'system_currency_code' => [
                         'label' => 'Moneda base',
@@ -819,5 +822,30 @@ class SystemSettings
         }
 
         return $options;
+    }
+
+    /**
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function timezoneOptions(): array
+    {
+        return Cache::rememberForever('backoffice.system-settings.timezone-options', function () {
+            $options = [];
+
+            foreach (DateTimeZone::listIdentifiers(DateTimeZone::ALL) as $identifier) {
+                $offset = (new DateTime('now', new DateTimeZone($identifier)))->format('P');
+                $readableName = str_replace('_', ' ', $identifier);
+
+                $options[] = [
+                    'value' => $identifier,
+                    'label' => "(UTC{$offset}) {$readableName}",
+                    'sort_offset' => $offset,
+                ];
+            }
+
+            usort($options, fn ($a, $b) => [$a['sort_offset'], $a['label']] <=> [$b['sort_offset'], $b['label']]);
+
+            return array_map(fn ($option) => ['value' => $option['value'], 'label' => $option['label']], $options);
+        });
     }
 }
