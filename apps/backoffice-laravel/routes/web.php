@@ -82,7 +82,7 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth', 'screen.lock'])->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index')->middleware('permission:ver dashboard');
 
     // PETS CRUD & Shortcuts
     Route::get('pets', [PetController::class, 'index'])->name('pets.index')->middleware('permission:ver mascotas');

@@ -47,6 +47,7 @@ class BaseRolesSeeder extends Seeder
 
         // Permisos granulares fuera del patrón CRUD básico
         $granularPermissions = [
+            'ver dashboard',
             'cobros.registrar',
             'caja.abrir',
             'caja.cerrar',

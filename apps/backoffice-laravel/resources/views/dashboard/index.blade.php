@@ -16,6 +16,7 @@
     </div>
 
     {{-- AGENDA HERO — corazón del sistema --}}
+    @can('ver agenda')
     <a href="{{ route('agenda.index') }}" class="agenda-hero-banner mb-4 d-block text-decoration-none">
         <div class="agenda-hero-inner">
             <div class="agenda-hero-left">
@@ -27,20 +28,24 @@
                         @if($spaCounts['work_order'] > 0)
                             &nbsp;·&nbsp; <span class="agenda-hero-badge">{{ $spaCounts['work_order'] }} en proceso</span>
                         @endif
-                        @if($hotelActive > 0)
-                            &nbsp;·&nbsp; {{ $hotelActive }} en hotel
-                        @endif
+                        @can('ver hotel')
+                            @if($hotelActive > 0)
+                                &nbsp;·&nbsp; {{ $hotelActive }} en hotel
+                            @endif
+                        @endcan
                     </div>
                 </div>
             </div>
             <div class="agenda-hero-arrow"><i class="bi bi-arrow-right-circle-fill"></i></div>
         </div>
     </a>
+    @endcan
 
     {{-- KPIs PRINCIPALES --}}
     <div class="row g-3 mb-4">
 
         {{-- Citas SPA hoy --}}
+        @can('ver agenda')
         <div class="col-6 col-md-3">
             <div class="kpi-card kpi-spa">
                 <div class="kpi-icon"><i class="bi bi-scissors"></i></div>
@@ -53,9 +58,11 @@
                 </div>
             </div>
         </div>
+        @endcan
 
         {{-- Hotel activo --}}
         @if($hotelModuleEnabled)
+            @can('ver hotel')
             <div class="col-6 col-md-3">
                 <div class="kpi-card kpi-hotel">
                     <div class="kpi-icon"><i class="bi bi-house-heart"></i></div>
@@ -66,9 +73,11 @@
                     </div>
                 </div>
             </div>
+            @endcan
         @endif
 
         {{-- Clientes --}}
+        @can('ver clientes')
         <div class="col-6 col-md-3">
             <div class="kpi-card kpi-clients">
                 <div class="kpi-icon"><i class="bi bi-people"></i></div>
@@ -79,8 +88,10 @@
                 </div>
             </div>
         </div>
+        @endcan
 
         {{-- Mascotas --}}
+        @can('ver mascotas')
         <div class="col-6 col-md-3">
             <div class="kpi-card kpi-pets">
                 <div class="kpi-icon"><i class="bi bi-heart"></i></div>
@@ -91,12 +102,14 @@
                 </div>
             </div>
         </div>
+        @endcan
 
     </div>
 
     <div class="row g-4">
 
         {{-- Próximas citas --}}
+        @can('ver agenda')
         <div class="col-lg-7">
             <div class="dashboard-card h-100">
                 <div class="dashboard-card-header">
@@ -141,11 +154,13 @@
                 </div>
             </div>
         </div>
+        @endcan
 
         {{-- Panel derecho: Ingresos + Accesos rápidos --}}
         <div class="col-lg-5">
 
             {{-- Ingresos del día --}}
+            @if(auth()->user()->is_super_admin)
             <div class="dashboard-card mb-4">
                 <div class="dashboard-card-header">
                     <h5 class="mb-0 fw-semibold"><i class="bi bi-cash-stack me-2 text-muted"></i>Ingresos hoy</h5>
@@ -168,6 +183,7 @@
                     </div>
                 </div>
             </div>
+            @endif
 
             {{-- Accesos rápidos --}}
             <div class="dashboard-card">
@@ -176,34 +192,44 @@
                 </div>
                 <div class="dashboard-card-body">
                     <div class="quick-links">
+                        @can('crear agenda')
                         <a href="{{ route('agenda.create') }}" class="quick-link-btn quick-link-spa">
                             <i class="bi bi-scissors"></i>
                             <span>Nueva cita SPA</span>
                         </a>
+                        @endcan
                         @if($hotelModuleEnabled)
+                            @can('crear hotel')
                             <a href="{{ route('hotel-reservations.create') }}" class="quick-link-btn quick-link-hotel">
                                 <i class="bi bi-house-heart"></i>
                                 <span>Nueva estancia Hotel</span>
                             </a>
+                            @endcan
                         @endif
+                        @can('crear clientes')
                         <a href="{{ route('clients.create') }}" class="quick-link-btn">
                             <i class="bi bi-person-plus"></i>
                             <span>Nuevo cliente</span>
                         </a>
+                        @endcan
+                        @can('ver catalogo_servicios')
                         <a href="{{ route('services.index') }}" class="quick-link-btn">
                             <i class="bi bi-grid"></i>
                             <span>Servicios</span>
                         </a>
+                        @endcan
+                        @can('ver operadores')
                         <a href="{{ route('operators.index') }}" class="quick-link-btn">
                             <i class="bi bi-person-badge"></i>
                             <span>Operadores</span>
                         </a>
-                        @can('admin')
+                        @endcan
+                        @if(auth()->user()->is_super_admin)
                         <a href="{{ route('system-settings.index') }}" class="quick-link-btn">
                             <i class="bi bi-gear"></i>
                             <span>Configuración</span>
                         </a>
-                        @endcan
+                        @endif
                     </div>
                 </div>
             </div>
