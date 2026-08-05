@@ -181,6 +181,7 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 | Cambios de código no se reflejan | Borrar vistas compiladas + `docker restart estetican_app` |
 | BD no conecta | `docker exec estetican_mysql mysqladmin ping -u root -p"$DB_ROOT_PASSWORD"` (exporta la variable primero, ver "Notas importantes") |
 | Loop de redirecciones en el dominio | Verificar que "Force SSL" esté **desactivado** en NPM para `app.estetican.org` |
+| Cambios a `mov_apps/operador/nginx.conf` no se reflejan tras editarlo | `docker restart estetican_mob` — **no** `nginx -s reload` ni `nginx -t` a secas. Es un bind-mount de archivo único; el reload puede reportar éxito pero seguir sirviendo el contenido viejo (ver NT-052) |
 
 ---
 

@@ -118,5 +118,11 @@ El usuario corrió dos auditorías de UX del backoffice usando la extensión Cla
 - [ ] **Modal no responsive en móvil** — el backoffice web no está pensado mobile-first (la app móvil real es `mob_apps/operador`), así que este punto puede no aplicar/no valer la pena si nadie administra desde el celular.
 - ⚠️ **Advertencia real detectada durante esta sesión, no del reporte:** una de estas auditorías creó una mascota de prueba real en producción ("Tetito", cliente Carla id 20) sin que el usuario lo pidiera explícitamente como parte del ejercicio — se detectó y se borró (`forceDelete`, sin historial real asociado). Cualquier auditoría futura con acceso de escritura al navegador conectado a producción real debería confirmarse antes de dejarla actuar libremente, no solo de lectura.
 
+## 🛡️ Test automático de cobertura de autorización (idea surgida 04-05/08/2026, ver NT-053, regla 3 de "Seguridad" en CLAUDE.md)
+
+La auditoría de IDOR/privesc de esta sesión encontró que casi todas las rutas de negocio en `api.php`/`web.php` llevaban meses sin `permission:`/`role:` real — los permisos ya existían en el sistema, simplemente nunca se conectaron. La regla 3 nueva en `CLAUDE.md` pide auditar esto a mano al cerrar cualquier sesión que toque rutas, y NT-053 documenta que ni siquiera gatear un `Route::resource()` completo garantiza cubrir sus rutas satélite (duplicar, fotos, cancelar). Ambas son correcciones de proceso humano, no una barrera automática — el mismo hueco puede volver a abrirse la próxima vez que alguien agregue una ruta nueva y se le olvide.
+
+- [ ] **Test de Feature que liste todas las rutas de negocio registradas y falle si alguna no lleva `permission:`/`role:`/`auth` (o no está en una allowlist explícita de rutas intencionalmente públicas).** Convertiría la regla 3 de "recordar hacerlo a mano" a "el CI lo bloquea si se olvida" — el mismo espíritu que ya se usa en otras partes del proyecto (ej. el assert de "sin `onclick=` inline" que dejó BL-068). Requiere decidir primero qué constituye "ruta de negocio" de forma programática (¿por prefijo de URL? ¿por controller namespace?) sin falsos positivos contra rutas legítimamente públicas (`login`, `preferencias/{client}` firmada, el widget del asistente).
+
 ---
 *Si una idea nace en la Bitácora pero no se puede ejecutar hoy, se mueve aquí.*
