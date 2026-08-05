@@ -54,6 +54,9 @@ No trabajar en ítems que no estén en el backlog activo.
 - Siempre borrar vistas compiladas Blade después de `git pull` en producción (ver NT-005 y checklist de deploy).
 - Alpine.js requiere `unsafe-eval` en CSP (ver NT-006).
 
+**Convenciones de commit — este repo:**
+- NO incluir las líneas `Co-Authored-By: Claude...` ni `Claude-Session: ...` en los mensajes de commit. Repo privado sin colaboradores externos, el usuario no necesita ese metadato (pedido explícito 05/08/2026). Aplica a todos los commits de Claude Code en este repositorio, de aquí en adelante.
+
 **Seguridad — reglas obligatorias:**
 1. Toda ruta nueva en `routes/api.php` o `routes/web.php` que exponga o modifique datos de negocio (clientes, mascotas, agenda, pagos, operadores, sucursales, servicios, hotel) DEBE llevar middleware `permission:` desde el momento en que se crea — no "se agrega después". Por defecto cerrado, no por defecto abierto.
 2. Si un endpoint recibe un `{id}` en la URL, el controller debe filtrar por dueño/scope (ej. `$request->user()->clients()->findOrFail($id)`), nunca `Model::findOrFail($id)` sin scope — salvo que el rol ya esté gateado por `permission:` a nivel de ruta y el dato sea legítimamente visible para cualquiera con ese permiso.
