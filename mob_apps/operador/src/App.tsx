@@ -22,6 +22,7 @@ import { MobUserConfig } from './admin/MobUserConfig';
 import { MobUnavailability } from './admin/MobUnavailability';
 import { MobCaja }             from './admin/MobCaja';
 import { MobCajaMovimientos } from './admin/MobCajaMovimientos';
+import { ItemSearch } from './admin/ItemSearch';
 import { clearNavCrumbs } from './navState';
 
 /* ═══════════════════════════════════════════════════════════
@@ -41,6 +42,12 @@ export const MENU_SECTIONS = [
     title: 'Finanzas',
     items: [
       { to: '/caja', icon: 'point_of_sale', label: 'Caja' },
+    ],
+  },
+  {
+    title: 'Catálogo',
+    items: [
+      { to: '/articulos', icon: 'inventory_2', label: 'Artículos' },
     ],
   },
 ];
@@ -418,6 +425,7 @@ export default function App() {
             <Route path="/caja/movimientos"    element={<AdminLayout><MobCajaMovimientos /></AdminLayout>} />
             <Route path="/configuracion"        element={<AdminLayout><MobUserConfig /></AdminLayout>} />
             <Route path="/configuracion/disponibilidad" element={<AdminLayout><MobUnavailability /></AdminLayout>} />
+            <Route path="/articulos"            element={<AdminLayout><ItemSearch /></AdminLayout>} />
           </Routes>
         </AuthGuard>
       </Router>

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\BookingProcessNoteController;
 use App\Http\Controllers\Api\CashController;
 use App\Http\Controllers\Api\CheckinController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PetController;
@@ -69,6 +70,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::get('/branches', [OperatorController::class, 'branches'])->middleware('permission:ver sucursales');
 
     Route::get('/services', [ServiceController::class, 'index'])->middleware('permission:ver catalogo_servicios');
+    Route::get('/items', [ItemController::class, 'index'])->middleware(['store.module', 'permission:ver catalogo_articulos']);
     Route::post('/bookings', [BookingController::class, 'store'])->middleware('permission:crear agenda');
     Route::get('/bookings/{booking}', [BookingController::class,  'show'])->middleware('permission:ver agenda');
     Route::patch('/bookings/{booking}', [BookingController::class,  'update'])->middleware('permission:editar agenda');
