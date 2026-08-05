@@ -4,24 +4,17 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class ScreenLockTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function user(array $overrides = []): User
     {
-        return User::create(array_merge([
-            'name' => 'Screen Lock Test',
-            'first_name' => 'Screen',
-            'apellido_paterno' => 'Lock',
-            'email' => 'screen-lock-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ], $overrides));
+        return $this->createAdminUser($overrides);
     }
 
     public function test_manual_lock_stores_flag_and_return_path_and_redirects_to_lock_screen(): void

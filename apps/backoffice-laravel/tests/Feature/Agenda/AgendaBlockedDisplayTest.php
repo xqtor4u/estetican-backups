@@ -6,22 +6,17 @@ use App\Models\Operator;
 use App\Models\OperatorUnavailability;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class AgendaBlockedDisplayTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-agenda-blocked-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-        ]);
+        return $this->createAdminUser();
     }
 
     private function operator(string $name = 'Jose'): Operator

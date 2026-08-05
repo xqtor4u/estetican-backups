@@ -14,6 +14,7 @@ use App\Models\SpaBooking;
 use App\Models\SpaBookingItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
@@ -24,18 +25,11 @@ use Tests\TestCase;
 class BookingStockConsumptionTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-stock-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser(['email' => 'admin-stock-test-'.uniqid().'@example.com']);
     }
 
     private function apiHeaders(): array

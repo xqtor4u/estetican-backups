@@ -7,6 +7,7 @@ use App\Support\Navigation\MainNavigation;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
@@ -18,20 +19,11 @@ use Tests\TestCase;
 class AdminNavigationReorgTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function superAdmin(): User
     {
-        return User::create([
-            'name' => 'Nav Test',
-            'first_name' => 'Nav',
-            'apellido_paterno' => 'Test',
-            'email' => 'nav-reorg-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-            'is_super_admin' => true,
-        ]);
+        return $this->createAdminUser(['is_super_admin' => true]);
     }
 
     private function groupLabels(): \Illuminate\Support\Collection

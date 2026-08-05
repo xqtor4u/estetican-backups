@@ -8,24 +8,17 @@ use App\Models\SpaBooking;
 use App\Models\User;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class PetDeactivateTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-pet-deactivate-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser();
     }
 
     private function pet(): Pet

@@ -10,22 +10,17 @@ use App\Models\SpaBooking;
 use App\Models\User;
 use App\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class BookingMessageCalendarTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-bandeja-calendar-test@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-        ]);
+        return $this->createAdminUser();
     }
 
     private function petAndService(): array

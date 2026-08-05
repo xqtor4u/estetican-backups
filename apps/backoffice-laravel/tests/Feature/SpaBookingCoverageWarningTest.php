@@ -10,22 +10,17 @@ use App\Models\Service;
 use App\Models\User;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class SpaBookingCoverageWarningTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-coverage-test@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-        ]);
+        return $this->createAdminUser();
     }
 
     private function branch(): void

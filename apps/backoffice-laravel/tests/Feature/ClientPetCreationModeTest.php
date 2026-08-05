@@ -5,24 +5,17 @@ namespace Tests\Feature;
 use App\Models\Client;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class ClientPetCreationModeTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-pet-creation-mode-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser();
     }
 
     public function test_index_in_pet_creation_mode_shows_add_pet_action_instead_of_ver_editar(): void

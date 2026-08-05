@@ -10,6 +10,7 @@ use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
@@ -22,19 +23,11 @@ use Tests\TestCase;
 class AgendaShowLabelsAndBalanceTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-agenda-show-labels-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser();
     }
 
     private function booking(float $price = 400): SpaBooking

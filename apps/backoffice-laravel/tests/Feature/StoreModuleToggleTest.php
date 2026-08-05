@@ -14,24 +14,17 @@ use App\Support\Navigation\MainNavigation;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class StoreModuleToggleTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Store Module Test',
-            'first_name' => 'Store',
-            'apellido_paterno' => 'Test',
-            'email' => 'store-module-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser();
     }
 
     private function booking(): SpaBooking

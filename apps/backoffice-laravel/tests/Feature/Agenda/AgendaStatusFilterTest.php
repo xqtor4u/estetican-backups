@@ -8,22 +8,17 @@ use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class AgendaStatusFilterTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-agenda-status-test@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-        ]);
+        return $this->createAdminUser();
     }
 
     private function bookingWithStatus(string $status): SpaBooking

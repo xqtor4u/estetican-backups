@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Client;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
@@ -19,19 +20,11 @@ use Tests\TestCase;
 class RequiredFieldLabelsTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-required-labels-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser();
     }
 
     public function test_client_edit_page_marks_required_and_optional_fields_distinctly(): void

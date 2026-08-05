@@ -10,24 +10,17 @@ use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class AssignProfessionalTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Assign Professional Test',
-            'first_name' => 'Assign',
-            'apellido_paterno' => 'Test',
-            'email' => 'assign-professional-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser();
     }
 
     private function bookingWithServiceLine(float $price = 1000): array

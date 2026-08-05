@@ -11,6 +11,7 @@ use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
@@ -22,18 +23,11 @@ use Tests\TestCase;
 class BookingServiceAssignmentTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function apiHeaders(): array
     {
-        $user = User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-svc-assign-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        $user = $this->createAdminUser(['email' => 'admin-svc-assign-test-'.uniqid().'@example.com']);
         $plainToken = 'test-token-'.uniqid();
         ApiToken::create([
             'user_id' => $user->id,

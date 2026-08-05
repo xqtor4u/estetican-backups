@@ -8,24 +8,17 @@ use App\Models\Pet;
 use App\Models\User;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class HotelModuleToggleTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Hotel Module Test',
-            'first_name' => 'Hotel',
-            'apellido_paterno' => 'Test',
-            'email' => 'hotel-module-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser();
     }
 
     private function activeReservation(): HotelReservation

@@ -6,33 +6,17 @@ use App\Models\ApiToken;
 use App\Models\Operator;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class AgendaUnavailabilitiesTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function authHeader(): array
     {
-        $user = User::create([
-            'name' => 'Operador Test',
-            'first_name' => 'Operador',
-            'apellido_paterno' => 'Test',
-            'email' => 'agenda-unavailabilities-test@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
-
-        $plainToken = 'test-token-'.uniqid();
-        ApiToken::create([
-            'user_id' => $user->id,
-            'token' => hash('sha256', $plainToken),
-            'name' => 'test',
-        ]);
-
-        return ['Authorization' => "Bearer {$plainToken}"];
+        return $this->createAdminAuthHeader();
     }
 
     private function operator(string $name = 'Jose'): Operator

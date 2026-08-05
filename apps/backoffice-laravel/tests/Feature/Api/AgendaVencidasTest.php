@@ -10,33 +10,17 @@ use App\Models\SpaBooking;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class AgendaVencidasTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function authHeader(): array
     {
-        $user = User::create([
-            'name' => 'Operador Vencidas',
-            'first_name' => 'Operador',
-            'apellido_paterno' => 'Vencidas',
-            'email' => 'operador-vencidas-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
-
-        $plainToken = 'test-token-'.uniqid();
-        ApiToken::create([
-            'user_id' => $user->id,
-            'token' => hash('sha256', $plainToken),
-            'name' => 'test',
-        ]);
-
-        return ['Authorization' => "Bearer {$plainToken}"];
+        return $this->createAdminAuthHeader();
     }
 
     private function booking(string $status, Carbon $scheduledAt, ?int $durationMinutes = 30): SpaBooking

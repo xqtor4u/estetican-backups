@@ -10,33 +10,17 @@ use App\Models\Pet;
 use App\Models\User;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class BookingCoverageWarningTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function authHeader(): array
     {
-        $user = User::create([
-            'name' => 'Operador Test',
-            'first_name' => 'Operador',
-            'apellido_paterno' => 'Test',
-            'email' => 'operador-coverage-test@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
-
-        $plainToken = 'test-token-'.uniqid();
-        ApiToken::create([
-            'user_id' => $user->id,
-            'token' => hash('sha256', $plainToken),
-            'name' => 'test',
-        ]);
-
-        return ['Authorization' => "Bearer {$plainToken}"];
+        return $this->createAdminAuthHeader();
     }
 
     private function branch(): void

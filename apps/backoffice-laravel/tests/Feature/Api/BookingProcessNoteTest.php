@@ -9,33 +9,19 @@ use App\Models\Pet;
 use App\Models\SpaBooking;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class BookingProcessNoteTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function authHeaderAndUser(): array
     {
-        $user = User::create([
-            'name' => 'Operador Notas',
-            'first_name' => 'Operador',
-            'apellido_paterno' => 'Notas',
-            'email' => 'operador-notas-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        $user = $this->createAdminUser();
 
-        $plainToken = 'test-token-'.uniqid();
-        ApiToken::create([
-            'user_id' => $user->id,
-            'token' => hash('sha256', $plainToken),
-            'name' => 'test',
-        ]);
-
-        return ['headers' => ['Authorization' => "Bearer {$plainToken}"], 'user' => $user];
+        return ['headers' => $this->createAdminAuthHeader($user), 'user' => $user];
     }
 
     private function booking(string $status = 'work_order'): SpaBooking

@@ -12,22 +12,17 @@ use App\Models\User;
 use App\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class BookingMessageFlowTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-whatsapp-test@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-        ]);
+        return $this->createAdminUser();
     }
 
     public function test_bandeja_and_plantillas_pages_render_for_an_admin(): void

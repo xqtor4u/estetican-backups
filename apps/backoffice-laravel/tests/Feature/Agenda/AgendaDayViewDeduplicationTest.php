@@ -10,6 +10,7 @@ use App\Models\SpaBooking;
 use App\Models\User;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
@@ -20,17 +21,11 @@ use Tests\TestCase;
 class AgendaDayViewDeduplicationTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-agenda-dedup-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-        ]);
+        return $this->createAdminUser();
     }
 
     public function test_a_spa_booking_appears_in_the_table_but_not_in_the_timeline_cards(): void

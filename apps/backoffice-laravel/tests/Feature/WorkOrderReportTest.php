@@ -10,24 +10,17 @@ use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class WorkOrderReportTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Orden',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Orden',
-            'email' => 'admin-orden-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser();
     }
 
     private function bookingWithoutQuote(): SpaBooking

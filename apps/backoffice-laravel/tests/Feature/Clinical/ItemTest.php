@@ -10,29 +10,17 @@ use App\Models\User;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class ItemTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        Permission::firstOrCreate(['name' => 'alergias.administrar', 'guard_name' => 'web']);
-        Permission::firstOrCreate(['name' => 'crear catalogo_articulos', 'guard_name' => 'web']);
-        $user = User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-item-test@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
-        $user->givePermissionTo(['alergias.administrar', 'crear catalogo_articulos']);
-
-        return $user;
+        return $this->createAdminUser();
     }
 
     private function pet(): Pet

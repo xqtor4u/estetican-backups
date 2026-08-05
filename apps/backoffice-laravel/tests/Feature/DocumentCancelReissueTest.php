@@ -45,7 +45,7 @@ class DocumentCancelReissueTest extends TestCase
 
     private function operator(): User
     {
-        return User::create([
+        $user = User::create([
             'name' => 'Groomer Test',
             'first_name' => 'Groomer',
             'apellido_paterno' => 'Test',
@@ -54,6 +54,11 @@ class DocumentCancelReissueTest extends TestCase
             'is_active' => true,
             'can_login' => true,
         ]);
+        // Ve la agenda pero deliberadamente NO tiene asientos.aprobar — es justo
+        // lo que este archivo prueba (sección de recibos oculta sin ese permiso).
+        $user->givePermissionTo(Permission::findOrCreate('ver agenda', 'web'));
+
+        return $user;
     }
 
     private function documentWithBooking(float $price = 500): array
@@ -199,6 +204,7 @@ class DocumentCancelReissueTest extends TestCase
 
         $admin = $this->admin();
         $admin->givePermissionTo(Permission::findOrCreate('asientos.aprobar', 'web'));
+        $admin->givePermissionTo(Permission::findOrCreate('ver agenda', 'web'));
 
         $response = $this->actingAs($admin)->get(route('agenda.show', $booking));
 

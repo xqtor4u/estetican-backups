@@ -8,6 +8,7 @@ use App\Models\HotelReservation;
 use App\Models\Pet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
@@ -18,19 +19,11 @@ use Tests\TestCase;
 class HotelReservationOrderFolioTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Hotel',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Hotel',
-            'email' => 'admin-hotel-folio-test-'.uniqid().'@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-            'is_active' => true,
-            'can_login' => true,
-        ]);
+        return $this->createAdminUser();
     }
 
     public function test_creating_a_hotel_reservation_assigns_an_order_folio(): void

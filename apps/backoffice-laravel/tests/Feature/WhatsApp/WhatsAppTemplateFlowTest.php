@@ -5,22 +5,17 @@ namespace Tests\Feature\WhatsApp;
 use App\Models\User;
 use App\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class WhatsAppTemplateFlowTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesAdminUser;
 
     private function admin(): User
     {
-        return User::create([
-            'name' => 'Admin Test',
-            'first_name' => 'Admin',
-            'apellido_paterno' => 'Test',
-            'email' => 'admin-whatsapp-template-test@example.com',
-            'password' => bcrypt('secret'),
-            'role' => 'admin',
-        ]);
+        return $this->createAdminUser();
     }
 
     public function test_creating_a_template_via_json_returns_the_created_template_without_redirect(): void
