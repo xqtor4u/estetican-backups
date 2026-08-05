@@ -6,6 +6,7 @@ use App\Models\GroupComponent;
 use App\Models\OperatorRole;
 use App\Models\Service;
 use App\Support\CatalogCache\OperatorRoleCatalogCache;
+use App\Support\Search\TokenSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -46,16 +47,9 @@ class ServiceController extends Controller
             ->orderByDesc('is_active');
 
         if ($search !== '') {
-            $services->where(function ($query) use ($search) {
-                $query->where('code', 'like', "%{$search}%")
-                    ->orWhere('name', 'like', "%{$search}%")
-                    ->orWhere('type', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhereHas('operatorRole', function ($roleQuery) use ($search) {
-                        $roleQuery->where('name', 'like', "%{$search}%")
-                            ->orWhere('code', 'like', "%{$search}%");
-                    });
-            });
+            TokenSearch::apply($services, $search, [
+                'code', 'name', 'type', 'description', 'operatorRole.name', 'operatorRole.code',
+            ]);
         }
 
         if ($status === 'active') {

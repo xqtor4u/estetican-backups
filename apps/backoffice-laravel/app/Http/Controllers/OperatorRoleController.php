@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\OperatorRole;
+use App\Support\Search\TokenSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -30,11 +31,7 @@ class OperatorRoleController extends Controller
             ->withCount('assignments');
 
         if ($search !== '') {
-            $operatorRoles->where(function ($query) use ($search) {
-                $query->where('code', 'like', "%{$search}%")
-                    ->orWhere('name', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
-            });
+            TokenSearch::apply($operatorRoles, $search, ['code', 'name', 'description']);
         }
 
         if ($status === 'active') {

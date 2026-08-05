@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\Request;
 
@@ -45,23 +46,11 @@ class ClientController extends Controller
             ]);
 
         if ($search !== '') {
-            $clients->where(function ($query) use ($search) {
-                $query->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('apellido_paterno', 'like', "%{$search}%")
-                    ->orWhere('apellido_materno', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhereHas('phones', function ($phoneQuery) use ($search) {
-                        $phoneQuery->where('number', 'like', "%{$search}%");
-                    })
-                    ->orWhereHas('pets', function ($petQuery) use ($search) {
-                        $petQuery->whereNull('death_date')
-                            ->where(function ($nestedPetQuery) use ($search) {
-                                $nestedPetQuery->where('name', 'like', "%{$search}%")
-                                    ->orWhere('breed', 'like', "%{$search}%")
-                                    ->orWhere('species', 'like', "%{$search}%");
-                            });
-                    });
-            });
+            TokenSearch::apply($clients, $search, [
+                'first_name', 'apellido_paterno', 'apellido_materno', 'email',
+                'phones.number',
+                'livePets.name', 'livePets.breed', 'livePets.species',
+            ]);
         }
 
         if ($petsFilter === 'with_pets') {

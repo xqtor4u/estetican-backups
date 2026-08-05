@@ -7,6 +7,7 @@ use App\Models\Operator;
 use App\Models\OperatorCompensationProfile;
 use App\Models\OperatorRole;
 use App\Support\OperatorPhotoImageManager;
+use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\BusinessHours;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Support\Facades\DB;
@@ -45,22 +46,11 @@ class OperatorController extends Controller
             ->withCount('executedServices');
 
         if ($search !== '') {
-            $operators->where(function ($query) use ($search) {
-                $query->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('apellido_paterno', 'like', "%{$search}%")
-                    ->orWhere('apellido_materno', 'like', "%{$search}%")
-                    ->orWhere('name', 'like', "%{$search}%")
-                    ->orWhere('code', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%")
-                    ->orWhereHas('roles', function ($roleQuery) use ($search) {
-                        $roleQuery->where('name', 'like', "%{$search}%")
-                            ->orWhere('code', 'like', "%{$search}%");
-                    })
-                    ->orWhereHas('branches', function ($branchQuery) use ($search) {
-                        $branchQuery->where('name', 'like', "%{$search}%")
-                            ->orWhere('code', 'like', "%{$search}%");
-                    });
-            });
+            TokenSearch::apply($operators, $search, [
+                'first_name', 'apellido_paterno', 'apellido_materno', 'name', 'code', 'phone',
+                'roles.name', 'roles.code',
+                'branches.name', 'branches.code',
+            ]);
         }
 
         if ($status === 'active') {

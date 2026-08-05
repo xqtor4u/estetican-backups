@@ -6,6 +6,7 @@ use App\Models\Group;
 use App\Models\Item;
 use App\Models\Service;
 use App\Support\Pages\GroupsPage;
+use App\Support\Search\TokenSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -29,7 +30,7 @@ class GroupController extends Controller
         $groups = Group::query()->withCount('components');
 
         if ($search !== '') {
-            $groups->where('name', 'like', "%{$search}%");
+            TokenSearch::apply($groups, $search, ['name']);
         }
 
         if ($status === 'active') {

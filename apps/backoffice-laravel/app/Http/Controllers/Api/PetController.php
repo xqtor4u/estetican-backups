@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Pet;
 use App\Support\PetPhotoImageManager;
+use App\Support\Search\TokenSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -154,13 +155,10 @@ class PetController extends Controller
             ->orderBy('name');
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('breed', 'like', "%{$search}%")
-                  ->orWhereHas('client', fn ($q) => $q->where('first_name', 'like', "%{$search}%")
-                                                       ->orWhere('apellido_paterno', 'like', "%{$search}%")
-                                                       ->orWhere('apellido_materno', 'like', "%{$search}%"));
-            });
+            TokenSearch::apply($query, $search, [
+                'name', 'breed', 'species',
+                'client.first_name', 'client.apellido_paterno', 'client.apellido_materno', 'client.email',
+            ]);
         }
 
         return $query->get()->map(fn (Pet $pet) => [

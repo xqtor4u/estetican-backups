@@ -24,6 +24,7 @@ use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
 use App\Support\Geo\CoverageChecker;
 use App\Support\Pages\AgendaPage;
+use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\BusinessHours;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\JsonResponse;
@@ -229,15 +230,9 @@ class SpaBookingController extends Controller
         }
 
         if ($search !== '') {
-            $query->whereHas('pet', function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhereHas('client', function ($q2) use ($search) {
-                        $q2->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('apellido_paterno', 'like', "%{$search}%")
-                            ->orWhere('apellido_materno', 'like', "%{$search}%")
-                            ->orWhereRaw("CONCAT(first_name, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
-                    });
-            });
+            TokenSearch::apply($query, $search, [
+                'pet.name', 'pet.client.first_name', 'pet.client.apellido_paterno', 'pet.client.apellido_materno',
+            ]);
         }
     }
 
@@ -315,15 +310,9 @@ class SpaBookingController extends Controller
                 ->with('pet.client');
 
             if ($search !== '') {
-                $hotelQuery->whereHas('pet', function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                        ->orWhereHas('client', function ($q2) use ($search) {
-                            $q2->where('first_name', 'like', "%{$search}%")
-                                ->orWhere('apellido_paterno', 'like', "%{$search}%")
-                                ->orWhere('apellido_materno', 'like', "%{$search}%")
-                                ->orWhereRaw("CONCAT(first_name, ' ', apellido_paterno, ' ', apellido_materno) LIKE ?", ["%{$search}%"]);
-                        });
-                });
+                TokenSearch::apply($hotelQuery, $search, [
+                    'pet.name', 'pet.client.first_name', 'pet.client.apellido_paterno', 'pet.client.apellido_materno',
+                ]);
             }
 
             $hotelReservations = $hotelQuery->get()->map(function ($h) {

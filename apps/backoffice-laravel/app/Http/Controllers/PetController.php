@@ -8,6 +8,7 @@ use App\Models\Pet;
 use App\Models\SpaBooking;
 use App\Support\CatalogCache\PetCatalogCache;
 use App\Support\PetPhotoImageManager;
+use App\Support\Search\TokenSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -63,17 +64,10 @@ class PetController extends Controller
             ->visible();
 
         if ($search !== '') {
-            $pets->where(function ($query) use ($search) {
-                $query->where('pets.name', 'like', "%{$search}%")
-                    ->orWhere('pets.breed', 'like', "%{$search}%")
-                    ->orWhere('pets.species', 'like', "%{$search}%")
-                    ->orWhereHas('client', function ($clientQuery) use ($search) {
-                        $clientQuery->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('apellido_paterno', 'like', "%{$search}%")
-                            ->orWhere('apellido_materno', 'like', "%{$search}%")
-                            ->orWhere('email', 'like', "%{$search}%");
-                    });
-            });
+            TokenSearch::apply($pets, $search, [
+                'name', 'breed', 'species',
+                'client.first_name', 'client.apellido_paterno', 'client.apellido_materno', 'client.email',
+            ]);
         }
 
         if ($species !== '') {

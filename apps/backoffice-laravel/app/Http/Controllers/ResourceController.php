@@ -8,6 +8,7 @@ use App\Models\Pet;
 use App\Models\Resource;
 use App\Models\Service;
 use App\Models\User;
+use App\Support\Search\TokenSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -44,15 +45,7 @@ class ResourceController extends Controller
             ->withCount('allocations');
 
         if ($search !== '') {
-            $resources->where(function ($query) use ($search) {
-                $query->where('code', 'like', "%{$search}%")
-                    ->orWhere('name', 'like', "%{$search}%")
-                    ->orWhere('capacity_label', 'like', "%{$search}%")
-                    ->orWhereHas('branch', function ($branchQuery) use ($search) {
-                        $branchQuery->where('name', 'like', "%{$search}%")
-                            ->orWhere('code', 'like', "%{$search}%");
-                    });
-            });
+            TokenSearch::apply($resources, $search, ['code', 'name', 'capacity_label', 'branch.name', 'branch.code']);
         }
 
         if ($administrativeStatus !== 'all') {

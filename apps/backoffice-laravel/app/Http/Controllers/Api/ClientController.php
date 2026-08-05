@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Phone;
+use App\Support\Search\TokenSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -15,12 +16,9 @@ class ClientController extends Controller
         $query = Client::orderBy('first_name');
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('apellido_paterno', 'like', "%{$search}%")
-                  ->orWhere('apellido_materno', 'like', "%{$search}%")
-                  ->orWhereHas('phones',  fn ($q) => $q->where('number', 'like', "%{$search}%"));
-            });
+            TokenSearch::apply($query, $search, [
+                'first_name', 'apellido_paterno', 'apellido_materno', 'email', 'phones.number',
+            ]);
         }
 
         return $query->with('phones')->get()->map(fn (Client $c) => [

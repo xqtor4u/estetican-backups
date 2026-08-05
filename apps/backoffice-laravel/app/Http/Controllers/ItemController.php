@@ -7,6 +7,7 @@ use App\Models\GroupComponent;
 use App\Models\Item;
 use App\Support\ItemPhotoImageManager;
 use App\Support\Pages\ItemsPage;
+use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,12 +43,7 @@ class ItemController extends Controller
         $items = Item::query()->withCount('vaccinations');
 
         if ($search !== '') {
-            $items->where(function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('department', 'like', "%{$search}%")
-                    ->orWhere('brand', 'like', "%{$search}%")
-                    ->orWhere('presentation', 'like', "%{$search}%");
-            });
+            TokenSearch::apply($items, $search, ['name', 'department', 'brand', 'presentation']);
         }
 
         if ($status === 'active') {

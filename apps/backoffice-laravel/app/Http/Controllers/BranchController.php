@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Support\Search\TokenSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -30,14 +31,7 @@ class BranchController extends Controller
             ->withCount('operatorAssignments');
 
         if ($search !== '') {
-            $branches->where(function ($query) use ($search) {
-                $query->where('code', 'like', "%{$search}%")
-                    ->orWhere('name', 'like', "%{$search}%")
-                    ->orWhere('street', 'like', "%{$search}%")
-                    ->orWhere('colonia', 'like', "%{$search}%")
-                    ->orWhere('city', 'like', "%{$search}%")
-                    ->orWhere('state', 'like', "%{$search}%");
-            });
+            TokenSearch::apply($branches, $search, ['code', 'name', 'street', 'colonia', 'city', 'state']);
         }
 
         if ($status === 'active') {

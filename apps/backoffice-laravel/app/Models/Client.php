@@ -53,6 +53,11 @@ class Client extends Model
         return $this->hasMany(Pet::class);
     }
 
+    public function livePets()
+    {
+        return $this->pets()->whereNull('death_date');
+    }
+
     public function primaryPetPhotos()
     {
         return $this->hasManyThrough(PetPhoto::class, Pet::class)->where('pet_photos.is_primary', true);
