@@ -1,5 +1,40 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 05/08/2026 — Dashboard gateado por permisos (BL-077), bug de @can('admin') corregido, convención de commit sin trailers
+
+### ✅ Logros y Cambios
+
+Sesión de cierre de BL-077, el pendiente que había quedado diferido a propósito en la auditoría IDOR del 04-05/08/2026 (el dashboard mezclaba KPIs de varios módulos de negocio en una sola pantalla sin permiso propio).
+
+**Diagnóstico antes de diseñar nada:** se inventarió `DashboardController`/`dashboard/index.blade.php` widget por widget contra su módulo real (banner Agenda mezclaba SPA+Hotel en el mismo componente, 4 KPIs, "Próximas citas", "Ingresos hoy" de `CashLedger`/`BankLedger` sin scope de sucursal, 6 "Accesos rápidos" sin ningún gate salvo uno roto) y se verificó contra la BD real quiénes son los usuarios activos: los 4 logins reales (Admin/arantxa/tomasmg/tester) son admin completo — hoy nadie pierde nada con ningún diseño — pero el sistema ya tiene la infraestructura para el caso de un login de bajo perfil (`users.can_login=false` en un operador sin rol Spatie, rol `veterinario` creado y sin asignar a nadie).
+
+**Diseño elegido con el usuario (opción híbrida):** permiso nuevo `ver dashboard` (granular, no CRUD completo) en la ruta — agregado a `BaseRolesSeeder`, sincronizado al rol `admin`, corrido en producción real. Cada widget envuelto con el permiso de su módulo real ya existente en el resto del sistema: `ver agenda` (banner + próximas citas), `ver hotel` (anidado dentro del segmento de hotel del banner y su propio KPI), `ver clientes`, `ver mascotas`. Accesos rápidos gateados 1:1 con el permiso que ya exige su ruta destino (`crear agenda`/`crear hotel`/`crear clientes`/`ver catalogo_servicios`/`ver operadores`).
+
+**Bug real preexistente encontrado y corregido de paso:** `@can('admin')` en el link "Configuración" no correspondía a ningún permiso Spatie real — verificado en tinker que `Permission::where('name','admin')->exists()` es `false` y que el admin real `can('admin')` daba `false` — es decir, ese link llevaba oculto para **todos**, incluidos los 4 admins reales, desde siempre. Corregido a `auth()->user()->is_super_admin`, el accessor real que ya usa el resto del proyecto (`main-navigation.blade.php`). Se usó el mismo criterio para gatear "Ingresos hoy" (sin permiso "ver" propio — los de finanzas existentes son todos de acción: `cobros.registrar`/`caja.abrir`/`caja.cerrar`/`asientos.aprobar`).
+
+**Hallazgo tangencial documentado aparte, sin tocar:** el widget "Ingresos hoy" suma `CashLedger`/`BankLedger` de **todas las sucursales sin filtrar** — fuera del alcance de BL-077, anotado como **BL-078** en el backlog.
+
+**Verificación en vivo, no solo inferida:** vistas compiladas limpiadas + `route:clear`/`config:clear` + `view:cache` exitoso (confirma que el Blade nuevo compila sin `@can`/`@endcan` descuadrados). Suite completa corrida dos veces: 430 pasan / 37 fallan, mismos archivos preexistentes de siempre (`ClientAddressHarmonizationTest`, `HotelReservationResourceBlockingTest`, `OperatorBranchSelectionTest`, `PetCatalogRootViewsTest`, etc. — deuda de `actingAs()` documentada desde el 26/07), ninguno nuevo ni relacionado. Test de Feature temporal (no quedó en el repo, mismo patrón ya usado en sesiones anteriores) contra 3 escenarios reales: admin ve los 6 widgets completos (200); usuario autenticado sin ningún permiso recibe **403** en `/dashboard`; usuario con rol `veterinario` (solo `ver clientes`+`ver mascotas`+`ver dashboard`) ve **únicamente** esos dos KPIs — sin agenda/hotel/ingresos/configuración. Los 3 pasaron. Un primer intento del propio test de verificación dio un falso negativo (assert genérico de texto "Configuración" chocaba con el link de preferencias personales de cualquier usuario, ajeno al dashboard) — corregido a un assert sobre la URL real del quick-link antes de confiar en el resultado.
+
+**Convención de commit nueva, pedido explícito del usuario:** de aquí en adelante los commits de Claude Code en este repo **no** llevan `Co-Authored-By:`/`Claude-Session:` — repo privado sin colaboradores externos, no hace falta ese metadato. Documentado en `CLAUDE.md` (sección nueva "Convenciones de commit — este repo") y guardado en memoria persistente para reforzarlo entre sesiones.
+
+**Los 2 commits de la sesión, pusheados a `origin/main`:** `aa65126` (BL-077 completo) → `7b5ce8e` (convención de commit).
+
+### 📁 Archivos Modificados/Creados
+- Backend: `database/seeders/BaseRolesSeeder.php` (permiso `ver dashboard`), `routes/web.php` (middleware en `/dashboard`)
+- Vista: `resources/views/dashboard/index.blade.php` (widgets gateados, fix de `@can('admin')`)
+- Docs: `docs/tecnico/BACKLOG.md` (BL-077 → Completados, BL-078 nuevo), `CLAUDE.md` (convención de commit)
+- Test temporal de verificación (`TmpDashboardPermissionVerifyTest.php`) — creado, corrido, borrado; no quedó en el repo
+
+### 🔧 Verificación
+Permiso confirmado en BD real (los 4 usuarios activos lo tienen vía rol `admin`; `veterinario` no lo recibió automáticamente). Ruta confirmada con `route:list -v` (middleware `permission:ver dashboard` aplicado). Suite completa sin regresiones (430 pasan, mismos 37 preexistentes). 3 escenarios de permisos verificados en vivo vía test de Feature temporal.
+
+### 🛑 Pendientes activos
+- **BL-078** — scope de sucursal en "Ingresos hoy" del Dashboard, sin decidir con el usuario.
+- Los 37 tests preexistentes sin `actingAs()` siguen sin corregirse (deuda técnica conocida, no se tocó a propósito, fuera de alcance).
+
+---
+
 ## 📅 Cierre de sesión: 04-05/08/2026 — Headers de seguridad de mov.estetican.org, auditoría y remediación completa de autorización (IDOR/privesc), fix de infraestructura de tests, búsqueda por tokens (NT-052, NT-053, BL-077)
 
 ### ✅ Logros y Cambios
