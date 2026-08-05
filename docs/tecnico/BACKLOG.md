@@ -27,7 +27,8 @@
 |---|---|---|---|
 | ~~BL-020~~ | ~~Breadcrumbs en todas las pantallas vía ScreenHeader~~ **COMPLETADO** | Feature | |
 | ~~BL-023~~ | ~~App móvil: Selector de operador + agenda individual + renombrar Groomer→Operador~~ **COMPLETADO** | Feature | screenTags MobOpPkr/MobOpAg; breadcrumb dinámico; compresión de fotos |
-| BL-024b | WhatsApp Fase 2: confirmación de cliente, CRM completo, bandeja de apertura/cierre diaria con doble vía | Feature/CRM | Fase 1 completada (ver Completados). Alcance futuro: recepción de respuestas, historial conversacional |
+| BL-024b | WhatsApp — recordatorios automáticos de cita: **código e infraestructura listos, bloqueado en credenciales de Meta** (05/08/2026, mismo patrón que quedó BL-052 el 18/07). Alcance acotado a propósito por el usuario a solo esto — confirmación de cliente/CRM/webhook de entrada se separó a BL-024c | Feature/CRM | `whatsapp:enviar-recordatorios-cita` corriendo cada 15 min vía `Schedule::` (cron del host ya instalado y probado en vivo). `whatsapp_messaging_enabled=false` por default — no manda nada real hasta activarlo con las credenciales. Ver detalle completo en BITACORA 05/08/2026 (cont. 2) |
+| BL-024c | WhatsApp Fase 2 real — confirmación de cliente, CRM completo, bandeja de apertura/cierre diaria con doble vía, recepción de respuestas, historial conversacional | Feature/CRM | Separado de BL-024b el 05/08/2026: requiere webhook de entrada (no existe ninguno en el proyecto) — deliberadamente diferido, empieza después de que BL-024b esté enviando recordatorios reales y validados |
 
 ### Prioridad Media — Funcionalidad de UI y Configuración
 

@@ -1,5 +1,49 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 05/08/2026 (cont. 2) — Infraestructura de recordatorios automáticos de WhatsApp (BL-024b), código listo bloqueado en credenciales de Meta
+
+### ✅ Logros y Cambios
+
+Pedido nuevo del usuario: activar notificaciones automáticas de WhatsApp para citas. Alcance acotado explícitamente por el usuario desde el arranque a "solo recordatorios automáticos de citas, sin atención a clientes/webhook de entrada (eso queda para después)".
+
+**Diagnóstico primero (sin proponer diseño hasta confirmarlo):** revisando `BookingMessageController`/`RecurrenceMessageController`/`WhatsAppTemplateController` completos se confirmó que el módulo WhatsApp (BL-024, Fase 1) es **100% manual** — `store()` arma un link `wa.me` y registra `sent_at` en el momento en que el operador genera el link, no cuando WhatsApp entrega el mensaje; el envío real depende de que el humano haga clic. `app/Support/WhatsApp/` solo tiene `TemplateResolver`/`PhoneNormalizer`, ninguna clase de envío por API. Confirmado también (dos veces, cruzando con la bitácora del 18/07/2026 vía un agente de exploración de esa sesión) que **no hay ninguna integración real con Meta para mensajería** — pero sí existe ya una Meta App real ("EstetiCAN Catálogo", de BL-052) con el caso de uso "Conecta con los clientes a través de WhatsApp" habilitado desde entonces a propósito, sin token generado todavía (se dejó pendiente adrede el 18/07 porque los permisos de un token quedan fijos al crearse). Cero infraestructura de eventos/cron en todo el proyecto — ni Observers, ni Events/Listeners, ni `Schedule::` registrado, ni queue worker corriendo (`supervisord.conf` de `estetican_app` solo corre `artisan serve`).
+
+**Diseño acordado con el usuario:** trigger único a `whatsapp_reminder_hours_before` horas de la cita (default 24h, configurable) — se descartó "al crear la cita" (es una confirmación, no un recordatorio) y "al confirmarla" (no existe ese estado en `SpaBooking`, y si implicara leer respuestas se sale del alcance del webhook que quedó fuera). Mecanismo: `Schedule::` command en vez de Observer+cola diferida — no había worker de colas corriendo, y `Schedule::` relee el estado real de la BD en cada corrida (una cita reprogramada/cancelada simplemente deja de calificar la próxima vez, sin lógica de cancelación de jobs aparte).
+
+**Construido (plan de archivos mostrado y aprobado antes de escribir código):**
+- `App\Domain\WhatsAppMessaging` (nuevo, mismo patrón que `App\Domain\MetaCatalog` de BL-052): `WhatsAppSenderInterface` + `MetaWhatsAppSender`. La implementación es **stub a propósito** — valida `whatsapp_messaging_enabled` + credenciales, sale con `status=skipped` sin llamar a la API ni lanzar excepción si falta cualquiera. El bloque de la llamada real a la Graph API (`POST /{phone_number_id}/messages`, mismo molde que `MetaCatalogSyncService::sync()`) queda comentado con TODO, listo para completarse en cuanto exista el token — así el trabajo no se bloqueó esperando el trámite de Meta.
+- `EnviarRecordatoriosCitaCommand` (`whatsapp:enviar-recordatorios-cita`, con `--dry-run`): selecciona citas `scheduled`/`work_order` dentro de la ventana configurada, respeta `receives_service_reminders` del cliente (mismo flag que ya usa el envío manual, confirmado que ya existía antes de tocar nada), exige teléfono válido vía `PhoneNormalizer`, y dedupe reusando `booking_messages` (columna `trigger` nueva: `'manual'` vs `'automatic_reminder'` — `sent_by_user_id`/`wa_link` ya eran nullable desde BL-040, no hizo falta tocarlos).
+- `SystemSettings` gana la sección `whatsapp_messaging`: interruptor maestro (`whatsapp_messaging_enabled`, default `false`), `phone_number_id`, `access_token` (cifrado, mismo patrón que `whatsapp_catalog_access_token`), nombre/idioma de plantilla, `whatsapp_reminder_hours_before`.
+- Migración: `booking_messages` gana `trigger` + `provider_message_id`.
+- `Schedule::command('whatsapp:enviar-recordatorios-cita')->everyFifteenMinutes()->withoutOverlapping()` en `routes/console.php`.
+
+**7 tests nuevos** (`AppointmentReminderCommandTest`), usando un mock de `WhatsAppSenderInterface` para cubrir toda la lógica de selección real (ventana horaria, dedup, opt-out, interruptor apagado, plantilla sin configurar, dry-run) **sin necesitar credenciales de Meta**. Suite completa sin regresiones: 437 pasan (430 + 7), mismos 37 preexistentes de siempre. Migración corrida en producción real.
+
+**Verificación en vivo del `--dry-run` antes de confiar en la selección (pedido explícito del usuario):** con la config en su estado default (`enabled=false`) el comando correctamente reportó "nada que hacer". Para probar la consulta de selección en sí (dry-run nunca llama al proveedor, así que es seguro) se activó la config temporalmente — se encontró que **no hay ninguna cita en las próximas 48h en producción** (la más próxima real es la `#24`, 232h en el futuro), se amplió la ventana a 240h solo para la prueba, el comando la detectó correctamente con cliente/teléfono normalizado/fecha reales, y se **revirtió toda la config de prueba** (`enabled=false`, plantilla vacía, `24h`) antes de seguir.
+
+**Cron del host agregado, a pedido explícito del usuario ("es seguro porque enabled=false sigue bloqueando cualquier envío real"):** `* * * * * docker exec estetican_app php artisan schedule:run >> /opt/www/estetican/logs/schedule.log 2>&1`, agregado junto a la línea existente del backup diario (sin tocarla). Es la primera vez que el scheduler de Laravel queda conectado a un cron real en este proyecto. **Probado en vivo, no solo instalado:** se esperó a que el cron real (no disparado a mano) corriera al menos una vez — corrió a las 16:45, cayendo justo en una marca de 15 min, ejecutó `whatsapp:enviar-recordatorios-cita` y terminó `DONE` en 570ms sin excepción. Confirmado en `laravel.log` que no generó ningún error nuevo (los únicos errores recientes ahí son de `Fallo al publicar artículo en el catálogo de Meta`, preexistentes de BL-052, sin relación) y que `booking_messages` con `trigger='automatic_reminder'` sigue en 0 — el interruptor maestro efectivamente bloquea cualquier envío real como se esperaba.
+
+**Backlog:** BL-024b actualizado a "código e infraestructura listos, bloqueado en credenciales de Meta" (mismo estado en el que quedó BL-052 el 18/07). El alcance original de BL-024b (confirmación de cliente, CRM completo, recepción de respuestas — todo lo que depende de un webhook de entrada) se separó a **BL-024c** nuevo, explícitamente diferido hasta que los recordatorios reales estén enviando y validados.
+
+**Commits de la sesión:** `c21844e` (código de la infraestructura), sin trailers de `Co-Authored-By`/`Claude-Session` (convención nueva del repo desde el cierre de sesión anterior del mismo día).
+
+### 📁 Archivos Modificados/Creados
+- Backend: `app/Console/Commands/EnviarRecordatoriosCitaCommand.php` (nuevo), `app/Domain/WhatsAppMessaging/{Contracts/WhatsAppSenderInterface,Services/MetaWhatsAppSender}.php` (nuevos), `app/Models/BookingMessage.php`, `app/Providers/AppServiceProvider.php`, `app/Support/SystemSettings/SystemSettings.php`, `routes/console.php`
+- Migración: `2026_08_05_000001_add_automation_fields_to_booking_messages_table.php`
+- Tests: `tests/Feature/WhatsApp/AppointmentReminderCommandTest.php`
+- Infraestructura de servidor (fuera de git): crontab del host (`schedule:run` cada minuto), `logs/schedule.log` (nuevo, agregado a `.gitignore` junto a `backups/`)
+- Docs: `docs/tecnico/BACKLOG.md` (BL-024b actualizado, BL-024c nuevo)
+
+### 🔧 Verificación
+Suite completa sin regresiones (437 pasan, mismos 37 preexistentes). Migración corrida en producción real. `--dry-run` verificado en vivo contra datos reales (con reversión de la config de prueba). Cron del host probado con una corrida real (no simulada), confirmado sin errores en `laravel.log` y sin ningún envío real registrado, tal como debía comportarse con el interruptor apagado.
+
+### 🛑 Pendientes activos
+- **BL-024b**: falta el trámite completo en Meta Business Manager (número de WhatsApp Business, verificación del negocio, token con permisos de mensajería, plantilla "Utilidad" aprobada) — pasos administrativos que le tocan al usuario, ya documentados en la conversación. En cuanto estén, falta completar el bloque TODO de `MetaWhatsAppSender` y activar `whatsapp_messaging_enabled`.
+- **BL-024c**: mensajería real de dos vías (CRM, webhook de entrada) — sin diseñar, diferido a propósito.
+- BL-078 (scope de sucursal en "Ingresos hoy" del Dashboard) sigue pendiente, sin relación a esta sesión.
+
+---
+
 ## 📅 Cierre de sesión: 05/08/2026 (cont.) — Catálogo de artículos con filtros en mov.estetican.org (BL-079)
 
 ### ✅ Logros y Cambios
