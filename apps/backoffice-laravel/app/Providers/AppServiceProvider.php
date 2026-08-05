@@ -27,6 +27,8 @@ use App\Domain\Planning\Repositories\SpaBookingRepository;
 use App\Domain\Planning\Services\BookingService;
 use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Domain\Resources\Services\ResourceAllocationService;
+use App\Domain\WhatsAppMessaging\Contracts\WhatsAppSenderInterface;
+use App\Domain\WhatsAppMessaging\Services\MetaWhatsAppSender;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -48,6 +50,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ItemMovementServiceInterface::class, ItemMovementService::class);
         $this->app->bind(BookingStockConsumptionServiceInterface::class, BookingStockConsumptionService::class);
         $this->app->bind(MetaCatalogSyncServiceInterface::class, MetaCatalogSyncService::class);
+        $this->app->bind(WhatsAppSenderInterface::class, MetaWhatsAppSender::class);
     }
 
     /**

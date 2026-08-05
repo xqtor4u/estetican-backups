@@ -11,10 +11,12 @@ class BookingMessage extends Model
         'spa_booking_id',
         'whatsapp_template_id',
         'channel',
+        'trigger',
         'phone_number',
         'email_address',
         'message_body',
         'wa_link',
+        'provider_message_id',
         'sent_by_user_id',
         'sent_at',
     ];
