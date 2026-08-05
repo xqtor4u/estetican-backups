@@ -31,6 +31,52 @@
 
 ---
 
+## NT-053 — Gatear un `Route::resource()` con `permission:` no cubre las rutas satélite/anidadas del mismo objeto — hay que buscarlas explícitamente
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-08-05 |
+| **Severidad** | P3 — Medio (patrón de proceso, no un bug puntual — cada vez que se repita deja un hueco de autorización nuevo) |
+| **Componente** | `routes/web.php`, `routes/api.php` — cualquier módulo con acciones registradas fuera de su `Route::resource()` |
+| **Impacto** | Durante la auditoría de autorización de esta sesión (ver NT-052 y la sesión completa de remediación de IDOR/privesc), se encontró repetidamente el mismo patrón: un objeto de negocio tenía su `Route::resource()` correctamente gateado con `->middlewareFor(...)`, pero acciones relacionadas al mismo objeto — registradas como rutas sueltas fuera del resource — se quedaban sin ningún `permission:` |
+| **Estado** | ✅ Documentado — remediado en los casos encontrados, sin garantía de que no existan más |
+
+**Síntoma:** al auditar `routes/web.php` buscando rutas de negocio sin `permission:`/`role:`/`auth` real (regla 3 de "Seguridad — reglas obligatorias" en `CLAUDE.md`), aparecieron varios casos donde el recurso base SÍ estaba protegido pero rutas "satélite" del mismo objeto no: `resources/{resource}/profile-photo`, `/duplicate`, `/photos/*` (fuera de `Route::resource('resources', ...)`), `operators/{operator}/duplicate` y `/unavailabilities/*` (fuera de `Route::resource('operators', ...)`), `hotel-reservations/{id}/cancel` (fuera del resource de hotel), y las rutas de `clients/{client}/pets/{pet}/*` dentro de `Route::scopeBindings()` (mismo objeto `Pet` que ya tenía gate en su resource top-level, pero accedido por una URL anidada distinta).
+
+**Causa raíz:** `Route::resource(...)->middlewareFor(...)` solo aplica el middleware a las 7 acciones RESTful estándar (`index`/`show`/`create`/`store`/`edit`/`update`/`destroy`). Cualquier acción adicional sobre el mismo modelo de negocio — duplicar, subir foto, cancelar, una vista anidada bajo otro prefijo de URL — se registra como una ruta `Route::post()`/`get()`/etc. independiente, y el gate del resource no la alcanza. No es un bug de Laravel, es el comportamiento documentado — el riesgo es puramente de proceso: al gatear un resource es fácil dar por cerrado el objeto completo sin buscar el resto de sus rutas.
+
+**Solución definitiva (para esta sesión):** grep de todas las rutas que mencionan el mismo controller/segmento de URL del objeto que se está gateando (ej. `grep -n "resources/{resource}" routes/web.php` después de gatear el resource `resources`) antes de dar por cerrado un objeto de negocio — no basta con aplicar `middlewareFor()` al resource y seguir.
+
+**Lección — regla de proceso para la próxima vez que se agregue un `permission:` a un objeto:** después de gatear un `Route::resource()`, buscar explícitamente (`grep` por el segmento de URL o por el controller) cualquier otra ruta del mismo objeto registrada fuera del resource, antes de considerar el objeto "cerrado". Ver regla 1 de "Seguridad — reglas obligatorias" en `CLAUDE.md` — esta nota documenta el matiz que esa regla no explicitaba: "toda ruta nueva" incluye las satélite, no solo las del resource principal.
+
+---
+
+## NT-052 — Headers de seguridad de nginx (`mov.estetican.org`) ausentes en `/index.html` pese a estar declarados — herencia de `add_header` + bind-mount de archivo único pegado al inode viejo
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-08-04 |
+| **Severidad** | P2 — Alto (protección de clickjacking/CSP ausente en el documento HTML principal, el único que de verdad importa para esos headers) |
+| **Componente** | `mob_apps/operador/nginx.conf` (contenedor `estetican_mob`) |
+| **Impacto** | Toda navegación real a `mov.estetican.org` (SPA fallback a `/index.html`) se servía sin `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-Content-Type-Options` ni `Content-Security-Policy` — solo los assets estáticos (`/assets/*.js`, `*.css`) sí los llevaban |
+| **Estado** | ✅ RESUELTO |
+
+**Síntoma:** al auditar en vivo los headers de `mov.estetican.org` contra `app.estetican.org` (que sí los tenía completos vía middleware Laravel), `curl -I https://mov.estetican.org/` solo devolvía `strict-transport-security` y `x-content-type-options` (ambos inyectados por Cloudflare a nivel de zona, no por el origen) — pese a que `nginx.conf` ya declaraba explícitamente los 4 headers con `always` a nivel de `server{}`. Pedir un asset (`/assets/index-*.css`) sí traía los 4 headers completos — la diferencia de comportamiento entre ambas rutas fue la pista.
+
+**Causa raíz (dos capas, la segunda solo apareció al intentar corregir la primera):**
+
+1. **Herencia de `add_header` en nginx:** un `location` que define sus propios `add_header` **no hereda** los `add_header` del `server{}` que lo contiene — nginx no los combina, el location con `add_header` propio empieza de cero. `location = /index.html` solo declaraba `Cache-Control`/`Pragma`/`Expires` (para forzar que el SPA nunca sirva un `index.html` cacheado), lo que pisaba en silencio los 4 headers de seguridad heredables del `server{}`. Como toda navegación real llega a `/index.html` vía `index`/`try_files` (internal redirect que reevalúa el location match), el HTML principal quedaba desprotegido mientras los assets estáticos (que caen en `location /`, sin `add_header` propio) sí los recibían.
+
+2. **Bind-mount de archivo único pegado al inode viejo:** al corregir el `nginx.conf` del host (repitiendo los headers dentro de `location = /index.html`) y correr `docker exec estetican_mob nginx -s reload`, el contenedor seguía sirviendo el contenido de antes — `nginx -t`/`-s reload` "funcionaban" pero validaban/recargaban el archivo viejo. Causa: el bind-mount de Docker es **a nivel de archivo individual** (`Source: nginx.conf` → `Destination: default.conf`, no un directorio completo), y la edición del archivo (write nuevo + rename) generó un **inode nuevo** en el host; el bind-mount del contenedor, ya establecido desde que se creó el contenedor, quedó apuntando al inode viejo. `nginx -s reload` relee el archivo en la ruta que el contenedor ve — pero esa ruta seguía resolviendo al inode viejo por el mount, no al contenido actual. Confirmado comparando `stat -c '%i'` del archivo en el host contra `docker exec estetican_mob stat -c '%i' /etc/nginx/conf.d/default.conf` — no coincidían.
+
+**Solución definitiva:**
+1. Repetir los 4 headers de seguridad (+ `Content-Security-Policy` nuevo, ajustado a los recursos reales de esta SPA — sin `unsafe-eval` ni dominios de OpenStreetMap que sí usa `app.estetican.org`) dentro de `location = /index.html`, además de en el `server{}` — necesario porque ese location ya tiene sus propios `add_header` de caché.
+2. `docker restart estetican_mob` en vez de `nginx -s reload` cuando el cambio es a un archivo bind-mounted individualmente (no a un directorio) — el restart fuerza a Docker a re-resolver el bind mount contra el path actual, tomando el inode vigente. Verificado post-restart comparando inodes de nuevo (coincidieron) antes de dar el fix por bueno — no basta con que el comando no truene.
+
+**Lección:** dos gotchas independientes, cada uno silencioso a su manera — nginx no avisa que un `location` dejó de heredar `add_header`, y Docker no avisa que un bind-mount de archivo único quedó apuntando a un inode viejo tras editar el archivo por fuera del contenedor. Ninguno de los dos se detecta con "el comando no dio error" — ambos requieren verificación explícita contra el resultado real (comparar contenido/headers servidos, no solo que `nginx -t`/`reload` regresen éxito). Ver regla 4 de "Seguridad — reglas obligatorias" en `CLAUDE.md`, agregada a raíz de este mismo hallazgo.
+
+---
+
 ## NT-051 — El saldo pendiente de la Agenda solo veía pagos vía presupuesto aceptado, ignorando `Payment` directo — toda cita cobrada desde móvil sin Quote se veía como impaga
 
 | Campo | Valor |

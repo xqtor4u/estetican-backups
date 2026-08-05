@@ -54,6 +54,13 @@ No trabajar en ítems que no estén en el backlog activo.
 - Siempre borrar vistas compiladas Blade después de `git pull` en producción (ver NT-005 y checklist de deploy).
 - Alpine.js requiere `unsafe-eval` en CSP (ver NT-006).
 
+**Seguridad — reglas obligatorias:**
+1. Toda ruta nueva en `routes/api.php` o `routes/web.php` que exponga o modifique datos de negocio (clientes, mascotas, agenda, pagos, operadores, sucursales, servicios, hotel) DEBE llevar middleware `permission:` desde el momento en que se crea — no "se agrega después". Por defecto cerrado, no por defecto abierto.
+2. Si un endpoint recibe un `{id}` en la URL, el controller debe filtrar por dueño/scope (ej. `$request->user()->clients()->findOrFail($id)`), nunca `Model::findOrFail($id)` sin scope — salvo que el rol ya esté gateado por `permission:` a nivel de ruta y el dato sea legítimamente visible para cualquiera con ese permiso.
+3. Antes de cerrar cualquier sesión donde se tocaron rutas nuevas, correr: listar todas las rutas de negocio SIN `permission:`/`role:`/`auth` y clasificar cada una como (a) intencionalmente pública, (b) protegida por otro mecanismo, o (c) sin protección — y reportarlo en el resumen de la sesión, no dejarlo implícito.
+4. Cambios a `nginx.conf`, `Dockerfile`, o cualquier config de servidor: nunca asumir que un reload/mount tomó el cambio — verificar explícitamente (ej. comparando inode, o con un curl directo al origen bypass del CDN) antes de reportar el cambio como aplicado.
+5. Nunca imprimir contraseñas o tokens completos en la salida de la terminal si se puede evitar — usar variables de entorno o redactar el valor en el output, aunque la sesión sea local.
+
 ## Development Environment
 
 This project runs on **WSL 2 + Docker (Laravel Sail)**. All commands assume you are inside WSL.

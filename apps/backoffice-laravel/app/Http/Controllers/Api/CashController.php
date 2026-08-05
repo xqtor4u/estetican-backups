@@ -279,6 +279,15 @@ class CashController extends Controller
 
     public function storeMovement(Request $request, CashSession $cashSession): JsonResponse
     {
+        $checkin = OperatorCheckin::where('user_id', $request->user()->id)
+            ->whereNull('checked_out_at')
+            ->latest('checked_in_at')
+            ->first();
+
+        if (! $checkin || $checkin->branch_id !== $cashSession->branch_id) {
+            return response()->json(['message' => 'Esta sesión de caja no corresponde a tu sucursal activa.'], 403);
+        }
+
         if (! $cashSession->isOpen()) {
             return response()->json(['message' => 'La sesión ya está cerrada.'], 422);
         }

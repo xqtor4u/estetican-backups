@@ -85,18 +85,32 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
 
     // PETS CRUD & Shortcuts
-    Route::get('pets', [PetController::class, 'index'])->name('pets.index');
-    Route::get('pets/{pet}', [PetController::class, 'catalogShow'])->name('pets.show');
-    Route::put('pets/{pet}', [PetController::class, 'update'])->name('pets.update');
-    Route::put('pets/{pet}/owner', [PetController::class, 'updateOwner'])->name('pets.owner.update');
-    Route::post('pets/{pet}/profile-photo', [PetController::class, 'updateProfilePhoto'])->name('pets.profile-photo.update');
-    Route::delete('pets/{pet}', [PetController::class, 'destroy'])->name('pets.destroy');
+    Route::get('pets', [PetController::class, 'index'])->name('pets.index')->middleware('permission:ver mascotas');
+    Route::get('pets/{pet}', [PetController::class, 'catalogShow'])->name('pets.show')->middleware('permission:ver mascotas');
+    Route::put('pets/{pet}', [PetController::class, 'update'])->name('pets.update')->middleware('permission:editar mascotas');
+    Route::put('pets/{pet}/owner', [PetController::class, 'updateOwner'])->name('pets.owner.update')->middleware('permission:editar mascotas');
+    Route::post('pets/{pet}/profile-photo', [PetController::class, 'updateProfilePhoto'])->name('pets.profile-photo.update')->middleware('permission:editar mascotas');
+    Route::delete('pets/{pet}', [PetController::class, 'destroy'])->name('pets.destroy')->middleware('permission:eliminar mascotas');
 
-    Route::resource('clients', ClientController::class);
+    Route::resource('clients', ClientController::class)
+        ->middlewareFor('index', 'permission:ver clientes')
+        ->middlewareFor('show', 'permission:ver clientes')
+        ->middlewareFor(['create', 'store'], 'permission:crear clientes')
+        ->middlewareFor(['edit', 'update'], 'permission:editar clientes')
+        ->middlewareFor('destroy', 'permission:eliminar clientes');
     Route::middleware('hotel.module')->group(function () {
-        Route::resource('hotel-reservations', HotelReservationController::class)->except(['destroy']);
+        Route::resource('hotel-reservations', HotelReservationController::class)->except(['destroy'])
+            ->middlewareFor('index', 'permission:ver hotel')
+            ->middlewareFor('show', 'permission:ver hotel')
+            ->middlewareFor(['create', 'store'], 'permission:crear hotel')
+            ->middlewareFor(['edit', 'update'], 'permission:editar hotel');
     });
-    Route::resource('services', ServiceController::class);
+    Route::resource('services', ServiceController::class)
+        ->middlewareFor('index', 'permission:ver catalogo_servicios')
+        ->middlewareFor('show', 'permission:ver catalogo_servicios')
+        ->middlewareFor(['create', 'store'], 'permission:crear catalogo_servicios')
+        ->middlewareFor(['edit', 'update'], 'permission:editar catalogo_servicios')
+        ->middlewareFor('destroy', 'permission:eliminar catalogo_servicios');
     Route::middleware('store.module')->group(function () {
         Route::resource('items', ItemController::class)->except(['show'])
             ->middlewareFor('index', 'permission:ver catalogo_articulos')
@@ -124,62 +138,89 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
             ->name('groups.components.destroy')
             ->middleware('permission:editar catalogo_grupos');
     });
-    Route::resource('operators', OperatorController::class);
-    Route::post('operators/{operator}/duplicate', [OperatorController::class, 'duplicate'])->name('operators.duplicate');
-    Route::post('operators/{operator}/unavailabilities', [OperatorUnavailabilityController::class, 'store'])->name('operators.unavailabilities.store');
-    Route::delete('operators/{operator}/unavailabilities/{unavailability}', [OperatorUnavailabilityController::class, 'destroy'])->name('operators.unavailabilities.destroy');
-    Route::resource('branches', BranchController::class);
+    Route::resource('operators', OperatorController::class)
+        ->middlewareFor('index', 'permission:ver operadores')
+        ->middlewareFor('show', 'permission:ver operadores')
+        ->middlewareFor(['create', 'store'], 'permission:crear operadores')
+        ->middlewareFor(['edit', 'update'], 'permission:editar operadores')
+        ->middlewareFor('destroy', 'permission:eliminar operadores');
+    Route::post('operators/{operator}/duplicate', [OperatorController::class, 'duplicate'])->name('operators.duplicate')->middleware('permission:crear operadores');
+    Route::post('operators/{operator}/unavailabilities', [OperatorUnavailabilityController::class, 'store'])->name('operators.unavailabilities.store')->middleware('permission:editar operadores');
+    Route::delete('operators/{operator}/unavailabilities/{unavailability}', [OperatorUnavailabilityController::class, 'destroy'])->name('operators.unavailabilities.destroy')->middleware('permission:editar operadores');
+    Route::resource('branches', BranchController::class)
+        ->middlewareFor('index', 'permission:ver sucursales')
+        ->middlewareFor('show', 'permission:ver sucursales')
+        ->middlewareFor(['create', 'store'], 'permission:crear sucursales')
+        ->middlewareFor(['edit', 'update'], 'permission:editar sucursales')
+        ->middlewareFor('destroy', 'permission:eliminar sucursales');
 
-    Route::get('mapa-zonas', [MapaZonasController::class, 'index'])->name('mapa-zonas.index');
-    Route::patch('mapa-zonas/mascotas/{pet}/ubicacion', [MapaZonasController::class, 'updatePetLocation'])->name('mapa-zonas.pets.ubicacion');
-    Route::post('mapa-zonas/vehiculos', [MapaZonasController::class, 'storeVehicle'])->name('mapa-zonas.vehiculos.store');
-    Route::patch('mapa-zonas/vehiculos/{vehicle}', [MapaZonasController::class, 'updateVehicle'])->name('mapa-zonas.vehiculos.update');
-    Route::delete('mapa-zonas/vehiculos/{vehicle}', [MapaZonasController::class, 'destroyVehicle'])->name('mapa-zonas.vehiculos.destroy');
+    Route::get('mapa-zonas', [MapaZonasController::class, 'index'])->name('mapa-zonas.index')->middleware('permission:ver mascotas');
+    Route::patch('mapa-zonas/mascotas/{pet}/ubicacion', [MapaZonasController::class, 'updatePetLocation'])->name('mapa-zonas.pets.ubicacion')->middleware('permission:editar mascotas');
+    Route::post('mapa-zonas/vehiculos', [MapaZonasController::class, 'storeVehicle'])->name('mapa-zonas.vehiculos.store')->middleware('permission:editar mascotas');
+    Route::patch('mapa-zonas/vehiculos/{vehicle}', [MapaZonasController::class, 'updateVehicle'])->name('mapa-zonas.vehiculos.update')->middleware('permission:editar mascotas');
+    Route::delete('mapa-zonas/vehiculos/{vehicle}', [MapaZonasController::class, 'destroyVehicle'])->name('mapa-zonas.vehiculos.destroy')->middleware('permission:editar mascotas');
 
     // RESOURCES CRUD & Shortcuts
-    Route::resource('resources', ResourceController::class);
-    Route::post('resources/{resource}/profile-photo', [ResourceController::class, 'updateProfilePhoto'])->name('resources.profile-photo.update');
+    Route::resource('resources', ResourceController::class)
+        ->middlewareFor('index', 'permission:ver sucursales')
+        ->middlewareFor('show', 'permission:ver sucursales')
+        ->middlewareFor(['create', 'store'], 'permission:crear sucursales')
+        ->middlewareFor(['edit', 'update'], 'permission:editar sucursales')
+        ->middlewareFor('destroy', 'permission:eliminar sucursales');
+    Route::post('resources/{resource}/profile-photo', [ResourceController::class, 'updateProfilePhoto'])->name('resources.profile-photo.update')->middleware('permission:editar sucursales');
 
-    Route::resource('operator-roles', OperatorRoleController::class);
-    Route::post('operator-roles/{operatorRole}/duplicate', [OperatorRoleController::class, 'duplicate'])->name('operator-roles.duplicate');
-    Route::post('resources/{resource}/duplicate', [ResourceController::class, 'duplicate'])->name('resources.duplicate');
-    Route::post('resources/{resource}/photos', [ResourcePhotoController::class, 'store'])->name('resources.photos.store');
-    Route::put('resources/{resource}/photos/{photo}', [ResourcePhotoController::class, 'update'])->name('resources.photos.update');
-    Route::delete('resources/{resource}/photos/{photo}', [ResourcePhotoController::class, 'destroy'])->name('resources.photos.destroy');
+    Route::resource('operator-roles', OperatorRoleController::class)
+        ->middlewareFor('index', 'permission:ver operadores')
+        ->middlewareFor('show', 'permission:ver operadores')
+        ->middlewareFor(['create', 'store'], 'permission:crear operadores')
+        ->middlewareFor(['edit', 'update'], 'permission:editar operadores')
+        ->middlewareFor('destroy', 'permission:eliminar operadores');
+    Route::post('operator-roles/{operatorRole}/duplicate', [OperatorRoleController::class, 'duplicate'])->name('operator-roles.duplicate')->middleware('permission:crear operadores');
+    Route::post('resources/{resource}/duplicate', [ResourceController::class, 'duplicate'])->name('resources.duplicate')->middleware('permission:crear sucursales');
+    Route::post('resources/{resource}/photos', [ResourcePhotoController::class, 'store'])->name('resources.photos.store')->middleware('permission:editar sucursales');
+    Route::put('resources/{resource}/photos/{photo}', [ResourcePhotoController::class, 'update'])->name('resources.photos.update')->middleware('permission:editar sucursales');
+    Route::delete('resources/{resource}/photos/{photo}', [ResourcePhotoController::class, 'destroy'])->name('resources.photos.destroy')->middleware('permission:editar sucursales');
 
-    Route::get('agenda/create', [SpaBookingController::class, 'globalCreate'])->name('agenda.create');
-    Route::get('agenda', [SpaBookingController::class, 'index'])->name('agenda.index');
-    Route::get('agenda/check-availability', [SpaBookingController::class, 'checkAvailability'])->name('agenda.check-availability');
-    Route::get('agenda/{booking}', [SpaBookingController::class, 'show'])->name('agenda.show');
-    Route::get('agenda/{booking}/edit', [SpaBookingController::class, 'edit'])->name('agenda.edit');
-    Route::put('agenda/{booking}', [SpaBookingController::class, 'update'])->name('agenda.update');
-    Route::post('agenda/{booking}/quotes', [SpaBookingController::class, 'storeQuote'])->name('agenda.quotes.store');
-    Route::post('agenda/{booking}/quotes/{quote}/accept', [SpaBookingController::class, 'acceptQuote'])->name('agenda.quotes.accept');
-    Route::post('agenda/{booking}/quotes/{quote}/payments', [SpaBookingController::class, 'registerPayment'])->name('agenda.quotes.register-payment');
-    Route::post('agenda/{booking}/items/{item}/assign', [SpaBookingController::class, 'assignProfessional'])->name('agenda.items.assign');
-    Route::post('agenda/{booking}/cancel', [SpaBookingController::class, 'cancel'])->name('agenda.cancel');
-    Route::post('agenda/{booking}/no-show', [SpaBookingController::class, 'markNoShow'])->name('agenda.no-show');
-    Route::post('agenda/{booking}/unfulfillable', [SpaBookingController::class, 'markUnfulfillable'])->name('agenda.unfulfillable');
-    Route::post('services/{service}/duplicate', [ServiceController::class, 'duplicate'])->name('services.duplicate');
-    Route::post('hotel-reservations/{hotelReservation}/cancel', [HotelReservationController::class, 'cancel'])->name('hotel-reservations.cancel')->middleware('hotel.module');
+    Route::get('agenda/create', [SpaBookingController::class, 'globalCreate'])->name('agenda.create')->middleware('permission:crear agenda');
+    Route::get('agenda', [SpaBookingController::class, 'index'])->name('agenda.index')->middleware('permission:ver agenda');
+    Route::get('agenda/check-availability', [SpaBookingController::class, 'checkAvailability'])->name('agenda.check-availability')->middleware('permission:ver agenda');
+    Route::get('agenda/{booking}', [SpaBookingController::class, 'show'])->name('agenda.show')->middleware('permission:ver agenda');
+    Route::get('agenda/{booking}/edit', [SpaBookingController::class, 'edit'])->name('agenda.edit')->middleware('permission:editar agenda');
+    Route::put('agenda/{booking}', [SpaBookingController::class, 'update'])->name('agenda.update')->middleware('permission:editar agenda');
+    Route::post('agenda/{booking}/quotes', [SpaBookingController::class, 'storeQuote'])->name('agenda.quotes.store')->middleware('permission:editar agenda');
+    Route::post('agenda/{booking}/quotes/{quote}/accept', [SpaBookingController::class, 'acceptQuote'])->name('agenda.quotes.accept')->middleware('permission:editar agenda');
+    Route::post('agenda/{booking}/quotes/{quote}/payments', [SpaBookingController::class, 'registerPayment'])->name('agenda.quotes.register-payment')->middleware('permission:cobros.registrar');
+    Route::post('agenda/{booking}/items/{item}/assign', [SpaBookingController::class, 'assignProfessional'])->name('agenda.items.assign')->middleware('permission:editar agenda');
+    Route::post('agenda/{booking}/cancel', [SpaBookingController::class, 'cancel'])->name('agenda.cancel')->middleware('permission:editar agenda');
+    Route::post('agenda/{booking}/no-show', [SpaBookingController::class, 'markNoShow'])->name('agenda.no-show')->middleware('permission:editar agenda');
+    Route::post('agenda/{booking}/unfulfillable', [SpaBookingController::class, 'markUnfulfillable'])->name('agenda.unfulfillable')->middleware('permission:editar agenda');
+    Route::post('services/{service}/duplicate', [ServiceController::class, 'duplicate'])->name('services.duplicate')->middleware('permission:crear catalogo_servicios');
+    Route::post('hotel-reservations/{hotelReservation}/cancel', [HotelReservationController::class, 'cancel'])->name('hotel-reservations.cancel')->middleware(['hotel.module', 'permission:editar hotel']);
 
-    Route::get('pets/{pet}/bookings/create', [SpaBookingController::class, 'createForPet'])->name('pets.bookings.create');
-    Route::post('pets/{pet}/bookings', [SpaBookingController::class, 'storeForPet'])->name('pets.bookings.store');
+    Route::get('pets/{pet}/bookings/create', [SpaBookingController::class, 'createForPet'])->name('pets.bookings.create')->middleware('permission:crear agenda');
+    Route::post('pets/{pet}/bookings', [SpaBookingController::class, 'storeForPet'])->name('pets.bookings.store')->middleware('permission:crear agenda');
 
     // Recordatorios WhatsApp (BL-024 Fase 1)
-    Route::get('whatsapp/bandeja', [BookingMessageController::class, 'index'])->name('whatsapp.bandeja');
-    Route::post('whatsapp/bandeja/{booking}/preview', [BookingMessageController::class, 'preview'])->name('whatsapp.bandeja.preview');
-    Route::post('whatsapp/bandeja/{booking}/enviar', [BookingMessageController::class, 'store'])->name('whatsapp.bandeja.enviar');
-    Route::get('whatsapp/recurrencias', [RecurrenceMessageController::class, 'index'])->name('whatsapp.recurrencias');
+    Route::get('whatsapp/bandeja', [BookingMessageController::class, 'index'])->name('whatsapp.bandeja')->middleware('permission:ver whatsapp');
+    Route::post('whatsapp/bandeja/{booking}/preview', [BookingMessageController::class, 'preview'])->name('whatsapp.bandeja.preview')->middleware('permission:ver whatsapp');
+    Route::post('whatsapp/bandeja/{booking}/enviar', [BookingMessageController::class, 'store'])->name('whatsapp.bandeja.enviar')->middleware('permission:crear whatsapp');
+    Route::get('whatsapp/recurrencias', [RecurrenceMessageController::class, 'index'])->name('whatsapp.recurrencias')->middleware('permission:ver whatsapp');
     Route::post('whatsapp/recurrencias/{key}/preview', [RecurrenceMessageController::class, 'preview'])
         ->where('key', '[0-9]+:[0-9]+')
-        ->name('whatsapp.recurrencias.preview');
+        ->name('whatsapp.recurrencias.preview')
+        ->middleware('permission:ver whatsapp');
     Route::post('whatsapp/recurrencias/{key}/enviar', [RecurrenceMessageController::class, 'store'])
         ->where('key', '[0-9]+:[0-9]+')
-        ->name('whatsapp.recurrencias.enviar');
+        ->name('whatsapp.recurrencias.enviar')
+        ->middleware('permission:crear whatsapp');
     Route::resource('whatsapp/plantillas', WhatsAppTemplateController::class)
         ->parameters(['plantillas' => 'template'])
-        ->names('whatsapp.plantillas');
+        ->names('whatsapp.plantillas')
+        ->middlewareFor('index', 'permission:ver whatsapp')
+        ->middlewareFor('show', 'permission:ver whatsapp')
+        ->middlewareFor(['create', 'store'], 'permission:crear whatsapp')
+        ->middlewareFor(['edit', 'update'], 'permission:editar whatsapp')
+        ->middlewareFor('destroy', 'permission:eliminar whatsapp');
 
     // Rutas protegidas para administradores
     Route::middleware('role:admin|super-admin')->group(function () {
@@ -226,9 +267,9 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     });
 
     // Reportes de Impresión
-    Route::get('reports/quote/{quote}', [ReportController::class, 'quote'])->name('reports.quote');
-    Route::get('reports/work-order/{booking}', [ReportController::class, 'workOrder'])->name('reports.work-order');
-    Route::get('reports/invoice/{booking}', [ReportController::class, 'invoice'])->name('reports.invoice');
+    Route::get('reports/quote/{quote}', [ReportController::class, 'quote'])->name('reports.quote')->middleware('permission:ver agenda');
+    Route::get('reports/work-order/{booking}', [ReportController::class, 'workOrder'])->name('reports.work-order')->middleware('permission:ver agenda');
+    Route::get('reports/invoice/{booking}', [ReportController::class, 'invoice'])->name('reports.invoice')->middleware('permission:ver agenda');
 
     // Veterinaria (Expediente Clínico) — módulo independiente, apagado por defecto (SystemSettings)
     Route::middleware('clinical.module')->prefix('clinico')->name('clinical.')->group(function () {
@@ -270,27 +311,27 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     });
 
     Route::scopeBindings()->group(function () {
-        Route::post('resources/{resource}/events', [ResourceEventController::class, 'store'])->name('resources.events.store');
-        Route::get('resources/{resource}/events/{event}', [ResourceEventController::class, 'show'])->name('resources.events.show');
-        Route::post('resources/{resource}/events/{event}/updates', [ResourceEventUpdateController::class, 'store'])->name('resources.events.updates.store');
-        Route::post('resources/{resource}/events/{event}/photos', [ResourceEventPhotoController::class, 'store'])->name('resources.events.photos.store');
-        Route::put('resources/{resource}/events/{event}/photos/{photo}', [ResourceEventPhotoController::class, 'update'])->name('resources.events.photos.update');
-        Route::delete('resources/{resource}/events/{event}/photos/{photo}', [ResourceEventPhotoController::class, 'destroy'])->name('resources.events.photos.destroy');
+        Route::post('resources/{resource}/events', [ResourceEventController::class, 'store'])->name('resources.events.store')->middleware('permission:editar sucursales');
+        Route::get('resources/{resource}/events/{event}', [ResourceEventController::class, 'show'])->name('resources.events.show')->middleware('permission:ver sucursales');
+        Route::post('resources/{resource}/events/{event}/updates', [ResourceEventUpdateController::class, 'store'])->name('resources.events.updates.store')->middleware('permission:editar sucursales');
+        Route::post('resources/{resource}/events/{event}/photos', [ResourceEventPhotoController::class, 'store'])->name('resources.events.photos.store')->middleware('permission:editar sucursales');
+        Route::put('resources/{resource}/events/{event}/photos/{photo}', [ResourceEventPhotoController::class, 'update'])->name('resources.events.photos.update')->middleware('permission:editar sucursales');
+        Route::delete('resources/{resource}/events/{event}/photos/{photo}', [ResourceEventPhotoController::class, 'destroy'])->name('resources.events.photos.destroy')->middleware('permission:editar sucursales');
 
-        Route::get('clients/{client}/pets/{pet}', [PetController::class, 'show'])->name('clients.pets.show');
-        Route::put('clients/{client}/pets/{pet}', [PetController::class, 'updateFromClient'])->name('clients.pets.update');
-        Route::post('clients/{client}/pets/{pet}/profile-photo', [PetController::class, 'updateProfilePhotoFromClient'])->name('clients.pets.profile-photo.update');
-        Route::delete('clients/{client}/pets/{pet}', [PetController::class, 'destroyFromClient'])->name('clients.pets.destroy');
+        Route::get('clients/{client}/pets/{pet}', [PetController::class, 'show'])->name('clients.pets.show')->middleware('permission:ver mascotas');
+        Route::put('clients/{client}/pets/{pet}', [PetController::class, 'updateFromClient'])->name('clients.pets.update')->middleware('permission:editar mascotas');
+        Route::post('clients/{client}/pets/{pet}/profile-photo', [PetController::class, 'updateProfilePhotoFromClient'])->name('clients.pets.profile-photo.update')->middleware('permission:editar mascotas');
+        Route::delete('clients/{client}/pets/{pet}', [PetController::class, 'destroyFromClient'])->name('clients.pets.destroy')->middleware('permission:eliminar mascotas');
 
-        Route::get('clients/{client}/pets/{pet}/bookings/create', [SpaBookingController::class, 'createForClientPet'])->name('clients.pets.bookings.create');
-        Route::post('clients/{client}/pets/{pet}/bookings', [SpaBookingController::class, 'storeForClientPet'])->name('clients.pets.bookings.store');
+        Route::get('clients/{client}/pets/{pet}/bookings/create', [SpaBookingController::class, 'createForClientPet'])->name('clients.pets.bookings.create')->middleware('permission:crear agenda');
+        Route::post('clients/{client}/pets/{pet}/bookings', [SpaBookingController::class, 'storeForClientPet'])->name('clients.pets.bookings.store')->middleware('permission:crear agenda');
 
-        Route::post('clients/{client}/pets/{pet}/medical-alerts', [PetMedicalAlertController::class, 'store'])->name('clients.pets.medical-alerts.store');
-        Route::put('clients/{client}/pets/{pet}/medical-alerts/{medicalAlert}', [PetMedicalAlertController::class, 'update'])->name('clients.pets.medical-alerts.update');
-        Route::delete('clients/{client}/pets/{pet}/medical-alerts/{medicalAlert}', [PetMedicalAlertController::class, 'destroy'])->name('clients.pets.medical-alerts.destroy');
+        Route::post('clients/{client}/pets/{pet}/medical-alerts', [PetMedicalAlertController::class, 'store'])->name('clients.pets.medical-alerts.store')->middleware('permission:editar mascotas');
+        Route::put('clients/{client}/pets/{pet}/medical-alerts/{medicalAlert}', [PetMedicalAlertController::class, 'update'])->name('clients.pets.medical-alerts.update')->middleware('permission:editar mascotas');
+        Route::delete('clients/{client}/pets/{pet}/medical-alerts/{medicalAlert}', [PetMedicalAlertController::class, 'destroy'])->name('clients.pets.medical-alerts.destroy')->middleware('permission:editar mascotas');
 
-        Route::post('clients/{client}/pets/{pet}/photos', [PetPhotoController::class, 'store'])->name('clients.pets.photos.store');
-        Route::put('clients/{client}/pets/{pet}/photos/{photo}', [PetPhotoController::class, 'update'])->name('clients.pets.photos.update');
-        Route::delete('clients/{client}/pets/{pet}/photos/{photo}', [PetPhotoController::class, 'destroy'])->name('clients.pets.photos.destroy');
+        Route::post('clients/{client}/pets/{pet}/photos', [PetPhotoController::class, 'store'])->name('clients.pets.photos.store')->middleware('permission:editar mascotas');
+        Route::put('clients/{client}/pets/{pet}/photos/{photo}', [PetPhotoController::class, 'update'])->name('clients.pets.photos.update')->middleware('permission:editar mascotas');
+        Route::delete('clients/{client}/pets/{pet}/photos/{photo}', [PetPhotoController::class, 'destroy'])->name('clients.pets.photos.destroy')->middleware('permission:editar mascotas');
     });
 });

@@ -49,35 +49,35 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/me/unavailabilities', [UnavailabilityController::class, 'store'])->middleware('permission:crear disponibilidad_propia');
     Route::delete('/me/unavailabilities/{unavailability}', [UnavailabilityController::class, 'destroy'])->middleware('permission:eliminar disponibilidad_propia');
 
-    Route::get('/pets', [PetController::class, 'index']);
-    Route::post('/pets', [PetController::class, 'store']);
-    Route::get('/pets/{pet}', [PetController::class, 'show']);
-    Route::patch('/pets/{pet}', [PetController::class, 'update']);
-    Route::post('/pets/{pet}/photo', [PetController::class, 'updatePhoto']);
-    Route::delete('/pets/{pet}/photo', [PetController::class, 'deletePhoto']);
+    Route::get('/pets', [PetController::class, 'index'])->middleware('permission:ver mascotas');
+    Route::post('/pets', [PetController::class, 'store'])->middleware('permission:crear mascotas');
+    Route::get('/pets/{pet}', [PetController::class, 'show'])->middleware('permission:ver mascotas');
+    Route::patch('/pets/{pet}', [PetController::class, 'update'])->middleware('permission:editar mascotas');
+    Route::post('/pets/{pet}/photo', [PetController::class, 'updatePhoto'])->middleware('permission:editar mascotas');
+    Route::delete('/pets/{pet}/photo', [PetController::class, 'deletePhoto'])->middleware('permission:editar mascotas');
 
-    Route::get('/clients', [ClientController::class, 'index']);
-    Route::post('/clients', [ClientController::class, 'store']);
-    Route::get('/clients/{client}', [ClientController::class, 'show']);
-    Route::patch('/clients/{client}', [ClientController::class, 'update']);
+    Route::get('/clients', [ClientController::class, 'index'])->middleware('permission:ver clientes');
+    Route::post('/clients', [ClientController::class, 'store'])->middleware('permission:crear clientes');
+    Route::get('/clients/{client}', [ClientController::class, 'show'])->middleware('permission:ver clientes');
+    Route::patch('/clients/{client}', [ClientController::class, 'update'])->middleware('permission:editar clientes');
 
-    Route::get('/agenda', [AgendaController::class, 'index']);
-    Route::get('/agenda/vencidas', [AgendaController::class, 'vencidas']);
-    Route::get('/agenda/unavailabilities', [AgendaController::class, 'unavailabilities']);
-    Route::get('/operators', [OperatorController::class, 'index']);
-    Route::get('/team', [OperatorController::class, 'team']);
-    Route::get('/branches', [OperatorController::class, 'branches']);
+    Route::get('/agenda', [AgendaController::class, 'index'])->middleware('permission:ver agenda');
+    Route::get('/agenda/vencidas', [AgendaController::class, 'vencidas'])->middleware('permission:ver agenda');
+    Route::get('/agenda/unavailabilities', [AgendaController::class, 'unavailabilities'])->middleware('permission:ver agenda');
+    Route::get('/operators', [OperatorController::class, 'index'])->middleware('permission:ver operadores');
+    Route::get('/team', [OperatorController::class, 'team'])->middleware('permission:ver operadores');
+    Route::get('/branches', [OperatorController::class, 'branches'])->middleware('permission:ver sucursales');
 
-    Route::get('/services', [ServiceController::class, 'index']);
-    Route::post('/bookings', [BookingController::class, 'store']);
-    Route::get('/bookings/{booking}', [BookingController::class,  'show']);
-    Route::patch('/bookings/{booking}', [BookingController::class,  'update']);
-    Route::patch('/bookings/{booking}/services/{line}', [BookingController::class, 'assignServiceProfessional']);
-    Route::get('/bookings/{booking}/payments', [PaymentController::class, 'index']);
-    Route::post('/bookings/{booking}/payments', [PaymentController::class, 'store']);
-    Route::get('/bookings/{booking}/process-notes', [BookingProcessNoteController::class, 'index']);
-    Route::post('/bookings/{booking}/process-notes', [BookingProcessNoteController::class, 'store']);
-    Route::patch('/bookings/{booking}/process-notes/{note}', [BookingProcessNoteController::class, 'update']);
+    Route::get('/services', [ServiceController::class, 'index'])->middleware('permission:ver catalogo_servicios');
+    Route::post('/bookings', [BookingController::class, 'store'])->middleware('permission:crear agenda');
+    Route::get('/bookings/{booking}', [BookingController::class,  'show'])->middleware('permission:ver agenda');
+    Route::patch('/bookings/{booking}', [BookingController::class,  'update'])->middleware('permission:editar agenda');
+    Route::patch('/bookings/{booking}/services/{line}', [BookingController::class, 'assignServiceProfessional'])->middleware('permission:editar agenda');
+    Route::get('/bookings/{booking}/payments', [PaymentController::class, 'index'])->middleware('permission:ver agenda');
+    Route::post('/bookings/{booking}/payments', [PaymentController::class, 'store'])->middleware('permission:cobros.registrar');
+    Route::get('/bookings/{booking}/process-notes', [BookingProcessNoteController::class, 'index'])->middleware('permission:ver agenda');
+    Route::post('/bookings/{booking}/process-notes', [BookingProcessNoteController::class, 'store'])->middleware('permission:editar agenda');
+    Route::patch('/bookings/{booking}/process-notes/{note}', [BookingProcessNoteController::class, 'update'])->middleware('permission:editar agenda');
 
     Route::get('/checkin/status', [CheckinController::class, 'status']);
     Route::post('/checkin', [CheckinController::class, 'checkin']);
@@ -151,7 +151,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
         return response()->json(
             $spa->concat($hotel)->sortByDesc('fecha_iso')->values()
         );
-    });
+    })->middleware('permission:ver mascotas');
 
     Route::get('/payment-methods', function () {
         return PaymentMethod::where('is_active', true)
