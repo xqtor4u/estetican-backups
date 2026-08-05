@@ -1,5 +1,42 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 05/08/2026 (cont.) — Catálogo de artículos con filtros en mov.estetican.org (BL-079)
+
+### ✅ Logros y Cambios
+
+Pedido directo del usuario, fuera del sprint activo — "agregar filtros por departamento, marca y existencia al catálogo de artículos en mov.estetican.org".
+
+**Diagnóstico primero, antes de diseñar nada:** revisando `mob_apps/operador/src/App.tsx` completo (rutas + `MENU_SECTIONS`) se encontró que **no existía ningún catálogo de artículos en la app móvil** — ni ruta, ni entrada de menú, ni endpoint `/api/items` (routes/api.php no tenía nada de `items`). Los únicos componentes con nombre parecido (`Directory.tsx`/`AssignService.tsx`, huérfanos documentados desde BL-037) son otra cosa (directorio de personal / asignación de servicio) y no se tocaron. Se le presentó el hallazgo al usuario antes de proponer diseño — no era "agregar filtros a lo existente", era construir la pantalla y el endpoint desde cero.
+
+**Investigación de modelo real antes de decidir el diseño:** `Item.php` confirmado con `department`/`brand` (strings libres — 3 departamentos y 5 marcas reales en BD hoy, cardinalidad baja, `<select>` viable). Existencia real en dos capas: `items.stock_quantity` (caché global, mantenido por `ItemMovementService`) y `item_branch_stocks` (desglose por sucursal, recalculado desde `item_movements`) — el docblock de `Item.php` decía *"deliberadamente sin existencia/stock"*, desactualizado, no se tocó, solo se anotó. `ItemController` (web) confirmado sin filtro de department/brand tampoco — ni siquiera el backoffice los tiene hoy, solo búsqueda de texto libre los matchea indirectamente.
+
+**Diseño acordado con el usuario, 3 decisiones explícitas:**
+1. `has_stock` sin checkin activo del operador cae al total global (`stock_quantity`) — no se oculta ni falla, el filtro sigue siendo útil aunque menos preciso.
+2. `departments`/`brands` (listas distintas de la BD) bundleadas en el mismo response de `GET /api/items` — no un endpoint aparte, dataset chico no lo amerita.
+3. Solo artículos activos por default, sin toggle de inactivos como el web (uso operativo distinto).
+
+**Construido:** `Api\ItemController` nuevo (`GET /api/items`), gateado con `permission:ver catalogo_articulos` (mismo permiso del equivalente web) + `store.module` — **primera ruta de API en todo el proyecto que respeta un toggle de módulo togglable**, ninguna otra lo hacía hasta ahora (anotado como precedente nuevo, no como inconsistencia con algo existente). `search` vía `TokenSearch` (mismo patrón de los 12 listados migrados el 04-05/08); `department`/`brand` como igualdad exacta (no búsqueda tokenizada); `has_stock` con scope de sucursal activa reusando el patrón exacto que ya usa `CashController` para el checkin (`OperatorCheckin::where('user_id',...)->whereNull('checked_out_at')->latest(...)`). `ItemSearch.tsx` nuevo (mismo esqueleto que `PetSearch.tsx`: buscador con debounce, `ScreenHeader`), con 2 `<select>` de departamento/marca poblados desde el propio response y un segmented control de 3 estados para stock. La insignia de stock por fila muestra el número real (caché global) en vez de un badge binario "con/sin stock" — decisión propia para no contradecir visualmente el filtro cuando aplica scope de sucursal y el número global dice otra cosa (marcado explícitamente al usuario en el diff, no decidido en silencio). Sección nueva "Catálogo" en `MENU_SECTIONS` + ruta `/articulos`, accesible por el drawer igual que "Caja" (no en la barra inferior, que solo toma la primera sección).
+
+**Proceso — un desliz corregido en el momento:** en el primer intento se escribió el archivo del controller directamente al disco antes de mostrar el diff, rompiendo el proceso acordado ("diff antes de aplicar"). Detectado de inmediato, revertido, y recién ahí se presentó el diff completo de los 4 archivos para aprobación — como debía ser desde el principio.
+
+**Verificación en vivo, no solo inferida:** `php -l` limpio en los 2 archivos backend; `route:list -v` confirma `store.module` + `permission:ver catalogo_articulos` aplicados; `tsc --noEmit`/`npm run build` limpios (mismos 2 errores preexistentes ajenos de `MobCajaMovimientos.tsx`). Test de Feature temporal (6 escenarios, no quedó en el repo, mismo patrón ya usado en la sesión de BL-077): listado + `departments`/`brands` distintos, filtro por `department`, filtro por `brand`, `has_stock` con fallback global sin checkin, `has_stock` scopeado a la sucursal del checkin activo, **403 sin el permiso**, **404 con `store_module_enabled=false`** — los dos últimos pedidos explícitamente por el usuario antes de dar el trabajo por cerrado. Los 6 pasaron. Suite completa: 430 pasan, mismos 37 preexistentes de siempre, sin regresiones nuevas. Build de producción del móvil verificado en vivo contra el contenedor real (`md5sum` idéntico entre `dist/` del host y `estetican_mob` — bind-mount de directorio completo, no aplica el gotcha de archivo único de NT-052, que es específico de `nginx.conf`).
+
+**Commit único de la sesión, pusheado a `origin/main`:** `11db6ca`, sin `Co-Authored-By:`/`Claude-Session:` (nueva convención de este repo, agregada en el cierre de sesión anterior del mismo día).
+
+### 📁 Archivos Modificados/Creados
+- Backend: `app/Http/Controllers/Api/ItemController.php` (nuevo), `routes/api.php` (ruta `/api/items`)
+- Móvil: `src/admin/ItemSearch.tsx` (nuevo), `src/App.tsx` (import, ruta, `MENU_SECTIONS`)
+- Docs: `docs/tecnico/BACKLOG.md` (BL-079 nuevo, completado en la misma sesión)
+
+### 🔧 Verificación
+Suite completa sin regresiones (430 pasan, mismos 37 preexistentes). Test de Feature temporal con los 6 escenarios reales (incluye permiso y módulo desactivado). Build del móvil verificado con `md5sum` contra el contenedor real de producción.
+
+### 🛑 Pendientes activos
+- Ninguno nuevo de esta tarea — quedó completa en la misma sesión.
+- Sigue pendiente BL-078 (scope de sucursal en "Ingresos hoy" del Dashboard), sin relación a este trabajo.
+
+---
+
 ## 📅 Cierre de sesión: 05/08/2026 — Dashboard gateado por permisos (BL-077), bug de @can('admin') corregido, convención de commit sin trailers
 
 ### ✅ Logros y Cambios
