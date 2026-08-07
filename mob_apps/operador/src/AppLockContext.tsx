@@ -6,14 +6,12 @@ const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // fallback si la preferencia no 
 const ACTIVITY_EVENTS = ['touchstart', 'mousedown', 'keydown', 'scroll'] as const;
 const STORAGE_KEY = 'estetican_lock_state';
 const ACTIVITY_WRITE_THROTTLE_MS = 5000;
-// Al ocultarse la pestaña (visibilitychange), algunos WebView de Android disparan
-// `hidden` momentáneamente durante navegación interna o al abrir un picker nativo
-// (fecha, foto) sin que el usuario haya salido de verdad de la app. Se espera este
-// margen antes de bloquear — un cambio real de app dura muchísimo más que esto.
-const HIDDEN_GRACE_MS = 1500;
 
+/** `lockTimeoutMinutes === 0` es la opción "Nunca" — candado completamente desactivado. */
 function getIdleTimeoutMs(): number {
   const minutes = getUserPrefs().lockTimeoutMinutes;
+
+  if (minutes === 0) return Infinity;
 
   return Number.isFinite(minutes) && minutes > 0 ? minutes * 60 * 1000 : DEFAULT_IDLE_TIMEOUT_MS;
 }
@@ -83,7 +81,6 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const enabled = !!user;
   const [locked, setLockedState] = useState<boolean>(() => computeLockedFromStorage());
   const timerRef = useRef<number | null>(null);
-  const hiddenTimerRef = useRef<number | null>(null);
   const lastWriteRef = useRef(0);
   // Refleja `locked` de forma síncrona para leer dentro de `resetTimer` sin
   // recrear ese callback (y sin re-suscribir los listeners de actividad) cada
@@ -101,7 +98,11 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const resetTimer = useCallback(() => {
     if (timerRef.current) window.clearTimeout(timerRef.current);
     if (!enabled) return;
-    timerRef.current = window.setTimeout(() => setLocked(true), getIdleTimeoutMs());
+    const timeoutMs = getIdleTimeoutMs();
+    // "Nunca" (Infinity) — no programar ningún timeout, setTimeout con Infinity no es válido.
+    if (Number.isFinite(timeoutMs)) {
+      timerRef.current = window.setTimeout(() => setLocked(true), timeoutMs);
+    }
 
     // Los eventos de actividad (touch/click/tecla/scroll) burbujean hasta acá
     // incluso cuando el toque/tecleo ocurrió DENTRO de la pantalla de bloqueo
@@ -138,16 +139,17 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
     resetTimer();
     ACTIVITY_EVENTS.forEach(ev => document.addEventListener(ev, resetTimer, { passive: true }));
 
+    // Al ocultarse la pestaña (cambiar de app, apagar pantalla) no se hace nada especial:
+    // como no hay más eventos de actividad mientras está oculta, el timer de inactividad ya
+    // en marcha (con la duración configurada por el usuario) sigue corriendo solo y bloquea
+    // cuando corresponda — el "cambio de app" y "no tocar la pantalla" comparten el mismo
+    // plazo configurado, no hay un bloqueo instantáneo aparte que lo ignore.
     const onVisibilityChange = () => {
-      if (document.hidden) {
-        // No bloquear de inmediato — ver HIDDEN_GRACE_MS. Si la pestaña vuelve a
-        // ser visible antes de que se cumpla el margen, se cancela más abajo.
-        hiddenTimerRef.current = window.setTimeout(() => setLocked(true), HIDDEN_GRACE_MS);
-      } else {
-        if (hiddenTimerRef.current) {
-          window.clearTimeout(hiddenTimerRef.current);
-          hiddenTimerRef.current = null;
-        }
+      if (!document.hidden) {
+        // Puede haber pasado más tiempo del que el timer en memoria alcanzó a contar si el
+        // proceso se congeló en segundo plano (típico en Android) — revalidar contra lo
+        // persistido en vez de confiar ciegamente en que el setTimeout ya disparó.
+        setLockedState(computeLockedFromStorage());
         resetTimer();
       }
     };
@@ -166,7 +168,6 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pageshow', onPageShow);
       if (timerRef.current) window.clearTimeout(timerRef.current);
-      if (hiddenTimerRef.current) window.clearTimeout(hiddenTimerRef.current);
     };
   }, [authLoading, enabled, resetTimer, setLocked]);
 

@@ -40,7 +40,7 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
   );
 }
 
-const LOCK_TIMEOUT_OPTIONS = [1, 2, 5, 10, 15, 30];
+const LOCK_TIMEOUT_OPTIONS = [1, 2, 5, 10, 15, 30, 0]; // 0 = "Nunca" — candado desactivado
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: string }[] = [
   { value: 'light',  label: 'Claro',   icon: 'light_mode' },
@@ -284,7 +284,7 @@ export function MobUserConfig() {
               className="bg-surface-container-high border border-outline-variant rounded-lg px-2 py-1.5 text-sm text-on-surface shrink-0"
             >
               {LOCK_TIMEOUT_OPTIONS.map(m => (
-                <option key={m} value={m}>{m} min</option>
+                <option key={m} value={m}>{m === 0 ? 'Nunca' : `${m} min`}</option>
               ))}
             </select>
           </div>
