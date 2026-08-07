@@ -109,6 +109,7 @@ export function MobCitaNueva() {
   const svcSectionRef  = useRef<HTMLElement>(null);
   const slotSectionRef = useRef<HTMLElement>(null);
   const opSectionRef   = useRef<HTMLElement>(null);
+  const freeDateInputRef = useRef<HTMLInputElement>(null);
 
   /* Carga inicial: mascota, servicios, operadores */
   useEffect(() => {
@@ -427,6 +428,7 @@ export function MobCitaNueva() {
               );
             })}
             <input
+              ref={freeDateInputRef}
               type="date"
               id="free-date"
               className="sr-only"
@@ -438,12 +440,23 @@ export function MobCitaNueva() {
                 }
               }}
             />
-            <label
-              htmlFor="free-date"
+            <button
+              type="button"
+              onClick={() => {
+                // En Chrome de escritorio, enfocar el input (ej. vía label) no abre el
+                // calendario nativo — solo clicar el ícono propio del input lo hace, y ese
+                // ícono no es visible porque el input está oculto (sr-only). showPicker() lo
+                // abre explícitamente. En Android el foco ya abre el selector nativo solo,
+                // por eso este botón nunca hacía falta ahí.
+                const el = freeDateInputRef.current;
+                if (el && typeof el.showPicker === 'function') el.showPicker();
+                else el?.focus();
+              }}
               className="p-2 rounded-xl bg-surface-container border border-outline-variant shrink-0 cursor-pointer hover:bg-surface-container-high transition-colors"
+              aria-label="Elegir otra fecha del calendario"
             >
               <span className="material-symbols-outlined text-on-surface-variant text-xl">calendar_month</span>
-            </label>
+            </button>
           </div>
         </section>
 
