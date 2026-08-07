@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { hasRegisteredCredential, isWebAuthnAvailable, verifyBiometric } from './lib/webauthnLock';
+import { fetchWithTimeout, FetchTimeoutError } from './lib/fetchWithTimeout';
 
 export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   const { user, logout } = useAuth();
@@ -31,11 +32,11 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     setChecking(true);
     setError(null);
     try {
-      const res = await fetch('/api/me/verify-password', {
+      const res = await fetchWithTimeout('/api/me/verify-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ password }),
-      });
+      }, 12000);
       if (res.ok) {
         setPassword('');
         onUnlock();
@@ -43,6 +44,12 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       }
       const data = await res.json();
       setError(data.errors ? Object.values<string[]>(data.errors).flat().join(' ') : 'Contraseña incorrecta.');
+    } catch (err) {
+      // Fetch colgado (Android puede congelar el socket en segundo plano) o sin conexión —
+      // sin este catch la promesa nunca se resuelve visualmente y el botón queda pegado.
+      setError(err instanceof FetchTimeoutError
+        ? 'No se pudo verificar por conexión lenta. Intenta de nuevo.'
+        : 'No se pudo conectar con el servidor. Intenta de nuevo.');
     } finally {
       setChecking(false);
     }

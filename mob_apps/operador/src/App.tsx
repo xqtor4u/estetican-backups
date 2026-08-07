@@ -365,7 +365,7 @@ function BottomNav() {
    Guard de autenticación
    ═══════════════════════════════════════════════════════════ */
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, sessionCheckFailed, retrySessionCheck } = useAuth();
   const { locked, unlock } = useAppLock();
 
   if (loading) {
@@ -374,6 +374,25 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         <span className="material-symbols-outlined text-4xl text-on-surface-variant animate-spin">
           progress_activity
         </span>
+      </div>
+    );
+  }
+
+  // No es un 401 (esos ya limpiaron el token y caen a LoginScreen abajo) — es que no se pudo
+  // confirmar la sesión guardada (timeout, sin conexión). Reintentar en vez de forzar login.
+  if (!user && sessionCheckFailed) {
+    return (
+      <div className="theme-admin min-h-screen bg-background flex flex-col items-center justify-center px-6 gap-4 text-center">
+        <span className="material-symbols-outlined text-4xl text-on-surface-variant">wifi_off</span>
+        <p className="text-sm text-on-surface-variant max-w-xs">
+          No se pudo confirmar tu sesión. Revisa tu conexión e intenta de nuevo.
+        </p>
+        <button
+          onClick={retrySessionCheck}
+          className="bg-primary text-on-primary px-6 py-3 rounded-2xl font-semibold"
+        >
+          Reintentar
+        </button>
       </div>
     );
   }

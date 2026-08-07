@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { fetchWithTimeout } from './lib/fetchWithTimeout';
 
 interface AuthUser {
   id: number;
@@ -20,6 +21,8 @@ interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
+  sessionCheckFailed: boolean;
+  retrySessionCheck: () => void;
   login: (username: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
   setUser: (user: AuthUser) => void;
@@ -58,26 +61,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser]   = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionCheckFailed, setSessionCheckFailed] = useState(false);
 
-  // Al montar: restaurar sesión desde localStorage
-  useEffect(() => {
+  // Restaura sesión desde localStorage. Solo un 401 explícito invalida el token guardado —
+  // un timeout o error de red (típico al reanudar la app en Android con conexión inestable)
+  // no debe desloguear a nadie con una sesión válida, solo ofrecer reintentar.
+  const checkSession = useCallback(() => {
     const saved = localStorage.getItem('api_token');
-    if (saved) {
-      setAuthToken(saved);
-      setToken(saved);
-      fetch('/api/me')
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then((u: AuthUser) => setUser(u))
-        .catch(() => {
+    if (!saved) {
+      setLoading(false);
+      return;
+    }
+    setAuthToken(saved);
+    setToken(saved);
+    setLoading(true);
+    setSessionCheckFailed(false);
+    fetchWithTimeout('/api/me', {}, 12000)
+      .then(r => {
+        if (r.ok) return r.json();
+        if (r.status === 401) throw new Error('unauthorized');
+        throw new Error('server-error');
+      })
+      .then((u: AuthUser) => setUser(u))
+      .catch((err) => {
+        if (err instanceof Error && err.message === 'unauthorized') {
           localStorage.removeItem('api_token');
           setAuthToken(null);
           setToken(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+        } else {
+          // Timeout, sin conexión, o error de servidor transitorio — la sesión guardada
+          // puede seguir siendo válida, solo no se pudo confirmar ahora.
+          setSessionCheckFailed(true);
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { checkSession(); }, [checkSession]);
 
   const login = useCallback(async (username: string, password: string): Promise<string | null> => {
     let res: Response;
@@ -111,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, setUser }}>
+    <AuthContext.Provider value={{ user, token, loading, sessionCheckFailed, retrySessionCheck: checkSession, login, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );
