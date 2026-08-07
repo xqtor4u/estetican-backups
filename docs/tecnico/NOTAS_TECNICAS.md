@@ -31,6 +31,28 @@
 
 ---
 
+## NT-056 — El candado de `mov` (`AppLockContext`) ignoraba el tiempo de inactividad configurado — un timer aparte de 1.5s al cambiar de app dominaba cualquier bloqueo real
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 06/08/2026 |
+| **Severidad** | P3 — molesto para el usuario (candado se siente arbitrario), no es un hueco de seguridad — si algo, el comportamiento previo era *más* estricto de lo pedido |
+| **Componente** | `mob_apps/operador/src/AppLockContext.tsx` |
+| **Impacto** | El selector "Bloqueo automático" de `MobUserConfig` (1 a 30 min) casi nunca era lo que en la práctica decidía cuándo se bloqueaba la app en un celular real |
+| **Estado** | ✅ Resuelto |
+
+**Síntoma:** el usuario reportó que el candado "no respeta los tiempos... de la nada se bloquea" — confirmado que ocurría específicamente al cambiar de app un momento (WhatsApp, fotos, una llamada) y volver, sin importar qué tiempo hubiera configurado.
+
+**Causa raíz:** existían **dos mecanismos de bloqueo independientes**. El temporizador de inactividad (`resetTimer()`, reiniciado en cada `touchstart`/`mousedown`/`keydown`/`scroll`) sí respetaba `lockTimeoutMinutes`. Pero además, en `visibilitychange` hacia `hidden`, un segundo timer hardcodeado (`HIDDEN_GRACE_MS = 1500`) bloqueaba a los 1.5 segundos **sin leer la preferencia del usuario para nada**. Ese timer se había agregado a propósito (BL-063, 20/07/2026, commit `b50b96a`) para filtrar falsos `hidden` que algunos WebView de Android disparan momentáneamente durante pickers nativos (fecha, foto) sin que el usuario haya salido de verdad de la app — pero como efecto secundario, en el uso real de un celular (donde cambiar de app un segundo es constante), este segundo mecanismo casi siempre ganaba la carrera antes de que el temporizador de minutos configurado tuviera oportunidad de ser la causa real del bloqueo.
+
+**Solución definitiva:** se eliminó el timer aparte de `HIDDEN_GRACE_MS` por completo. Al ocultarse la pestaña no se dispara ninguna acción especial — como no hay más eventos de actividad mientras está oculta, el temporizador de inactividad ya en marcha (con la duración real configurada) sigue corriendo solo, y bloquea cuando corresponde, sea por quietud dentro de la app o por estar en otra app. Al volver a visible, en vez de reiniciar el timer a ciegas (`resetTimer()` sin más), primero se revalida contra lo persistido en `localStorage` vía `computeLockedFromStorage()` — necesario porque Android puede congelar el proceso en segundo plano y el `setTimeout` en memoria nunca llega a dispararse aunque haya pasado tiempo de sobra. Esto además resuelve el problema original que `HIDDEN_GRACE_MS` intentaba parchear: un falso `hidden` de picker ahora simplemente no hace nada (no hay timer que lo malinterprete), y al volver, `computeLockedFromStorage()` calcula correctamente que no pasó suficiente tiempo real como para bloquear.
+
+**De paso:** se agregó la opción "Nunca" (`lockTimeoutMinutes = 0` → `getIdleTimeoutMs()` devuelve `Infinity`, `resetTimer()` no programa ningún `setTimeout` con eso) — decisión de producto confirmada con el usuario: "Nunca" apaga el candado por completo, incluyendo el bloqueo al cambiar de app, no solo el de inactividad.
+
+**Lección:** cuando existen dos rutas distintas hacia el mismo estado (`locked = true`), un timer "de seguridad" agregado para resolver un problema puntual (falsos positivos de un evento del navegador) puede terminar silenciosamente reemplazando al mecanismo principal en el uso real, si su umbral es mucho más corto. Antes de agregar un segundo temporizador paralelo para "cubrir un caso especial", considerar si el temporizador principal, con una revalidación correcta contra tiempo real (no contra el `setTimeout` en memoria, que puede congelarse), ya cubre ese caso sin necesitar un mecanismo aparte.
+
+---
+
 ## NT-055 — `<label htmlFor>` sobre un `<input type="date">` oculto no abre el calendario nativo en escritorio (sí en Android) — usar `showPicker()`
 
 | Campo | Valor |

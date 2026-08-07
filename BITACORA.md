@@ -1,5 +1,36 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 06/08/2026 (cont. 2) — Foto en MobPetDet, bug real del candado (MobUserConfig) + opción "Nunca", documento de investigación Proyecto IA
+
+### ✅ Logros y Cambios
+
+**Botón de actualizar foto en la vista de `MobPetDet` (pedido directo del usuario):** antes solo se podía cambiar la foto de una mascota entrando a "Editar". Se agregó un botón junto a los chips de Sexo/Tamaño/Esterilizado (sin agrandar esa fila) que reutiliza la misma función de subida ya existente (`uploadPetPhoto` → `/api/pets/{id}/photo`, recorte con `PhotoEditorModal`, marca de agua si aplica).
+
+**Bug real encontrado al primer intento — un solo `<input type="file">` no ofrecía cámara en el dispositivo del usuario, solo galería.** Primer intento: hoja/overlay personalizada ("Tomar foto" / "Elegir de galería") — **falló en el dispositivo real**: solo se veía el fondo oscurecido, sin las opciones, sin poder determinar la causa raíz exacta a ciegas (sin acceso al dispositivo para depurar). Revertido por completo. Solución definitiva: dos `<input>` separados (uno con `capture="environment"` que fuerza la cámara, otro sin `capture` para galería), cada uno con su propio botón/enlace **visible y directo** — mismo patrón de "botón real → `ref.click()`" que ya funcionaba en el resto de la app, sin overlay ni z-index nuevo de por medio. Aplicado en los 3 lugares que compartían la limitación original: el botón nuevo de la vista, el mosaico de "Editar", y el formulario de "Dar de alta" (`NewPetForm`) — este último también sufría el mismo problema, no solo el botón agregado en esta sesión. **Sin confirmar en el dispositivo real todavía** — pendiente de que el usuario verifique cámara y galería por separado antes de dar el fix por bueno.
+
+**Bug real en `MobUserConfig` — el candado no respetaba el tiempo configurado.** Diagnóstico confirmado con el usuario: el bloqueo "de la nada" ocurría al cambiar de app un momento (WhatsApp, fotos, una llamada) y volver — coincidía con un segundo mecanismo de bloqueo en `AppLockContext.tsx`, completamente aparte del selector de minutos: al ocultarse la pestaña (`visibilitychange`), un timer hardcodeado de **1.5 segundos** (`HIDDEN_GRACE_MS`) bloqueaba sin importar la preferencia configurada. Ese timer existía a propósito para filtrar falsos "hidden" de WebView de Android durante pickers nativos (fecha, foto) — pero como efecto secundario, dominaba cualquier bloqueo real en la práctica, haciendo que el selector de minutos casi nunca fuera lo que en verdad decidía cuándo se bloqueaba. **Solución:** se quitó el timer aparte — al ocultarse la pestaña no pasa nada especial, simplemente no hay más eventos de actividad, así que el timer de inactividad ya en marcha (con la duración que configuró el usuario) sigue corriendo solo y bloquea cuando corresponde. Al volver a estar visible, se revalida contra lo persistido (`computeLockedFromStorage()`) en vez de reiniciar el timer a ciegas, por si el proceso se congeló en segundo plano (Android) y no alcanzó a disparar el timer en memoria. Documentado en **NT-056**.
+
+**Opción "Nunca" agregada al selector de bloqueo automático**, a pedido explícito del usuario y con su confirmación de alcance: apaga el candado por completo (ni por inactividad ni al cambiar de app) — decisión de producto consciente, el usuario prefiere esa opción sobre una versión más conservadora que mantuviera el bloqueo de seguridad al cambiar de app. `lockTimeoutMinutes === 0` es el valor centinela; `getIdleTimeoutMs()` devuelve `Infinity` en ese caso y `resetTimer()` no programa ningún `setTimeout` (inválido con `Infinity`).
+
+**`docs/architecture/proyecto_IA.md` — documento nuevo, proyecto paralelo sin relación al sprint activo.** El usuario planteó meter un motor de IA local (Qwen) en el mismo servidor de producción para asistir al staff (caso ancla: agendar citas por voz con verificaciones propias). Sesión larga de solo investigación, sin escribir código: se encontró que ya existe un asistente de IA real en producción (`AssistantChatController`, BL-042, Claude/Anthropic, sin tool-calling, informativo para visitantes anónimos) — la nueva propuesta es un animal distinto (agente con herramientas, para staff autenticado). Se auditó una propuesta de arquitectura que el propio Qwen del usuario generó (React → Laravel → Ollama) contra el código real, con 10 gaps concretos encontrados (falta `permission:` en la ruta, middleware de auth incorrecto, búsqueda con `LIKE` simple en vez de `TokenSearch`, creación de cita cruda saltándose `BookingService`/`OperatorAvailabilityChecker`, loop de tool-calling sin límite de iteraciones, timeout que choca con el `proxy_read_timeout 30s` real de nginx, entre otros). Se verificó hardware real de la OPi (16GB RAM, 13GB libres; NPU del RK3588 con driver de kernel ya activo — confirmado vía `devfreq` — pero sin ningún runtime de usuario RKNN instalado). Se acordó metodología de prueba: sandbox 100% aparte de EstetiCAN (carpeta y `docker compose` con `name:` propio, sin compartir red/base de datos), y se armó un plan de investigación de 4 bloques (calidad de razonamiento, rendimiento real, CPU vs. NPU, aislamiento del sandbox) antes de escribir una sola línea de implementación. Todo el detalle completo queda en el documento — no se resume más aquí para no duplicarlo.
+
+### 📁 Archivos Modificados/Creados
+- `mob_apps/operador/src/admin/PetDetail.tsx` — botón de foto en la vista, `usePhotoPicker()` (cámara+galería separados, reemplaza el intento fallido de hoja/overlay) aplicado en los 3 puntos de foto del archivo
+- `mob_apps/operador/src/AppLockContext.tsx` — quitado el bloqueo instantáneo al ocultar pestaña; "Nunca" (`Infinity`) como opción válida
+- `mob_apps/operador/src/admin/MobUserConfig.tsx` — opción "Nunca" en el selector de bloqueo automático
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-056
+- `docs/architecture/proyecto_IA.md` — nuevo, documento de investigación del Proyecto IA
+
+### 🔧 Verificación
+`tsc --noEmit`/`npm run build` limpios en cada paso (mismos 2 errores preexistentes ajenos de `MobCajaMovimientos.tsx`). Los 3 cambios de `mob_apps/operador` desplegados en vivo (bind-mount directo, sin `docker cp`) y confirmados contra el origen real (`curl` bypass CDN, hash del bundle servido). **Pendiente real:** el fix de cámara/galería en `MobPetDet` no está confirmado por el usuario en su dispositivo — puede necesitar otra vuelta si el segundo intento tampoco funciona.
+
+### 🛑 Pendientes activos
+- **Confirmar en el dispositivo real** si el fix de cámara/galería de `MobPetDet` (segundo intento, sin overlay) funciona — no verificado end-to-end.
+- Proyecto IA: sin arrancar sandbox todavía, solo investigación y plan documentados en `docs/architecture/proyecto_IA.md`.
+- Sigue pendiente BL-078 (scope de sucursal en "Ingresos hoy" del Dashboard), sin relación a esta sesión.
+
+---
+
 ## 📅 Cierre de sesión: 06/08/2026 — Dos bugs reales en producción reportados por usuarios: spinner infinito en Android (mov) y calendario que no abría en escritorio (MobCitaNueva)
 
 ### ✅ Logros y Cambios
