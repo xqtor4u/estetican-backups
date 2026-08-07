@@ -1,5 +1,36 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 06/08/2026 — Dos bugs reales en producción reportados por usuarios: spinner infinito en Android (mov) y calendario que no abría en escritorio (MobCitaNueva)
+
+### ✅ Logros y Cambios
+
+Sesión de soporte reactivo, dos incidentes reales reportados en vivo por el usuario durante la conversación, ambos diagnosticados con logs reales de producción antes de tocar código y desplegados de inmediato por tratarse de gente bloqueada en el momento.
+
+**Incidente 1 — Arantxa "está adentro pero no renderiza" en `mov` (spinner infinito, Android):** diagnóstico inicial cruzando `docker logs estetican_mob`/`estetican_app` contra la hora real del contenedor detectó que la última actividad de su sesión (`POST /api/me/verify-password`, `200` correcto) había quedado registrada más de 7 minutos antes sin ningún request posterior — inconsistente con cualquier interacción normal. Confirmado con el usuario que el síntoma exacto era "se queda cargando (spinner)" en Android. **Causa raíz:** la Fetch API no tiene timeout por default — Android puede congelar o matar el socket de un fetch en curso al mandar la pestaña a segundo plano, sin que la promesa resuelva ni rechace nunca. Dos puntos de espera dependían de eso sin ninguna protección: el chequeo de sesión al montar en `AuthContext.tsx` (gatea el spinner de arranque de `AuthGuard`) y `POST /api/me/verify-password` en `LockScreen.tsx` (el candado client-side de la app, BL-038/063/072). `fetchWithTimeout()` nuevo (`src/lib/fetchWithTimeout.ts`, `AbortController` a 12s) aplicado a ambos. De paso, cambio de comportamiento deliberado: antes *cualquier* falla del chequeo de sesión (incluido un simple timeout de red) borraba el token guardado y forzaba re-login; ahora **solo un 401 explícito** cierra sesión — un timeout o error de red deja el token intacto y muestra una pantalla nueva "No se pudo confirmar tu sesión — Reintentar" en `AuthGuard` (`App.tsx`). Documentado en **NT-054**.
+
+**Incidente 2 — `MobCitaNueva`: el ícono de calendario no abría nada en PC (sí en el celular), bloqueando registrar una cita atrasada que otro operador había olvidado dar de alta.** El `<input type="date">` real vive oculto (`sr-only`); el ícono era un `<label htmlFor>` apuntando a él. **Causa raíz:** en Chrome de escritorio, enfocar un `<input type="date">` vía `<label>` solo mueve el foco — el calendario emergente solo se abre al clicar el ícono de calendario que el propio navegador dibuja *dentro* del control nativo, invisible aquí por el `sr-only`. En Android, cualquier foco sobre el input dispara el selector nativo del sistema operativo sin depender de ese ícono interno, de ahí que ahí sí funcionara. Se confirmó además que no hay ninguna restricción de fecha pasada, ni en este input (sin `min`/`max`) ni en el backend (`Api\BookingController::store()` solo valida el formato de `scheduled_at`, no que sea futura) — el bloqueo era puramente de interacción, no una regla de negocio. Reemplazado el `<label>` por un `<button type="button">` que llama `showPicker()` explícitamente (con fallback a `.focus()` si el navegador no lo soporta). Documentado en **NT-055**.
+
+**Proceso de deploy — hallazgo reutilizable:** `dist/` de `mob_apps/operador` está bind-mounteado *directo* al contenedor `estetican_mob` (no como `nginx.conf`, que es un archivo único con el gotcha de NT-052) — `npm run build` ya escribe donde el contenedor lee, sin necesitar `docker cp`. Confirmado con `md5sum` idéntico host/contenedor y `curl` directo al origen (bypass CDN) después de cada build, ambos incidentes verificados en vivo en producción real antes de darlos por cerrados.
+
+**Los 2 commits de la sesión, pusheados a `origin/main`:** `551e926` (timeout de sesión/candado) → `0a909fa` (calendario de `MobCitaNueva`). Ninguno lleva `Co-Authored-By:`/`Claude-Session:` (convención del repo desde el 05/08/2026).
+
+### 📁 Archivos Modificados/Creados
+- `mob_apps/operador/src/lib/fetchWithTimeout.ts` — nuevo
+- `mob_apps/operador/src/AuthContext.tsx` — timeout + solo 401 desloguea + `sessionCheckFailed`/`retrySessionCheck`
+- `mob_apps/operador/src/LockScreen.tsx` — timeout + mensaje de error explícito
+- `mob_apps/operador/src/App.tsx` — pantalla de "reintentar" en `AuthGuard`
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx` — botón con `showPicker()` en vez de `<label>`
+- Docs: `docs/tecnico/NOTAS_TECNICAS.md` (NT-054, NT-055), `docs/tecnico/BACKLOG.md` (2 entradas en Completados)
+
+### 🔧 Verificación
+`tsc --noEmit` limpio en ambos cambios (mismos 2 errores preexistentes ajenos de `MobCajaMovimientos.tsx`). `npm run build` limpio en los dos. Suite completa del backend tras el primer fix: 437 pasan, mismos 37 preexistentes de siempre, sin regresiones (cambios fueron solo frontend). Ambos despliegues verificados en vivo: `md5sum` idéntico entre `dist/` del host y el contenedor, y `curl` directo al origen (bypass Cloudflare) confirmando el hash del bundle nuevo servido.
+
+### 🛑 Pendientes activos
+- Ninguno nuevo de esta sesión — ambos incidentes quedaron resueltos y verificados en producción real.
+- Backlog de fondo sin cambios: BL-024b (bloqueado en credenciales de Meta), BL-078 (scope de sucursal en "Ingresos hoy"), BL-028 (hardening SSH diferido).
+
+---
+
 ## 📅 Cierre de sesión: 05/08/2026 (cont. 2) — Infraestructura de recordatorios automáticos de WhatsApp (BL-024b), código listo bloqueado en credenciales de Meta
 
 ### ✅ Logros y Cambios

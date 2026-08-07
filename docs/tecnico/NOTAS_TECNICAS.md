@@ -31,6 +31,46 @@
 
 ---
 
+## NT-055 — `<label htmlFor>` sobre un `<input type="date">` oculto no abre el calendario nativo en escritorio (sí en Android) — usar `showPicker()`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-08-06 |
+| **Severidad** | P3 — funcionalidad importante degradada en un dispositivo, con workaround manual (usar el celular) disponible |
+| **Componente** | `mob_apps/operador/src/admin/MobCitaNueva.tsx` — selector de fecha libre ("Nueva cita") |
+| **Impacto** | En escritorio, el ícono de calendario no abría ningún selector — solo quedaban disponibles los 7 chips de "esta semana" (hoy..+6 días), sin forma de registrar una cita atrasada o más allá de la semana visible |
+| **Estado** | ✅ Resuelto |
+
+**Síntoma:** en PC, tocar el ícono de calendario en "Nueva cita" no hacía nada visible; solo se podían elegir los días del chip strip (esta semana). En el celular (Android) el mismo ícono sí abría el selector nativo de fecha sin problema — reportado por un usuario real que necesitaba dar de alta una cita de días atrás que otro operador olvidó registrar.
+
+**Causa raíz:** el `<input type="date" id="free-date" className="sr-only">` real estaba visualmente oculto, con un `<label htmlFor="free-date">` como único disparador. En navegadores de escritorio (Chrome/Edge), enfocar un `<input type="date">` vía `<label>` solo mueve el foco — el calendario emergente solo se abre al clicar el ícono de calendario que el propio navegador dibuja **dentro** del control nativo, que aquí era invisible (`sr-only`) y por lo tanto nunca clickeable. En Android, cualquier foco sobre un `<input type="date">` dispara automáticamente el selector nativo del sistema operativo, sin depender de ese ícono interno — de ahí la diferencia de plataforma. No había ningún `min`/`max` restringiendo fechas pasadas ni en este input ni en el backend (`scheduled_at` solo valida formato) — el bloqueo era puramente de interacción, no de reglas de negocio.
+
+**Solución definitiva:** reemplazado el `<label>` por un `<button type="button">` con `onClick` que llama explícitamente a `inputRef.current.showPicker()` (con fallback a `.focus()` si el navegador no soporta el método).
+
+**Lección:** cualquier `<input type="date">`/`<input type="time">` oculto visualmente (`sr-only`) y disparado desde un ícono/label externo necesita `showPicker()` explícito para funcionar en escritorio — el patrón "label + input oculto" abre el picker nativo solo en móvil; nunca asumir que se comporta igual en ambas plataformas sin probarlo en las dos.
+
+---
+
+## NT-054 — `fetch` sin timeout deja el spinner de sesión/candado atascado para siempre si Android congela el socket en segundo plano
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 2026-08-06 |
+| **Severidad** | P2 — bloquea por completo a un usuario real hasta que cierre y reabra la app, sin ningún error visible en pantalla |
+| **Componente** | `mob_apps/operador/src/AuthContext.tsx` (chequeo de sesión al montar), `mob_apps/operador/src/LockScreen.tsx` (`verify-password`) |
+| **Impacto** | Cualquier operador en Android que mande la app `mov` a segundo plano mientras hay un fetch pendiente puede quedar atrapado en el spinner de carga o en el candado, sin ninguna salida |
+| **Estado** | ✅ Resuelto |
+
+**Síntoma:** una operadora reportó estar "adentro" (autenticada, contraseña del candado aceptada) pero sin renderizar — el spinner de carga giraba indefinidamente en su celular Android, sin ningún error visible.
+
+**Causa raíz:** la Fetch API no tiene timeout por default. Android puede congelar (o directamente descartar) el socket de un fetch en curso al mandar la pestaña a segundo plano, sin que la promesa llegue a resolver ni a rechazar nunca. `AuthContext.tsx` dependía de esa promesa (`/api/me` al montar) para bajar `loading=false`, y `LockScreen.tsx` dependía de otra (`/api/me/verify-password`) para llamar `onUnlock()` — si el fetch nunca resolvía, ninguno de los dos flujos tenía forma de salir del estado "cargando". Confirmado contra los logs reales de producción: la última llamada (`verify-password`, `200` correcto) quedó registrada varios minutos antes de que la usuaria siguiera reportándose bloqueada, sin ningún request posterior — consistente con un fetch que nunca completó del lado del navegador.
+
+**Solución definitiva:** `fetchWithTimeout()` nuevo (`src/lib/fetchWithTimeout.ts`) — `AbortController` a 12s, aplicado en los dos puntos de espera. De paso se separó "timeout/error de red" de "401 real": solo un 401 explícito borra el token guardado; un timeout ahora muestra una pantalla de "reintentar" sin desloguear a alguien con una sesión todavía válida.
+
+**Lección:** cualquier fetch que gatee un estado de carga de pantalla completa (spinner, overlay bloqueante) en la app móvil necesita timeout explícito — sin uno, un solo socket colgado (típico al reanudar desde segundo plano en Android) es indistinguible de "la app se rompió" para quien lo sufre.
+
+---
+
 ## NT-053 — Gatear un `Route::resource()` con `permission:` no cubre las rutas satélite/anidadas del mismo objeto — hay que buscarlas explícitamente
 
 | Campo | Valor |
