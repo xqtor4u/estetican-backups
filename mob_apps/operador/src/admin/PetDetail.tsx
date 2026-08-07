@@ -87,6 +87,37 @@ function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: bool
 }
 
 /* ── Chip de vista ──────────────────────────────────────── */
+/**
+ * Un solo <input type="file" accept="image/*"> sin `capture` debería dejar elegir entre
+ * cámara y galería en el selector nativo — pero en la práctica varios navegadores/WebView
+ * de Android solo ofrecen la galería ahí. `capture="environment"` fuerza la cámara directo,
+ * así que hacen falta dos inputs separados, cada uno con su propio disparador visible
+ * (sin overlay/hoja intermedia — ese patrón se probó y falló en un dispositivo real).
+ */
+function usePhotoPicker(onPick: (file: File) => void) {
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (f) onPick(f);
+  };
+
+  const inputs = (
+    <>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleChange} />
+      <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
+    </>
+  );
+
+  return {
+    inputs,
+    openCamera: () => cameraRef.current?.click(),
+    openGallery: () => galleryRef.current?.click(),
+  };
+}
+
 function Chip({ icon, label, highlight }: { icon: string; label: string; highlight?: boolean }) {
   return (
     <span className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium ${
@@ -120,6 +151,7 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
     return sessionStorage.getItem(PHOTO_KEY) ?? null;
   });
   const [editingPhotoFile, setEditingPhotoFile] = useState<File | null>(null);
+  const { inputs: photoInputs, openCamera: openPhotoCamera, openGallery: openPhotoGallery } = usePhotoPicker(setEditingPhotoFile);
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -229,7 +261,11 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
 
         {/* Foto */}
         <div className="flex items-center gap-4">
-          <label className="w-24 h-24 rounded-2xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer border-2 border-dashed border-primary/30 active:scale-95 transition-transform">
+          <button
+            type="button"
+            onClick={openPhotoCamera}
+            className="w-24 h-24 rounded-2xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0 border-2 border-dashed border-primary/30 active:scale-95 transition-transform"
+          >
             {photoPreview
               ? <img src={photoPreview} alt="preview" className="w-full h-full object-cover" />
               : <div className="flex flex-col items-center gap-1 text-primary">
@@ -237,15 +273,12 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
                   <span className="text-[10px] font-medium">Foto</span>
                 </div>
             }
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) setEditingPhotoFile(f); e.target.value = ''; }}
-            />
-          </label>
-          <p className="text-xs text-on-surface-variant leading-relaxed">Toca para tomar o elegir una foto desde la galería</p>
+          </button>
+          <p className="text-xs text-on-surface-variant leading-relaxed">
+            Toca para tomar una foto, o <button type="button" onClick={openPhotoGallery} className="text-primary font-medium underline underline-offset-2">elige una de la galería</button>
+          </p>
         </div>
+        {photoInputs}
 
         {/* Campos */}
         <div className="grid grid-cols-2 gap-3">
@@ -339,9 +372,9 @@ export function PetDetail() {
   const [edits, setEdits] = useState<EditState | null>(null);
 
   const [editingPhotoFile, setEditingPhotoFile] = useState<File | null>(null);
+  const { inputs: photoInputs, openCamera: openPhotoCamera, openGallery: openPhotoGallery } = usePhotoPicker(setEditingPhotoFile);
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const set = (key: keyof EditState) => (val: string | boolean) =>
     setEdits(d => d ? { ...d, [key]: val } : d);
@@ -515,6 +548,24 @@ export function PetDetail() {
               {pet.size && <Chip icon="straighten" label={SIZE_LABEL[pet.size] ?? pet.size} />}
               {pet.coat_color && <Chip icon="palette" label={pet.coat_color} />}
               <Chip icon={pet.is_sterilized ? 'check_circle' : 'cancel'} label={pet.is_sterilized ? 'Esterilizado' : 'Sin esterilizar'} highlight={pet.is_sterilized} />
+              <button
+                onClick={openPhotoCamera}
+                disabled={photoUploading}
+                aria-label="Tomar foto con la cámara"
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant active:bg-surface-container-high transition-colors disabled:opacity-60 shrink-0"
+              >
+                <span className={`material-symbols-outlined text-base ${photoUploading ? 'animate-spin' : ''}`}>
+                  {photoUploading ? 'progress_activity' : 'photo_camera'}
+                </span>
+              </button>
+              <button
+                onClick={openPhotoGallery}
+                disabled={photoUploading}
+                aria-label="Elegir foto de la galería"
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant active:bg-surface-container-high transition-colors disabled:opacity-60 shrink-0"
+              >
+                <span className="material-symbols-outlined text-base">image</span>
+              </button>
             </div>
 
             {/* Dueño */}
@@ -613,7 +664,7 @@ export function PetDetail() {
             <div className="flex items-center gap-4 pb-2">
               <div className="relative shrink-0">
                 <button
-                  onClick={() => photoInputRef.current?.click()}
+                  onClick={openPhotoCamera}
                   className="w-20 h-20 rounded-2xl bg-primary/10 overflow-hidden flex items-center justify-center"
                 >
                   {pet.photo
@@ -629,15 +680,10 @@ export function PetDetail() {
                     <span className="material-symbols-outlined text-white text-xl animate-spin">progress_activity</span>
                   </div>
                 )}
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) setEditingPhotoFile(f); e.target.value = ''; }}
-                />
               </div>
-              <p className="text-xs text-on-surface-variant">Toca la foto para tomar o elegir una nueva</p>
+              <p className="text-xs text-on-surface-variant">
+                Toca la foto para tomar una nueva, o <button type="button" onClick={openPhotoGallery} className="text-primary font-medium underline underline-offset-2">elige una de la galería</button>
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -681,6 +727,8 @@ export function PetDetail() {
         )}
 
       </div>
+
+      {photoInputs}
 
       {editingPhotoFile && (
         <PhotoEditorModal
