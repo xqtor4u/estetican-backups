@@ -657,6 +657,7 @@ Líneas de servicio **o artículo** dentro de un presupuesto (Grupos).
 | `category` | string | `advance`, `partial`, `full`, `refund`, `misc` |
 | `notes` | text nullable | |
 | `cleared_at` | timestamp nullable | Fecha real de acreditación |
+| `created_by_user_id` | FK → `users` nullable, `nullOnDelete` | 07/08/2026 — quién registró el cobro, para auditoría. Se setea en `PaymentController::store()` (`$request->user()->id`). Nulo en filas históricas previas a esta columna (se hizo backfill puntual desde `activity_log` para las que sí tenían rastro — ver NT-057) |
 | `timestamps` | | |
 
 ---
@@ -675,6 +676,7 @@ Ingresos a caja (efectivo). Fuente de verdad para contabilidad de efectivo — u
 | `payment_method` | string | Nombre real de `payment_methods.name` (BL-076) — antes texto libre sin relación a un método real |
 | `category` | string | `advance`, `liquidation`, `misc_charge` |
 | `notes` | text nullable | |
+| `created_by_user_id` | FK → `users` nullable, `nullOnDelete` | 07/08/2026 — se setea en `QuoteService::registerPayment()` (`auth()->id()`). Sin backfill posible en filas históricas: esta tabla no usa `LogsActivity`, no hay rastro de quién las creó antes de esta columna |
 | `timestamps` | | |
 
 ---
@@ -696,6 +698,7 @@ Ingresos a banco (tarjeta, transferencia). Fuente de verdad para contabilidad ba
 | `category` | string | |
 | `notes` | text nullable | |
 | `cleared_at` | timestamp nullable | Fecha de depósito real |
+| `created_by_user_id` | FK → `users` nullable, `nullOnDelete` | 07/08/2026 — mismo criterio que `cash_ledgers`. También se setea en `AccountingService::reverseDocumentMoney()` (reembolsos), con el usuario que canceló |
 | `timestamps` | | |
 
 > **Balance de una cita:** `$quote->cashLedgers->sum('amount') + $quote->bankLedgers->sum('amount')`. No usar `client->payments()`.

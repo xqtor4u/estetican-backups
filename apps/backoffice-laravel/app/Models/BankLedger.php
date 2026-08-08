@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
     'category',
     'notes',
     'cleared_at',
+    'created_by_user_id',
 ])]
 class BankLedger extends Model
 {
@@ -34,6 +35,11 @@ class BankLedger extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
     }
 
     public function payable(): MorphTo

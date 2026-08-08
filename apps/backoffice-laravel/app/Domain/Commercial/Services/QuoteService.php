@@ -188,6 +188,7 @@ class QuoteService implements QuoteServiceInterface
             'payment_method' => $paymentMethod->name,
             'category' => $data['category'] ?? 'payment',
             'notes' => $data['notes'] ?? null,
+            'created_by_user_id' => auth()->id(),
         ];
 
         return DB::transaction(function () use ($attributes, $destination, $paymentMethod, $amount, $data, $booking) {

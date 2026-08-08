@@ -88,10 +88,10 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::get('/settings/booking', [SettingController::class, 'booking']);
     Route::get('/settings/photos', [SettingController::class, 'photos']);
 
-    Route::get('/cash/session', [CashController::class, 'session']);
-    Route::get('/cash/movement-types', [CashController::class, 'movementTypes']);
-    Route::get('/cash/movements', [CashController::class, 'movements']);
-    Route::post('/cash/sessions/{cashSession}/movements', [CashController::class, 'storeMovement']);
+    Route::get('/cash/session', [CashController::class, 'session'])->middleware('permission:caja.abrir');
+    Route::get('/cash/movement-types', [CashController::class, 'movementTypes'])->middleware('permission:caja.abrir');
+    Route::get('/cash/movements', [CashController::class, 'movements'])->middleware('permission:caja.abrir');
+    Route::post('/cash/sessions/{cashSession}/movements', [CashController::class, 'storeMovement'])->middleware('permission:caja.abrir');
 
     // Tipos de orden activos — fuente de verdad desde DocumentSeries
     Route::get('/work-order-types', function () {

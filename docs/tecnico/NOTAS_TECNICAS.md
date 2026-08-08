@@ -31,6 +31,26 @@
 
 ---
 
+## NT-057 — `Model::delete()` sobre un modelo con `SoftDeletes` no dispara `cascadeOnDelete()` de MySQL — la fila real sigue en la tabla y los hijos quedan huérfanos
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 07/08/2026 |
+| **Severidad** | P2 — si no se detecta, deja huérfanos reales en producción con un mensaje de éxito falso |
+| **Componente** | Cualquier modelo con `use SoftDeletes` que además tenga tablas hijas con `cascadeOnDelete()` a nivel de FK (`Pet` fue el caso real: `spa_bookings`, `pet_photos`, `pet_allergies`, `pet_vaccinations`, `clinical_attachments`, etc.) |
+| **Impacto** | Limpieza de datos de prueba (2 mascotas) durante esta sesión — detectado y corregido antes de cerrar, sin quedar huérfanos en producción |
+| **Estado** | ✅ Resuelto (detectado y corregido en la misma sesión) |
+
+**Síntoma:** se borraron 2 registros de `Pet` con `Pet::find($id)->delete()`, esperando que la cascada `cascadeOnDelete()` de las FK reales (confirmadas en `information_schema.REFERENTIAL_CONSTRAINTS`, regla `CASCADE`) borrara automáticamente citas, fotos, alergias, vacunas y adjuntos clínicos ligados. `Pet::find($id)` devolvió `null` después del borrado (parecía confirmar que la fila ya no existía), pero al verificar los conteos de las tablas hijas, las 3 citas, 3 `spa_booking_services`, 2 fotos, 1 alergia, 1 vacuna y 1 adjunto clínico seguían presentes — la cascada nunca disparó.
+
+**Causa raíz:** `Pet` usa el trait `SoftDeletes`. `->delete()` en un modelo con `SoftDeletes` **no ejecuta un `DELETE` real** — solo hace un `UPDATE` que llena `deleted_at`. La fila sigue físicamente en la tabla, así que MySQL nunca tiene motivo para disparar `ON DELETE CASCADE` (no hubo ningún `DELETE` real que cascadear). `Pet::find($id)` devolviendo `null` es el `global scope` de `SoftDeletes` ocultando la fila soft-eliminada de las consultas normales — no significa que la fila fue removida de la base de datos. Confirmado con `Pet::withTrashed()->find($id)` y consultando `deleted_at` directo en MySQL: la fila seguía ahí.
+
+**Solución aplicada:** `Pet::withTrashed()->find($id)->forceDelete()` en vez de `->delete()` — `forceDelete()` sí ejecuta el `DELETE` físico y dispara la cascada real de MySQL. Verificado con conteos explícitos de las 6 tablas hijas después del `forceDelete()`, todos en 0.
+
+**Lección:** antes de confiar en `cascadeOnDelete()` de una migración para "borrado limpio sin huérfanos", verificar si el modelo padre usa `SoftDeletes` — si lo usa, `->delete()` no es un borrado real y ninguna cascada de FK se dispara. `Model::find($id)` devolviendo `null` tras un `delete()` **no es prueba** de que la fila fue eliminada de la base de datos cuando el modelo tiene `SoftDeletes`; verificar con `withTrashed()` o una consulta directa a la tabla antes de dar un borrado por confirmado. Esto también aplica a cualquier limpieza futura de datos de prueba sobre modelos con `SoftDeletes` (revisar `grep -rl "SoftDeletes" app/Models/` antes de asumir que un `delete()` es suficiente).
+
+---
+
 ## NT-056 — El candado de `mov` (`AppLockContext`) ignoraba el tiempo de inactividad configurado — un timer aparte de 1.5s al cambiar de app dominaba cualquier bloqueo real
 
 | Campo | Valor |

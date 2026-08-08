@@ -1,5 +1,45 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 07-08/08/2026 — Fix de seguridad en `/api/cash/*`, filtro de sucursal + auditoría "quién registró" en caja/cobros, limpieza de datos de prueba en producción (NT-057)
+
+### ✅ Logros y Cambios
+
+Sesión arrancó confirmando el pendiente de la sesión anterior: **el fix de cámara/galería de `MobPetDet` (dos `<input>` separados) sí funcionó en el dispositivo real del usuario** — queda cerrado, sin pendiente. Sobre el Proyecto IA solo se recordó el acuerdo de la sesión previa (sandbox 100% aparte, ver `docs/architecture/proyecto_IA.md`) — **no se arrancó el sandbox todavía**, sigue pendiente. El grueso de la sesión salió de pedir explicar **BL-078** (Dashboard sin scope de sucursal), lo que llevó a diseñar el mismo tipo de filtro para la app móvil.
+
+**Diagnóstico primero, como marca el protocolo:** antes de tocar código se investigó el estado real de `MobCajaMovimientos.tsx` (ya tenía filtros de fecha/tipo funcionando) y su endpoint `Api\CashController::movements`. Se encontró que **las 4 rutas de `/api/cash/*`** (`session`, `movement-types`, `movements`, `sessions/{id}/movements`) **no llevaban `permission:`** — a diferencia de casi todas las demás rutas de `api.php`. Remediado con `permission:caja.abrir` en las 4 (reusa el permiso existente, mismo criterio que la auditoría IDOR del 04-05/08 de no crear permisos nuevos sin necesidad).
+
+**Selector de sucursal en `MobCajaMovimientos`:** solo `is_super_admin` puede elegir sucursal o "Todas" (mismo criterio ya usado en BL-077 para el Dashboard) — un operador normal siempre queda scopeado a su propia sucursal de checkin, **ignorando cualquier `branch_id` que mande el request** (nunca confiar en el scope que manda el cliente). El filtro solo aplica de verdad a `CashMovement` (única de las 4 fuentes que agrega el endpoint con `branch_id` real, vía `cash_sessions`) — `Payment`/`cash_ledgers`/`bank_ledgers` no tienen esa columna, así que en vez de filtrarlos en silencio de forma incorrecta, se marcan explícitamente en la UI como "Todas las sucursales".
+
+**A pedido explícito del usuario ("para poder hacer auditorías"): columna `created_by_user_id` nueva en `payments`/`cash_ledgers`/`bank_ledgers`** (`CashMovement` ya la tenía desde antes). Seteada en los 3 puntos de creación reales del dinero: `PaymentController::store` (API móvil), `QuoteService::registerPayment` (web, anticipos/liquidación), `AccountingService::reverseDocumentMoney` (reembolsos, con el usuario que canceló). **Backfill 100% completo de los 11 `payments` existentes** desde `activity_log` (el modelo usa `LogsActivity`, se cruzó el evento `created` con su `causer_id`) — confirmado contra datos reales de producción (`tomasmg`/`Admin`/`arantxa` aparecieron correctos). `cash_ledgers`/`bank_ledgers` no tienen ese rastro (no usan `LogsActivity`), así que sus filas históricas quedaron sin backfill posible, mostrando "Sin registrar" honestamente en vez de inventar un dato.
+
+**Limpieza real de datos de prueba en producción, iniciada porque el usuario vio el campo `created_by` nuevo y reconoció registros que nunca debieron existir**, todos bajo la cuenta genérica "Admin" (con una excepción real detectada y confirmada aparte, ver abajo). Cada tanda se investigó antes de borrar (qué cuelga de cada registro, si hay `Document`/`JournalEntry`/dependencias reales) y se respaldó a JSON en el scratchpad de la sesión antes de ejecutar:
+- **4 `Payment`** (cobros ficticios de $250-$300 ligados a 4 citas reales de dos clientes) — sin `Document`/`JournalEntry` que cascadear.
+- **1 `CashMovement`** (retiro "Quincena Pedro", $1,500) **con un `JournalEntry` real ligado** (2 líneas contables Caja/Nómina) — se encontró al investigar antes de borrar; se borró también para no dejarlo huérfano.
+- **5 citas de prueba** (`SpaBooking` #1, #7, #26, #27 ligadas a los 4 pagos; #5 ligada al `cash_ledger` legacy) con sus `spa_booking_services`/`booking_process_notes` en cascada. **La cita #5 tenía una particularidad real:** la había creado y editado `tomasmg` (usuario real, con 5 eventos reales en `activity_log`), no la cuenta "Admin" — se le presentó esta discrepancia al usuario explícitamente antes de tocarla, y confirmó borrarla también.
+- **1 `cash_ledger` legacy** (el único que quedaba en toda la tabla, sin rastro de quién lo creó — de antes de que existiera cualquier auditoría) ligado a la cita #5.
+- **2 mascotas completas de prueba** ("pruebito" Basset Hound, cliente Arantxa; "Frenchie" Poodle, cliente Tomás Eduardo) con 3 citas más en cascada (#29, #34, #38), 1 foto cada una (con archivo físico borrado del disco), y en el caso de "pruebito": 1 alergia, 1 vacuna, 1 adjunto clínico cuya descripción decía literalmente "Radiografia simulada" — confirma que era dato de prueba.
+
+**Bug real encontrado y corregido en el proceso (NT-057): `Pet::delete()` no dispara la cascada de FK.** Al borrar las 2 mascotas con `->delete()`, `Pet::find($id)` devolvió `null` (parecía confirmar el borrado), pero los conteos de las tablas hijas (citas, fotos, alergia, vacuna, adjunto) seguían en pie — la cascada real de MySQL (`cascadeOnDelete()`, confirmada en `information_schema.REFERENTIAL_CONSTRAINTS`) nunca se disparó. Causa raíz: `Pet` usa `SoftDeletes` — `->delete()` solo llena `deleted_at`, no ejecuta un `DELETE` físico, así que no hay nada que MySQL cascadee. `Pet::find()` devolviendo `null` es el global scope de `SoftDeletes` ocultando la fila, no prueba de que se borró de la base de datos. Corregido con `Pet::withTrashed()->find($id)->forceDelete()`, reverificado con conteos explícitos de las 6 tablas hijas en 0. Documentado en detalle porque es un patrón que puede repetirse: cualquier limpieza futura sobre un modelo con `SoftDeletes` necesita `forceDelete()`, no `delete()`, para que la cascada de FK sirva de algo.
+
+**Auditoría de seguridad de cierre de sesión (regla 3 de `CLAUDE.md`), por haber tocado `routes/api.php`:** las únicas rutas de `api.php` sin `permission:` son intencionalmente públicas para cualquier autenticado — `/logout`, `/me` y sus variantes (perfil propio, scoped vía `auth()->user()`), `/checkin/status`+`/checkin`+`/checkout` (asistencia propia, scoped por `user_id`), `/settings/booking`, `/settings/photos`, `/work-order-types`, `/payment-methods` (config/catálogo de solo lectura, sin PII de negocio). El único hueco real de la sesión (`/api/cash/*`) ya quedó cerrado.
+
+### 📁 Archivos Modificados/Creados
+- Backend: `app/Http/Controllers/Api/CashController.php` (permission: + branch_id + created_by en las 4 fuentes), `app/Http/Controllers/Api/PaymentController.php`, `app/Domain/Commercial/Services/QuoteService.php`, `app/Domain/Accounting/Services/AccountingService.php`, `app/Models/Payment.php`, `app/Models/CashLedger.php`, `app/Models/BankLedger.php`, `routes/api.php`
+- Migración: `2026_08_07_225546_add_created_by_user_id_to_payment_tables.php`
+- Móvil: `mob_apps/operador/src/admin/MobCajaMovimientos.tsx` (selector de sucursal + columna "Registró")
+- Docs: `docs/tecnico/MODELO_BD.md` (`created_by_user_id` en las 3 tablas), `docs/tecnico/NOTAS_TECNICAS.md` (NT-057), `docs/tecnico/BACKLOG.md`
+- Datos de producción: 4 `payments`, 1 `cash_movement` + su `journal_entry`, 5 `spa_bookings` (+3 más en cascada de mascotas), 1 `cash_ledger`, 2 `pets` — todos de prueba, respaldados en JSON antes de borrar (fuera del repo, en el scratchpad de la sesión, no persiste)
+
+### 🔧 Verificación
+`tsc --noEmit`/`npm run build` limpios (mismos 2 errores preexistentes de `MobCajaMovimientos.tsx`, prop `key`). `md5sum` idéntico entre `dist/` del host y `estetican_mob`. Suite completa del backend sin regresiones en cada paso: 437 pasan, mismos 37 preexistentes de siempre. 2 tandas de tests de Feature temporales con escenarios reales (403 sin `caja.abrir`, scope forzado para operador no-admin, admin viendo todas/una sucursal, las 4 fuentes exponiendo `created_by` correcto) — no quedaron en el repo. Backfill de `payments` verificado contra datos reales de producción. Cada borrado de datos de prueba verificado con conteos explícitos de 0 huérfanos en las tablas hijas antes de darlo por cerrado.
+
+### 🛑 Pendientes activos
+- Proyecto IA: sigue sin arrancar el sandbox — solo investigación y plan documentados en `docs/architecture/proyecto_IA.md`, sin cambios esta sesión.
+- BL-078 (scope de sucursal en "Ingresos hoy" del Dashboard web) sigue pendiente — se explicó en esta sesión pero no se tocó, es la pregunta de producto que espera una segunda sucursal real.
+- Commit de esta sesión pendiente de pushear (ver mensaje del commit para el detalle completo).
+
+---
+
 ## 📅 Cierre de sesión: 06/08/2026 (cont. 2) — Foto en MobPetDet, bug real del candado (MobUserConfig) + opción "Nunca", documento de investigación Proyecto IA
 
 ### ✅ Logros y Cambios

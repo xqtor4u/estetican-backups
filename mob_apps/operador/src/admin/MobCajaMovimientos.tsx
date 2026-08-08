@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
+import { useAuth } from '../AuthContext';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface Movement {
@@ -13,7 +14,9 @@ interface Movement {
   concept: string;
   notes: string | null;
   account: string | null;
+  branch_name: string | null;
   client_name: string | null;
+  created_by: string | null;
   created_at: string;
 }
 interface Totals {
@@ -21,9 +24,19 @@ interface Totals {
   total_salidas:  number;
   count:          number;
 }
+interface BranchFilter {
+  can_select_branch: boolean;
+  selected_branch_id: number | null;
+  own_branch_id: number;
+}
 interface ApiResult {
-  movements: Movement[];
-  totals:    Totals;
+  movements:     Movement[];
+  totals:        Totals;
+  branch_filter: BranchFilter;
+}
+interface Branch {
+  id:   number;
+  name: string;
 }
 
 type Preset = 'hoy' | 'semana' | 'mes' | 'custom';
@@ -91,7 +104,7 @@ function startOfMonth() {
 }
 
 /* ── Fila de movimiento individual ───────────────────────── */
-function MovementRow({ m, last }: { m: Movement; last: boolean }) {
+function MovementRow({ m, last, showBranch }: { m: Movement; last: boolean; showBranch: boolean }) {
   return (
     <div className={`flex items-start gap-3 px-4 py-3 ${last ? '' : 'border-b border-outline-variant'}`}>
       <div className="flex-1 min-w-0">
@@ -100,8 +113,13 @@ function MovementRow({ m, last }: { m: Movement; last: boolean }) {
         </p>
         <p className="text-xs text-on-surface-variant">
           {m.account ?? '—'}{' · '}{fmtDateTime(m.created_at)}
+          {showBranch && ' · '}
+          {showBranch && (m.branch_name ?? 'Todas las sucursales')}
         </p>
         {m.notes && <p className="text-xs text-on-surface-variant/70 truncate">{m.notes}</p>}
+        <p className="text-[10px] text-on-surface-variant/60 truncate">
+          Registró: {m.created_by ?? 'Sin registrar'}
+        </p>
       </div>
       <p className={`text-sm font-semibold shrink-0 ${m.direction === 'entrada' ? 'text-primary' : 'text-error'}`}>
         {m.direction === 'entrada' ? '+' : '-'}{fmtMoney(m.amount)}
@@ -135,7 +153,7 @@ function GroupHeader({ type, items, color }: {
 }
 
 /* ── Vista balance + detalle ─────────────────────────────── */
-function BalanceDetailView({ movements, totals }: { movements: Movement[]; totals: Totals }) {
+function BalanceDetailView({ movements, totals, showBranch }: { movements: Movement[]; totals: Totals; showBranch: boolean }) {
   const neto = totals.total_entradas - totals.total_salidas;
 
   const entradaGroups = TYPE_ORDER
@@ -177,7 +195,7 @@ function BalanceDetailView({ movements, totals }: { movements: Movement[]; total
             <React.Fragment key={type}>
               <GroupHeader type={type} items={items} color="primary" />
               {items.map((m, i) => (
-                <MovementRow key={m.id} m={m} last={i === items.length - 1} />
+                <MovementRow key={m.id} m={m} last={i === items.length - 1} showBranch={showBranch} />
               ))}
             </React.Fragment>
           ))}
@@ -195,7 +213,7 @@ function BalanceDetailView({ movements, totals }: { movements: Movement[]; total
             <React.Fragment key={type}>
               <GroupHeader type={type} items={items} color="error" />
               {items.map((m, i) => (
-                <MovementRow key={m.id} m={m} last={i === items.length - 1} />
+                <MovementRow key={m.id} m={m} last={i === items.length - 1} showBranch={showBranch} />
               ))}
             </React.Fragment>
           ))}
@@ -218,11 +236,14 @@ export function MobCajaMovimientos() {
   const navigate = useNavigate();
   const crumbs = getNavCrumbs();
   const { showBreadcrumbs } = getUserPrefs();
+  const { user } = useAuth();
 
   const [preset,     setPreset]     = useState<Preset>('mes');
   const [dateFrom,   setDateFrom]   = useState(startOfMonth());
   const [dateTo,     setDateTo]     = useState(today());
   const [typeFilter, setTypeFilter] = useState('');
+  const [branchId,   setBranchId]   = useState<number | ''>('');
+  const [branches,   setBranches]   = useState<Branch[]>([]);
   const [result,     setResult]     = useState<ApiResult | null>(null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState<string | null>(null);
@@ -234,12 +255,26 @@ export function MobCajaMovimientos() {
     if (p === 'mes')    { setDateFrom(startOfMonth()); setDateTo(today()); }
   };
 
+  // El selector de sucursal solo aplica a movimientos manuales de caja — los
+  // cobros (Payment/legacy) todavía no tienen branch_id, ver branch_name en
+  // cada fila. Solo super-admin puede elegir sucursal (mismo criterio que
+  // el Dashboard, BL-077); poblar el <select> requiere permission:ver sucursales,
+  // que solo tienen los admins.
+  useEffect(() => {
+    if (!user?.is_admin) return;
+    fetch('/api/branches')
+      .then(res => res.ok ? res.json() : [])
+      .then(setBranches)
+      .catch(() => {});
+  }, [user?.is_admin]);
+
   const fetchMovements = async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
-      if (typeFilter) params.set('type', typeFilter);
+      if (typeFilter)  params.set('type', typeFilter);
+      if (branchId !== '') params.set('branch_id', String(branchId));
       const res = await fetch(`/api/cash/movements?${params}`);
       if (res.status === 403) { setError('Sin check-in activo en ninguna sucursal.'); return; }
       if (!res.ok)            { setError('Error al cargar movimientos.'); return; }
@@ -251,7 +286,7 @@ export function MobCajaMovimientos() {
     }
   };
 
-  useEffect(() => { fetchMovements(); }, [dateFrom, dateTo, typeFilter]);
+  useEffect(() => { fetchMovements(); }, [dateFrom, dateTo, typeFilter, branchId]);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -304,6 +339,21 @@ export function MobCajaMovimientos() {
         ))}
       </div>
 
+      {/* ── Filtro por sucursal (solo super-admin) ─────────── */}
+      {result?.branch_filter.can_select_branch && (
+        <div className="px-4 pb-3">
+          <label className="text-[10px] text-on-surface-variant font-medium uppercase tracking-wider block mb-1 pl-1">Sucursal</label>
+          <select value={branchId} onChange={e => setBranchId(e.target.value === '' ? '' : Number(e.target.value))}
+            className="w-full bg-surface-container rounded-xl px-3 py-2 text-sm text-on-surface border border-outline-variant focus:outline-none focus:border-primary">
+            <option value="">Todas las sucursales</option>
+            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+          <p className="text-[10px] text-on-surface-variant/70 mt-1 pl-1">
+            Los cobros a clientes todavía no distinguen sucursal — solo los movimientos manuales de caja se filtran.
+          </p>
+        </div>
+      )}
+
       {/* ── Contenido ─────────────────────────────────────── */}
       <div className="mx-4 flex flex-col gap-4">
         {loading && (
@@ -331,7 +381,11 @@ export function MobCajaMovimientos() {
         )}
 
         {!loading && result && result.movements.length > 0 && (
-          <BalanceDetailView movements={result.movements} totals={result.totals} />
+          <BalanceDetailView
+            movements={result.movements}
+            totals={result.totals}
+            showBranch={result.branch_filter.can_select_branch && branchId === ''}
+          />
         )}
       </div>
     </div>

@@ -365,6 +365,7 @@ class AccountingService implements AccountingServiceInterface
             'payment_method' => $payment->payment_method,
             'category' => 'reembolso_cancelacion',
             'notes' => "Reembolso de {$document->folio_display} — {$reason} (cancelado por {$cancelledBy->name})",
+            'created_by_user_id' => $cancelledBy->id,
         ];
 
         if ($payment->destination === 'banco') {

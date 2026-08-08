@@ -158,6 +158,7 @@ class CashController extends Controller
             'date_to'   => ['nullable', 'date'],
             'type'      => ['nullable', 'string'],
             'direction' => ['nullable', 'in:entrada,salida'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
         ]);
 
         $from  = $request->filled('date_from') ? $request->date_from . ' 00:00:00' : null;
@@ -167,14 +168,21 @@ class CashController extends Controller
         $cobroTypes = ['cobro_efectivo', 'cobro_banco'];
         $movTypes   = ['retiro', 'deposito_banco', 'gasto', 'perdida', 'entrada'];
 
+        // El scope de sucursal para CashMovement solo lo puede elegir un super-admin
+        // (ver otras sucursales) — un operador normal siempre queda fijo a la suya,
+        // sin importar qué branch_id mande el cliente (nunca confiar en el scope del request).
+        $isSuperAdmin  = $user->is_super_admin;
+        $requestedBranch = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+        $movementBranchId = $isSuperAdmin ? $requestedBranch : $checkin->branch_id;
+
         $items = collect();
 
         // ── Movimientos manuales de caja ──────────────────────
         $includeMovements = ! $typeFilter || in_array($typeFilter, $movTypes);
         if ($includeMovements) {
             $q = CashMovement::query()
-                ->whereHas('cashSession', fn ($q) => $q->where('branch_id', $checkin->branch_id))
-                ->with('counterpartAccount:id,name')
+                ->when($movementBranchId, fn ($q) => $q->whereHas('cashSession', fn ($q) => $q->where('branch_id', $movementBranchId)))
+                ->with(['counterpartAccount:id,name', 'cashSession.branch:id,name', 'createdBy:id,name'])
                 ->when($from,  fn ($q) => $q->where('created_at', '>=', $from))
                 ->when($until, fn ($q) => $q->where('created_at', '<=', $until))
                 ->when($typeFilter && in_array($typeFilter, $movTypes), fn ($q) => $q->where('type', $typeFilter));
@@ -187,7 +195,9 @@ class CashController extends Controller
                 'concept'     => $m->concept,
                 'notes'       => $m->notes,
                 'account'     => $m->counterpartAccount?->name,
+                'branch_name' => $m->cashSession?->branch?->name,
                 'client_name' => null,
+                'created_by'  => $m->createdBy?->name,
                 'created_at'  => $m->created_at->toISOString(),
             ]));
         }
@@ -197,7 +207,7 @@ class CashController extends Controller
         $includeBanco    = ! $typeFilter || $typeFilter === 'cobro_banco';
 
         if ($includeEfectivo || $includeBanco) {
-            $payments = \App\Models\Payment::with('client')
+            $payments = \App\Models\Payment::with(['client', 'createdBy:id,name'])
                 ->when($from,  fn ($q) => $q->where('created_at', '>=', $from))
                 ->when($until, fn ($q) => $q->where('created_at', '<=', $until))
                 ->when($includeEfectivo && ! $includeBanco, fn ($q) => $q->where('destination', 'caja'))
@@ -212,7 +222,9 @@ class CashController extends Controller
                 'concept'     => 'Cobro de servicio',
                 'notes'       => $p->notes,
                 'account'     => $p->payment_method,
+                'branch_name' => null,
                 'client_name' => $p->client?->full_name,
+                'created_by'  => $p->createdBy?->name,
                 'created_at'  => \Illuminate\Support\Carbon::parse($p->created_at)->toISOString(),
             ]));
         }
@@ -221,10 +233,11 @@ class CashController extends Controller
         if ($includeEfectivo) {
             $cashRows = \Illuminate\Support\Facades\DB::table('cash_ledgers')
                 ->leftJoin('clients', 'cash_ledgers.client_id', '=', 'clients.id')
+                ->leftJoin('users', 'cash_ledgers.created_by_user_id', '=', 'users.id')
                 ->when($from,  fn ($q) => $q->where('cash_ledgers.created_at', '>=', $from))
                 ->when($until, fn ($q) => $q->where('cash_ledgers.created_at', '<=', $until))
                 ->select('cash_ledgers.id', 'cash_ledgers.created_at', 'cash_ledgers.amount',
-                         'cash_ledgers.payment_method',
+                         'cash_ledgers.payment_method', 'users.name as created_by_name',
                          \Illuminate\Support\Facades\DB::raw("CONCAT_WS(' ', clients.first_name, clients.apellido_paterno, clients.apellido_materno) as client_name"))
                 ->get();
 
@@ -236,7 +249,9 @@ class CashController extends Controller
                 'concept'     => 'Cobro de servicio',
                 'notes'       => null,
                 'account'     => $r->payment_method,
+                'branch_name' => null,
                 'client_name' => trim($r->client_name) ?: null,
+                'created_by'  => $r->created_by_name,
                 'created_at'  => \Illuminate\Support\Carbon::parse($r->created_at)->toISOString(),
             ]));
         }
@@ -245,10 +260,11 @@ class CashController extends Controller
         if ($includeBanco) {
             $bankRows = \Illuminate\Support\Facades\DB::table('bank_ledgers')
                 ->leftJoin('clients', 'bank_ledgers.client_id', '=', 'clients.id')
+                ->leftJoin('users', 'bank_ledgers.created_by_user_id', '=', 'users.id')
                 ->when($from,  fn ($q) => $q->where('bank_ledgers.created_at', '>=', $from))
                 ->when($until, fn ($q) => $q->where('bank_ledgers.created_at', '<=', $until))
                 ->select('bank_ledgers.id', 'bank_ledgers.created_at', 'bank_ledgers.amount',
-                         'bank_ledgers.payment_method',
+                         'bank_ledgers.payment_method', 'users.name as created_by_name',
                          \Illuminate\Support\Facades\DB::raw("CONCAT_WS(' ', clients.first_name, clients.apellido_paterno, clients.apellido_materno) as client_name"))
                 ->get();
 
@@ -260,7 +276,9 @@ class CashController extends Controller
                 'concept'     => 'Cobro de servicio',
                 'notes'       => null,
                 'account'     => $r->payment_method,
+                'branch_name' => null,
                 'client_name' => trim($r->client_name) ?: null,
+                'created_by'  => $r->created_by_name,
                 'created_at'  => \Illuminate\Support\Carbon::parse($r->created_at)->toISOString(),
             ]));
         }
@@ -268,11 +286,16 @@ class CashController extends Controller
         $sorted = $items->sortByDesc('created_at')->values();
 
         return response()->json([
-            'movements' => $sorted,
-            'totals'    => [
+            'movements'      => $sorted,
+            'totals'         => [
                 'total_entradas' => round($sorted->where('direction', 'entrada')->sum('amount'), 2),
                 'total_salidas'  => round($sorted->where('direction', 'salida')->sum('amount'), 2),
                 'count'          => $sorted->count(),
+            ],
+            'branch_filter' => [
+                'can_select_branch' => $isSuperAdmin,
+                'selected_branch_id' => $movementBranchId,
+                'own_branch_id' => $checkin->branch_id,
             ],
         ]);
     }

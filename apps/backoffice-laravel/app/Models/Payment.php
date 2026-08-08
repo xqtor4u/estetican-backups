@@ -22,6 +22,7 @@ use Spatie\Activitylog\Support\LogOptions;
     'category',
     'notes',
     'cleared_at',
+    'created_by_user_id',
 ])]
 class Payment extends Model
 {
@@ -58,5 +59,10 @@ class Payment extends Model
     public function document(): BelongsTo
     {
         return $this->belongsTo(Document::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
     }
 }

@@ -92,6 +92,7 @@ class PaymentController extends Controller
             'external_reference' => $data['reference'] ?? null,
             'category' => 'liquidacion',
             'notes' => $data['notes'] ?? null,
+            'created_by_user_id' => $request->user()->id,
         ];
 
         if ($paymentMethod) {
