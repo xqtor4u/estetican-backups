@@ -1,8 +1,8 @@
 # Proyecto IA — Motor de IA local en el servidor (Orange Pi)
 
-> **Estado:** En investigación, sin arrancar implementación. Nada de esto está en el sprint activo de `BACKLOG.md` — es un proyecto paralelo, explícitamente separado de EstetiCAN hasta que el sandbox de pruebas dé luz verde.
+> **Estado:** Prototipo funcional real, corriendo en la Orange Pi — texto + voz por Telegram, con tool-calling contra Huellitas (sandbox de Zeus-Estetican, nunca contra producción real de EstetiCAN). Sigue sin integrarse a EstetiCAN mismo ni a datos reales — sigue fuera del sprint activo de `BACKLOG.md`.
 >
-> **Última actualización:** 06/08/2026 (conversación de origen)
+> **Última actualización:** 09/08/2026 — ver "Estado real de la implementación" más abajo para el detalle completo de esta fase. Las secciones de investigación/plan originales (06/08/2026) se dejan intactas como referencia histórica de lo que se decidió antes de construir nada.
 
 ---
 
@@ -28,6 +28,59 @@ La propuesta original de arquitectura (React → `/api/ai/assistant` → Laravel
 | Dónde vive | `AssistantChatController`, `App\Support\Assistant\ServiceCatalogPromptBuilder` | Por definir — **nombre distinto obligatorio** para no colisionar conceptualmente con `/api/assistant/*` |
 
 Vale la pena replicar de ese precedente: guardar conversaciones para auditoría (ahí ya existe `ServiceAiChat`), configuración en `SystemSettings` en vez de `.env`.
+
+---
+
+## Estado real de la implementación (08-09/08/2026)
+
+**Decisión tomada en la práctica, no solo teórica:** el sandbox de este proyecto se construyó **reutilizando Huellitas** (el tenant clon de Zeus-Estetican, `/opt/www/zeus-estetican/tenants/huellitas/`), no un sandbox 100% nuevo como proponía la sección "Metodología de prueba" original. Registrado también como `ZEUS-024` (resuelto) en el backlog de Zeus-Estetican. Huellitas ya estaba aislado (BD propia, red Docker propia, sin dominio) y ahorró tiempo de armar infraestructura desde cero — el trade-off real es que comparte CPU/RAM con producción por ser el mismo hardware físico, exactamente como ya advertía este documento.
+
+### Infraestructura real, ya funcionando
+
+- **Runtime de inferencia:** RKLLama (`ghcr.io/notpunchnox/rkllama:main`), en Docker, **usa el NPU real del RK3588** (no CPU) — `/srv/rkllama/docker-compose.yml`, `name:` propio, sin compartir red ni nombre con nada de EstetiCAN/Zeus. Puerto 8090 (el 8080 lo ocupaba otro contenedor existente, `testweb`).
+- **Modelos cargados**, todos en `/srv/rkllama/models/`:
+  - LLM: `qwen3:8b` (`dulimov/Qwen3-8B-rk3588-1.2.1-unsloth-16k`, contexto 16K, cuantización W8A8)
+  - STT: `omniasr-ctc:300m` (`danielferr85/omniASR-ctc-rknn`) — se probó también la variante 1B (2.2GB): sin mejora de precisión en español y notablemente más lenta, descartada
+  - TTS: `mms_tts_spa` (`danielferr85/mms-tts-rknn`), español genérico (sin variante regional es_MX/es_ES)
+- **Bot:** `/srv/telegram-bot/bot_v3.py` — script Python standalone, **sin git todavía**, sin relación de código con Laravel. Corre vía `nohup python3 -u bot_v3.py &` (foreground/manual, sin systemd — se cae si se reinicia el proceso a mano y no se relanza). Polling directo a la API de Telegram (`getUpdates`/`sendMessage`/`sendVoice`), sin webhook.
+- **Flujo de voz:** nota de voz → `ffmpeg` a WAV 16kHz/mono → STT → texto → LLM (con tool-calling) → TTS → `ffmpeg` a Opus/OGG → se manda transcripción + texto + nota de voz. Solo responde con voz si el mensaje entrante fue voz.
+
+### Huellitas poblado con datos de demo reales (antes estaba completamente vacío — ni una sucursal)
+
+Sembrado vía script PHP corrido por `tinker` (usa `BookingService::scheduleSpaSession()` real para las citas, no `Model::create()` crudo):
+- 1 sucursal: **Bosque Sereno**
+- **7 servicios reales copiados 1:1 de la producción real de EstetiCAN** (mismo `code`/nombre/precio, leídos de `estetican_mysql` en solo lectura)
+- 2 operadoras inventadas, 5 clientes / 6 mascotas inventados (uno de los clientes con 2 mascotas), 6 citas de ejemplo, 6 artículos de venta
+
+### Tool-calling real — 4 herramientas, todas contra la API ya existente de Huellitas (nada nuevo del lado de Laravel)
+
+| Herramienta | Endpoint real que usa | Nota |
+|---|---|---|
+| `buscar_cliente` | `GET /api/clients?search=` + `GET /api/clients/{id}` | El segundo llamado es necesario porque el índice no trae nombres de mascotas, solo el conteo |
+| `ver_stock` | `GET /api/items?search=` | La respuesta real viene envuelta en `{items, departments, brands}`, no un array plano — bug real encontrado y corregido |
+| `consultar_citas_hoy` | `GET /api/agenda` (default `view=day`, `date=hoy`) | Ya existía, no hizo falta crear ningún endpoint nuevo |
+| `crear_cita` | `POST /api/bookings` | Reusa el endpoint real, que ya valida horario operativo y conflictos de operador (`OperatorAvailabilityChecker`) — resuelve de fondo el gap #4 de la revisión original de abajo |
+
+Autenticación: login real contra `POST /api/login` con `Admin`/`admin` (usuario sembrado de Huellitas), token guardado en memoria del proceso con reintento automático si expira (401). **Nota de diseño pendiente para cuando esto deje de ser un prototipo:** hoy el bot usa un único token de `Admin` compartido para cualquier persona que le escriba por Telegram — no hay diferenciación de rol por `chat_id`, cualquiera que hable con el bot tiene efectivamente permisos de super-admin. Ver gap #1 de la revisión original más abajo, sigue sin resolver en la práctica.
+
+Memoria de conversación agregada (`CONVERSATIONS` en memoria del proceso, por `chat_id`, no persistente — se pierde si el bot se reinicia). Fecha real del día inyectada en el system prompt para resolver fechas relativas ("el lunes que entra") antes de llamar a `crear_cita`.
+
+### Bugs y hallazgos de confiabilidad encontrados probando en vivo
+
+1. **Reales, ya corregidos:** `/items` con forma de respuesta distinta a la asumida; `/agenda` trae `client` como hermano de `pet`, no anidado; falta de parámetro de duración en `crear_cita` (ignoraba "de 2 horas" y usaba la duración por defecto del servicio).
+2. **Sin resolver — patrón de corte de respuesta:** el modelo corta su propia generación de forma prematura (termina en 3-4 palabras, a veces con un token de fin de secuencia emitido de golpe) en una fracción real de los turnos — más seguido cuando el turno anterior fue un **resultado de herramienta con error** (herramienta alucinada que no existe, conflicto de horario). **Bajar la temperatura no lo arregló** (probado explícitamente, 4/4 intentos igual de rotos a `temperature=0.2`) — descarta que sea puramente aleatoriedad de sampling. Sospecha sin confirmar: incompatibilidad entre cómo RKLLama arma el prompt para el rol `tool` en estado de error y cómo `qwen3` lo interpreta en este runtime NPU específico.
+3. **Sin resolver — token especial filtrado:** al menos una vez apareció `<｜begin▁of▁sentence｜>` (token de control interno de la plantilla de chat) al inicio de una respuesta, sin que rompiera la conversación — parece un problema de la plantilla de chat de RKLLama para `qwen3`, no del bot.
+4. **Calidad de recall entre turnos:** en un caso real, al preguntar "¿cuáles son sus mascotas?" sobre un cliente con 2 mascotas ya mencionadas en el turno anterior, el modelo solo recordó una — la memoria de conversación en sí funciona (no volvió a buscar), pero el resumen que hizo del historial fue incompleto. Limitación de calidad del modelo de 8B, no bug de código.
+5. **El modelo alucina nombres de herramientas** que no existen en el `tools` declarado (ej. inventó `agregar_cita` antes de que se construyera de verdad) — el código lo maneja sin crashear ("Herramienta desconocida"), pero confirma que no hay que confiar ciegamente en que el modelo solo llame a lo declarado.
+
+### Pendientes para retomar
+
+- Decidir si vale la pena perseguir el patrón de corte de respuesta en errores (aislar más: ¿es cualquier tool_call, o solo resultados de error?) o aceptarlo como límite conocido de este modelo/runtime.
+- Investigar el token especial filtrado si se vuelve a ver.
+- La cita real que se agendó para "Luna" (lunes 15/08) quedó con 30 min en vez de las 2 horas pedidas originalmente (bug de duración, corregido después — no se corrigió esa cita en particular).
+- El código del bot no tiene control de versiones — considerar un repo Git local (mismo criterio que Zeus-Estetican: sin remoto, contenido interno).
+- Diseño de auth por usuario real (hoy todo corre con el token de `Admin` compartido) antes de que esto sea algo más que un prototipo de un solo operador probando.
+- Nada de esto toca `docs/tecnico/BACKLOG.md` de EstetiCAN todavía — sigue siendo un proyecto paralelo sin fecha de integración real decidida.
 
 ---
 
@@ -87,6 +140,13 @@ Gaps encontrados al contrastarla contra el código real de EstetiCAN (documentad
 
 ## Plan de investigación — qué queremos saber antes de decidir
 
+> Este plan se escribió el 06/08/2026, antes de construir nada. El 08-09/08/2026 se empezó a
+> responder en la práctica, no solo en teoría — ver "Estado real de la implementación" arriba
+> para los hallazgos reales del Bloque 1 (tool-calling confiable en el camino feliz, cortes de
+> respuesta reales en rutas de error, fechas relativas resueltas bien) y del Bloque 4 (sandbox
+> confirmado aislado, se usó Huellitas en vez de uno nuevo). Bloques 2 y 3 (rendimiento, CPU vs.
+> NPU) siguen sin medirse formalmente.
+
 ### 1. Calidad de razonamiento (¿el modelo sirve para esto?)
 - ¿Entiende instrucciones y responde bien en español, sin mezclar inglés ni perder contexto?
 - ¿Tool-calling confiable? — llama a la función correcta, con los argumentos correctos, sin "alucinar" que ya hizo algo sin llamarla.
@@ -116,6 +176,6 @@ Gaps encontrados al contrastarla contra el código real de EstetiCAN (documentad
 
 ## Decisiones de producto pendientes (no técnicas)
 
-1. ¿Cualquier operador autenticado puede usar el asistente para agendar, o solo quien ya tendría el permiso de agendar manualmente?
-2. Nombre definitivo del componente nuevo (para no colisionar con `AssistantChatController`/`/api/assistant/*` ya existente).
-3. Si el sandbox valida bien CPU (Ollama) pero el NPU no compensa la complejidad de instalación — ¿vale la pena perseguir el NPU igual, o Ollama-CPU es suficiente para el volumen real de uso esperado?
+1. ¿Cualquier operador autenticado puede usar el asistente para agendar, o solo quien ya tendría el permiso de agendar manualmente? **Sigue sin decidirse** — el prototipo real de hoy usa un único token de `Admin` compartido para cualquiera, ver "Estado real de la implementación".
+2. Nombre definitivo del componente nuevo (para no colisionar con `AssistantChatController`/`/api/assistant/*` ya existente). El bot de Telegram hoy se identifica como "EstetiCAN Assistant" de forma informal, sin que sea una decisión de nombre definitiva ni tenga relación de código con `AssistantChatController`.
+3. Si el sandbox valida bien CPU (Ollama) pero el NPU no compensa la complejidad de instalación — ¿vale la pena perseguir el NPU igual, o Ollama-CPU es suficiente para el volumen real de uso esperado? **Parcialmente adelantado:** se fue directo por el camino NPU (`rknn-llm`/RKLLama) sin probar Ollama-CPU en paralelo todavía — la comparación directa del Bloque 3 del plan de investigación sigue pendiente.
