@@ -2,7 +2,7 @@
 
 > **Estado:** Prototipo funcional real, corriendo en la Orange Pi — texto + voz por Telegram, con tool-calling contra Huellitas (sandbox de Zeus-Estetican, nunca contra producción real de EstetiCAN). Sigue sin integrarse a EstetiCAN mismo ni a datos reales — sigue fuera del sprint activo de `BACKLOG.md`.
 >
-> **Última actualización:** 09/08/2026 — ver "Estado real de la implementación" más abajo para el detalle completo de esta fase. Las secciones de investigación/plan originales (06/08/2026) se dejan intactas como referencia histórica de lo que se decidió antes de construir nada.
+> **Última actualización:** 09-10/08/2026 (noche) — sesión de diagnóstico a fondo del bug de corte de respuesta: se encontró y corrigió un bug real de datos inventados (placeholders) en `crear_cliente`/`crear_mascota`, se corrigió (parcialmente) el cálculo de fechas relativas agregando un calendario explícito al prompt, y se acotó la causa del corte de respuesta comparando 5 modelos distintos (ver "Diagnóstico del corte de respuesta" más abajo) — resultado: es un bug específico de cómo RKLLama maneja el tokenizador/plantilla de la familia Qwen en el runtime NPU, no del modelo `qwen3:8b` en particular ni de `bot_v3.py`. Se agregó también una herramienta nueva, `buscar_horario_disponible`. Ver "Estado real de la implementación" más abajo para el detalle completo. Las secciones de investigación/plan originales (06/08/2026) se dejan intactas como referencia histórica de lo que se decidió antes de construir nada.
 
 ---
 
@@ -52,7 +52,7 @@ Sembrado vía script PHP corrido por `tinker` (usa `BookingService::scheduleSpaS
 - **7 servicios reales copiados 1:1 de la producción real de EstetiCAN** (mismo `code`/nombre/precio, leídos de `estetican_mysql` en solo lectura)
 - 2 operadoras inventadas, 5 clientes / 6 mascotas inventados (uno de los clientes con 2 mascotas), 6 citas de ejemplo, 6 artículos de venta
 
-### Tool-calling real — 4 herramientas, todas contra la API ya existente de Huellitas (nada nuevo del lado de Laravel)
+### Tool-calling real — 7 herramientas, todas contra la API ya existente de Huellitas (nada nuevo del lado de Laravel)
 
 | Herramienta | Endpoint real que usa | Nota |
 |---|---|---|
@@ -60,6 +60,11 @@ Sembrado vía script PHP corrido por `tinker` (usa `BookingService::scheduleSpaS
 | `ver_stock` | `GET /api/items?search=` | La respuesta real viene envuelta en `{items, departments, brands}`, no un array plano — bug real encontrado y corregido |
 | `consultar_citas_hoy` | `GET /api/agenda` (default `view=day`, `date=hoy`) | Ya existía, no hizo falta crear ningún endpoint nuevo |
 | `crear_cita` | `POST /api/bookings` | Reusa el endpoint real, que ya valida horario operativo y conflictos de operador (`OperatorAvailabilityChecker`) — resuelve de fondo el gap #4 de la revisión original de abajo |
+| `buscar_horario_disponible` | `GET /api/agenda` + `GET /api/agenda/unavailabilities` + `GET /api/services` + `GET /api/operators` | Agregada entre el 09 y el 10/08/2026 — busca el primer hueco libre para un servicio en una fecha dada, considerando citas y bloqueos ya existentes. Pensada para "agendame en cuanto haya lugar" en vez de una hora exacta. Solo busca dentro de la fecha exacta que le pasa el modelo — **no avanza sola a otro día** (ver hallazgo #9 de fechas más abajo, importante para no confundir causas) |
+| `crear_cliente` | `POST /api/clients` | Agregada el 09/08/2026 (tarde) — mismo endpoint que usa el backoffice web. Requiere nombre y teléfono; parte el nombre completo en `first_name`/`apellido_paterno` de forma naive (primer token / resto). Gana validación anti-placeholder el 09/08 (noche) — ver hallazgo #8 |
+| `crear_mascota` | `POST /api/pets` | Agregada el 09/08/2026 (tarde) — busca al dueño por nombre primero (`GET /clients?search=`); si no existe, devuelve mensaje pidiendo usar `crear_cliente` antes, en vez de fallar. Mapea sexo/tamaño en español (macho/hembra, chico/mediano/grande/gigante) a los valores reales del enum. Gana validación anti-placeholder el 09/08 (noche) — ver hallazgo #8 |
+
+**Gap real, todavía sin cubrir:** no existe ninguna herramienta para buscar una **mascota** por nombre (solo `buscar_cliente`, que busca por nombre de dueño). Ver hallazgo #10 más abajo.
 
 Autenticación: login real contra `POST /api/login` con `Admin`/`admin` (usuario sembrado de Huellitas), token guardado en memoria del proceso con reintento automático si expira (401). **Nota de diseño pendiente para cuando esto deje de ser un prototipo:** hoy el bot usa un único token de `Admin` compartido para cualquier persona que le escriba por Telegram — no hay diferenciación de rol por `chat_id`, cualquiera que hable con el bot tiene efectivamente permisos de super-admin. Ver gap #1 de la revisión original más abajo, sigue sin resolver en la práctica.
 
@@ -68,19 +73,65 @@ Memoria de conversación agregada (`CONVERSATIONS` en memoria del proceso, por `
 ### Bugs y hallazgos de confiabilidad encontrados probando en vivo
 
 1. **Reales, ya corregidos:** `/items` con forma de respuesta distinta a la asumida; `/agenda` trae `client` como hermano de `pet`, no anidado; falta de parámetro de duración en `crear_cita` (ignoraba "de 2 horas" y usaba la duración por defecto del servicio).
-2. **Sin resolver — patrón de corte de respuesta:** el modelo corta su propia generación de forma prematura (termina en 3-4 palabras, a veces con un token de fin de secuencia emitido de golpe) en una fracción real de los turnos — más seguido cuando el turno anterior fue un **resultado de herramienta con error** (herramienta alucinada que no existe, conflicto de horario). **Bajar la temperatura no lo arregló** (probado explícitamente, 4/4 intentos igual de rotos a `temperature=0.2`) — descarta que sea puramente aleatoriedad de sampling. Sospecha sin confirmar: incompatibilidad entre cómo RKLLama arma el prompt para el rol `tool` en estado de error y cómo `qwen3` lo interpreta en este runtime NPU específico.
+2. **Acotado (no resuelto en la causa raíz) — patrón de corte de respuesta, ver diagnóstico completo más abajo:** el modelo corta su propia generación de forma prematura, casi siempre justo después de emitir una **coma** (`"Lo siento,"`, `"Claro,"`, `"...dispersión de Rayleigh,"`). La sospecha original (que era específico de los turnos de error de herramienta) resultó ser una correlación indirecta, no la causa: esos turnos simplemente tienden a empezar con una frase introductoria con coma temprana ("Lo siento,", "Para poder..."). El 09-10/08/2026 se aisló bastante más — ver sección **"Diagnóstico del corte de respuesta (09-10/08/2026)"** más abajo para el detalle completo (reproducido fuera del bot, comparado contra 5 modelos distintos, descartada la hipótesis de "modo thinking").
 3. **Sin resolver — token especial filtrado:** al menos una vez apareció `<｜begin▁of▁sentence｜>` (token de control interno de la plantilla de chat) al inicio de una respuesta, sin que rompiera la conversación — parece un problema de la plantilla de chat de RKLLama para `qwen3`, no del bot.
 4. **Calidad de recall entre turnos:** en un caso real, al preguntar "¿cuáles son sus mascotas?" sobre un cliente con 2 mascotas ya mencionadas en el turno anterior, el modelo solo recordó una — la memoria de conversación en sí funciona (no volvió a buscar), pero el resumen que hizo del historial fue incompleto. Limitación de calidad del modelo de 8B, no bug de código.
 5. **El modelo alucina nombres de herramientas** que no existen en el `tools` declarado (ej. inventó `agregar_cita` antes de que se construyera de verdad) — el código lo maneja sin crashear ("Herramienta desconocida"), pero confirma que no hay que confiar ciegamente en que el modelo solo llame a lo declarado.
+6. **Real, corregido el 09/08/2026 (tarde) — gap de alcance real:** "da de alta una mascota nueva" no tenía ninguna herramienta que lo cubriera (solo existían `buscar_cliente`/`ver_stock`/`consultar_citas_hoy`/`crear_cita`). El modelo respondía "Lo siento," cortado en vez de explicar la limitación. Corregido agregando `crear_cliente`/`crear_mascota` (ver tabla de herramientas arriba).
+7. **Real, mitigado el 09/08/2026 (tarde) — tool_call emitido como texto plano:** en al menos un caso real, el modelo devolvió el tool call como texto literal `<tool_call>\n{"name": "crear_cita", "arguments": {...}` en el campo `content` en vez de en el campo estructurado `tool_calls` de la respuesta de RKLLama — y encima se cortó a la mitad (combinación con el bug #2), dejando un JSON roto que el bot mandaba tal cual al usuario. **Mitigación (no arregla la causa raíz en el runtime):** `bot_v3.py` ahora detecta `<tool_call>{...}` en el `content` cuando `tool_calls` viene vacío — si el JSON está completo lo ejecuta igual que un tool call real; si está incompleto (cortado), no expone el texto roto, responde pidiendo repetir la solicitud. Caso real que lo disparó: pedir en un solo mensaje dar de alta una mascota nueva **y** agendarle una cita ("para el próximo martes en cuanto haya un lugar disponible") — el modelo intentó saltar directo a `crear_cita` sin haber llamado antes a `crear_mascota` (la mascota todavía no existía). Sin confirmar si el salto de orden es causa o consecuencia del corte.
+8. **Real, corregido el 09/08/2026 (noche) — el modelo inventa datos de placeholder en vez de preguntar:** pese a que el system prompt ya prohibía explícitamente inventar valores de relleno (con ejemplos literales: "sin dato"/"a confirmar"/"cliente no registrado"), el modelo llamó a `crear_mascota` con `dueño: 'cliente no registrado'` — **copiando textual la frase que el propio prompt daba como ejemplo de qué NO hacer** (patrón conocido: un ejemplo negativo en el prompt puede terminar siendo copiado igual, porque queda en el contexto). Se detectó contaminación de datos real en la BD de Huellitas (clientes con id 7 y 8 creados con nombres/teléfonos inventados como "Nombre del dueño"/"Teléfono del dueño" y luego borrados a mano). **Corregido con una validación de código, no solo de prompt:** `_es_placeholder()` en `bot_v3.py` rechaza (antes de tocar la API) nombres/teléfonos que contengan paréntesis o frases típicas de relleno ("a ingresar", "sin dato", "del dueño", "cliente no...", etc.), devolviendo un mensaje que empuja al modelo a preguntar el dato real — aplicado en `tool_crear_cliente` (nombre y teléfono) y `tool_crear_mascota` (nombre de la mascota y del dueño). Confirmado funcionando de punta a punta en vivo (alta de "Mirmidon"/Gabriela Gómez López, sin datos inventados).
+9. **Real, mitigado parcialmente el 10/08/2026 — fechas relativas mal resueltas ("el próximo martes"):** en una prueba real, el modelo calculó mal "el próximo martes" desde un domingo (dio sábado 15/08 y domingo 16/08, ninguno es martes) — pese a que el system prompt ya le decía la fecha y el nombre del día de hoy. **Primer fix:** se agregó `_calendario_proximos_dias()` a `build_system_prompt()`, que arma en Python (nunca se equivoca) una lista de los próximos 14 días con su nombre de día ya resuelto, para que el modelo *busque* la fecha en vez de *calcularla*. Esto corrigió el día de la semana (las citas de prueba posteriores cayeron en el día correcto), **pero introdujo un problema nuevo**: como la lista cubre 14 días, cada nombre de día aparece dos veces, y el modelo a veces elige la ocurrencia lejana (la semana siguiente) en vez de la más cercana — se agregó una regla explícita al prompt ("próximo significa siempre la ocurrencia más cercana, el siguiente nomás, nunca la de la semana después"), pero en una prueba posterior (cita de "Potato" para "el próximo viernes" pedido desde un domingo) **volvió a fallar y agendó para el viernes de la semana siguiente (21/08) en vez del más cercano (14/08)**. Sigue sin resolverse de forma confiable — el día de la semana ya no falla, pero la elección "cercana vs. lejana" sigue siendo poco confiable.
+10. **Gap real, sin cubrir — no hay forma de buscar una mascota por nombre:** al preguntarle "¿de quién es el perro Mirmidon?", el modelo llamó a `buscar_cliente({'nombre': 'Mirmidon'})` (la única herramienta de búsqueda que tiene), no encontró ningún cliente con ese nombre (correcto, porque Mirmidon es la mascota, no un cliente) y concluyó incorrectamente "el dueño no está registrado en el sistema" — cuando en realidad Mirmidon sí tenía dueño real ya cargado en la BD. No es alucinación: es un gap real de herramientas — no existe ningún `buscar_mascota` que reciba el nombre de la mascota y devuelva su dueño. Sin corregir todavía.
 
 ### Pendientes para retomar
 
-- Decidir si vale la pena perseguir el patrón de corte de respuesta en errores (aislar más: ¿es cualquier tool_call, o solo resultados de error?) o aceptarlo como límite conocido de este modelo/runtime.
-- Investigar el token especial filtrado si se vuelve a ver.
+- **Corte de respuesta (bug #2):** causa raíz acotada a RKLLama+tokenizador Qwen en NPU (ver "Diagnóstico del corte de respuesta" más abajo), pero **no resuelta de fondo** — solo mitigada del lado del bot. Perseguir la causa real implicaría meterse al código del runtime `rkllm`/RKLLama (C++/Python), no se hizo esta sesión. Decisión tomada: aceptarlo como límite conocido y quedarse con `qwen3:8b`.
+- Investigar el token especial filtrado si se vuelve a ver (hallazgo #3, sigue sin repetirse ni investigarse más).
 - La cita real que se agendó para "Luna" (lunes 15/08) quedó con 30 min en vez de las 2 horas pedidas originalmente (bug de duración, corregido después — no se corrigió esa cita en particular).
-- El código del bot no tiene control de versiones — considerar un repo Git local (mismo criterio que Zeus-Estetican: sin remoto, contenido interno).
+- El código del bot no tiene control de versiones — considerar un repo Git local (mismo criterio que Zeus-Estetican: sin remoto, contenido interno). Sigue sin hacerse — van ya varias rondas de cambios (crear_cliente/crear_mascota, buscar_horario_disponible, validación anti-placeholder, calendario de fechas) sin ningún commit.
 - Diseño de auth por usuario real (hoy todo corre con el token de `Admin` compartido) antes de que esto sea algo más que un prototipo de un solo operador probando.
+- **Resuelto (09/08 noche):** confirmar si el modelo encadena bien `crear_mascota` → `crear_cita` en un solo mensaje — sí, funcionó de punta a punta en varias pruebas reales (Mirmidon, Ajax, Potato), a veces con alguna vuelta extra pidiendo el dato del dueño en el camino (comportamiento correcto, no un bug).
+- El parser de tool_call en texto (`parse_text_tool_call`) sigue siendo una mitigación sin tests — vigilar los logs (`[warn] tool_call de texto incompleto...`).
+- **Nuevo (09/08 noche):** la validación anti-placeholder (`_es_placeholder()`) es una lista de frases conocidas, no exhaustiva — un modelo suficientemente creativo podría inventar un placeholder que no matchee ninguna de las frases de la lista. Vigilar si vuelve a pasar con una frase distinta.
+- **Nuevo (10/08):** el bug de "próximo día elige la ocurrencia lejana" (hallazgo #9) sigue sin resolverse de forma confiable pese a dos intentos de fix en el prompt — si vuelve a fallar, considerar una tercera vuelta (¿acortar la ventana del calendario a 7 días en vez de 14, para que cada día de la semana aparezca una sola vez y no haya ambigüedad que resolver?).
+- **Nuevo (10/08):** falta una herramienta `buscar_mascota` (hallazgo #10) — hoy no hay forma de responder "¿de quién es la mascota X?" sin que el modelo use mal `buscar_cliente` y saque una conclusión incorrecta.
 - Nada de esto toca `docs/tecnico/BACKLOG.md` de EstetiCAN todavía — sigue siendo un proyecto paralelo sin fecha de integración real decidida.
+
+---
+
+## Diagnóstico del corte de respuesta (09-10/08/2026)
+
+Sesión dedicada específicamente a acotar el bug #2 (corte de respuesta). Metodología: pegarle directo a `http://localhost:8090/api/chat` (RKLLama) con `curl`, **sin pasar por el bot ni por Telegram**, para descartar que fuera algo de `bot_v3.py`.
+
+**Patrón encontrado — el corte pasa casi siempre justo después de una coma:**
+```
+"Dime tres frutas."   -> "Claro," (2 tokens, done_reason: stop)
+"Dime tres animales." -> "Claro," (2 tokens)
+"Explicame... el cielo es azul" -> "...dispersión de Rayleigh," (21 tokens)
+```
+`done_reason` viene siempre `"stop"` (no `"length"`) y cada corte real dura **menos de 1 segundo** de inferencia en los logs de RKLLama (`docker logs rkllama`) — el modelo/runtime cree genuinamente que ya terminó, no es que se quedó sin espacio. Se probó explícitamente con `options.num_predict` y `options.max_new_tokens` hasta 300 — sin efecto, confirmando que no es un límite de tokens configurable.
+
+**Hipótesis descartadas con evidencia directa:**
+- ~~Falta de `max_tokens`/límite de generación~~ — probado explícitamente, sin efecto.
+- ~~Es específico de los turnos de error de herramienta~~ — se reprodujo con prompts sueltos sin ninguna herramienta de por medio.
+- ~~Es el "modo thinking" de Qwen3~~ — Qwen2.5 (sin modo thinking) tiene el mismo bug.
+
+**Comparación real contra 5 modelos** (todos corridos en el mismo runtime/hardware, prompts idénticos vía `curl`):
+
+| Modelo | Familia | Runtime probado | Corte tras coma | Sigue instrucciones en español |
+|---|---|---|---|---|
+| `qwen3:8b` (el que usa el bot) | Qwen | NPU (RKLLama) | Sí | Sí |
+| `qwen3:8b` (mismo modelo) | Qwen | **CPU (Ollama, sandbox descartable)** | **No** | Sí |
+| `Qwen2.5-7B-Instruct` (c01zaut, rk3588) | Qwen | NPU (RKLLama) | Sí | No (responde en inglés) |
+| `DeepSeek-R1-Distill-Qwen-7B` (imkebe, rk3588) | Qwen (por dentro) | NPU (RKLLama) | Sí | — |
+| `Llama-3.1-8B-Instruct` (c01zaut, rk3588) | Llama | NPU (RKLLama) | No | No (mezcla inglés/francés, no entiende el pedido) |
+| `Phi-3-mini-4k-instruct` (c01zaut, rk3588) | Phi | NPU (RKLLama) | No | No (responde en inglés, meta-comentarios) |
+
+**Conclusión:** el corte tras coma aparece en **todos** los modelos de la familia Qwen corridos sobre el runtime NPU de RKLLama (incluido `qwen3:8b`, `Qwen2.5-7B` y el DeepSeek-Distill que por dentro es Qwen), y **desaparece** tanto si se corre el mismo `qwen3:8b` por CPU (Ollama, no NPU) como si se usa un modelo de otra familia de tokenizador sobre el mismo runtime NPU (Llama, Phi). Es decir: **es un bug específico de cómo RKLLama maneja el tokenizador/plantilla de chat de Qwen en el runtime NPU (`rkllm`)** — no del modelo `qwen3:8b` en particular, no de `bot_v3.py`, y no resoluble cambiando de modelo dentro de la familia Qwen. Ninguno de los modelos no-Qwen probados es un reemplazo viable (fallan en seguir instrucciones en español), así que la recomendación es **quedarse con `qwen3:8b`** y seguir tratando el corte como limitación conocida del runtime, mitigada del lado del bot (detección de `<tool_call>` incompleto, pedir repetir cuando el texto viene corto/cortado).
+
+Pendiente si se quiere perseguir la causa raíz real: reportarlo como issue en el repo de [RKLLama](https://github.com/NotPunchnox/rkllama) — implica meterse al código C++/Python del runtime, otro nivel de esfuerzo, no se hizo en esta sesión.
+
+**Metodología de prueba (para replicar o repetir en el futuro):** todos los modelos alternativos se bajaron dentro del propio `/srv/rkllama/models/` vía el endpoint `/pull` de RKLLama (`{"model": "<usuario_hf>/<repo>/<archivo>.rkllm", "model_name": "<nombre>"}"`, formato `w8a8-opt-0-hybrid-ratio-0.0` cuando estaba disponible) y se borraron después con `docker exec rkllama rm -rf /opt/rkllama/models/<nombre>` (el endpoint nativo `/api/delete` de RKLLama tiene un bug propio — 500 por `TypeError` en `re.search` cuando el body no trae el campo `name` en el formato que espera esa ruta puntual). El sandbox de Ollama-CPU se armó aparte, en `~/ollama-test/` (Docker Compose con `name:` propio, puerto 11500), y se desmontó por completo (`docker compose down -v` + borrar la carpeta) apenas terminó de servir para la comparación — ningún modelo ni contenedor de esta investigación quedó residual; el fleet de RKLLama volvió a tener solo `qwen3:8b` (más los modelos de STT/TTS que ya estaban).
 
 ---
 
@@ -161,9 +212,10 @@ Gaps encontrados al contrastarla contra el código real de EstetiCAN (documentad
 - Qué pasa si llegan dos conversaciones al mismo tiempo (dos operadores usándolo a la vez).
 
 ### 3. CPU (Ollama) vs. NPU (`rknn-llm`) — comparación directa
-- Diferencia real de velocidad entre los dos caminos, no solo en teoría.
-- Qué tan complicada es en la práctica la instalación/conversión de modelo para `rknn-llm` (¿la conversión a `.rknn` corre nativa en ARM o necesita una máquina x86 aparte?).
-- Qué API expone `rknn-llm` (¿compatible con el formato tipo OpenAI que ya se usa, o hay que adaptarlo?).
+- Diferencia real de velocidad entre los dos caminos, no solo en teoría. **Sigue sin medirse formalmente.**
+- Qué tan complicada es en la práctica la instalación/conversión de modelo para `rknn-llm` (¿la conversión a `.rknn` corre nativa en ARM o necesita una máquina x86 aparte?). **Sigue sin probarse** — todos los modelos usados fueron descargados ya convertidos desde HuggingFace, nunca se corrió la conversión propia.
+- Qué API expone `rknn-llm` (¿compatible con el formato tipo OpenAI que ya se usa, o hay que adaptarlo?). Respondido: RKLLama expone una API compatible con Ollama (`/api/chat`, `/api/pull`, `/api/tags`, etc.) y parcialmente con OpenAI (`/v1/chat/completions`) — no hizo falta adaptar nada del lado del bot.
+- **Respondido parcialmente el 09-10/08/2026, aunque no era el objetivo original de esta comparación:** se corrió el mismo `qwen3:8b` por Ollama-CPU (sandbox descartable) y por RKLLama-NPU con los mismos prompts — el bug de corte de respuesta **no aparece por CPU**, solo por NPU. No se midió velocidad/latencia de forma sistemática, pero por observación directa el camino CPU fue notablemente más lento por respuesta (esperable, sin aceleración de hardware). Ver "Diagnóstico del corte de respuesta" para el detalle completo.
 
 ### 4. Aislamiento del sandbox
 - Confirmar en vivo que nada del sandbox comparte red/nombre/puerto con los contenedores de EstetiCAN, antes de dar por buena cualquier prueba de carga.
