@@ -142,10 +142,30 @@
                 </div>
             </div>
 
-            <div class="card shadow-sm border-0 rounded-4">
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
                 <div class="card-body p-4">
                     <h4 class="h6 mb-3 text-uppercase letter-space">Notas y Observaciones</h4>
                     <textarea class="form-control" id="notes" name="notes" rows="4">{{ old('notes', $user->notes) }}</textarea>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4">
+                    <h4 class="h6 mb-4 text-uppercase letter-space border-bottom pb-2">Google Calendar</h4>
+                    <p class="text-muted small">Sincronización de citas SPA hacia Google Calendar (un solo sentido). Este email es donde este usuario ve el calendario, no necesariamente su email de acceso.</p>
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label for="google_personal_email" class="form-label">Email personal de Google</label>
+                            <input type="email" class="form-control" id="google_personal_email" name="google_personal_email" value="{{ old('google_personal_email', $user->google_personal_email) }}" placeholder="usuario@gmail.com">
+                        </div>
+                        <div class="col-md-5">
+                            <label for="google_calendar_visibility" class="form-label">Qué calendario ve</label>
+                            <select class="form-select" id="google_calendar_visibility" name="google_calendar_visibility">
+                                <option value="personal" {{ old('google_calendar_visibility', $user->google_calendar_visibility) === 'personal' ? 'selected' : '' }}>Solo su calendario personal (si es operador)</option>
+                                <option value="all" {{ old('google_calendar_visibility', $user->google_calendar_visibility) === 'all' ? 'selected' : '' }}>Todos los calendarios de operadores</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

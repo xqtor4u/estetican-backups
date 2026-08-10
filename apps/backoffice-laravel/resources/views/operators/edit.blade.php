@@ -28,4 +28,5 @@
 </div>
 
 @include('operators.partials.unavailabilities', ['operator' => $operator])
+@include('operators.partials.google_calendar', ['operator' => $operator])
 @endsection

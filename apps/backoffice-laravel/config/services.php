@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'google_calendar' => [
+        // JSON key de una Service Account de Google Cloud (Calendar API habilitada).
+        // Archivo fuera del repo (ej. storage/app/private/), nunca committeado.
+        'credentials_path' => env('GOOGLE_CALENDAR_CREDENTIALS_PATH'),
+    ],
+
 ];

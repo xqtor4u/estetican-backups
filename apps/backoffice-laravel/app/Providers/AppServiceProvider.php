@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Support\SystemSettings\SystemSettings;
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Accounting\Services\AccountingService;
 use App\Domain\Catalog\Contracts\ServiceCatalogRepositoryInterface;
@@ -15,6 +14,8 @@ use App\Domain\Clinical\Services\ClinicalDiagnosisService;
 use App\Domain\Clinical\Services\ClinicalVisitService;
 use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Commercial\Services\QuoteService;
+use App\Domain\GoogleCalendar\Contracts\GoogleCalendarSyncServiceInterface;
+use App\Domain\GoogleCalendar\Services\GoogleCalendarSyncService;
 use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Inventory\Contracts\ItemMovementServiceInterface;
 use App\Domain\Inventory\Services\BookingStockConsumptionService;
@@ -29,6 +30,7 @@ use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Domain\Resources\Services\ResourceAllocationService;
 use App\Domain\WhatsAppMessaging\Contracts\WhatsAppSenderInterface;
 use App\Domain\WhatsAppMessaging\Services\MetaWhatsAppSender;
+use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -51,6 +53,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(BookingStockConsumptionServiceInterface::class, BookingStockConsumptionService::class);
         $this->app->bind(MetaCatalogSyncServiceInterface::class, MetaCatalogSyncService::class);
         $this->app->bind(WhatsAppSenderInterface::class, MetaWhatsAppSender::class);
+        $this->app->bind(GoogleCalendarSyncServiceInterface::class, GoogleCalendarSyncService::class);
     }
 
     /**

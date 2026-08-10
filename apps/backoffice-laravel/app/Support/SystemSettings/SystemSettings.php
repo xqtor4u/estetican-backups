@@ -802,6 +802,19 @@ class SystemSettings
                     ],
                 ],
             ],
+            'calendario_google' => [
+                'label' => 'Sincronización con Google Calendar',
+                'description' => 'Sincroniza las citas SPA de cada operador (con la agenda compartida activada en su ficha) hacia un calendario de Google propio, de un solo sentido — nunca se lee de vuelta desde Google. Requiere la credencial de la cuenta de servicio configurada en el servidor (GOOGLE_CALENDAR_CREDENTIALS_PATH).',
+                'fields' => [
+                    'google_calendar_sync_enabled' => [
+                        'label' => 'Activar sincronización automática',
+                        'type' => 'boolean',
+                        'default' => false,
+                        'rules' => ['nullable', 'boolean'],
+                        'help' => 'Interruptor maestro. Apagado por default — no se crea ni comparte ningún calendario hasta activarlo a propósito.',
+                    ],
+                ],
+            ],
         ];
     }
 

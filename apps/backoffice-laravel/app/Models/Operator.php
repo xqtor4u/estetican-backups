@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 
 #[Fillable([
     'code',
@@ -30,6 +30,8 @@ use Illuminate\Support\Collection;
     'hire_date',
     'is_active',
     'notes',
+    'google_personal_email',
+    'google_calendar_share_enabled',
 ])]
 class Operator extends Model
 {
@@ -41,6 +43,8 @@ class Operator extends Model
         return [
             'is_active' => 'boolean',
             'hire_date' => 'date',
+            'google_calendar_share_enabled' => 'boolean',
+            'google_calendar_shared_at' => 'datetime',
         ];
     }
 
@@ -115,7 +119,7 @@ class Operator extends Model
     public function activeRoles(): Collection
     {
         return $this->roles
-            ->filter(fn (OperatorRole $role) => !$role->pivot?->ends_at)
+            ->filter(fn (OperatorRole $role) => ! $role->pivot?->ends_at)
             ->values();
     }
 
@@ -128,7 +132,7 @@ class Operator extends Model
     public function currentCompensationProfile(): ?OperatorCompensationProfile
     {
         return $this->compensationProfiles
-            ->filter(fn (OperatorCompensationProfile $profile) => !$profile->effective_to)
+            ->filter(fn (OperatorCompensationProfile $profile) => ! $profile->effective_to)
             ->sortByDesc('effective_from')
             ->first();
     }
@@ -151,7 +155,7 @@ class Operator extends Model
 
     public function getProfilePhotoUrlAttribute(): string
     {
-        if (!$this->profile_photo_path) {
+        if (! $this->profile_photo_path) {
             return '';
         }
 
@@ -160,7 +164,7 @@ class Operator extends Model
 
     public function getProfilePhotoThumbnailPathAttribute(): ?string
     {
-        if (!$this->profile_photo_path || !str_contains($this->profile_photo_path, '/original/')) {
+        if (! $this->profile_photo_path || ! str_contains($this->profile_photo_path, '/original/')) {
             return null;
         }
 
@@ -169,11 +173,11 @@ class Operator extends Model
 
     public function getProfilePhotoThumbnailUrlAttribute(): string
     {
-        if (!$this->profile_photo_path) {
+        if (! $this->profile_photo_path) {
             return '';
         }
 
-        if (!$this->profile_photo_thumbnail_path) {
+        if (! $this->profile_photo_thumbnail_path) {
             return $this->profile_photo_url;
         }
 

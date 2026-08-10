@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Operator;
-use App\Models\User;
 use App\Models\OperatorRole;
+use App\Models\User;
 use App\Support\UserPhotoImageManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -31,10 +31,12 @@ class UserController extends Controller
     {
         $this->imageManager = $imageManager;
     }
+
     // Solo admin puede ver todos los usuarios (USEIND)
     public function index()
     {
         $users = User::all();
+
         return view('user.index', compact('users'));
     }
 
@@ -42,12 +44,12 @@ class UserController extends Controller
     public function show($id)
     {
         $user = User::findOrFail($id);
-        
+
         // Autorización: Propio perfil o Admin
-        if (Auth::id() !== $user->id && !Auth::user()->is_super_admin) {
+        if (Auth::id() !== $user->id && ! Auth::user()->is_super_admin) {
             abort(403);
         }
-        
+
         return view('user.show', compact('user'));
     }
 
@@ -67,14 +69,14 @@ class UserController extends Controller
             'configuracion_sistema' => ['label' => 'Configuración', 'code' => 'SYSSET'],
             'usuarios' => ['label' => 'Usuarios', 'code' => 'USRIND'],
         ];
-        
+
         $actions = [
             'ver' => 'Ver',
             'crear' => 'Crear',
             'editar' => 'Editar',
-            'eliminar' => 'Borrar'
+            'eliminar' => 'Borrar',
         ];
-            
+
         return view('user.create', compact('operatorRoles', 'modules', 'actions'));
     }
 
@@ -110,13 +112,13 @@ class UserController extends Controller
             'exists' => 'El valor de :attribute seleccionado no existe.',
         ]);
 
-        $user = new User();
+        $user = new User;
         $user->fill($validated);
-        
+
         if ($request->hasFile('profile_photo')) {
             $user->profile_photo_path = $this->imageManager->store($request->file('profile_photo'));
         }
-        
+
         $user->password = Hash::make($validated['password']);
         $user->save();
         $this->syncOperatorRecord($user);
@@ -146,7 +148,7 @@ class UserController extends Controller
             auth()->id() === $user->id || auth()->user()->hasRole('admin') || auth()->user()->hasRole('super-admin'),
             403, 'No tienes permiso para editar este usuario.'
         );
-        
+
         $operatorRoles = OperatorRole::where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -160,12 +162,12 @@ class UserController extends Controller
             'configuracion_sistema' => ['label' => 'Configuración', 'code' => 'SYSSET'],
             'usuarios' => ['label' => 'Usuarios', 'code' => 'USRIND'],
         ];
-        
+
         $actions = [
             'ver' => 'Ver',
             'crear' => 'Crear',
             'editar' => 'Editar',
-            'eliminar' => 'Borrar'
+            'eliminar' => 'Borrar',
         ];
 
         $userPermissions = $user->getPermissionNames()->toArray();
@@ -178,8 +180,8 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:users,name,' . $user->id,
-            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            'name' => 'required|string|max:255|unique:users,name,'.$user->id,
+            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
             'password' => 'nullable|string|min:6|confirmed',
             'first_name' => 'nullable|string|max:255',
             'apellido_paterno' => 'nullable|string|max:255',
@@ -194,13 +196,15 @@ class UserController extends Controller
             'can_login' => 'required|boolean',
             'is_operator' => 'required|boolean',
             'operator_code' => [
-                'nullable', 
-                'string', 
-                Rule::unique('users')->ignore($user->id)
+                'nullable',
+                'string',
+                Rule::unique('users')->ignore($user->id),
             ],
             'operator_role_id' => 'nullable|exists:operator_roles,id',
             'notes' => 'nullable|string',
             'profile_photo' => 'nullable|image|max:5120',
+            'google_personal_email' => 'nullable|email|max:255',
+            'google_calendar_visibility' => ['nullable', Rule::in(['personal', 'all'])],
         ], [
             'required' => 'El campo :attribute es obligatorio.',
             'email' => 'El :attribute debe ser un correo válido.',
@@ -217,13 +221,13 @@ class UserController extends Controller
         }
 
         $user->fill($validated);
-        
+
         if ($request->hasFile('profile_photo')) {
             // Delete old photo if exists
             $this->imageManager->deleteFiles($user->profile_photo_path);
             $user->profile_photo_path = $this->imageManager->store($request->file('profile_photo'));
         }
-        
+
         $user->save();
         $this->syncOperatorRecord($user);
 
@@ -247,30 +251,31 @@ class UserController extends Controller
 
     private function syncOperatorRecord(User $user): void
     {
-        if (!$user->is_operator) {
+        if (! $user->is_operator) {
             if ($user->operator_id) {
                 Operator::where('id', $user->operator_id)->update(['is_active' => false]);
             }
+
             return;
         }
 
         $data = [
-            'code'                    => $user->operator_code ?: strtoupper(substr($user->name, 0, 8)),
-            'name'                    => $user->name,
-            'first_name'              => $user->first_name ?: $user->name,
-            'apellido_paterno'        => $user->apellido_paterno,
-            'apellido_materno'        => $user->apellido_materno,
-            'operator_role_id'        => $user->operator_role_id,
-            'ine_number'              => $user->ine_number,
-            'imss_number'             => $user->imss_number,
-            'address'                 => $user->address,
-            'phone'                   => $user->phone,
-            'profile_photo_path'      => $user->profile_photo_path,
-            'emergency_contact_name'  => $user->emergency_contact_name,
+            'code' => $user->operator_code ?: strtoupper(substr($user->name, 0, 8)),
+            'name' => $user->name,
+            'first_name' => $user->first_name ?: $user->name,
+            'apellido_paterno' => $user->apellido_paterno,
+            'apellido_materno' => $user->apellido_materno,
+            'operator_role_id' => $user->operator_role_id,
+            'ine_number' => $user->ine_number,
+            'imss_number' => $user->imss_number,
+            'address' => $user->address,
+            'phone' => $user->phone,
+            'profile_photo_path' => $user->profile_photo_path,
+            'emergency_contact_name' => $user->emergency_contact_name,
             'emergency_contact_phone' => $user->emergency_contact_phone,
-            'hire_date'               => $user->hire_date,
-            'is_active'               => $user->is_active,
-            'notes'                   => $user->notes,
+            'hire_date' => $user->hire_date,
+            'is_active' => $user->is_active,
+            'notes' => $user->notes,
         ];
 
         if ($user->operator_id) {

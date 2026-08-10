@@ -191,3 +191,4 @@ docker exec estetican_app find /var/www/html/storage/framework/views -name "*.ph
 - **`proxy_net`** es una red Docker externa creada por NPM — nunca la borres con `down -v`
 - **Force SSL en NPM debe estar DESACTIVADO** — Cloudflare Tunnel ya maneja HTTPS
 - Los assets compilados (`public/build/`) están en el repo — no se necesita npm en la OPi
+- **Credencial de Google Calendar (sincronización de citas, 10/08/2026):** el JSON key de la Service Account de Google Cloud vive en `apps/backoffice-laravel/storage/app/private/google-calendar-service-account.json` — **fuera del repo** (no viaja con `git pull`, hay que copiarlo a mano si se reconstruye el servidor). La variable `GOOGLE_CALENDAR_CREDENTIALS_PATH` en `.env` apunta ahí. Sin ese archivo, `calendario:sincronizar-google` queda inerte (loguea advertencia, no falla) — ver `docs/tecnico/BACKLOG.md` y `App\Domain\GoogleCalendar\Services\GoogleCalendarSyncService`

@@ -29,6 +29,7 @@ class SpaBooking extends Model
         return [
             'scheduled_at' => 'datetime',
             'total_estimated_price' => 'decimal:2',
+            'google_synced_at' => 'datetime',
         ];
     }
 

@@ -34,6 +34,7 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\MapaZonasController;
 use App\Http\Controllers\MetaCatalogSyncController;
 use App\Http\Controllers\OperatorController;
+use App\Http\Controllers\OperatorGoogleCalendarController;
 use App\Http\Controllers\OperatorRoleController;
 use App\Http\Controllers\OperatorUnavailabilityController;
 use App\Http\Controllers\PetController;
@@ -147,6 +148,7 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::post('operators/{operator}/duplicate', [OperatorController::class, 'duplicate'])->name('operators.duplicate')->middleware('permission:crear operadores');
     Route::post('operators/{operator}/unavailabilities', [OperatorUnavailabilityController::class, 'store'])->name('operators.unavailabilities.store')->middleware('permission:editar operadores');
     Route::delete('operators/{operator}/unavailabilities/{unavailability}', [OperatorUnavailabilityController::class, 'destroy'])->name('operators.unavailabilities.destroy')->middleware('permission:editar operadores');
+    Route::put('operators/{operator}/google-calendar', [OperatorGoogleCalendarController::class, 'update'])->name('operators.google-calendar.update')->middleware('permission:editar operadores');
     Route::resource('branches', BranchController::class)
         ->middlewareFor('index', 'permission:ver sucursales')
         ->middlewareFor('show', 'permission:ver sucursales')

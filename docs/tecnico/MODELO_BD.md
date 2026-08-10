@@ -58,6 +58,8 @@ Usuarios del backoffice. También representan operadores cuando `is_operator = t
 | `operator_role_id` | FK → `operator_roles` nullable | Tipo de operador principal |
 | `notes` | text nullable | |
 | `screen_lock_idle_minutes` | unsignedSmallInteger nullable | BL-072 — minutos de inactividad antes de auto-bloquear pantalla, editable por el propio usuario en `user/settings`. `null` = usar `config('backoffice.security.screen_lock_idle_minutes')` (default 15) |
+| `google_personal_email` | string nullable | Sincronización con Google Calendar (10/08/2026) — email personal donde este usuario ve calendarios de operador, distinto de `email` (login). Editable en `user/edit.blade.php`, gateado por `role:admin\|super-admin` |
+| `google_calendar_visibility` | string default `'personal'` | `personal` = solo el calendario del operador vinculado (`operator_id`), si tiene uno con calendario ya creado; `all` = todos los calendarios de operador que existan hoy. Ver `App\Console\Commands\SincronizarGoogleCalendarCommand::syncViewers()` |
 | `remember_token` | string nullable | |
 | `email_verified_at` | timestamp nullable | |
 | `timestamps` | | `created_at`, `updated_at` |
@@ -95,6 +97,10 @@ Catálogo legado de operadores (pre-fusión). Sigue siendo la FK usada en `spa_b
 | `university` | string nullable | |
 | `is_active` | boolean | |
 | `notes` | text nullable | |
+| `google_calendar_id` | string nullable | Sincronización con Google Calendar (10/08/2026) — id del calendario de Google del operador, autoprovisionado por `GoogleCalendarSyncService::ensureCalendarForOperator()`. No es `#[Fillable]` a propósito, se escribe con `forceFill()->saveQuietly()` |
+| `google_personal_email` | string nullable | Email personal del operador donde se comparte el calendario (rol lector) — distinto de `users.email` (login), editable desde la ficha del operador (`operators.google-calendar.update`, permiso `editar operadores`) |
+| `google_calendar_share_enabled` | boolean default false | Interruptor por operador — el comando `calendario:sincronizar-google` solo procesa operadores con esto en `true` y `google_personal_email` cargado |
+| `google_calendar_shared_at` | timestamp nullable | Cuándo se compartió con éxito el calendario — evita reintentar el ACL insert en cada corrida del cron (cada 5 min). Se limpia a `null` cuando cambia `google_personal_email`, para forzar re-compartir con el nuevo destinatario |
 | `timestamps` | | |
 
 ---
@@ -560,6 +566,8 @@ Citas de servicio SPA. Ciclo de vida: `scheduled` → `work_order` → `complete
 | `status` | enum | `scheduled`, `work_order`, `completed`, `cancelled`, `no_show`, `unfulfillable` |
 | `notes` | text nullable | |
 | `cancellation_reason` | text nullable | |
+| `google_event_id` | string nullable | Sincronización con Google Calendar (10/08/2026) — id del evento en el calendario del operador asignado. No es `#[Fillable]` a propósito (bookkeeping interno, no dato de negocio), se escribe con `forceFill()->saveQuietly()` en `GoogleCalendarSyncService`, así que no genera entradas en el activity log de la cita |
+| `google_synced_at` | timestamp nullable | Última vez que se sincronizó con Google — el comando `calendario:sincronizar-google` solo reprocesa si `updated_at > google_synced_at` |
 | `timestamps` | | |
 
 > `work_order` es el estado activo con orden de trabajo abierta. No existe `in_process`.
