@@ -29,6 +29,8 @@ use Throwable;
  */
 class GoogleCalendarSyncService implements GoogleCalendarSyncServiceInterface
 {
+    private const REMINDER_MINUTES_BEFORE = 15;
+
     public function __construct(private SystemSettings $settings) {}
 
     public function ensureCalendarForOperator(Operator $operator): ?string
@@ -175,6 +177,12 @@ class GoogleCalendarSyncService implements GoogleCalendarSyncServiceInterface
             'description' => $description,
             'start' => new EventDateTime(['dateTime' => $start->toRfc3339String(), 'timeZone' => $timezone]),
             'end' => new EventDateTime(['dateTime' => $end->toRfc3339String(), 'timeZone' => $timezone]),
+            'reminders' => [
+                'useDefault' => false,
+                'overrides' => [
+                    ['method' => 'popup', 'minutes' => self::REMINDER_MINUTES_BEFORE],
+                ],
+            ],
         ]);
     }
 
