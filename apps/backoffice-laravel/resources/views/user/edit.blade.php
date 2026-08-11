@@ -174,8 +174,8 @@
         <div class="col-lg-4">
             <div class="card shadow-sm border-0 rounded-4 mb-4">
                 <div class="card-body p-4">
-                    <h4 class="h6 mb-4 text-uppercase letter-space border-bottom pb-2">Acceso al Sistema</h4>
-                    
+                    <h4 class="h6 mb-4 text-uppercase letter-space border-bottom pb-2">Acceso y Permisos</h4>
+
                     <div class="mb-4">
                         <div class="form-check form-switch mb-2">
                             <input type="hidden" name="can_login" value="0">
@@ -197,7 +197,7 @@
                             </div>
                     </div>
 
-                    <div class="mb-0">
+                    <div class="mb-4">
                         <label for="is_active" class="form-label small fw-bold">Estado del Empleado</label>
                         <select class="form-select" id="is_active" name="is_active">
                             <option value="1" @selected(old('is_active', $user->is_active))>Empleado Activo</option>
@@ -205,6 +205,45 @@
                         </select>
                         <small class="text-muted d-block mt-2 lh-sm">Los empleados inactivos no aparecen en selectores de agenda ni listas operativas.</small>
                     </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="h6 mb-3 text-uppercase letter-space">Matriz de Permisos (CRUD)</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Módulo / Ventana</th>
+                                    @foreach($actions as $action => $label)
+                                        <th class="text-center">{{ $label }}</th>
+                                    @endforeach
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($modules as $moduleKey => $module)
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-secondary small">{{ $module['label'] }}</div>
+                                            <div class="text-muted" style="font-size: 0.65rem; font-family: monospace;">[{{ $module['code'] }}]</div>
+                                        </td>
+                                        @foreach($actions as $actionKey => $actionLabel)
+                                            @php
+                                                $permName = "{$actionKey} {$moduleKey}";
+                                            @endphp
+                                            <td class="text-center">
+                                                <input type="checkbox"
+                                                       name="permissions[]"
+                                                       value="{{ $permName }}"
+                                                       class="form-check-input"
+                                                       @checked(in_array($permName, $userPermissions))>
+                                            </td>
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <small class="text-muted">Nota: Los administradores tienen todos los permisos habilitados por defecto mediante su rol.</small>
                 </div>
             </div>
 
@@ -255,48 +294,6 @@
                         <label class="form-check-label fw-bold" for="can_manage_own_availability">Puede bloquear su propia disponibilidad</label>
                     </div>
                     <small class="text-muted d-block lh-sm">Permite que este usuario marque vacaciones/permisos desde la app móvil (menú "+" de la Agenda) sin depender de un administrador.</small>
-                </div>
-            </div>
-
-            <div class="card shadow-sm border-0 rounded-4 mb-4">
-                <div class="card-body p-4">
-                    <h4 class="h6 mb-4 text-uppercase letter-space border-bottom pb-2">Matriz de Permisos (CRUD)</h4>
-                    
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Módulo / Ventana</th>
-                                    @foreach($actions as $action => $label)
-                                        <th class="text-center">{{ $label }}</th>
-                                    @endforeach
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($modules as $moduleKey => $module)
-                                    <tr>
-                                        <td>
-                                            <div class="fw-bold text-secondary small">{{ $module['label'] }}</div>
-                                            <div class="text-muted" style="font-size: 0.65rem; font-family: monospace;">[{{ $module['code'] }}]</div>
-                                        </td>
-                                        @foreach($actions as $actionKey => $actionLabel)
-                                            @php
-                                                $permName = "{$actionKey} {$moduleKey}";
-                                            @endphp
-                                            <td class="text-center">
-                                                <input type="checkbox" 
-                                                       name="permissions[]" 
-                                                       value="{{ $permName }}" 
-                                                       class="form-check-input"
-                                                       @checked(in_array($permName, $userPermissions))>
-                                            </td>
-                                        @endforeach
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                    <small class="text-muted">Nota: Los administradores tienen todos los permisos habilitados por defecto mediante su rol.</small>
                 </div>
             </div>
 
