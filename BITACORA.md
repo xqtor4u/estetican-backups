@@ -1,5 +1,42 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 11/08/2026 — BL-024b: intento de retomar el trámite en Meta, bloqueado en acceso; plantilla de recordatorio redactada y lista para enviar a aprobación
+
+### ✅ Logros y Cambios
+
+Sesión arrancó con protocolo estándar (lectura de `BITACORA.md`/`BACKLOG.md`). **Corrección de un dato desactualizado de la entrada anterior (10/08):** decía "6 commits sin pushear" — se verificó `git status`/`git log origin/main..HEAD` real y la rama está al día con `origin/main`, sin nada pendiente de pushear. Ya se había resuelto en algún punto entre sesiones, sin quedar anotado.
+
+**Intento de destrabar BL-024b (WhatsApp, bloqueado desde el 05/08 en credenciales de Meta):** el usuario mencionó tener acceso a una cuenta de Facebook Business a la que lo invitaron, con un número distinto al que usa normalmente. Se investigó primero (sin tocar código) y se aclaró una confusión real antes de avanzar: el número de teléfono del login personal de Facebook con el que invitan a alguien a un Business Manager **no tiene relación** con el número de WhatsApp Business que se registra para la API — son conceptos independientes.
+
+Se confirmó con el usuario, vía preguntas dirigidas, el estado real:
+- La cuenta a la que lo invitaron **no es** el portafolio "Estetican" que ya se usa para BL-052 (catálogo) — es una cuenta aparte, de otro negocio/persona.
+- **Todavía no tiene rol de administrador** en esa cuenta invitada — sin eso no se puede crear un Usuario del sistema ni generar el token con permiso `whatsapp_business_messaging` que necesita `MetaWhatsAppSender`.
+
+**Decisión del usuario: pausar el trámite de acceso y adelantar trabajo que no depende de él** — redactar ya el texto de la plantilla de WhatsApp, para tenerlo listo y solo falta pegarlo en Meta y mandarlo a aprobación en cuanto haya acceso admin (a la cuenta invitada, o a "Estetican" si se decide construir ahí en su lugar — **sin decidir todavía en cuál de las dos cuentas quedará la WABA real**).
+
+**Plantilla redactada** (categoría Utility, sin pedir confirmación por respuesta — a propósito, porque no hay ningún mecanismo para leer/procesar respuestas todavía, eso es BL-024c y sigue diferido; pedir "confirma" sin poder verla generaría una expectativa falsa):
+- Nombre técnico: `recordatorio_cita_estetican`
+- Idioma: Spanish (MEX) — `es_MX` (coincide con el default de `whatsapp_messaging_template_language` en código)
+- Cuerpo, con las 5 variables **en el orden exacto que ya arma `EnviarRecordatoriosCitaCommand::buildParameters()`** (cliente, mascota, servicio(s), fecha, hora — no se puede reordenar sin tocar código): `Hola {{1}} 🐾, te recordamos la cita de {{2}} en EstetiCAN para {{3}} el {{4}} a las {{5}} hrs. Si necesitas reagendar o cancelar, contáctanos con gusto.`
+- Pie estático: `EstetiCAN`
+- Ejemplos para el formulario de envío a revisión de Meta: María López / Firulais / Baño y corte / 15/08/2026 / 11:30 AM
+
+**Pregunta real levantada, sin resolver a propósito:** qué número de teléfono registrar en la WABA. Se investigó en código (no se asumió) si el flujo manual de `wa.me` (`BookingMessageController`/`RecurrenceMessageController`) depende de `brand_whatsapp_number` (4494956151, hoy solo usado como botón de contacto en correos) — **confirmado que no**: esos links abren desde el WhatsApp personal del operador hacia el número del cliente, sin ningún número del negocio de por medio. O sea, no hay obligación técnica de reusar el 4494956151. El riesgo real que sí queda sin confirmar: si ese número se usa hoy activamente con la app normal de WhatsApp Business desde un celular del negocio, migrarlo a la API de Meta puede desconectarlo de esa app (existe un modo "coexistencia" de Meta, pero no se confirmó si aplica a este caso — no se afirma sin verificar). El usuario prefirió dejar esta decisión pendiente hasta tener acceso admin y poder ver qué hay configurado realmente en la cuenta.
+
+**Sin cambios de código ni de configuración esta sesión** — todo el trabajo fue de investigación (código existente) y redacción de contenido de negocio (texto de la plantilla), nada tocado en `SystemSettings` todavía (`whatsapp_messaging_template_name` sigue vacío en producción).
+
+### 📁 Archivos Modificados
+- `BITACORA.md` (esta entrada)
+
+### 🛑 Pendientes activos
+- **BL-024b, retomar cuando el usuario tenga acceso admin** — ya sea a la cuenta invitada o decidiendo construir la WABA bajo "Estetican" en su lugar (sin decidir todavía).
+- **Decidir qué número registrar en la WABA** — el actual 4494956151 (riesgo de desconectar la app de WhatsApp Business si está en uso activo, sin confirmar) o uno nuevo dedicado.
+- En cuanto haya WABA + número + token con `whatsapp_business_messaging`: enviar la plantilla ya redactada (arriba) a aprobación, luego completar el bloque `TODO` de `MetaWhatsAppSender`, cargar `whatsapp_messaging_phone_number_id`/`access_token`/`template_name`/`template_language` en Configuración del sistema, y activar `whatsapp_messaging_enabled`.
+- BL-024c (CRM/webhook de entrada) sigue diferido a propósito, sin cambios.
+- BL-078 (scope de sucursal en Dashboard) sigue pendiente, sin relación a esta sesión.
+
+---
+
 ## 📅 Cierre de sesión: 10/08/2026 — Sincronización de citas SPA a Google Calendar por operador, un solo sentido (feature nueva, fuera del sprint activo)
 
 ### ✅ Logros y Cambios
