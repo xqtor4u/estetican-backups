@@ -1,6 +1,68 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
-## 📅 Cierre de sesión: 07-08/08/2026 — Fix de seguridad en `/api/cash/*`, filtro de sucursal + auditoría "quién registró" en caja/cobros, limpieza de datos de prueba en producción (NT-057)
+## 📅 Cierre de sesión: 10/08/2026 — Sincronización de citas SPA a Google Calendar por operador, un solo sentido (feature nueva, fuera del sprint activo)
+
+### ✅ Logros y Cambios
+
+Pedido directo del usuario, fuera de `BACKLOG.md` — quiere que cada operador pueda ver su agenda de EstetiCAN en su propio Google Calendar personal, sin abrir la app móvil. Se armó un plan completo (`EnterPlanMode`/`ExitPlanMode`) antes de tocar código, y se implementó y verificó de punta a punta contra la API real de Google, no solo con mocks.
+
+**Diseño acordado con el usuario en conversación, antes de construir:**
+- Sincronización de **un solo sentido** (EstetiCAN → Google, nunca al revés) — editar en Google nunca toca la cita real, para no saltarse `OperatorAvailabilityChecker`/`ResourceAllocation`.
+- El operador se **suscribe** al calendario desde su Google personal (aparece como capa extra en la misma app, no son "dos calendarios abiertos").
+- **Identidad de Google: Service Account** (creada por el usuario en Google Cloud Console, con mi guía paso a paso), no una cuenta Gmail del negocio — la Service Account es dueña de los calendarios y los comparte por ACL.
+- **Alcance v1: solo citas SPA** (`SpaBooking`, tiene `operator_id` real) — `HotelReservation` queda fuera, no tiene operador asignado (se agrupa por jaula/sucursal), confirmado con el usuario.
+
+**Corrección real de entorno detectada en la práctica:** el plan inicial asumía "probar en Sail local antes de tocar producción" (siguiendo el `CLAUDE.md` genérico) — pero esta sesión corría directo en la OPi de producción (`hostname orangepi5-plus`, contenedor `estetican_app` real con bind-mount), sin ningún Sail activo. Coincide con lo que ya decía `project_opi_workflow` en memoria. Se ajustó sobre la marcha: todo el trabajo (composer, migraciones, tests) corrió vía `docker exec estetican_app` directo, con un respaldo de BD (`scripts/auto_backup_db.sh`) tomado antes de migrar como red de seguridad.
+
+**Infraestructura construida:**
+- `composer require google/apiclient` (v2.19.4, compatible con PHP 8.5.6 real, sin vulnerabilidades propias en `composer audit`).
+- 3 migraciones aditivas: `operators` (`google_calendar_id`, `google_personal_email`, `google_calendar_share_enabled`, `google_calendar_shared_at`), `spa_bookings` (`google_event_id`, `google_synced_at`), `users` (`google_personal_email`, `google_calendar_visibility`).
+- `SystemSettings` sección nueva `calendario_google` — un solo campo de negocio, `google_calendar_sync_enabled` (apagado por default).
+- **Credencial fuera de `SystemSettings`, a propósito:** el JSON key de la Service Account (con clave privada PEM multilínea) rompe el patrón `type: password` de una sola línea que ya usa WhatsApp/SMTP — se decidió tratarla como las credenciales de BD, en archivo (`storage/app/private/google-calendar-service-account.json`, gitignored) referenciado por `GOOGLE_CALENDAR_CREDENTIALS_PATH` en `.env`.
+- Dominio nuevo `App\Domain\GoogleCalendar\` (`Contracts`+`Services`, mismo patrón minimal que `WhatsAppMessaging`/`Accounting`, sin `Repositories/`).
+- Comando `calendario:sincronizar-google --dry-run`, calcado de `whatsapp:enviar-recordatorios-cita`, corriendo cada 5 min vía `Schedule::` en `routes/console.php` — sin cola nueva (no hay ningún worker corriendo en producción, `docker/supervisord.conf` solo levanta `php artisan serve`). Nunca se llama a la API de Google dentro del request de agendar.
+- Pantalla en la ficha de operador (`operators/{operator}/google-calendar`, permiso reusado `editar operadores`) para su email propio + toggle de compartir.
+- Eventos con **recordatorio popup 15 min antes** (pedido posterior del usuario, verificado en vivo contra la API real).
+
+**Iteración de diseño real durante la sesión — "ver todo" por usuario, no por operador ni por un email de admin global:** el primer intento (un solo `google_calendar_admin_email` en `SystemSettings`, para que un admin viera todos los calendarios) se armó, se probó, y se **revirtió limpio** (`migrate:rollback --force` + borrado del archivo de migración — la columna nunca llegó a tener datos reales) cuando el usuario aclaró que lo que necesitaba era un **toggle por cuenta de usuario** ("ver calendario personal" / "ver todo el calendario"), independiente de si esa persona es también un operador agendable. Se agregó a `users`: `google_personal_email` + `google_calendar_visibility` (`personal`/`all`), con su propia sección en `user/edit.blade.php` (USEEDI), gateada por el mismo `role:admin|super-admin` que ya protege `/usuarios`. Sin tabla de rastreo de "ya compartido" para esta parte — se confirmó en vivo contra la API real que un ACL insert repetido con el mismo email+rol es idempotente (no falla ni duplica), así que se reintenta cada corrida sin necesitar estado nuevo.
+
+**Configuración real aplicada en producción (con el usuario, en vivo):**
+- El usuario generó la Service Account real en Google Cloud Console (`estetican-calendar-sync@estetican-calendar.iam.gserviceaccount.com`) y subió el JSON key a la OPi.
+- Operador de prueba real (Tomás Alejandro Martinez, id 2) con su propio compartido activado.
+- 3 cuentas admin reales configuradas con visibilidad `all`: `Admin` (`tomasmtnet@gmail.com`), `tomasmg` (`martinezgtomas@gmail.com`), `arantxa` (`arantxaefdz@gmail.com`) — **las 3 confirmadas como `reader` del calendario vía `acl->listAcl()` real**, no solo por el log del comando.
+- 3 citas reales sincronizadas con `google_event_id` real, con recordatorio de 15 min confirmado en el evento real.
+
+**Limpieza adicional en la misma sesión (pedido aparte del usuario):** pantalla de edición de Usuario (`user/edit.blade.php`, USEEDI) tenía "Acceso al Sistema" (login/rol/activo) y "Matriz de Permisos (CRUD)" en tarjetas separadas, con "Perfil de Operador" metido en medio — unificadas en una sola tarjeta "Acceso y Permisos", sin cambios de comportamiento (mismos campos/names/submit).
+
+### 📁 Archivos Modificados/Creados
+- `composer.json`/`composer.lock` — `google/apiclient`
+- `config/services.php` — `google_calendar.credentials_path`
+- `database/migrations/2026_08_10_140500_*`, `2026_08_10_140501_*`, `2026_08_10_164100_*`
+- `app/Models/Operator.php`, `SpaBooking.php`, `User.php`
+- `app/Providers/AppServiceProvider.php` — binding `GoogleCalendarSyncServiceInterface`
+- `app/Support/SystemSettings/SystemSettings.php` — sección `calendario_google`
+- `app/Domain/GoogleCalendar/Contracts/GoogleCalendarSyncServiceInterface.php`, `Services/GoogleCalendarSyncService.php` — nuevos
+- `app/Console/Commands/SincronizarGoogleCalendarCommand.php` — nuevo
+- `app/Http/Controllers/OperatorGoogleCalendarController.php` — nuevo
+- `app/Http/Controllers/UserController.php` — validación de los 2 campos nuevos
+- `resources/views/operators/edit.blade.php`, `operators/partials/google_calendar.blade.php` — nuevo
+- `resources/views/user/edit.blade.php` — sección Google Calendar + unificación Acceso y Permisos
+- `routes/web.php`, `routes/console.php`
+- `tests/Feature/GoogleCalendar/SincronizarGoogleCalendarCommandTest.php`, `OperatorGoogleCalendarTest.php` — nuevos (10 tests)
+- `apps/backoffice-laravel/.env.example`, `.env` real (fuera de git) — `GOOGLE_CALENDAR_CREDENTIALS_PATH`
+- `storage/app/private/google-calendar-service-account.json` — credencial real, fuera de git
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md`, `docs/OPI_PRODUCCION.md`
+
+### 🔧 Verificación
+`google/apiclient` instalado limpio sobre PHP 8.5.6 real. Migraciones aplicadas sin error directo contra producción. Pint limpio en todos los archivos tocados. Suite completa sin regresiones en cada punto de control (447 pasan, mismos 37 preexistentes de siempre — deuda de fixtures ya documentada, sin relación con este trabajo). **Verificado de punta a punta contra la API real de Google, no solo con mocks:** calendario real creado y compartido, 3 citas reales con `google_event_id` real, recordatorio de 15 min confirmado en el evento real, y las 3 cuentas admin confirmadas como `reader` vía `acl->listAcl()` real. Auditoría de seguridad de cierre (regla 3 de `CLAUDE.md`): la única ruta nueva de la sesión (`operators/{operator}/google-calendar`) ya lleva `permission:editar operadores` desde que se creó; la ruta de Usuario editada (`users.update`) ya existía protegida por `role:admin|super-admin`, solo cambió su vista. Sin huecos.
+
+### 🛑 Pendientes activos
+- **Outlook/Microsoft 365:** el usuario preguntó si se puede hacer lo mismo con Outlook — se explicó que es bastante más complejo que Google (Microsoft no tiene equivalente al ACL-share silencioso de una Service Account contra una cuenta personal; requeriría que el negocio tenga una cuenta de Microsoft 365 de paga, o que cada destinatario autorice por OAuth). **Sin decidir, sin acción tomada** — queda anotado en `docs/architecture/IDEAS_FUTURO.md`, condicionado a si aparece una necesidad real de un usuario con Outlook.
+- **BL-024b (WhatsApp):** sigue bloqueado en credenciales de Meta, sin cambios esta sesión. Idea de seguimiento anotada ahí mismo: adjuntar un `.ics` al recordatorio de WhatsApp para que el cliente agregue la cita a su propio calendario — **deliberadamente diferida a pedido del usuario** hasta que BL-024b esté mandando mensajes reales.
+- **Sin pushear:** commits de esta sesión (`7d8189f`, `26a8840`, `293d112`, `aaac3c0`) más 2 previos de la sesión anterior (`35b7071`, `52299fe`, Proyecto IA) — 6 commits totales adelante de `origin/main`, ninguno pusheado todavía.
+
+---
+ — Fix de seguridad en `/api/cash/*`, filtro de sucursal + auditoría "quién registró" en caja/cobros, limpieza de datos de prueba en producción (NT-057)
 
 ### ✅ Logros y Cambios
 

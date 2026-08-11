@@ -124,5 +124,11 @@ La auditoría de IDOR/privesc de esta sesión encontró que casi todas las rutas
 
 - [ ] **Test de Feature que liste todas las rutas de negocio registradas y falle si alguna no lleva `permission:`/`role:`/`auth` (o no está en una allowlist explícita de rutas intencionalmente públicas).** Convertiría la regla 3 de "recordar hacerlo a mano" a "el CI lo bloquea si se olvida" — el mismo espíritu que ya se usa en otras partes del proyecto (ej. el assert de "sin `onclick=` inline" que dejó BL-068). Requiere decidir primero qué constituye "ruta de negocio" de forma programática (¿por prefijo de URL? ¿por controller namespace?) sin falsos positivos contra rutas legítimamente públicas (`login`, `preferencias/{client}` firmada, el widget del asistente).
 
+## 📆 Sincronización de calendario con Outlook/Microsoft 365 (idea surgida 10/08/2026, ver sincronización con Google Calendar ya construida)
+
+Después de construir la sincronización real de citas SPA a Google Calendar por operador (un solo sentido, ver BITACORA 10/08/2026), el usuario preguntó si se podía hacer lo mismo con Outlook.
+
+- [ ] **Evaluar sincronización con Outlook/Microsoft 365, solo si aparece una necesidad real de un usuario que use Outlook.** Es meaningfully más complicado que Google, no por el código sino por el modelo de cuentas de Microsoft: con Google, una Service Account pudo crear un calendario y compartirlo (ACL) con cualquier Gmail sin que esa persona autorizara nada — con Outlook.com (cuentas personales, gratuitas), Microsoft no tiene un equivalente silencioso; cada destinatario tendría que autorizar por OAuth, o el negocio necesitaría pagar una suscripción de Microsoft 365/Azure AD (que sí ofrece "Microsoft 365 Groups", un calendario compartido a nivel organización, pero solo dentro de ese tenant pagado). **Sin decidir, sin diseño, sin código** — la primera pregunta a resolver con el usuario, si esto avanza, es si el negocio está dispuesto a pagar una cuenta de M365 o si se limita a cuentas Outlook.com sueltas (mucha más fricción de setup por persona).
+
 ---
 *Si una idea nace en la Bitácora pero no se puede ejecutar hoy, se mueve aquí.*
