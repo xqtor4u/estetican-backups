@@ -2,11 +2,12 @@
     'action',
     'viewMode' => null,
     'resetUrl' => null,
+    'id' => null,
 ])
 
 <section class="catalog-filters card mb-3">
     <div class="catalog-filters__body card-body">
-        <form method="GET" action="{{ $action }}" class="catalog-filters__form row g-3">
+        <form method="GET" action="{{ $action }}" @if($id) id="{{ $id }}" @endif class="catalog-filters__form row g-3">
             @if($viewMode)
                 <input type="hidden" name="view" value="{{ $viewMode }}">
             @endif

@@ -44,19 +44,27 @@
     </section>
 
     @if($calView === 'day')
+    {{-- Estos botones envían el mismo <form> de filtros de abajo (form="agenda-filters-form"),
+    en vez de navegar por su cuenta con un <a href> — antes eran dos paneles desconectados:
+    cambiar "Ventana" acá perdía cualquier casilla de Estado marcada sin aplicar todavía.
+    Este hidden va ANTES que los botones a propósito: al enviarse el form, si se hizo clic en
+    un botón con name="date_scope" su valor queda después en el query string y gana (último
+    valor gana con clave repetida) — si en cambio se envía con "Aplicar" (sin name), solo
+    queda este valor, preservando la ventana activa. --}}
+    <input type="hidden" id="agenda-date-scope-hidden" name="date_scope" value="{{ $dateScope }}" form="agenda-filters-form">
     <section class="agenda-scope-switch mb-3" aria-label="Ventana operativa de agenda">
-        <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'today'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'today' ? 'agenda-scope-switch__item--active' : '' }}">Hoy</a>
-        <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'tomorrow'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'tomorrow' ? 'agenda-scope-switch__item--active' : '' }}">Mañana</a>
-        <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'all'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'all' ? 'agenda-scope-switch__item--active' : '' }}">Próximas</a>
-        <a href="{{ route('agenda.index', array_merge(request()->except(['page', 'date_scope', 'date']), ['date_scope' => 'full'])) }}" class="agenda-scope-switch__item {{ $dateScope === 'full' ? 'agenda-scope-switch__item--active' : '' }}">Todas</a>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="today" class="agenda-scope-switch__item {{ $dateScope === 'today' ? 'agenda-scope-switch__item--active' : '' }}">Hoy</button>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="tomorrow" class="agenda-scope-switch__item {{ $dateScope === 'tomorrow' ? 'agenda-scope-switch__item--active' : '' }}">Mañana</button>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="all" class="agenda-scope-switch__item {{ $dateScope === 'all' ? 'agenda-scope-switch__item--active' : '' }}">Próximas</button>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="full" class="agenda-scope-switch__item {{ $dateScope === 'full' ? 'agenda-scope-switch__item--active' : '' }}">Todas</button>
         <span class="agenda-scope-switch__hint">{{ $hotelModuleEnabled ? 'Agenda unificada: SPA y Hotel integrados para lectura rápida.' : 'Agenda de SPA.' }}</span>
     </section>
 
     @if(in_array($dateScope, ['today', 'tomorrow', 'custom'], true))
     <div class="agenda-calendar-nav mb-3">
-        <a class="btn btn-sm btn-outline-dark" href="{{ route('agenda.index', array_merge(request()->except(['page', 'date', 'date_scope']), ['date_scope' => 'custom', 'date' => $selectedDate->copy()->subDay()->format('Y-m-d')])) }}">&laquo; Día anterior</a>
-        <a class="btn btn-sm btn-outline-secondary" href="{{ route('agenda.index', array_merge(request()->except(['page', 'date', 'date_scope']), ['date_scope' => 'today'])) }}">Hoy</a>
-        <a class="btn btn-sm btn-outline-dark" href="{{ route('agenda.index', array_merge(request()->except(['page', 'date', 'date_scope']), ['date_scope' => 'custom', 'date' => $selectedDate->copy()->addDay()->format('Y-m-d')])) }}">Día siguiente &raquo;</a>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="custom" data-agenda-nav-date="{{ $selectedDate->copy()->subDay()->format('Y-m-d') }}" class="btn btn-sm btn-outline-dark agenda-nav-date-btn">&laquo; Día anterior</button>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="today" class="btn btn-sm btn-outline-secondary">Hoy</button>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="custom" data-agenda-nav-date="{{ $selectedDate->copy()->addDay()->format('Y-m-d') }}" class="btn btn-sm btn-outline-dark agenda-nav-date-btn">Día siguiente &raquo;</button>
         <span class="agenda-calendar-nav__label">{{ $operationalDateLabel }}</span>
     </div>
     @endif
@@ -69,8 +77,10 @@
         <span class="agenda-scope-switch__hint">Presentación estilo calendario — día, semana o mes.</span>
     </section>
 
-    <x-list-filters :action="route('agenda.index')" :reset-url="route('agenda.index')">
+    <x-list-filters id="agenda-filters-form" :action="route('agenda.index')" :reset-url="route('agenda.index')">
         <input type="hidden" name="cal_view" value="{{ $calView }}">
+        <input type="hidden" name="sort" value="{{ $sort }}">
+        <input type="hidden" name="direction" value="{{ $direction }}">
         <div class="col-lg-2 col-md-6">
             <label class="form-label">Buscar</label>
             <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Mascota, cliente o servicio">
@@ -109,21 +119,10 @@
             </div>
             <div class="form-text">Ninguno marcado = mostrar todos.</div>
         </div>
-        @if($calView === 'day')
-        <div class="col-lg-2 col-md-6">
-            <label class="form-label">Ventana</label>
-            <select name="date_scope" class="form-select">
-                <option value="today" @selected($dateScope === 'today')>Hoy</option>
-                <option value="tomorrow" @selected($dateScope === 'tomorrow')>Mañana</option>
-                <option value="custom" @selected($dateScope === 'custom')>Fecha elegida</option>
-                <option value="all" @selected($dateScope === 'all')>Próximas</option>
-            </select>
-        </div>
-        @endif
         <div class="col-lg-2 col-md-6">
             <label class="form-label">Fecha operativa</label>
-            <input type="date" name="date" value="{{ $selectedDateInput }}" class="form-control">
-            <div class="form-text">{{ $calView === 'day' ? 'Se usa cuando la ventana es `Fecha elegida`.' : 'Salta a la semana o mes que contiene esta fecha.' }}</div>
+            <input type="date" name="date" id="agenda-date-field" value="{{ $selectedDateInput }}" class="form-control">
+            <div class="form-text">{{ $calView === 'day' ? 'Cambiarla y darle Aplicar la usa como ventana ("Fecha elegida").' : 'Salta a la semana o mes que contiene esta fecha.' }}</div>
         </div>
         <div class="col-lg-2 col-md-12">
             <div class="catalog-filter-note">
@@ -424,6 +423,23 @@
     toggleBtn.addEventListener('click', function () {
         var checkAll = !allChecked();
         checkboxes.forEach(function (cb) { cb.checked = checkAll; });
+    });
+})();
+
+(function () {
+    var dateScopeHidden = document.getElementById('agenda-date-scope-hidden');
+    var dateField = document.getElementById('agenda-date-field');
+    if (dateField && dateScopeHidden) {
+        dateField.addEventListener('change', function () {
+            dateScopeHidden.value = 'custom';
+        });
+    }
+    document.querySelectorAll('.agenda-nav-date-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (dateField && btn.dataset.agendaNavDate) {
+                dateField.value = btn.dataset.agendaNavDate;
+            }
+        });
     });
 })();
 </script>
