@@ -202,7 +202,7 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 
       <div
         className={`fixed left-0 right-0 bottom-0 z-50 bg-surface rounded-t-3xl shadow-2xl transition-transform duration-300 ease-out ${
-          open ? 'translate-y-0' : 'translate-y-full'
+          open ? '[transform:translateY(0)]' : '[transform:translateY(100%)]'
         }`}
         style={{ maxHeight: '85vh', overflowY: 'auto' }}
       >

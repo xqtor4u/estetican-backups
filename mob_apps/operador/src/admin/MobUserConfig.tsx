@@ -22,7 +22,7 @@ function Toggle({ value, onChange, label, description }: {
         {description && <p className="text-xs text-on-surface-variant mt-0.5">{description}</p>}
       </div>
       <div className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${value ? 'bg-primary' : 'bg-outline'}`}>
-        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-surface shadow transition-transform ${value ? 'translate-x-6' : 'translate-x-0.5'}`} />
+        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-surface shadow transition-transform ${value ? '[transform:translateX(1.5rem)]' : '[transform:translateX(0.125rem)]'}`} />
       </div>
     </button>
   );
