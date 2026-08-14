@@ -37,6 +37,7 @@ No trabajar en ítems que no estén en el backlog activo.
 | `docs/tecnico/MODELO_BD.md` | Si se creó o modificó una tabla o columna |
 | `docs/architecture/IDEAS_FUTURO.md` | Si surgió una idea que no entra en el sprint actual |
 | `docs/tecnico/NOTAS_TECNICAS.md` | Si se resolvió un bug con causa raíz no obvia |
+| `docs/tecnico/PENDIENTES_SINCRONIZAR_TENANTS.md` | Si se arregló una emergencia de código compartido (no solo datos) — registrar si ya se portó a `tst` o queda pendiente |
 
 ## Documentación técnica de referencia
 
@@ -48,6 +49,19 @@ No trabajar en ítems que no estén en el backlog activo.
 | `docs/tecnico/image-upload-system.md` | Referencia completa del componente `x-image-upload` — props, patrones, ImageManagers |
 | `docs/OPI_PRODUCCION.md` | Guía de operación del servidor de producción (Orange Pi 5 Plus) |
 | `docs/architecture/IDEAS_FUTURO.md` | Ideas y funcionalidades para sprints futuros |
+| `docs/tecnico/PENDIENTES_SINCRONIZAR_TENANTS.md` | Emergencias arregladas acá que hay que portar (o ya se portaron) a `tenants/tst` de Zeus-Estetican — ver regla de alcance abajo |
+
+**Alcance de este repo — solo emergencias:**
+Este repo (`/opt/www/estetican`) es **producción real**. Acá solo se atienden emergencias:
+bugs que rompen operación real, incidentes de datos, huecos de seguridad. Cualquier addon,
+upgrade o mejora que **no** sea emergencia se construye del lado de Zeus-Estetican, en el
+sandbox `tst` (`tstapp.estetican.org` / `tstmov.estetican.org`,
+`/opt/www/zeus-estetican/tenants/tst/`) — el sandbox de referencia para todos los tenants —
+y se promueve a producción después, deliberadamente. Como el motor es el mismo código clonado
+en cada tenant, una emergencia arreglada acá normalmente también existe como bug latente en
+`tst` hasta que se porta — ver `docs/tecnico/PENDIENTES_SINCRONIZAR_TENANTS.md`. Si en una
+sesión acá surge un pedido que no es una emergencia, señalarlo antes de construirlo: ese
+trabajo va en `tst`, no en producción (confirmado con el usuario 13/08/2026).
 
 **Reglas críticas:**
 - `cropperjs` está fijado en `1.6.2` (exacto). v2 tiene API incompatible. NO actualizar sin leer NT-001.

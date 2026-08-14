@@ -31,6 +31,24 @@
 
 ---
 
+## NT-058 — Agenda: la barra de "Ventana" (Hoy/Mañana/Próximas/Todas) y el `<select>` de filtros eran dos controles independientes para el mismo parámetro `date_scope`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 13/08/2026 |
+| **Severidad** | P3 — no rompe datos, pero un cambio de filtro hecho en un panel se pierde en silencio al usar el otro, sin ningún error visible |
+| **Componente** | `resources/views/agenda/index.blade.php`, `resources/views/components/list-filters.blade.php` |
+
+**Síntoma reportado por el usuario:** al marcar "Marcar todos" en el filtro de Estado y después tocar "Hoy" en la barra de arriba, el filtro terminaba mostrando algo distinto a lo esperado — "están desconectados esos dos paneles y deberían ser uno mismo".
+
+**Causa raíz:** la vista tenía **dos controles reales, independientes, para el mismo parámetro `date_scope`**: (1) la barra de pestañas "Ventana" (Hoy/Mañana/Próximas/Todas), implementada como `<a href="...">` con la URL completa ya armada en el momento del render — cualquier cambio hecho en el panel de filtros (checkboxes de Estado, búsqueda) que no se hubiera enviado todavía quedaba fuera de esa URL y se perdía al navegar; y (2) un `<select name="date_scope">` dentro del `<form>` de filtros (`x-list-filters`), al que además le faltaba la opción "Todas" (`full`) — si el `date_scope` activo era `full`, ningún `<option>` quedaba marcado `selected` y el navegador caía al primero (`today`) al enviar el formulario, revirtiendo la ventana sin que el usuario lo pidiera.
+
+**Solución aplicada:** unificados en un solo `<form>` real. Los botones de Ventana y de día anterior/siguiente pasaron de `<a href>` a `<button type="submit" form="agenda-filters-form" name="date_scope" value="...">` — el atributo HTML5 `form="..."` permite que un `<button>` fuera del `<form>` (visualmente en su lugar original, arriba) lo envíe igual, con todo el estado actual del formulario (checkboxes, búsqueda) incluido. Se agregó un `<input type="hidden" name="date_scope">` **posicionado antes** de esos botones en el DOM — como con clave repetida en un query string gana el último valor, el botón clickeado (que aparece después en el árbol) siempre pisa al hidden; si en cambio se envía con "Aplicar" (sin `name`), solo queda el hidden, preservando la ventana activa. Se eliminó el `<select>` duplicado. La fecha de "Día anterior/siguiente" se setea vía JS (`addEventListener`, dentro del `<script nonce="{{ csp_nonce() }}">` ya existente en el archivo — **nunca** `onclick=`/`onchange=` inline, la CSP del proyecto los bloquea en silencio, ver NT-042) antes de que el submit nativo ocurra.
+
+**Lección:** cuando una misma "ventana"/filtro tiene más de un control visual en la misma pantalla, verificar que ambos lean y escriban el mismo estado real — si uno es un link con URL precalculada y el otro es parte de un `<form>` separado, cualquier cambio pendiente en el segundo se pierde en silencio al usar el primero. El truco de `form="id-externo"` + hidden posicionado antes en el DOM (aprovechando que gana el último valor con nombre repetido) permite tener botones fuera del `<form>` visualmente sin duplicar estado ni necesitar JS para la navegación en sí.
+
+---
+
 ## NT-057 — `Model::delete()` sobre un modelo con `SoftDeletes` no dispara `cascadeOnDelete()` de MySQL — la fila real sigue en la tabla y los hijos quedan huérfanos
 
 | Campo | Valor |

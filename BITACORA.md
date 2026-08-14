@@ -1,5 +1,76 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 13/08/2026 — Emergencia real (mascota duplicada + citas cruzadas), bug de UI en Agenda (NT-058), y nueva regla de alcance con Zeus-Estetican (producción = solo emergencias)
+
+### ✅ Logros y Cambios
+
+Sesión arrancó con protocolo estándar (lectura de `BITACORA.md`/`BACKLOG.md`). Se detectó de paso que la entrada anterior (11/08 cont., BL-024b) seguía sin commitear — sin tocarla, queda igual pendiente de commit junto con lo de hoy.
+
+**Emergencia real reportada por el usuario: mascota duplicada con citas cruzadas.** Se dio de alta por error dos veces al mismo perro como "Valentina" (mascotas `#52`/`#53`, mismo dueño Rosa López `#40`) y el usuario corrigió el nombre de una a "Benito" a mano — pero **las dos citas de hoy** (`#49` 13:30, `#50` 15:00) quedaron apuntando a la mascota `#53` (Benito aparecía dos veces en el móvil), y la `#52` (Valentina) sin ninguna. Investigado en BD (`tinker`, sin asumir nada) antes de tocar: confirmado con el usuario cuál cita correspondía a cada perro, corregido `spa_bookings.pet_id` de la `#49` de 53 a 52. Revisadas dependencias antes de corregir: sin `Quote` ligado, 1 `Payment`, y un evento de Google Calendar ya sincronizado (`google_event_id`) que se autocorrige solo en la próxima corrida de `calendario:sincronizar-google` porque el `save()` normal bumpeó `updated_at` por encima de `google_synced_at`. Aparte, lo de "ya no aparecen las citas de hoy" **no era un bug**: el filtro de Estado por defecto de Agenda solo muestra `scheduled`/`work_order`, y las 4 citas de hoy ya estaban `completed` — se le explicó al usuario cómo cambiar el filtro.
+
+**Bug real de UI encontrado en el camino, reportado aparte por el usuario:** la barra de pestañas "Ventana" (Hoy/Mañana/Próximas/Todas, `<a href>`) y el `<select name="date_scope">` del panel de filtros de Agenda eran **dos controles independientes para el mismo parámetro** — cualquier cambio sin aplicar en un panel (ej. "Marcar todos" de Estado) se perdía en silencio al tocar el otro. Unificados en un solo `<form>` real (`agenda/index.blade.php` + `components/list-filters.blade.php`, prop `id` nueva y retrocompatible — no afecta a los otros 10 `index.blade.php` que usan `x-list-filters`): los botones de ventana y de día anterior/siguiente pasaron a `<button type="submit" form="agenda-filters-form" name="date_scope" value="...">` (atributo HTML5 `form=` para enviar el `<form>` de filtros desde botones fuera de él), se quitó el `<select>` duplicado (le faltaba la opción "Todas"), se agregaron hidden `sort`/`direction` para no perder el orden de tabla al aplicar filtros. Sin `onclick`/`onchange` inline en ningún momento — la CSP del proyecto los bloquea en silencio (NT-042) — toda la lógica nueva vive en el `<script nonce="{{ csp_nonce() }}">` ya existente. Detalle completo de la causa raíz en **NT-058** (nuevo).
+
+**Verificado antes de dar el fix por bueno:** compila sin error Blade (`view:cache`), Pint limpio, 76 tests de Agenda pasan (incluye uno que ya cubría la navegación por día), suite completa 447 pasan / 37 fallan (misma deuda de fixtures preexistente, sin regresiones nuevas). **No se pudo probar en navegador real** — la extensión de Chrome no estaba conectada en esta sesión; se le pidió al usuario que lo revise visualmente cuando pueda.
+
+**Portado el mismo día a `tenants/tst` de Zeus-Estetican, a pedido explícito del usuario.** Antes de copiar se confirmó que los dos archivos equivalentes de `tst` eran byte-idénticos a la versión pre-fix de EstetiCAN (sin divergencia propia del tenant) — se copiaron los mismos 2 archivos ya corregidos y se corrió `view:clear`+`view:cache` en `tst_app` (compiló sin error; sin phpunit instalado ahí, build de producción, no se pudieron correr tests). Avisado por `SendMessage` a la sesión paralela detectada vía `ListAgents` (`tst-3c`, interactiva, online) con el detalle completo del fix.
+
+**Regla de alcance formalizada con el usuario, pedido explícito:** EstetiCAN real (`/opt/www/estetican`) es **SOLO para emergencias** de ahora en adelante — bugs que rompen operación real, incidentes de datos, huecos de seguridad. Cualquier addon/upgrade/mejora que no sea emergencia se construye del lado de Zeus-Estetican, en el sandbox `tst` (`tstapp.estetican.org`/`tstmov.estetican.org`) — el sandbox de referencia para todos los tenants — y se promueve a producción después, deliberadamente. Agregada la regla a `CLAUDE.md` (tabla de docs + nota de alcance explícita) para que cualquier sesión futura en este repo la vea sin depender de esta bitácora.
+
+**Documento nuevo `docs/tecnico/PENDIENTES_SINCRONIZAR_TENANTS.md`** (namespace `SYNC-XXX` propio, independiente del contador de Zeus) — registra qué emergencia de código compartido se arregló acá y si ya se portó a los tenants. Es el espejo, en dirección contraria, del `PENDIENTES_SINCRONIZAR_ESTETICAN.md` que ya existía del lado de Zeus-Estetican (ese cubre lo que se descubre en el sandbox y falta subir a producción). El fix de Agenda de hoy quedó anotado ahí como `SYNC-001`, aplicado.
+
+**Coordinación real con la sesión paralela, en vivo:** la sesión `tst-3c` (identificada como "Iniciar sesión" al responder — mismo interlocutor) confirmó que reflejó ambos avisos del lado de Zeus-Estetican: nota espejo en su propio `PENDIENTES_SINCRONIZAR_ESTETICAN.md` referenciando el nuevo doc de este lado, `SYNC-001` marcado como aplicado en `tst`, todo commiteado junto con otros cambios de su sesión. Confirmó también su preferencia sobre el mecanismo de sincronización general (coincide con lo ya armado acá): dos documentos espejo con namespaces separados por repo (para evitar conflictos de escritura entre dos Claudes editando el mismo archivo en paralelo) + `SendMessage` en vivo cuando algo es urgente o toca el mismo archivo que la otra sesión podría estar tocando a la vez.
+
+**Dato aparte, de la sesión paralela, sin acción de este lado:** en esa misma sesión de Zeus-Estetican se eliminó por completo el tenant sandbox "Huellitas" (junto con un respaldo) — `tst` queda como único tenant sandbox de ahora en adelante. Anotado en memoria para no seguir refiriéndose a Huellitas como si siguiera activo.
+
+### 📁 Archivos Modificados
+- `apps/backoffice-laravel/resources/views/agenda/index.blade.php` — unificación de los paneles de filtro (fix NT-058)
+- `apps/backoffice-laravel/resources/views/components/list-filters.blade.php` — prop `id` nueva, retrocompatible
+- `docs/tecnico/NOTAS_TECNICAS.md` — NT-058 nuevo
+- `docs/tecnico/PENDIENTES_SINCRONIZAR_TENANTS.md` — nuevo, `SYNC-001` aplicado
+- `docs/tecnico/BACKLOG.md` — entrada nueva en Completados (13/08/2026)
+- `CLAUDE.md` — regla de alcance (producción = solo emergencias), referencia al doc nuevo
+- `BITACORA.md` (esta entrada)
+- **BD de producción:** `spa_bookings.pet_id` de la cita `#49` corregido de 53 a 52 (sin migración — corrección de datos puntual vía `tinker`)
+- **`tenants/tst` de Zeus-Estetican** (fuera de este repo, sin versionar — ver nota en `PENDIENTES_SINCRONIZAR_TENANTS.md`): mismos 2 archivos Blade copiados, cache de vistas recompilado
+
+### 🛑 Pendientes activos
+- **Sin commitear:** cambios de esta sesión (Agenda + docs nuevos + corrección de datos ya aplicada en BD) más la entrada anterior sin commitear (11/08 cont., BL-024b) — 2 sesiones de docs acumuladas sin commit. El usuario no pidió commitear todavía.
+- **Verificación visual pendiente:** el fix de Agenda no se probó en navegador real esta sesión (sin Chrome conectado) — pedirle al usuario que lo confirme la próxima vez que use la Agenda.
+- **BL-024b** sigue igual que antes (delegado a la sesión de Chrome, esperando `phone_number_id`+token), sin cambios esta sesión.
+- BL-078 (scope de sucursal en Dashboard) sigue pendiente, sin relación a esta sesión.
+
+---
+
+## 📅 Cierre de sesión: 11/08/2026 (cont.) — BL-024b desbloqueado: acceso admin confirmado, decisión de cuenta y número, ejecución delegada a sesión con componente de Chrome
+
+### ✅ Logros y Cambios
+
+Sesión arrancó con protocolo estándar (lectura de `BITACORA.md`/`BACKLOG.md`) y retomó BL-024b, que había quedado bloqueado esa misma mañana en falta de acceso admin de Meta.
+
+**Acceso admin confirmado por el usuario** — ya tiene rol de administrador en la cuenta de Business Manager a la que lo invitaron (la que se investigó por la mañana, distinta de "Estetican"/BL-052).
+
+**Dos decisiones cerradas en conversación, antes de tocar Meta:**
+- **Cuenta:** la WABA se monta en la cuenta invitada, no en "Estetican" (esa sigue exclusiva para el catálogo de BL-052).
+- **Número:** se planteó de nuevo el riesgo (documentado desde la mañana) de reusar el 4494956151 — el usuario no estaba seguro si ese número está en uso activo hoy en la app normal de WhatsApp Business. Se le dieron los pasos concretos para verificarlo en el celular antes de decidir. Prefirió no arriesgar: **decidió dar de alta un número nuevo dedicado** en su lugar, sin necesidad de confirmar el uso del actual.
+
+**Corrección de comunicación (segunda vez):** se deslizó voseo rioplatense ("tenés", "querés", "avisame") en una respuesta técnica — el usuario lo marcó con fuerza. Memoria `feedback_idioma.md` actualizada con el patrón exacto de las formas a vigilar (terminaciones -és/-ás, imperativos en voseo), porque ya es la segunda reincidencia documentada y la primera nota no fue suficiente.
+
+**Hallazgo real durante la sesión — coordinación entre sesiones paralelas del usuario:** llegó un mensaje con preguntas de confirmación muy específicas (nombre de app Meta, Business Manager real por nombre, número, permisos de token, plantilla) que parecía fuera de contexto para esta sesión de CLI — no le había preguntado eso yo, y mencionaba entidades (nombres de Business Manager reales) que nunca vi. Se verificó con `ListAgents` antes de asumir nada: existe una sesión real y activa del usuario, **"whatsapp multi-number authorization"** (Remote Control, en otra máquina, con el componente de Chrome cargado), que ya estaba navegando la interfaz real de Meta con el usuario y le hizo esas preguntas ahí — el usuario las había reenviado/mezclado en esta conversación por error de ventana. Confirmado con el usuario, se optó por **no duplicar trabajo en esta sesión** (que no tiene Chrome) y en su lugar se le mandó a esa sesión, vía `SendMessage`, el contexto completo ya decidido (cuenta, número nuevo, permisos de token `whatsapp_business_messaging`+`whatsapp_business_management`, plantilla completa ya redactada) para que continúe la ejecución real sin tener que repreguntarle al usuario.
+
+**Sin cambios de código ni de `SystemSettings` esta sesión** — la ejecución real (alta de número, generación de token permanente, envío de plantilla a aprobación) quedó delegada a la sesión con Chrome; falta que el usuario vuelva con `phone_number_id` + token para cargarlos aquí.
+
+### 📁 Archivos Modificados
+- `BITACORA.md` (esta entrada)
+- `docs/tecnico/BACKLOG.md` — BL-024b actualizado (acceso admin confirmado, decisiones de cuenta/número, ejecución delegada)
+
+### 🛑 Pendientes activos
+- **BL-024b:** esperar a que la sesión "whatsapp multi-number authorization" (Chrome) obtenga `phone_number_id` + token permanente + plantilla enviada a aprobación con el usuario. Cuando el usuario los tenga, cargarlos en `SystemSettings` (sección `whatsapp_messaging`) y completar el bloque `TODO` real de `MetaWhatsAppSender` (hoy stub).
+- **Número nuevo dedicado** — aún sin definir cuál será, queda a criterio del usuario en la sesión de Chrome.
+- BL-024c (CRM/webhook de entrada) sigue diferido a propósito, sin cambios.
+- BL-078 (scope de sucursal en Dashboard) sigue pendiente, sin relación a esta sesión.
+
+---
+
 ## 📅 Cierre de sesión: 11/08/2026 — BL-024b: intento de retomar el trámite en Meta, bloqueado en acceso; plantilla de recordatorio redactada y lista para enviar a aprobación
 
 ### ✅ Logros y Cambios
