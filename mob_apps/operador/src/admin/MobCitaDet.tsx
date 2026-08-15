@@ -62,11 +62,11 @@ const STATUS_LABEL: Record<string, string> = {
   unfulfillable: 'No realizada',
 };
 const STATUS_COLOR: Record<string, string> = {
-  scheduled:     'bg-primary/10 text-primary border-primary/30',
+  scheduled:     'bg-primary-container text-on-primary-container border-primary-fixed-dim',
   work_order:    'bg-secondary-container text-on-secondary-container border-secondary-fixed',
-  completed:     'bg-tertiary-container/40 text-on-tertiary-container border-tertiary-fixed-dim',
-  cancelled:     'bg-error/10 text-error border-error/30',
-  no_show:       'bg-error/10 text-error border-error/30',
+  completed:     'bg-tertiary-container text-on-tertiary-container border-tertiary-fixed-dim',
+  cancelled:     'bg-error-container text-on-error-container border-error',
+  no_show:       'bg-error-container text-on-error-container border-error',
   // Ámbar sólido a propósito (no un token del tema, ninguno es ámbar): mismo
   // color que ya usamos en semana/mes — distinto de no_show (no es falta del
   // cliente) y distinto de work_order/verde (no es un servicio normal en curso).
@@ -1128,7 +1128,7 @@ export function MobCitaDet() {
                     return (
                       <button key={slot} disabled={occ} onClick={() => setSelSlot(isSel ? '' : slot)}
                         className={`py-2.5 rounded-xl text-sm font-mono font-semibold transition-all ${
-                          occ   ? 'bg-error/8 text-error/40 border border-error/20 cursor-not-allowed line-through' :
+                          occ   ? 'bg-error-container text-on-error-container border border-error/20 cursor-not-allowed line-through' :
                           isSel ? 'bg-primary text-on-primary shadow-md scale-105' :
                           inRng ? 'bg-primary/25 text-primary border border-primary/30' :
                                   'bg-surface-container text-on-surface border border-outline-variant active:scale-95'

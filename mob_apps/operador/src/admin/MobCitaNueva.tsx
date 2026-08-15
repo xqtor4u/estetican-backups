@@ -708,9 +708,9 @@ export function MobCitaNueva() {
                       }}
                       className={`py-2.5 rounded-xl text-sm font-mono font-semibold transition-all ${
                         occ
-                          ? 'bg-error/8 text-error/40 border border-error/20 cursor-not-allowed line-through'
+                          ? 'bg-error-container text-on-error-container border border-error/20 cursor-not-allowed line-through'
                           : blocked
-                            ? 'bg-on-surface-variant/10 text-on-surface-variant/50 border border-outline-variant cursor-not-allowed line-through'
+                            ? 'bg-surface-container-high text-on-surface-variant border border-outline-variant cursor-not-allowed line-through'
                             : isSel
                               ? 'bg-primary text-on-primary shadow-md scale-105'
                               : inRng

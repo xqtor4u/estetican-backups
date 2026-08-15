@@ -277,3 +277,64 @@ body {
 
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ═══════════════════════════════════════════════════════════
+   Respaldo de utilidades bg-*/N — Tailwind v4 compila estas
+   clases con color-mix() (sin respaldo real: el fallback que
+   Tailwind sí genera es el color SÓLIDO sin diluir, que en
+   navegadores sin color-mix() — Chrome < 111 — deja fondo y
+   texto del mismo color, invisibles). Valores rgba() LITERALES
+   por tema (no variables --color-*-rgb intermedias: Lightning
+   CSS deduplicó silenciosamente --color-primary-rgb en el tema
+   claro porque coincidía byte a byte con --color-tertiary-rgb,
+   ambos negro puro — dejando el respaldo roto otra vez). Selector
+   con clase ".theme-admin" como ancestro para tener más
+   especificidad que las reglas de Tailwind sin depender del
+   orden en el CSS final. Agregar acá cualquier combinación
+   nueva de bg-<color>/<opacidad> que se use en el código.
+   ═══════════════════════════════════════════════════════════ */
+.theme-admin .bg-primary\/5 { background-color: rgba(0,0,0,0.05); }
+.theme-admin .bg-primary\/8 { background-color: rgba(0,0,0,0.08); }
+.theme-admin .bg-primary\/10 { background-color: rgba(0,0,0,0.1); }
+.theme-admin .bg-primary\/20 { background-color: rgba(0,0,0,0.2); }
+.theme-admin .bg-primary\/25 { background-color: rgba(0,0,0,0.25); }
+.theme-admin .bg-primary\/30 { background-color: rgba(0,0,0,0.3); }
+.theme-admin .bg-secondary\/8 { background-color: rgba(0,108,73,0.08); }
+.theme-admin .bg-secondary\/10 { background-color: rgba(0,108,73,0.1); }
+.theme-admin .bg-tertiary\/8 { background-color: rgba(0,0,0,0.08); }
+.theme-admin .bg-tertiary\/10 { background-color: rgba(0,0,0,0.1); }
+.theme-admin .bg-tertiary\/15 { background-color: rgba(0,0,0,0.15); }
+.theme-admin .bg-error\/5 { background-color: rgba(186,26,26,0.05); }
+.theme-admin .bg-error\/8 { background-color: rgba(186,26,26,0.08); }
+.theme-admin .bg-error\/10 { background-color: rgba(186,26,26,0.1); }
+.theme-admin .bg-error\/20 { background-color: rgba(186,26,26,0.2); }
+.theme-admin .bg-on-surface-variant\/20 { background-color: rgba(69,70,77,0.2); }
+.theme-admin .bg-secondary-container\/30 { background-color: rgba(108,248,187,0.3); }
+.theme-admin .bg-secondary-container\/40 { background-color: rgba(108,248,187,0.4); }
+.theme-admin .bg-surface-container\/50 { background-color: rgba(229,238,255,0.5); }
+.theme-admin .bg-surface-container\/60 { background-color: rgba(229,238,255,0.6); }
+.theme-admin .bg-tertiary-container\/20 { background-color: rgba(42,23,0,0.2); }
+.theme-admin .bg-tertiary-container\/30 { background-color: rgba(42,23,0,0.3); }
+
+:root.dark .theme-admin .bg-primary\/5 { background-color: rgba(190,198,224,0.05); }
+:root.dark .theme-admin .bg-primary\/8 { background-color: rgba(190,198,224,0.08); }
+:root.dark .theme-admin .bg-primary\/10 { background-color: rgba(190,198,224,0.1); }
+:root.dark .theme-admin .bg-primary\/20 { background-color: rgba(190,198,224,0.2); }
+:root.dark .theme-admin .bg-primary\/25 { background-color: rgba(190,198,224,0.25); }
+:root.dark .theme-admin .bg-primary\/30 { background-color: rgba(190,198,224,0.3); }
+:root.dark .theme-admin .bg-secondary\/8 { background-color: rgba(78,222,163,0.08); }
+:root.dark .theme-admin .bg-secondary\/10 { background-color: rgba(78,222,163,0.1); }
+:root.dark .theme-admin .bg-tertiary\/8 { background-color: rgba(255,185,95,0.08); }
+:root.dark .theme-admin .bg-tertiary\/10 { background-color: rgba(255,185,95,0.1); }
+:root.dark .theme-admin .bg-tertiary\/15 { background-color: rgba(255,185,95,0.15); }
+:root.dark .theme-admin .bg-error\/5 { background-color: rgba(255,180,171,0.05); }
+:root.dark .theme-admin .bg-error\/8 { background-color: rgba(255,180,171,0.08); }
+:root.dark .theme-admin .bg-error\/10 { background-color: rgba(255,180,171,0.1); }
+:root.dark .theme-admin .bg-error\/20 { background-color: rgba(255,180,171,0.2); }
+:root.dark .theme-admin .bg-on-surface-variant\/20 { background-color: rgba(195,198,207,0.2); }
+:root.dark .theme-admin .bg-secondary-container\/30 { background-color: rgba(0,82,54,0.3); }
+:root.dark .theme-admin .bg-secondary-container\/40 { background-color: rgba(0,82,54,0.4); }
+:root.dark .theme-admin .bg-surface-container\/50 { background-color: rgba(26,33,44,0.5); }
+:root.dark .theme-admin .bg-surface-container\/60 { background-color: rgba(26,33,44,0.6); }
+:root.dark .theme-admin .bg-tertiary-container\/20 { background-color: rgba(101,62,0,0.2); }
+:root.dark .theme-admin .bg-tertiary-container\/30 { background-color: rgba(101,62,0,0.3); }

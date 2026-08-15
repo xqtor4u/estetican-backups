@@ -162,7 +162,7 @@ function CheckinWidget() {
             <button
               onClick={doCheckin}
               disabled={!selBranch || busy}
-              className="flex-1 py-2 rounded-xl text-sm font-semibold bg-primary text-on-primary active:scale-95 transition-transform disabled:opacity-40"
+              className="flex-1 py-2 rounded-xl text-sm font-semibold bg-primary text-on-primary active:scale-95 transition-transform disabled:bg-surface-container-high disabled:text-on-surface-variant"
             >
               {busy ? '…' : 'Check-in'}
             </button>

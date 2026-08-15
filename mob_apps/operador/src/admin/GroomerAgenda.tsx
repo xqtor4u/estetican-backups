@@ -39,10 +39,10 @@ const STATUS_LABEL: Record<string, string> = {
   unfulfillable: 'No realizada',
 };
 const STATUS_COLOR: Record<string, string> = {
-  scheduled:     'bg-primary/10 text-primary border-primary/30',
+  scheduled:     'bg-primary-container text-on-primary-container border-primary-fixed-dim',
   work_order:    'bg-secondary-container text-on-secondary-container border-secondary-fixed',
-  completed:     'bg-tertiary-container/40 text-on-tertiary-container border-tertiary-fixed-dim',
-  no_show:       'bg-error/10 text-error border-error/30',
+  completed:     'bg-tertiary-container text-on-tertiary-container border-tertiary-fixed-dim',
+  no_show:       'bg-error-container text-on-error-container border-error',
   // Ámbar sólido a propósito, no un token del tema: mismo color que ya usamos
   // en los puntos de semana/mes — "no realizada por otro motivo" no comparte
   // color con "en proceso" (verde/secondary), no es culpa de nadie pero
