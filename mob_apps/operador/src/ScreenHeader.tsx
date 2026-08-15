@@ -62,7 +62,7 @@ export function ScreenHeader({
             <span className="text-xs text-on-surface-variant/50 shrink-0">›</span>
             <span className="text-sm font-bold text-on-surface truncate">{title}</span>
             {screenTag && (
-              <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal shrink-0">
+              <span className="ml-1.5 shrink-0 rounded border border-on-surface-variant/20 px-1 py-px text-[9px] font-mono font-normal text-on-surface-variant/50">
                 {screenTag}
               </span>
             )}
@@ -71,7 +71,7 @@ export function ScreenHeader({
           <p className="font-bold text-on-surface text-lg leading-tight truncate">
             {title}
             {screenTag && (
-              <span className="text-[9px] font-mono text-on-surface-variant/30 font-normal ml-1">
+              <span className="ml-1.5 rounded border border-on-surface-variant/20 px-1 py-px text-[9px] font-mono font-normal text-on-surface-variant/50">
                 {screenTag}
               </span>
             )}

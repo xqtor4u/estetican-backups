@@ -1,6 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
+/* Los íconos de Material Symbols son un font ligature: el texto real del <span> es
+   "pets"/"content_cut"/etc., la fuente lo convierte en glifo. En una red lenta, antes de
+   que la fuente cargue, el navegador muestra ese texto crudo tal cual. Se oculta (sin
+   reservar/perder espacio, visibility no colapsa el layout) hasta que main.tsx confirma
+   que la fuente ya cargó vía document.fonts.ready y agrega .icon-fonts-ready a <html>. */
+.material-symbols-outlined {
+  visibility: hidden;
+}
+html.icon-fonts-ready .material-symbols-outlined {
+  visibility: visible;
+}
+
 @theme {
   --color-background: var(--color-background);
   --color-on-background: var(--color-on-background);

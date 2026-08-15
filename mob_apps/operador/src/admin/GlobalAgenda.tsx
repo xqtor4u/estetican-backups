@@ -273,7 +273,7 @@ export function GlobalAgenda() {
               <button
                 key={v}
                 onClick={() => setCalView(v)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                className={`min-h-11 inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
                   calView === v ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant border border-outline-variant'
                 }`}
               >
@@ -285,7 +285,7 @@ export function GlobalAgenda() {
           {vencidas.length > 0 && (
             <button
               onClick={() => setShowVencidasModal(true)}
-              className="flex items-center gap-1 bg-error/10 text-error border border-error/30 px-3 py-1 rounded-full text-xs font-semibold active:scale-95 transition-transform shrink-0"
+              className="min-h-11 flex items-center gap-1 bg-error/10 text-error border border-error/30 px-3 py-1 rounded-full text-xs font-semibold active:scale-95 transition-transform shrink-0"
             >
               <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
               {vencidas.length}
@@ -298,7 +298,7 @@ export function GlobalAgenda() {
           <div className="bg-surface border-b border-outline-variant px-4 py-2 flex items-center gap-2 overflow-x-auto hide-scrollbar">
             <button
               onClick={() => setSelectedDate(addDays(selectedDate, -1))}
-              className="p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0"
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0"
             >
               <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_left</span>
             </button>
@@ -333,14 +333,14 @@ export function GlobalAgenda() {
             />
             <label
               htmlFor="date-picker"
-              className="p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0 cursor-pointer"
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0 cursor-pointer"
             >
               <span className="material-symbols-outlined text-on-surface-variant text-lg">calendar_month</span>
             </label>
 
             <button
               onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-              className="p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0"
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0"
             >
               <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
             </button>
@@ -352,19 +352,19 @@ export function GlobalAgenda() {
           <div className="bg-surface border-b border-outline-variant px-4 py-2 flex items-center justify-between gap-2">
             <button
               onClick={() => setSelectedDate(shiftAnchor(calView, selectedDate, -1))}
-              className="p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0"
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0"
             >
               <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_left</span>
             </button>
             <button
               onClick={() => setSelectedDate(new Date())}
-              className="text-xs font-semibold text-on-surface text-center truncate px-2"
+              className="min-h-11 flex items-center justify-center text-xs font-semibold text-on-surface text-center truncate px-2"
             >
               {rangeLabel(calView, selectedDate)}
             </button>
             <button
               onClick={() => setSelectedDate(shiftAnchor(calView, selectedDate, 1))}
-              className="p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0"
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0"
             >
               <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
             </button>
@@ -377,7 +377,7 @@ export function GlobalAgenda() {
             <span className="text-xs text-on-surface-variant shrink-0">Operador:</span>
             <button
               onClick={() => setFilterOp(null)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-colors ${
+              className={`min-h-11 inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-colors ${
                 filterOp == null
                   ? 'bg-primary text-on-primary'
                   : 'bg-surface-container text-on-surface border border-outline-variant'
@@ -389,7 +389,7 @@ export function GlobalAgenda() {
               <button
                 key={op.id}
                 onClick={() => setFilterOp(filterOp === op.id ? null : op.id)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-colors ${
+                className={`min-h-11 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-colors ${
                   filterOp === op.id
                     ? 'bg-primary text-on-primary'
                     : 'bg-surface-container text-on-surface border border-outline-variant'

@@ -212,7 +212,7 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
           <button
             onClick={onClose}
             aria-label="Cerrar menú"
-            className="absolute right-3 top-1.5 w-8 h-8 flex items-center justify-center rounded-full active:bg-surface-container-high transition-colors"
+            className="absolute right-1 top-0 min-w-11 min-h-11 flex items-center justify-center rounded-full active:bg-surface-container-high transition-colors"
           >
             <span className="material-symbols-outlined text-xl text-on-surface-variant">close</span>
           </button>
@@ -454,6 +454,10 @@ export default function App() {
             <Route path="/configuracion"        element={<AdminLayout><MobUserConfig /></AdminLayout>} />
             <Route path="/configuracion/disponibilidad" element={<AdminLayout><MobUnavailability /></AdminLayout>} />
             <Route path="/articulos"            element={<AdminLayout><ItemSearch /></AdminLayout>} />
+            {/* Cualquier ruta que no matchee (typo real de un usuario o URL inventada) —
+                sin esto, React Router no renderiza nada dentro de <Routes> y queda
+                pantalla en blanco sin ningún mensaje. */}
+            <Route path="*" element={<Navigate to="/agenda" replace />} />
           </Routes>
         </AuthGuard>
       </Router>
