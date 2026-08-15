@@ -6,6 +6,7 @@
 @php
     $pet = $booking->pet;
     $client = $pet?->client;
+    $clientPhone = $client ? \App\Support\WhatsApp\PhoneNormalizer::bestPhoneFor($client) : null;
     $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted')
         ?? $booking->quotes->sortByDesc('created_at')->first();
 @endphp
@@ -281,7 +282,7 @@
                         </div>
                         <div>
                             <div class="fw-bold">{{ $client?->full_name }}</div>
-                            <div class="small text-body-secondary">{{ $client?->phone ?? 'Sin teléfono' }}</div>
+                            <div class="small text-body-secondary">{{ $clientPhone ?? 'Sin teléfono' }}</div>
                         </div>
                     </div>
                     @if($client?->email)
