@@ -8,6 +8,7 @@ use App\Models\Pet;
 use App\Models\SpaBooking;
 use App\Models\CashLedger;
 use App\Models\BankLedger;
+use App\Models\Payment;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -49,7 +50,10 @@ class DashboardController extends Controller
         $totalClients = Client::count();
         $totalPets    = Pet::visible()->count();
 
-        // Ingresos del día (ambos ledgers si existen)
+        // Ingresos del día: cash_ledgers/bank_ledgers (vía presupuesto aceptado) + Payment
+        // (cobro directo desde la app móvil, sin presupuesto de por medio) — mismas 3 fuentes
+        // que ya mezcla CashSessionController::allPaymentsForPeriod(). Antes solo sumaba los
+        // dos ledgers, así que todo cobro móvil directo quedaba afuera del ingreso del día.
         $cashToday = 0;
         $bankToday = 0;
 
@@ -60,7 +64,9 @@ class DashboardController extends Controller
             $bankToday = \App\Models\BankLedger::whereDate('created_at', $today)->sum('amount');
         }
 
-        $incomeToday = $cashToday + $bankToday;
+        $paymentsToday = Payment::whereDate('created_at', $today)->sum('amount');
+
+        $incomeToday = $cashToday + $bankToday + $paymentsToday;
 
         // Próximas citas SPA (las 5 siguientes)
         $upcomingBookings = SpaBooking::where('scheduled_at', '>=', now())
@@ -79,6 +85,7 @@ class DashboardController extends Controller
             'incomeToday',
             'cashToday',
             'bankToday',
+            'paymentsToday',
             'upcomingBookings',
             'today',
             'dayName',

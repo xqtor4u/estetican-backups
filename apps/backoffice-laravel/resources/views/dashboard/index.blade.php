@@ -180,6 +180,11 @@
                             <span class="text-muted small">Banco</span>
                             <strong class="d-block">${{ number_format($bankToday, 2) }}</strong>
                         </div>
+                        <div class="income-breakdown">
+                            <i class="bi bi-phone text-info me-1"></i>
+                            <span class="text-muted small">Móvil</span>
+                            <strong class="d-block">${{ number_format($paymentsToday, 2) }}</strong>
+                        </div>
                     </div>
                 </div>
             </div>
