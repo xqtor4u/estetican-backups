@@ -92,9 +92,9 @@ class AgendaAlertBadgeTest extends TestCase
      */
     public function test_table_gives_each_closed_status_its_own_color(): void
     {
-        $this->booking('completed', now()->subDay());
-        $this->booking('no_show', now()->subDay());
-        $this->booking('unfulfillable', now()->subDay());
+        $this->booking('completed', now()->startOfDay()->setTime(8, 0));
+        $this->booking('no_show', now()->startOfDay()->setTime(9, 0));
+        $this->booking('unfulfillable', now()->startOfDay()->setTime(9, 30));
         $this->booking('work_order', now()->subMinutes(10), durationMinutes: 30);
 
         $response = $this->actingAs($this->admin())->get(route('agenda.index', [

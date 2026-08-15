@@ -50,7 +50,7 @@ class AgendaStatusFilterTest extends TestCase
         ];
     }
 
-    public function test_no_query_params_defaults_to_scheduled_and_work_order_only(): void
+    public function test_no_query_params_defaults_to_scheduled_work_order_and_completed_only(): void
     {
         $bookings = $this->seedAllStatuses();
 
@@ -59,7 +59,7 @@ class AgendaStatusFilterTest extends TestCase
         $response->assertOk();
         $response->assertSee($bookings['scheduled']->pet->name);
         $response->assertSee($bookings['work_order']->pet->name);
-        $response->assertDontSee($bookings['completed']->pet->name);
+        $response->assertSee($bookings['completed']->pet->name);
         $response->assertDontSee($bookings['cancelled']->pet->name);
     }
 
@@ -93,7 +93,7 @@ class AgendaStatusFilterTest extends TestCase
         $response->assertDontSee($bookings['no_show']->pet->name);
     }
 
-    public function test_status_touched_with_scheduled_and_work_order_matches_implicit_default(): void
+    public function test_status_touched_with_only_scheduled_and_work_order_excludes_completed(): void
     {
         $bookings = $this->seedAllStatuses();
 

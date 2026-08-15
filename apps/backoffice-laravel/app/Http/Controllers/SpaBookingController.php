@@ -57,7 +57,7 @@ class SpaBookingController extends Controller
         $rawStatuses = (array) $request->query('status', []);
         $validStatuses = ['scheduled', 'work_order', 'completed', 'cancelled', 'no_show', 'unfulfillable'];
         $statuses = ! $statusTouched
-            ? ['scheduled', 'work_order']
+            ? ['scheduled', 'work_order', 'completed']
             : array_values(array_intersect($rawStatuses, $validStatuses));
         $dateScope = (string) $request->query('date_scope', 'today');
         $calView = (string) $request->query('cal_view', 'day');
@@ -71,7 +71,7 @@ class SpaBookingController extends Controller
         }
 
         $sort = $request->query('sort', 'date');
-        $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
+        $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
 
         if ($calView !== 'day') {
             return $this->indexCalendarRange($request, $calView, $statuses, $statusTouched, $search, $sort, $direction);
@@ -96,7 +96,7 @@ class SpaBookingController extends Controller
             if ($statuses !== [] && array_intersect($statuses, ['scheduled', 'work_order']) !== []) {
                 $bookingsQuery->where('scheduled_at', '>=', now()->startOfDay());
             }
-        } elseif ($dateScope === 'custom') {
+        } elseif (in_array($dateScope, ['today', 'tomorrow', 'custom'], true)) {
             $bookingsQuery->whereDate('scheduled_at', $selectedDate);
         }
 
