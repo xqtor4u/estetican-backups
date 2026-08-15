@@ -22,20 +22,20 @@
     @csrf
     @method('PUT')
     <div class="mb-2">
-        <x-form-label small required>Nombre</x-form-label>
-        <input type="text" name="first_name" value="{{ old('first_name', $client->first_name) }}" class="form-control form-control-sm" required>
+        <x-form-label small required for="first_name">Nombre</x-form-label>
+        <input id="first_name" type="text" name="first_name" value="{{ old('first_name', $client->first_name) }}" class="form-control form-control-sm" required>
     </div>
     <div class="mb-2">
-        <x-form-label small>Apellido paterno</x-form-label>
-        <input type="text" name="apellido_paterno" value="{{ old('apellido_paterno', $client->apellido_paterno) }}" class="form-control form-control-sm">
+        <x-form-label small for="apellido_paterno">Apellido paterno</x-form-label>
+        <input id="apellido_paterno" type="text" name="apellido_paterno" value="{{ old('apellido_paterno', $client->apellido_paterno) }}" class="form-control form-control-sm">
     </div>
     <div class="mb-2">
-        <x-form-label small>Apellido materno</x-form-label>
-        <input type="text" name="apellido_materno" value="{{ old('apellido_materno', $client->apellido_materno) }}" class="form-control form-control-sm">
+        <x-form-label small for="apellido_materno">Apellido materno</x-form-label>
+        <input id="apellido_materno" type="text" name="apellido_materno" value="{{ old('apellido_materno', $client->apellido_materno) }}" class="form-control form-control-sm">
     </div>
     <div class="mb-3">
-        <x-form-label small>Email</x-form-label>
-        <input type="email" name="email" value="{{ old('email', $client->email) }}" class="form-control form-control-sm">
+        <x-form-label small for="email">Email</x-form-label>
+        <input id="email" type="email" name="email" value="{{ old('email', $client->email) }}" class="form-control form-control-sm">
         <div class="form-text">Opcional. Debe existir al menos un telefono activo para conservar la captura.</div>
     </div>
 
@@ -102,9 +102,9 @@
     <table class="table table-bordered" id="phones">
         <thead>
             <tr>
-                <th>Tipo <span class="text-danger" title="Obligatorio">*</span></th>
-                <th>Número <span class="text-danger" title="Obligatorio">*</span></th>
-                <th>Eliminar</th>
+                <th id="phones-th-type">Tipo <span class="text-danger" title="Obligatorio">*</span></th>
+                <th id="phones-th-number">Número <span class="text-danger" title="Obligatorio">*</span></th>
+                <th id="phones-th-delete">Eliminar</th>
             </tr>
         </thead>
         <tbody>
@@ -112,14 +112,14 @@
             <tr class="phone-item">
                 <input type="hidden" name="phones[{{ $j }}][id]" value="{{ $phone->id }}">
                 <td>
-                    <select name="phones[{{ $j }}][type]" class="form-control" required>
+                    <select name="phones[{{ $j }}][type]" class="form-control" required aria-labelledby="phones-th-type">
                         <option value="mobile" @if($phone->type=='mobile') selected @endif>Móvil</option>
                         <option value="fixed" @if($phone->type=='fixed') selected @endif>Fijo</option>
                     </select>
                 </td>
-                <td><input type="text" name="phones[{{ $j }}][number]" value="{{ $phone->number }}" class="form-control" required></td>
+                <td><input type="text" name="phones[{{ $j }}][number]" value="{{ $phone->number }}" class="form-control" required aria-labelledby="phones-th-number"></td>
                 <td class="text-center align-middle">
-                    <input type="checkbox" name="phones[{{ $j }}][delete]" value="1">
+                    <input type="checkbox" name="phones[{{ $j }}][delete]" value="1" aria-labelledby="phones-th-delete">
                 </td>
             </tr>
         @endforeach
@@ -131,19 +131,19 @@
     <table class="table table-bordered" id="pets">
         <thead>
             <tr>
-                <th>Nombre <span class="text-danger" title="Obligatorio">*</span></th>
-                <th>Especie</th>
-                <th>Raza</th>
-                <th>Fecha nac.</th>
-                <th>Fecha deceso</th>
-                <th>Chip</th>
-                <th>Tatuaje</th>
-                <th>Sexo</th>
-                <th>Color</th>
-                <th>Tamano</th>
-                <th>Esterilizado</th>
-                <th>Notas</th>
-                <th>Eliminar</th>
+                <th id="pets-th-name">Nombre <span class="text-danger" title="Obligatorio">*</span></th>
+                <th id="pets-th-species">Especie</th>
+                <th id="pets-th-breed">Raza</th>
+                <th id="pets-th-birth-date">Fecha nac.</th>
+                <th id="pets-th-death-date">Fecha deceso</th>
+                <th id="pets-th-microchip">Chip</th>
+                <th id="pets-th-tattoo">Tatuaje</th>
+                <th id="pets-th-sex">Sexo</th>
+                <th id="pets-th-coat-color">Color</th>
+                <th id="pets-th-size">Tamano</th>
+                <th id="pets-th-sterilized">Esterilizado</th>
+                <th id="pets-th-notes">Notas</th>
+                <th id="pets-th-delete">Eliminar</th>
             </tr>
         </thead>
         <tbody>
@@ -151,37 +151,37 @@
             <tr class="pet-item {{ $pet->death_date ? 'table-secondary' : '' }}">
                 <input type="hidden" name="pets[{{ $k }}][id]" value="{{ $pet->id }}">
                 <td>
-                    <input type="text" name="pets[{{ $k }}][name]" value="{{ $pet->name }}" class="form-control" required>
+                    <input type="text" name="pets[{{ $k }}][name]" value="{{ $pet->name }}" class="form-control" required aria-labelledby="pets-th-name">
                     @if($pet->death_date)
                         <small class="text-muted d-block mt-1">Fallecido</small>
                     @endif
                 </td>
-                <td><input type="text" name="pets[{{ $k }}][species]" value="{{ $pet->species }}" class="form-control"></td>
-                <td><input type="text" name="pets[{{ $k }}][breed]" value="{{ $pet->breed }}" class="form-control"></td>
+                <td><input type="text" name="pets[{{ $k }}][species]" value="{{ $pet->species }}" class="form-control" aria-labelledby="pets-th-species"></td>
+                <td><input type="text" name="pets[{{ $k }}][breed]" value="{{ $pet->breed }}" class="form-control" aria-labelledby="pets-th-breed"></td>
                 <td>
-                    <input type="date" name="pets[{{ $k }}][birth_date]" value="{{ optional($pet->birth_date)->format('Y-m-d') }}" class="form-control">
+                    <input type="date" name="pets[{{ $k }}][birth_date]" value="{{ optional($pet->birth_date)->format('Y-m-d') }}" class="form-control" aria-labelledby="pets-th-birth-date">
                     @if($pet->birth_date && !$pet->death_date && $pet->age_description)
                         <small class="text-muted d-block mt-1">{{ $pet->age_description }}</small>
                     @endif
                 </td>
                 <td>
-                    <input type="date" name="pets[{{ $k }}][death_date]" value="{{ optional($pet->death_date)->format('Y-m-d') }}" class="form-control">
+                    <input type="date" name="pets[{{ $k }}][death_date]" value="{{ optional($pet->death_date)->format('Y-m-d') }}" class="form-control" aria-labelledby="pets-th-death-date">
                     @if($pet->death_date && $pet->age_description)
                         <small class="text-muted d-block mt-1">{{ $pet->age_description }}</small>
                     @endif
                 </td>
-                <td><input type="text" name="pets[{{ $k }}][microchip_code]" value="{{ $pet->microchip_code }}" class="form-control"></td>
-                <td><input type="text" name="pets[{{ $k }}][tattoo_code]" value="{{ $pet->tattoo_code }}" class="form-control"></td>
+                <td><input type="text" name="pets[{{ $k }}][microchip_code]" value="{{ $pet->microchip_code }}" class="form-control" aria-labelledby="pets-th-microchip"></td>
+                <td><input type="text" name="pets[{{ $k }}][tattoo_code]" value="{{ $pet->tattoo_code }}" class="form-control" aria-labelledby="pets-th-tattoo"></td>
                 <td>
-                    <select name="pets[{{ $k }}][sex]" class="form-control">
+                    <select name="pets[{{ $k }}][sex]" class="form-control" aria-labelledby="pets-th-sex">
                         <option value="male" @selected($pet->sex === 'male')>Macho</option>
                         <option value="female" @selected($pet->sex === 'female')>Hembra</option>
                         <option value="unknown" @selected(!$pet->sex || $pet->sex === 'unknown')>No definido</option>
                     </select>
                 </td>
-                <td><input type="text" name="pets[{{ $k }}][coat_color]" value="{{ $pet->coat_color }}" class="form-control"></td>
+                <td><input type="text" name="pets[{{ $k }}][coat_color]" value="{{ $pet->coat_color }}" class="form-control" aria-labelledby="pets-th-coat-color"></td>
                 <td>
-                    <select name="pets[{{ $k }}][size]" class="form-control">
+                    <select name="pets[{{ $k }}][size]" class="form-control" aria-labelledby="pets-th-size">
                         <option value="" @selected(!$pet->size)>Seleccionar</option>
                         <option value="mini" @selected($pet->size === 'mini')>Mini</option>
                         <option value="small" @selected($pet->size === 'small')>Pequeno</option>
@@ -192,11 +192,11 @@
                 </td>
                 <td class="text-center align-middle">
                     <input type="hidden" name="pets[{{ $k }}][is_sterilized]" value="0">
-                    <input type="checkbox" name="pets[{{ $k }}][is_sterilized]" value="1" @checked($pet->is_sterilized)>
+                    <input type="checkbox" name="pets[{{ $k }}][is_sterilized]" value="1" @checked($pet->is_sterilized) aria-labelledby="pets-th-sterilized">
                 </td>
-                <td><textarea name="pets[{{ $k }}][notes]" class="form-control" rows="2">{{ $pet->notes }}</textarea></td>
+                <td><textarea name="pets[{{ $k }}][notes]" class="form-control" rows="2" aria-labelledby="pets-th-notes">{{ $pet->notes }}</textarea></td>
                 <td class="text-center align-middle">
-                    <input type="checkbox" name="pets[{{ $k }}][delete]" value="1">
+                    <input type="checkbox" name="pets[{{ $k }}][delete]" value="1" aria-labelledby="pets-th-delete">
                 </td>
             </tr>
         @endforeach
@@ -259,22 +259,22 @@
             </div>
             <div class="modal-body">
                 <div class="mb-2">
-                    <x-form-label required>Tipo</x-form-label>
+                    <x-form-label required for="modalAddressType">Tipo</x-form-label>
                     <select id="modalAddressType" class="form-control">
                         <option value="home">Casa</option>
                         <option value="work">Trabajo</option>
                     </select>
                 </div>
-                <div class="mb-2"><x-form-label required>Calle</x-form-label><input type="text" id="modalAddressStreet" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Número exterior</x-form-label><input type="text" id="modalAddressExteriorNumber" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Interior</x-form-label><input type="text" id="modalAddressInteriorNumber" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Colonia</x-form-label><input type="text" id="modalAddressColonia" class="form-control"></div>
-                <div class="mb-2"><x-form-label required>Ciudad</x-form-label><input type="text" id="modalAddressCity" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Estado</x-form-label><input type="text" id="modalAddressState" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Código postal</x-form-label><input type="text" id="modalAddressZip" class="form-control"></div>
-                <div class="mb-2"><x-form-label required>País</x-form-label><input type="text" id="modalAddressCountry" class="form-control" value="México"></div>
-                <div class="mb-2"><x-form-label>Latitud</x-form-label><input type="number" id="modalAddressLat" class="form-control" step="0.00000001" min="-90" max="90"></div>
-                <div class="mb-2"><x-form-label>Longitud</x-form-label><input type="number" id="modalAddressLng" class="form-control" step="0.00000001" min="-180" max="180"></div>
+                <div class="mb-2"><x-form-label required for="modalAddressStreet">Calle</x-form-label><input type="text" id="modalAddressStreet" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalAddressExteriorNumber">Número exterior</x-form-label><input type="text" id="modalAddressExteriorNumber" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalAddressInteriorNumber">Interior</x-form-label><input type="text" id="modalAddressInteriorNumber" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalAddressColonia">Colonia</x-form-label><input type="text" id="modalAddressColonia" class="form-control"></div>
+                <div class="mb-2"><x-form-label required for="modalAddressCity">Ciudad</x-form-label><input type="text" id="modalAddressCity" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalAddressState">Estado</x-form-label><input type="text" id="modalAddressState" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalAddressZip">Código postal</x-form-label><input type="text" id="modalAddressZip" class="form-control"></div>
+                <div class="mb-2"><x-form-label required for="modalAddressCountry">País</x-form-label><input type="text" id="modalAddressCountry" class="form-control" value="México"></div>
+                <div class="mb-2"><x-form-label for="modalAddressLat">Latitud</x-form-label><input type="number" id="modalAddressLat" class="form-control" step="0.00000001" min="-90" max="90"></div>
+                <div class="mb-2"><x-form-label for="modalAddressLng">Longitud</x-form-label><input type="number" id="modalAddressLng" class="form-control" step="0.00000001" min="-180" max="180"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -294,13 +294,13 @@
             </div>
             <div class="modal-body">
                 <div class="mb-2">
-                    <x-form-label required>Tipo</x-form-label>
+                    <x-form-label required for="modalPhoneType">Tipo</x-form-label>
                     <select id="modalPhoneType" class="form-control">
                         <option value="mobile">Móvil</option>
                         <option value="fixed">Fijo</option>
                     </select>
                 </div>
-                <div class="mb-2"><x-form-label required>Número</x-form-label><input type="text" id="modalPhoneNumber" class="form-control"></div>
+                <div class="mb-2"><x-form-label required for="modalPhoneNumber">Número</x-form-label><input type="text" id="modalPhoneNumber" class="form-control"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -319,24 +319,24 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
-                <div class="mb-2"><x-form-label required>Nombre</x-form-label><input type="text" id="modalPetName" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Especie</x-form-label><input type="text" id="modalPetSpecies" class="form-control" placeholder="Perro, Gato, Pajaro..."></div>
-                <div class="mb-2"><x-form-label>Raza</x-form-label><input type="text" id="modalPetBreed" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Fecha de nacimiento</x-form-label><input type="date" id="modalPetBirthDate" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Fecha de deceso</x-form-label><input type="date" id="modalPetDeathDate" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Numero de chip</x-form-label><input type="text" id="modalPetMicrochip" class="form-control"></div>
-                <div class="mb-2"><x-form-label>Numero de tatuaje</x-form-label><input type="text" id="modalPetTattoo" class="form-control"></div>
+                <div class="mb-2"><x-form-label required for="modalPetName">Nombre</x-form-label><input type="text" id="modalPetName" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalPetSpecies">Especie</x-form-label><input type="text" id="modalPetSpecies" class="form-control" placeholder="Perro, Gato, Pajaro..."></div>
+                <div class="mb-2"><x-form-label for="modalPetBreed">Raza</x-form-label><input type="text" id="modalPetBreed" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalPetBirthDate">Fecha de nacimiento</x-form-label><input type="date" id="modalPetBirthDate" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalPetDeathDate">Fecha de deceso</x-form-label><input type="date" id="modalPetDeathDate" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalPetMicrochip">Numero de chip</x-form-label><input type="text" id="modalPetMicrochip" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalPetTattoo">Numero de tatuaje</x-form-label><input type="text" id="modalPetTattoo" class="form-control"></div>
                 <div class="mb-2">
-                    <x-form-label>Sexo <small class="text-body-secondary fw-normal">(opcional)</small></x-form-label>
+                    <x-form-label for="modalPetSex">Sexo <small class="text-body-secondary fw-normal">(opcional)</small></x-form-label>
                     <select id="modalPetSex" class="form-control">
                         <option value="male">Macho</option>
                         <option value="female">Hembra</option>
                         <option value="unknown" selected>No definido</option>
                     </select>
                 </div>
-                <div class="mb-2"><x-form-label>Color</x-form-label><input type="text" id="modalPetCoatColor" class="form-control"></div>
+                <div class="mb-2"><x-form-label for="modalPetCoatColor">Color</x-form-label><input type="text" id="modalPetCoatColor" class="form-control"></div>
                 <div class="mb-2">
-                    <x-form-label>Tamano</x-form-label>
+                    <x-form-label for="modalPetSize">Tamano</x-form-label>
                     <select id="modalPetSize" class="form-control">
                         <option value="">Seleccionar</option>
                         <option value="mini">Mini</option>
@@ -350,7 +350,7 @@
                     <input class="form-check-input" type="checkbox" id="modalPetSterilized">
                     <label class="form-check-label" for="modalPetSterilized">Esterilizado</label>
                 </div>
-                <div class="mb-2"><x-form-label>Notas</x-form-label><textarea id="modalPetNotes" class="form-control" rows="2"></textarea></div>
+                <div class="mb-2"><x-form-label for="modalPetNotes">Notas</x-form-label><textarea id="modalPetNotes" class="form-control" rows="2"></textarea></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>

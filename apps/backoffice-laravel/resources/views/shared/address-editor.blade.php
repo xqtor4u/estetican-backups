@@ -19,6 +19,9 @@
     $inputName = static fn (string $field) => $namePrefix !== '' ? $namePrefix.'['.$field.']' : $field;
     $oldKey = static fn (string $field) => $oldPrefix !== null && $oldPrefix !== '' ? $oldPrefix.'.'.$field : $field;
     $fieldValue = static fn (string $field, $default = '') => old($oldKey($field), data_get($address, $field, $default));
+    // Deriva un id único por campo a partir del namePrefix (puede repetirse varias veces por
+    // página, una por dirección — un id estático colisionaría entre instancias).
+    $fieldId = static fn (string $field) => 'addr-'.trim(preg_replace('/[\[\]]+/', '-', $inputName($field)), '-');
     $wrapperAttributeString = collect($wrapperAttributes)
         ->map(static fn ($value, $key) => $key.'="'.e($value).'"')
         ->implode(' ');
@@ -52,58 +55,58 @@
     <div class="row g-2 align-items-end">
         @if($showType)
             <div class="col-md-3">
-                <x-form-label small required>Tipo</x-form-label>
-                <select name="{{ $inputName('type') }}" class="form-control form-control-sm address-editor-type" required>
+                <x-form-label small required :for="$fieldId('type')">Tipo</x-form-label>
+                <select id="{{ $fieldId('type') }}" name="{{ $inputName('type') }}" class="form-control form-control-sm address-editor-type" required>
                     <option value="home" @selected($fieldValue('type', 'home') === 'home')>Casa</option>
                     <option value="work" @selected($fieldValue('type') === 'work')>Trabajo</option>
                 </select>
             </div>
             <div class="col-md-5">
-                <x-form-label small required>Calle</x-form-label>
-                <input type="text" name="{{ $inputName('street') }}" value="{{ $fieldValue('street') }}" class="form-control form-control-sm address-editor-street" required>
+                <x-form-label small required :for="$fieldId('street')">Calle</x-form-label>
+                <input id="{{ $fieldId('street') }}" type="text" name="{{ $inputName('street') }}" value="{{ $fieldValue('street') }}" class="form-control form-control-sm address-editor-street" required>
             </div>
             <div class="col-md-2">
         @else
             <div class="col-md-7">
-                <x-form-label small>Calle</x-form-label>
-                <input type="text" name="{{ $inputName('street') }}" value="{{ $fieldValue('street') }}" class="form-control form-control-sm address-editor-street">
+                <x-form-label small :for="$fieldId('street')">Calle</x-form-label>
+                <input id="{{ $fieldId('street') }}" type="text" name="{{ $inputName('street') }}" value="{{ $fieldValue('street') }}" class="form-control form-control-sm address-editor-street">
             </div>
             <div class="col-md-3">
         @endif
-                <x-form-label small>Número exterior</x-form-label>
-                <input type="text" name="{{ $inputName('exterior_number') }}" value="{{ $fieldValue('exterior_number') }}" class="form-control form-control-sm address-editor-exterior">
+                <x-form-label small :for="$fieldId('exterior_number')">Número exterior</x-form-label>
+                <input id="{{ $fieldId('exterior_number') }}" type="text" name="{{ $inputName('exterior_number') }}" value="{{ $fieldValue('exterior_number') }}" class="form-control form-control-sm address-editor-exterior">
             </div>
         <div class="col-md-2">
-            <x-form-label small>Interior</x-form-label>
-            <input type="text" name="{{ $inputName('interior_number') }}" value="{{ $fieldValue('interior_number') }}" class="form-control form-control-sm address-editor-interior">
+            <x-form-label small :for="$fieldId('interior_number')">Interior</x-form-label>
+            <input id="{{ $fieldId('interior_number') }}" type="text" name="{{ $inputName('interior_number') }}" value="{{ $fieldValue('interior_number') }}" class="form-control form-control-sm address-editor-interior">
         </div>
         <div class="col-md-4">
-            <x-form-label small>Colonia</x-form-label>
-            <input type="text" name="{{ $inputName('colonia') }}" value="{{ $fieldValue('colonia') }}" class="form-control form-control-sm address-editor-colonia">
+            <x-form-label small :for="$fieldId('colonia')">Colonia</x-form-label>
+            <input id="{{ $fieldId('colonia') }}" type="text" name="{{ $inputName('colonia') }}" value="{{ $fieldValue('colonia') }}" class="form-control form-control-sm address-editor-colonia">
         </div>
         <div class="col-md-4">
-            <x-form-label small required>{{ $cityLabel }}</x-form-label>
-            <input type="text" name="{{ $inputName('city') }}" value="{{ $fieldValue('city', $cityDefault) }}" class="form-control form-control-sm address-editor-city" required>
+            <x-form-label small required :for="$fieldId('city')">{{ $cityLabel }}</x-form-label>
+            <input id="{{ $fieldId('city') }}" type="text" name="{{ $inputName('city') }}" value="{{ $fieldValue('city', $cityDefault) }}" class="form-control form-control-sm address-editor-city" required>
         </div>
         <div class="col-md-4">
-            <x-form-label small>Estado</x-form-label>
-            <input type="text" name="{{ $inputName('state') }}" value="{{ $fieldValue('state', $stateDefault) }}" class="form-control form-control-sm address-editor-state">
+            <x-form-label small :for="$fieldId('state')">Estado</x-form-label>
+            <input id="{{ $fieldId('state') }}" type="text" name="{{ $inputName('state') }}" value="{{ $fieldValue('state', $stateDefault) }}" class="form-control form-control-sm address-editor-state">
         </div>
         <div class="col-md-3">
-            <x-form-label small>Código postal</x-form-label>
-            <input type="text" name="{{ $inputName('zip') }}" value="{{ $fieldValue('zip') }}" class="form-control form-control-sm address-editor-zip">
+            <x-form-label small :for="$fieldId('zip')">Código postal</x-form-label>
+            <input id="{{ $fieldId('zip') }}" type="text" name="{{ $inputName('zip') }}" value="{{ $fieldValue('zip') }}" class="form-control form-control-sm address-editor-zip">
         </div>
         <div class="col-md-5">
-            <x-form-label small required>País</x-form-label>
-            <input type="text" name="{{ $inputName('country') }}" value="{{ $fieldValue('country', $countryDefault) }}" class="form-control form-control-sm address-editor-country" required>
+            <x-form-label small required :for="$fieldId('country')">País</x-form-label>
+            <input id="{{ $fieldId('country') }}" type="text" name="{{ $inputName('country') }}" value="{{ $fieldValue('country', $countryDefault) }}" class="form-control form-control-sm address-editor-country" required>
         </div>
         <div class="col-md-2">
-            <x-form-label small>Latitud</x-form-label>
-            <input type="number" step="0.00000001" min="-90" max="90" name="{{ $inputName('lat') }}" value="{{ $fieldValue('lat') }}" class="form-control form-control-sm address-editor-lat">
+            <x-form-label small :for="$fieldId('lat')">Latitud</x-form-label>
+            <input id="{{ $fieldId('lat') }}" type="number" step="0.00000001" min="-90" max="90" name="{{ $inputName('lat') }}" value="{{ $fieldValue('lat') }}" class="form-control form-control-sm address-editor-lat">
         </div>
         <div class="col-md-2">
-            <x-form-label small>Longitud</x-form-label>
-            <input type="number" step="0.00000001" min="-180" max="180" name="{{ $inputName('lng') }}" value="{{ $fieldValue('lng') }}" class="form-control form-control-sm address-editor-lng">
+            <x-form-label small :for="$fieldId('lng')">Longitud</x-form-label>
+            <input id="{{ $fieldId('lng') }}" type="number" step="0.00000001" min="-180" max="180" name="{{ $inputName('lng') }}" value="{{ $fieldValue('lng') }}" class="form-control form-control-sm address-editor-lng">
         </div>
         <div class="col-12">
             <div class="form-text small">Usa calle, número exterior e interior por separado. Para el punto exacto: abre Google Maps, haz clic en la ubicación correcta, copia las coordenadas y pégalas abajo.</div>

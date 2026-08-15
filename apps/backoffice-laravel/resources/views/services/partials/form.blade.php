@@ -11,22 +11,25 @@
 <div class="row g-3">
     <div class="col-md-3">
         <label for="code" class="form-label">Código</label>
-        <input id="code" type="text" name="code" class="form-control" value="{{ old('code', $service->code ?? '') }}" placeholder="Autogenerado si se deja vacío">
+        <input id="code" type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code', $service->code ?? '') }}" placeholder="Autogenerado si se deja vacío">
+        @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     <div class="col-md-4">
         <label for="type" class="form-label">Tipo</label>
-        <select id="type" name="type" class="form-select" required>
+        <select id="type" name="type" class="form-select @error('type') is-invalid @enderror" required>
             <option value="">Seleccionar</option>
             @foreach($serviceTypeOptions as $value => $label)
                 <option value="{{ $value }}" @selected(old('type', $service->type ?? '') === $value)>{{ $label }}</option>
             @endforeach
         </select>
+        @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     <div class="col-md-5">
         <label for="name" class="form-label">Nombre del servicio</label>
-        <input id="name" type="text" name="name" class="form-control" value="{{ old('name', $service->name ?? '') }}" required>
+        <input id="name" type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $service->name ?? '') }}" required>
+        @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     <div class="col-md-4">
@@ -43,7 +46,7 @@
 
     <div class="col-md-8">
         <label for="operator_role_id" class="form-label">Tipo de operador</label>
-        <select id="operator_role_id" name="operator_role_id" class="form-select" required>
+        <select id="operator_role_id" name="operator_role_id" class="form-select @error('operator_role_id') is-invalid @enderror" required>
             <option value="">Seleccionar</option>
             @foreach($operatorRoles as $operatorRole)
                 <option value="{{ $operatorRole->id }}" @selected((string) old('operator_role_id', $service->operator_role_id ?? '') === (string) $operatorRole->id)>
@@ -51,6 +54,7 @@
                 </option>
             @endforeach
         </select>
+        @error('operator_role_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
         <div class="form-text">Cada servicio queda ligado a la especialidad operativa que debe poder ejecutarlo.</div>
     </div>
 
@@ -65,17 +69,20 @@
 
     <div class="col-md-4">
         <label for="suggested_price" class="form-label">Precio sugerido</label>
-        <input id="suggested_price" type="number" name="suggested_price" class="form-control" min="0" step="0.01" value="{{ old('suggested_price', isset($service) ? number_format((float) $service->suggested_price, 2, '.', '') : '') }}" required>
+        <input id="suggested_price" type="number" name="suggested_price" class="form-control @error('suggested_price') is-invalid @enderror" min="0" step="0.01" value="{{ old('suggested_price', isset($service) ? number_format((float) $service->suggested_price, 2, '.', '') : '') }}" required>
+        @error('suggested_price')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     <div class="col-md-4">
         <label for="suggested_duration_minutes" class="form-label">Duración sugerida (min)</label>
-        <input id="suggested_duration_minutes" type="number" name="suggested_duration_minutes" class="form-control" min="0" step="1" value="{{ old('suggested_duration_minutes', $service->suggested_duration_minutes ?? '') }}" required>
+        <input id="suggested_duration_minutes" type="number" name="suggested_duration_minutes" class="form-control @error('suggested_duration_minutes') is-invalid @enderror" min="0" step="1" value="{{ old('suggested_duration_minutes', $service->suggested_duration_minutes ?? '') }}" required>
+        @error('suggested_duration_minutes')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     <div class="col-md-4">
         <label for="recurrence_days" class="form-label">Recurrencia (días)</label>
-        <input id="recurrence_days" type="number" name="recurrence_days" class="form-control" min="1" step="1" placeholder="Ej. 20" value="{{ old('recurrence_days', $service->recurrence_days ?? '') }}">
+        <input id="recurrence_days" type="number" name="recurrence_days" class="form-control @error('recurrence_days') is-invalid @enderror" min="1" step="1" placeholder="Ej. 20" value="{{ old('recurrence_days', $service->recurrence_days ?? '') }}">
+        @error('recurrence_days')<div class="invalid-feedback">{{ $message }}</div>@enderror
         <div class="form-text">Deja vacío si este servicio no requiere recordatorio periódico.</div>
     </div>
 

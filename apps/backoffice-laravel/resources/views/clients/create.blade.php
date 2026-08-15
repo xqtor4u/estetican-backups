@@ -40,20 +40,20 @@
 
             <div class="row g-3">
                 <div class="col-lg-3">
-                    <label class="form-label small mb-1">Nombre <span class="text-danger">*</span></label>
-                    <input type="text" name="first_name" value="{{ old('first_name') }}" class="form-control form-control-sm" required>
+                    <label for="first_name" class="form-label small mb-1">Nombre <span class="text-danger">*</span></label>
+                    <input id="first_name" type="text" name="first_name" value="{{ old('first_name') }}" class="form-control form-control-sm" required>
                 </div>
                 <div class="col-lg-3">
-                    <label class="form-label small mb-1">Apellido paterno <span class="text-danger">*</span></label>
-                    <input type="text" name="apellido_paterno" value="{{ old('apellido_paterno') }}" class="form-control form-control-sm" required>
+                    <label for="apellido_paterno" class="form-label small mb-1">Apellido paterno <span class="text-danger">*</span></label>
+                    <input id="apellido_paterno" type="text" name="apellido_paterno" value="{{ old('apellido_paterno') }}" class="form-control form-control-sm" required>
                 </div>
                 <div class="col-lg-3">
-                    <label class="form-label small mb-1">Apellido materno <span class="text-secondary">(Opcional)</span></label>
-                    <input type="text" name="apellido_materno" value="{{ old('apellido_materno') }}" class="form-control form-control-sm">
+                    <label for="apellido_materno" class="form-label small mb-1">Apellido materno <span class="text-secondary">(Opcional)</span></label>
+                    <input id="apellido_materno" type="text" name="apellido_materno" value="{{ old('apellido_materno') }}" class="form-control form-control-sm">
                 </div>
                 <div class="col-lg-3">
-                    <label class="form-label small mb-1">Email <span class="text-secondary">(Opcional)</span></label>
-                    <input type="email" name="email" value="{{ old('email') }}" class="form-control form-control-sm">
+                    <label for="email" class="form-label small mb-1">Email <span class="text-secondary">(Opcional)</span></label>
+                    <input id="email" type="email" name="email" value="{{ old('email') }}" class="form-control form-control-sm">
                 </div>
 
                 <div class="col-lg-6">
@@ -61,15 +61,15 @@
                         <div class="phone-item border rounded-3 p-3 bg-body-tertiary">
                             <div class="row g-2 align-items-end">
                                 <div class="col-md-4">
-                                    <label class="form-label small mb-1">Tipo</label>
-                                    <select name="phones[0][type]" class="form-control" required>
+                                    <label for="phones-0-type" class="form-label small mb-1">Tipo</label>
+                                    <select id="phones-0-type" name="phones[0][type]" class="form-control" required>
                                         <option value="mobile" @selected(old('phones.0.type', 'mobile') === 'mobile')>Móvil</option>
                                         <option value="fixed" @selected(old('phones.0.type') === 'fixed')>Fijo</option>
                                     </select>
                                 </div>
                                 <div class="col-md-8">
-                                    <label class="form-label small mb-1">Teléfono principal <span class="text-danger">*</span></label>
-                                    <input type="text" name="phones[0][number]" value="{{ old('phones.0.number', ($suggestAreaCode ? $defaultAreaCode : '')) }}" class="form-control" required placeholder="{{ $suggestAreaCode ? 'Ej: ' . $defaultAreaCode . ' 123 4567' : '' }}">
+                                    <label for="phones-0-number" class="form-label small mb-1">Teléfono principal <span class="text-danger">*</span></label>
+                                    <input id="phones-0-number" type="text" name="phones[0][number]" value="{{ old('phones.0.number', ($suggestAreaCode ? $defaultAreaCode : '')) }}" class="form-control" required placeholder="{{ $suggestAreaCode ? 'Ej: ' . $defaultAreaCode . ' 123 4567' : '' }}">
                                 </div>
 
                             </div>

@@ -75,7 +75,7 @@ class HotelReservationController extends Controller
                 return $reservation;
             });
         } catch (RuntimeException $exception) {
-            return back()->withErrors(['resource_id' => $exception->getMessage()])->withInput();
+            return back()->with('error', $exception->getMessage())->withInput();
         }
 
         // Folio de orden al crear — Hotel no tiene un paso de "compromiso" propio (sin
@@ -156,7 +156,7 @@ class HotelReservationController extends Controller
                 }
             });
         } catch (RuntimeException $exception) {
-            return back()->withErrors(['resource_id' => $exception->getMessage()])->withInput();
+            return back()->with('error', $exception->getMessage())->withInput();
         }
 
         return redirect()

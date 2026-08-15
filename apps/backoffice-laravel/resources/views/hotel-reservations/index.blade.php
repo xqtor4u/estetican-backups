@@ -30,7 +30,12 @@
                                 <div class="small text-body-secondary mt-1">{{ $reservation->start_at?->format($datetimeFormat) }} - {{ $reservation->end_at?->format($datetimeFormat) }}</div>
                             </div>
                             <div class="text-end small text-body-secondary">
-                                <div>{{ strtoupper($reservation->status) }}</div>
+                                <div>{{ match ($reservation->status) {
+                                    'scheduled' => 'Programada',
+                                    'cancelled' => 'Cancelada',
+                                    'completed' => 'Completada',
+                                    default => ucfirst($reservation->status),
+                                } }}</div>
                                 <div>{{ $resourceAllocation?->resource ? $resourceAllocation->resource->code . ' · ' . $resourceAllocation->resource->name : 'Sin jaula' }}</div>
                             </div>
                         </div>

@@ -1,6 +1,12 @@
 @php
     $screenDebugId = 'AgHotSho';
     $breadcrumbs = $page['breadcrumbs'];
+    $hotelStatusLabel = match ($hotelReservation->status) {
+        'scheduled' => 'Programada',
+        'cancelled' => 'Cancelada',
+        'completed' => 'Completada',
+        default => ucfirst($hotelReservation->status),
+    };
 @endphp
 @extends('layouts.app')
 @section('content')
@@ -43,7 +49,7 @@
                     <dd class="col-sm-8">{{ $hotelReservation->end_at?->format($datetimeFormat) }}</dd>
 
                     <dt class="col-sm-4">Estado</dt>
-                    <dd class="col-sm-8">{{ strtoupper($hotelReservation->status) }}</dd>
+                    <dd class="col-sm-8">{{ $hotelStatusLabel }}</dd>
 
                     <dt class="col-sm-4">Jaula bloqueada</dt>
                     <dd class="col-sm-8">
@@ -63,7 +69,12 @@
             <div class="card-body">
                 <h2 class="h5 mb-3">Bloqueo operativo</h2>
                 @if($resourceAllocation)
-                    <p class="mb-2"><strong>Tipo:</strong> {{ strtoupper($resourceAllocation->allocation_type) }}</p>
+                    <p class="mb-2"><strong>Tipo:</strong> {{ match ($resourceAllocation->allocation_type) {
+                        'reserved' => 'Reservado',
+                        'cleaning' => 'Limpieza',
+                        'stay' => 'Estancia',
+                        default => ucfirst($resourceAllocation->allocation_type),
+                    } }}</p>
                     <p class="mb-2"><strong>Ventana:</strong> {{ $resourceAllocation->starts_at?->format($datetimeFormat) }} - {{ $resourceAllocation->ends_at?->format($datetimeFormat) }}</p>
                     <p class="mb-0 text-body-secondary">En hotel, la reserva bloquea la jaula durante el rango planeado. La limpieza posterior se manejará desde la ocupación real (`stay`).</p>
                 @else

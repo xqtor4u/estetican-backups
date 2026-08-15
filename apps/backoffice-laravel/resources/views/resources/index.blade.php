@@ -60,13 +60,13 @@
 
 <x-list-filters :action="route('resources.index')" :reset-url="route('resources.index')">
     <div class="col-lg-4 col-md-6">
-        <label class="form-label">Buscar</label>
-        <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Clave, recurso, capacidad o sucursal">
+        <label for="resources-filter-search" class="form-label">Buscar</label>
+        <input id="resources-filter-search" type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Clave, recurso, capacidad o sucursal">
         <div class="form-text">Busca por clave, nombre operativo, clasificación, capacidad o sucursal.</div>
     </div>
     <div class="col-lg-3 col-md-6">
-        <label class="form-label">Estado administrativo</label>
-        <select name="administrative_status" class="form-select">
+        <label for="resources-filter-administrative-status" class="form-label">Estado administrativo</label>
+        <select id="resources-filter-administrative-status" name="administrative_status" class="form-select">
             <option value="all" @selected($administrativeStatus === 'all')>Todos</option>
             <option value="active" @selected($administrativeStatus === 'active')>Activos</option>
             <option value="inactive" @selected($administrativeStatus === 'inactive')>Inactivos</option>
@@ -74,8 +74,8 @@
         </select>
     </div>
     <div class="col-lg-3 col-md-6">
-        <label class="form-label">Tipo de recurso</label>
-        <select name="resource_type" class="form-select">
+        <label for="resources-filter-resource-type" class="form-label">Tipo de recurso</label>
+        <select id="resources-filter-resource-type" name="resource_type" class="form-select">
             <option value="all" @selected($resourceType === 'all')>Todos</option>
             <option value="cage" @selected($resourceType === 'cage')>Jaula</option>
             <option value="room" @selected($resourceType === 'room')>Espacio</option>
@@ -112,10 +112,33 @@
                     <div class="catalog-title-stack">
                         <div class="catalog-title-stack__title">{{ $resource->name }}</div>
                         <div class="catalog-title-stack__description">{{ $resource->notes ? Str::limit($resource->notes, 110) : 'Sin nota operativa capturada.' }}</div>
+                        @php
+                            $resourceTypeLabel = match ($resource->resource_type) {
+                                'cage' => 'Jaula',
+                                'room' => 'Espacio',
+                                'equipment' => 'Equipo',
+                                'other' => 'Otro',
+                                default => ucfirst($resource->resource_type),
+                            };
+                            $operationalStatusLabel = match ($resource->operational_status) {
+                                'available' => 'Disponible',
+                                'occupied' => 'Ocupado',
+                                'cleaning' => 'Limpieza',
+                                'maintenance' => 'Mantenimiento',
+                                'blocked' => 'Bloqueado',
+                                default => ucfirst($resource->operational_status),
+                            };
+                            $administrativeStatusLabel = match ($resource->administrative_status) {
+                                'active' => 'Activo',
+                                'inactive' => 'Inactivo',
+                                'retired' => 'Retirado',
+                                default => ucfirst($resource->administrative_status),
+                            };
+                        @endphp
                         <div class="catalog-inline-tags">
-                            <span class="catalog-inline-tag">{{ strtoupper($resource->resource_type) }}</span>
+                            <span class="catalog-inline-tag">{{ $resourceTypeLabel }}</span>
                             <span class="catalog-inline-tag">{{ $resource->capacity_label ?: 'Sin tamaño' }}</span>
-                            <span class="catalog-inline-tag">{{ ucfirst($resource->operational_status) }}</span>
+                            <span class="catalog-inline-tag">{{ $operationalStatusLabel }}</span>
                         </div>
                     </div>
                 </td>
@@ -125,9 +148,9 @@
                 </td>
                 <td>
                     <span class="catalog-status-badge {{ $resource->administrative_status === 'active' ? 'catalog-status-badge--active' : 'catalog-status-badge--inactive' }}">
-                        {{ ucfirst($resource->administrative_status) }}
+                        {{ $administrativeStatusLabel }}
                     </span>
-                    <div class="catalog-stat__hint mt-1">Operativo: {{ ucfirst($resource->operational_status) }}</div>
+                    <div class="catalog-stat__hint mt-1">Operativo: {{ $operationalStatusLabel }}</div>
                 </td>
                 <td>
                     <div class="catalog-stat">{{ $resource->allocations_count }}</div>

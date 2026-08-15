@@ -96,44 +96,44 @@
                     <input type="hidden" name="return_view_mode" value="{{ $returnViewMode }}">
                 @endif
                 <div class="col-md-4">
-                    <x-form-label required>Nombre</x-form-label>
-                    <input type="text" name="name" value="{{ old('name', $pet->name) }}" class="form-control" required>
+                    <x-form-label required for="pet-name">Nombre</x-form-label>
+                    <input id="pet-name" type="text" name="name" value="{{ old('name', $pet->name) }}" class="form-control" required>
                 </div>
                 <div class="col-md-4">
-                    <x-form-label>Especie</x-form-label>
-                    <input type="text" name="species" value="{{ old('species', $pet->species) }}" class="form-control" placeholder="Perro, Gato, Pajaro...">
+                    <x-form-label for="pet-species">Especie</x-form-label>
+                    <input id="pet-species" type="text" name="species" value="{{ old('species', $pet->species) }}" class="form-control" placeholder="Perro, Gato, Pajaro...">
                 </div>
                 <div class="col-md-4">
-                    <x-form-label>Raza</x-form-label>
-                    <input type="text" name="breed" value="{{ old('breed', $pet->breed) }}" class="form-control">
+                    <x-form-label for="pet-breed">Raza</x-form-label>
+                    <input id="pet-breed" type="text" name="breed" value="{{ old('breed', $pet->breed) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <x-form-label>Fecha de nacimiento</x-form-label>
-                    <input type="date" name="birth_date" value="{{ old('birth_date', optional($pet->birth_date)->format('Y-m-d')) }}" class="form-control">
+                    <x-form-label for="pet-birth-date">Fecha de nacimiento</x-form-label>
+                    <input id="pet-birth-date" type="date" name="birth_date" value="{{ old('birth_date', optional($pet->birth_date)->format('Y-m-d')) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <x-form-label>Fecha de deceso</x-form-label>
-                    <input type="date" name="death_date" value="{{ old('death_date', optional($pet->death_date)->format('Y-m-d')) }}" class="form-control">
+                    <x-form-label for="pet-death-date">Fecha de deceso</x-form-label>
+                    <input id="pet-death-date" type="date" name="death_date" value="{{ old('death_date', optional($pet->death_date)->format('Y-m-d')) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <x-form-label>Numero de chip</x-form-label>
-                    <input type="text" name="microchip_code" value="{{ old('microchip_code', $pet->microchip_code) }}" class="form-control">
+                    <x-form-label for="pet-microchip">Numero de chip</x-form-label>
+                    <input id="pet-microchip" type="text" name="microchip_code" value="{{ old('microchip_code', $pet->microchip_code) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <x-form-label>Numero de tatuaje</x-form-label>
-                    <input type="text" name="tattoo_code" value="{{ old('tattoo_code', $pet->tattoo_code) }}" class="form-control">
+                    <x-form-label for="pet-tattoo">Numero de tatuaje</x-form-label>
+                    <input id="pet-tattoo" type="text" name="tattoo_code" value="{{ old('tattoo_code', $pet->tattoo_code) }}" class="form-control">
                 </div>
                 <div class="col-md-3">
-                    <x-form-label>Sexo <small class="text-body-secondary fw-normal">(opcional)</small></x-form-label>
-                    <select name="sex" class="form-select">
+                    <x-form-label for="pet-sex">Sexo <small class="text-body-secondary fw-normal">(opcional)</small></x-form-label>
+                    <select id="pet-sex" name="sex" class="form-select">
                         <option value="male" @selected(old('sex', $pet->sex) === 'male')>Macho</option>
                         <option value="female" @selected(old('sex', $pet->sex) === 'female')>Hembra</option>
                         <option value="unknown" @selected(old('sex', $pet->sex) !== 'male' && old('sex', $pet->sex) !== 'female')>No definido</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Tamano</label>
-                    <select name="size" class="form-select">
+                    <label for="pet-size" class="form-label">Tamano</label>
+                    <select id="pet-size" name="size" class="form-select">
                         <option value="" @selected(old('size', $pet->size) === null)>Seleccionar</option>
                         <option value="mini" @selected(old('size', $pet->size) === 'mini')>Mini</option>
                         <option value="small" @selected(old('size', $pet->size) === 'small')>Pequeno</option>
@@ -143,8 +143,8 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Color</label>
-                    <input type="text" name="coat_color" value="{{ old('coat_color', $pet->coat_color) }}" class="form-control">
+                    <label for="pet-coat-color" class="form-label">Color</label>
+                    <input id="pet-coat-color" type="text" name="coat_color" value="{{ old('coat_color', $pet->coat_color) }}" class="form-control">
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <div class="form-check mb-2">
@@ -161,8 +161,8 @@
                     </div>
                 </div>
                 <div class="col-12">
-                    <label class="form-label">Notas</label>
-                    <textarea name="notes" class="form-control" rows="3">{{ old('notes', $pet->notes) }}</textarea>
+                    <label for="pet-notes" class="form-label">Notas</label>
+                    <textarea id="pet-notes" name="notes" class="form-control" rows="3">{{ old('notes', $pet->notes) }}</textarea>
                 </div>
                 <div class="col-12 d-flex gap-2 flex-wrap">
                     <button type="submit" class="btn btn-primary">Guardar ficha base</button>

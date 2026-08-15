@@ -9,6 +9,13 @@
     if ($remainder !== 0) {
         $suggested->addMinutes(5 - $remainder);
     }
+    // Si "ahora + 1h" cae fuera del horario operativo, proponer el próximo bloque válido
+    // en vez de una hora que el propio formulario va a rechazar al guardar.
+    if ($suggested->format('H:i') < $openingTime) {
+        $suggested->setTimeFromTimeString($openingTime);
+    } elseif ($suggested->format('H:i') > $closingTime) {
+        $suggested->addDay()->setTimeFromTimeString($openingTime);
+    }
     $defaultScheduledAt = old('scheduled_at', $suggested->format('Y-m-d\TH:i'));
 @endphp
 

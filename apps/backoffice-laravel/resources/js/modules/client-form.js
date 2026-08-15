@@ -161,15 +161,15 @@ const initClientCreateForm = () => {
         const html = `
             <div class="phone-item mb-3 border p-3">
                 <div class="mb-2">
-                    <label>Tipo:</label>
-                    <select name="phones[${phoneIndex}][type]" class="form-control" required>
+                    <label for="phone-type-${phoneIndex}">Tipo:</label>
+                    <select id="phone-type-${phoneIndex}" name="phones[${phoneIndex}][type]" class="form-control" required>
                         <option value="mobile">Móvil</option>
                         <option value="fixed">Fijo</option>
                     </select>
                 </div>
                 <div class="mb-2">
-                    <label>Número:</label>
-                    <input type="text" name="phones[${phoneIndex}][number]" class="form-control" required>
+                    <label for="phone-number-${phoneIndex}">Número:</label>
+                    <input id="phone-number-${phoneIndex}" type="text" name="phones[${phoneIndex}][number]" class="form-control" required>
                 </div>
             </div>
         `;
@@ -187,36 +187,36 @@ const initClientCreateForm = () => {
                     <button type="button" class="btn btn-sm btn-outline-danger" data-remove-dynamic-pet="true">Quitar</button>
                 </div>
                 <div class="mb-2">
-                    <label>Nombre:</label>
-                    <input type="text" name="pets[${petIndex}][name]" class="form-control" required>
+                    <label for="pet-name-${petIndex}">Nombre:</label>
+                    <input id="pet-name-${petIndex}" type="text" name="pets[${petIndex}][name]" class="form-control" required>
                 </div>
                 <div class="mb-2">
-                    <label>Especie:</label>
-                    <input type="text" name="pets[${petIndex}][species]" class="form-control" placeholder="Perro, Gato, Pajaro..." value="${escapeHtml(defaultSpecies)}">
+                    <label for="pet-species-${petIndex}">Especie:</label>
+                    <input id="pet-species-${petIndex}" type="text" name="pets[${petIndex}][species]" class="form-control" placeholder="Perro, Gato, Pajaro..." value="${escapeHtml(defaultSpecies)}">
                 </div>
                 <div class="mb-2">
-                    <label>Raza:</label>
-                    <input type="text" name="pets[${petIndex}][breed]" class="form-control">
+                    <label for="pet-breed-${petIndex}">Raza:</label>
+                    <input id="pet-breed-${petIndex}" type="text" name="pets[${petIndex}][breed]" class="form-control">
                 </div>
                 <div class="mb-2">
-                    <label>Fecha de nacimiento:</label>
-                    <input type="date" name="pets[${petIndex}][birth_date]" class="form-control">
+                    <label for="pet-birth-date-${petIndex}">Fecha de nacimiento:</label>
+                    <input id="pet-birth-date-${petIndex}" type="date" name="pets[${petIndex}][birth_date]" class="form-control">
                 </div>
                 <div class="mb-2">
-                    <label>Fecha de deceso:</label>
-                    <input type="date" name="pets[${petIndex}][death_date]" class="form-control">
+                    <label for="pet-death-date-${petIndex}">Fecha de deceso:</label>
+                    <input id="pet-death-date-${petIndex}" type="date" name="pets[${petIndex}][death_date]" class="form-control">
                 </div>
                 <div class="mb-2">
-                    <label>Numero de chip:</label>
-                    <input type="text" name="pets[${petIndex}][microchip_code]" class="form-control">
+                    <label for="pet-microchip-${petIndex}">Numero de chip:</label>
+                    <input id="pet-microchip-${petIndex}" type="text" name="pets[${petIndex}][microchip_code]" class="form-control">
                 </div>
                 <div class="mb-2">
-                    <label>Numero de tatuaje:</label>
-                    <input type="text" name="pets[${petIndex}][tattoo_code]" class="form-control">
+                    <label for="pet-tattoo-${petIndex}">Numero de tatuaje:</label>
+                    <input id="pet-tattoo-${petIndex}" type="text" name="pets[${petIndex}][tattoo_code]" class="form-control">
                 </div>
                 <div class="mb-2">
-                    <label>Sexo:</label>
-                    <select name="pets[${petIndex}][sex]" class="form-control">
+                    <label for="pet-sex-${petIndex}">Sexo:</label>
+                    <select id="pet-sex-${petIndex}" name="pets[${petIndex}][sex]" class="form-control">
                         <option value="">Seleccionar</option>
                         <option value="male">Macho</option>
                         <option value="female">Hembra</option>
@@ -224,12 +224,12 @@ const initClientCreateForm = () => {
                     </select>
                 </div>
                 <div class="mb-2">
-                    <label>Color:</label>
-                    <input type="text" name="pets[${petIndex}][coat_color]" class="form-control">
+                    <label for="pet-coat-color-${petIndex}">Color:</label>
+                    <input id="pet-coat-color-${petIndex}" type="text" name="pets[${petIndex}][coat_color]" class="form-control">
                 </div>
                 <div class="mb-2">
-                    <label>Tamano:</label>
-                    <select name="pets[${petIndex}][size]" class="form-control">
+                    <label for="pet-size-${petIndex}">Tamano:</label>
+                    <select id="pet-size-${petIndex}" name="pets[${petIndex}][size]" class="form-control">
                         <option value="">Seleccionar</option>
                         <option value="mini">Mini</option>
                         <option value="small">Pequeno</option>
@@ -244,8 +244,8 @@ const initClientCreateForm = () => {
                     <label class="form-check-label" for="pet-sterilized-${petIndex}">Esterilizado</label>
                 </div>
                 <div class="mb-2">
-                    <label>Notas:</label>
-                    <textarea name="pets[${petIndex}][notes]" class="form-control" rows="2"></textarea>
+                    <label for="pet-notes-${petIndex}">Notas:</label>
+                    <textarea id="pet-notes-${petIndex}" name="pets[${petIndex}][notes]" class="form-control" rows="2"></textarea>
                 </div>
             </div>
         `;
@@ -415,14 +415,14 @@ const initClientEditForm = () => {
         const html = `
             <tr class="phone-item">
                 <td>
-                    <select name="phones[${phoneIndex}][type]" class="form-control" required>
+                    <select name="phones[${phoneIndex}][type]" class="form-control" required aria-labelledby="phones-th-type">
                         <option value="mobile" ${type === 'mobile' ? 'selected' : ''}>Móvil</option>
                         <option value="fixed" ${type === 'fixed' ? 'selected' : ''}>Fijo</option>
                     </select>
                 </td>
-                <td><input type="text" name="phones[${phoneIndex}][number]" value="${number}" class="form-control" required></td>
+                <td><input type="text" name="phones[${phoneIndex}][number]" value="${number}" class="form-control" required aria-labelledby="phones-th-number"></td>
                 <td class="text-center align-middle">
-                    <input type="checkbox" name="phones[${phoneIndex}][delete]" value="1">
+                    <input type="checkbox" name="phones[${phoneIndex}][delete]" value="1" aria-labelledby="phones-th-delete">
                 </td>
             </tr>
         `;
@@ -478,23 +478,23 @@ const initClientEditForm = () => {
 
         const html = `
             <tr class="pet-item">
-                <td><input type="text" name="pets[${petIndex}][name]" value="${name}" class="form-control" required></td>
-                <td><input type="text" name="pets[${petIndex}][species]" value="${species}" class="form-control"></td>
-                <td><input type="text" name="pets[${petIndex}][breed]" value="${breed}" class="form-control"></td>
-                <td><input type="date" name="pets[${petIndex}][birth_date]" value="${birthDate}" class="form-control"></td>
-                <td><input type="date" name="pets[${petIndex}][death_date]" value="${deathDate}" class="form-control"></td>
-                <td><input type="text" name="pets[${petIndex}][microchip_code]" value="${microchip}" class="form-control"></td>
-                <td><input type="text" name="pets[${petIndex}][tattoo_code]" value="${tattoo}" class="form-control"></td>
+                <td><input type="text" name="pets[${petIndex}][name]" value="${name}" class="form-control" required aria-labelledby="pets-th-name"></td>
+                <td><input type="text" name="pets[${petIndex}][species]" value="${species}" class="form-control" aria-labelledby="pets-th-species"></td>
+                <td><input type="text" name="pets[${petIndex}][breed]" value="${breed}" class="form-control" aria-labelledby="pets-th-breed"></td>
+                <td><input type="date" name="pets[${petIndex}][birth_date]" value="${birthDate}" class="form-control" aria-labelledby="pets-th-birth-date"></td>
+                <td><input type="date" name="pets[${petIndex}][death_date]" value="${deathDate}" class="form-control" aria-labelledby="pets-th-death-date"></td>
+                <td><input type="text" name="pets[${petIndex}][microchip_code]" value="${microchip}" class="form-control" aria-labelledby="pets-th-microchip"></td>
+                <td><input type="text" name="pets[${petIndex}][tattoo_code]" value="${tattoo}" class="form-control" aria-labelledby="pets-th-tattoo"></td>
                 <td>
-                    <select name="pets[${petIndex}][sex]" class="form-control">
+                    <select name="pets[${petIndex}][sex]" class="form-control" aria-labelledby="pets-th-sex">
                         <option value="male" ${sex === 'male' ? 'selected' : ''}>Macho</option>
                         <option value="female" ${sex === 'female' ? 'selected' : ''}>Hembra</option>
                         <option value="unknown" ${sex === 'unknown' || sex === '' ? 'selected' : ''}>No definido</option>
                     </select>
                 </td>
-                <td><input type="text" name="pets[${petIndex}][coat_color]" value="${coatColor}" class="form-control"></td>
+                <td><input type="text" name="pets[${petIndex}][coat_color]" value="${coatColor}" class="form-control" aria-labelledby="pets-th-coat-color"></td>
                 <td>
-                    <select name="pets[${petIndex}][size]" class="form-control">
+                    <select name="pets[${petIndex}][size]" class="form-control" aria-labelledby="pets-th-size">
                         <option value="" ${size === '' ? 'selected' : ''}>Seleccionar</option>
                         <option value="mini" ${size === 'mini' ? 'selected' : ''}>Mini</option>
                         <option value="small" ${size === 'small' ? 'selected' : ''}>Pequeno</option>
@@ -505,11 +505,11 @@ const initClientEditForm = () => {
                 </td>
                 <td class="text-center align-middle">
                     <input type="hidden" name="pets[${petIndex}][is_sterilized]" value="0">
-                    <input type="checkbox" name="pets[${petIndex}][is_sterilized]" value="1" ${sterilized ? 'checked' : ''}>
+                    <input type="checkbox" name="pets[${petIndex}][is_sterilized]" value="1" ${sterilized ? 'checked' : ''} aria-labelledby="pets-th-sterilized">
                 </td>
-                <td><textarea name="pets[${petIndex}][notes]" class="form-control" rows="2">${notes}</textarea></td>
+                <td><textarea name="pets[${petIndex}][notes]" class="form-control" rows="2" aria-labelledby="pets-th-notes">${notes}</textarea></td>
                 <td class="text-center align-middle">
-                    <input type="checkbox" name="pets[${petIndex}][delete]" value="1">
+                    <input type="checkbox" name="pets[${petIndex}][delete]" value="1" aria-labelledby="pets-th-delete">
                 </td>
             </tr>
         `;
