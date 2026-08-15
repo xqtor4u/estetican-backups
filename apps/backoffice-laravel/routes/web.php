@@ -296,17 +296,24 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
         Route::post('visitas/{visit}/recetas', [ClinicalPrescriptionController::class, 'store'])->middleware('permission:editar clinico')->name('prescriptions.store');
         Route::get('recetas/{prescription}/pdf', [ClinicalRecordPdfController::class, 'prescription'])->middleware('permission:ver clinico')->name('prescriptions.pdf');
 
-        Route::post('mascotas/{pet}/vacunas', [PetVaccinationController::class, 'store'])->middleware('permission:alergias.administrar')->name('vaccinations.store');
-        Route::put('mascotas/{pet}/vacunas/{vaccination}', [PetVaccinationController::class, 'update'])->middleware('permission:alergias.administrar')->name('vaccinations.update');
-        Route::delete('mascotas/{pet}/vacunas/{vaccination}', [PetVaccinationController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('vaccinations.destroy');
+        // scopeBindings(): {vaccination}/{allergy}/{condition} se resuelven SIEMPRE contra la
+        // relación del {pet} de la URL (Pet::vaccinations()/allergies()/conditions()), no por ID
+        // suelto — sin esto, cualquier combinación de {pet}+{id} que no correspondan entre sí
+        // igual resolvía y editaba/borraba el registro de OTRA mascota (IDOR real, dato clínico).
+        // Mismo patrón que ya usa resources.events.* más abajo.
+        Route::scopeBindings()->group(function () {
+            Route::post('mascotas/{pet}/vacunas', [PetVaccinationController::class, 'store'])->middleware('permission:alergias.administrar')->name('vaccinations.store');
+            Route::put('mascotas/{pet}/vacunas/{vaccination}', [PetVaccinationController::class, 'update'])->middleware('permission:alergias.administrar')->name('vaccinations.update');
+            Route::delete('mascotas/{pet}/vacunas/{vaccination}', [PetVaccinationController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('vaccinations.destroy');
 
-        Route::post('mascotas/{pet}/alergias', [PetAllergyController::class, 'store'])->middleware('permission:alergias.administrar')->name('allergies.store');
-        Route::put('mascotas/{pet}/alergias/{allergy}', [PetAllergyController::class, 'update'])->middleware('permission:alergias.administrar')->name('allergies.update');
-        Route::delete('mascotas/{pet}/alergias/{allergy}', [PetAllergyController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('allergies.destroy');
+            Route::post('mascotas/{pet}/alergias', [PetAllergyController::class, 'store'])->middleware('permission:alergias.administrar')->name('allergies.store');
+            Route::put('mascotas/{pet}/alergias/{allergy}', [PetAllergyController::class, 'update'])->middleware('permission:alergias.administrar')->name('allergies.update');
+            Route::delete('mascotas/{pet}/alergias/{allergy}', [PetAllergyController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('allergies.destroy');
 
-        Route::post('mascotas/{pet}/condiciones', [PetConditionController::class, 'store'])->middleware('permission:alergias.administrar')->name('conditions.store');
-        Route::put('mascotas/{pet}/condiciones/{condition}', [PetConditionController::class, 'update'])->middleware('permission:alergias.administrar')->name('conditions.update');
-        Route::delete('mascotas/{pet}/condiciones/{condition}', [PetConditionController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('conditions.destroy');
+            Route::post('mascotas/{pet}/condiciones', [PetConditionController::class, 'store'])->middleware('permission:alergias.administrar')->name('conditions.store');
+            Route::put('mascotas/{pet}/condiciones/{condition}', [PetConditionController::class, 'update'])->middleware('permission:alergias.administrar')->name('conditions.update');
+            Route::delete('mascotas/{pet}/condiciones/{condition}', [PetConditionController::class, 'destroy'])->middleware('permission:alergias.administrar')->name('conditions.destroy');
+        });
 
         Route::post('mascotas/{pet}/adjuntos', [ClinicalAttachmentController::class, 'store'])->middleware('permission:crear clinico')->name('attachments.store');
         Route::delete('mascotas/{pet}/adjuntos/{attachment}', [ClinicalAttachmentController::class, 'destroy'])->middleware('permission:editar clinico')->name('attachments.destroy');
