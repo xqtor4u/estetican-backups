@@ -1475,11 +1475,17 @@ a la red real donde vive `mysql`. Verificado de punta a punta: `getent hosts mys
 no 500), CSS/JS de `/build/assets/` sirven 200, API vía `mov.estetican.org/api/*` responde 401
 correcto (no autenticado, no error de conexión).
 
-**`estetican_redis` no se reconectó — no hacía falta.** Confirmado en `.env`:
-`SESSION_DRIVER=database`, `CACHE_STORE=database`, `QUEUE_CONNECTION=database` — Redis no está en
-uso real para nada crítico pese a estar declarado en `compose.prod.yaml` y tener `REDIS_HOST=redis`
-en `.env`. El contenedor `estetican_redis` ni siquiera estaba corriendo (`Created`, nunca
-`Start`eado) — situación previa a esta sesión, no causada por este cambio.
+**`estetican_redis` — no estaba en uso real, pero se arrancó igual por las dudas, a pedido de
+Tomas.** Confirmado en `.env`: `SESSION_DRIVER=database`, `CACHE_STORE=database`,
+`QUEUE_CONNECTION=database` — Redis no está en uso real para nada crítico pese a estar declarado
+en `compose.prod.yaml` y tener `REDIS_HOST=redis` en `.env`. El contenedor ni siquiera estaba
+corriendo (`Created`, nunca `Start`eado) — situación previa a esta sesión, no causada por este
+cambio. Arrancado (`docker compose up -d --no-deps redis`) y confirmado sano: ya comparte la red
+`estetican-prod_estetican` con `app` (no hizo falta reconectar redes, a diferencia de `mysql`),
+`getent hosts redis` resuelve y una conexión TCP real de prueba (`fsockopen` desde PHP dentro de
+`estetican_app`) contra el puerto 6379 conecta bien. Sigue sin ser necesario para el funcionamiento
+actual — pero si algún día se cambia `SESSION_DRIVER`/`CACHE_STORE`/`QUEUE_CONNECTION` a `redis`
+sin revisar esto primero, ya no habría una sorpresa de conectividad esperando.
 
 **Riesgo real que queda abierto:** si en el futuro se recrea `estetican_mysql` o `estetican_redis`
 (no solo `app`) usando el `compose.prod.yaml` actual, esos contenedores caerían en
