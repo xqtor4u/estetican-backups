@@ -36,25 +36,38 @@ class CashSessionController extends Controller
 
     public function store(Request $request, CashRegister $cashRegister): RedirectResponse
     {
-        if ($cashRegister->activeSession) {
-            return redirect()->route('finances.cash-sessions.show', $cashRegister->activeSession)
-                ->with('info', 'La caja ya tiene una sesión abierta.');
-        }
-
         $validated = $request->validate([
             'opening_amount' => ['required', 'numeric', 'min:0'],
             'notes'          => ['nullable', 'string', 'max:500'],
         ]);
 
-        $session = CashSession::create([
-            'cash_register_id'   => $cashRegister->id,
-            'branch_id'          => $cashRegister->branch_id,
-            'opened_by_user_id'  => auth()->id(),
-            'opened_at'          => now(),
-            'opening_amount'     => $validated['opening_amount'],
-            'notes'              => $validated['notes'] ?? null,
-            'status'             => 'abierta',
-        ]);
+        // Bloqueo a nivel de fila (mismo patrón que AccountingService::getNextFolio()) para
+        // que dos requests casi simultáneas sobre la misma caja (doble clic, dos operadores)
+        // no pasen el chequeo "¿hay sesión abierta?" antes de que exista la primera — sin esto,
+        // se podían crear dos CashSession con status='abierta' para la misma caja, y
+        // periodStart()/allPaymentsForPeriod() asumen como máximo una.
+        $session = DB::transaction(function () use ($request, $cashRegister, $validated) {
+            $lockedRegister = CashRegister::lockForUpdate()->findOrFail($cashRegister->id);
+
+            if ($lockedRegister->activeSession) {
+                return null;
+            }
+
+            return CashSession::create([
+                'cash_register_id'   => $lockedRegister->id,
+                'branch_id'          => $lockedRegister->branch_id,
+                'opened_by_user_id'  => auth()->id(),
+                'opened_at'          => now(),
+                'opening_amount'     => $validated['opening_amount'],
+                'notes'              => $validated['notes'] ?? null,
+                'status'             => 'abierta',
+            ]);
+        });
+
+        if ($session === null) {
+            return redirect()->route('finances.cash-sessions.show', $cashRegister->activeSession()->firstOrFail())
+                ->with('info', 'La caja ya tiene una sesión abierta.');
+        }
 
         return redirect()->route('finances.cash-sessions.show', $session)
             ->with('success', 'Sesión abierta.');
