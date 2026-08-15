@@ -206,9 +206,16 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
         }`}
         style={{ maxHeight: '85vh', overflowY: 'auto' }}
       >
-        {/* Asa */}
-        <div className="flex justify-center pt-3 pb-1">
+        {/* Asa + cerrar */}
+        <div className="relative flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-outline-variant" />
+          <button
+            onClick={onClose}
+            aria-label="Cerrar menú"
+            className="absolute right-3 top-1.5 w-8 h-8 flex items-center justify-center rounded-full active:bg-surface-container-high transition-colors"
+          >
+            <span className="material-symbols-outlined text-xl text-on-surface-variant">close</span>
+          </button>
         </div>
 
         {/* Info de usuario */}
@@ -410,7 +417,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="theme-admin min-h-screen bg-background">
-      {children}
+      <div style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+        {children}
+      </div>
       <BottomNav />
     </div>
   );
