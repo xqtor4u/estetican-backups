@@ -1432,3 +1432,66 @@ Verificado con `php artisan route:list --name=items.store -vv` — el middleware
 **Cómo se evitó en BL-061:** en vez de crear el permiso nuevo (`disponibilidad_propia`) como granular suelto, se agregó como una entrada más de `$modules` en `BaseRolesSeeder.php` **y** en los dos arrays `$modules` de `UserController` — así generó los 4 permisos estándar (`ver/crear/editar/eliminar disponibilidad_propia`) y quedó representado en la matriz de checkboxes, sobreviviendo cualquier edición futura del usuario.
 
 **Lección:** cualquier permiso Spatie que se vaya a asignar **directo a un usuario** (no solo vía rol) debe seguir el patrón CRUD y aparecer en los arrays `$modules` de `UserController@create()`/`@edit()` — nunca asumir que `givePermissionTo()` "simplemente funciona" para un permiso fuera de esa matriz, porque la próxima edición del usuario por cualquier otro campo lo borra en silencio. Los permisos granulares (`alergias.administrar` y similares) solo son seguros si se asignan **exclusivamente vía rol** (`Role::syncPermissions()`), nunca como permiso directo de un usuario individual.
+
+---
+
+## NT-059 — `estetican_app` y `estetican_mysql`/`estetican_redis` quedaron en redes Docker distintas — invisible mientras nadie recreaba `app`, se disparó al hacerlo por primera vez desde que existe `name: estetican-prod`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 14-15/08/2026 |
+| **Severidad** | P1 real por unos minutos (backoffice completo caído, 504/500 en toda la app) — pero autoinfligido en el momento, corregido en el acto, sin impacto a clientes reales fuera de esa ventana |
+| **Componente** | `apps/backoffice-laravel/compose.prod.yaml` — redes Docker de los contenedores `app`/`mysql`/`redis` |
+
+**Contexto:** sesión de Zeus-Estetican portando `SYNC-002` (reemplazo de `artisan serve` por
+`nginx`+`php-fpm` en el `Dockerfile` real, ver `ZEUS`/`PENDIENTES_SINCRONIZAR_ESTETICAN.md` de
+Zeus) — cambio autorizado por Tomas ("no son horas de trabajo y cualquier fallo hay tiempo").
+
+**Síntoma:** tras reconstruir la imagen y recrear `estetican_app` (`docker compose up -d --no-deps
+app`), `app.estetican.org` empezó a devolver 504 (timeout) y el endpoint de login 500. Los otros
+dos contenedores (`estetican_mysql`, `estetican_mob`) seguían corriendo sin tocarse.
+
+**Causa raíz — no tiene nada que ver con nginx/php-fpm en sí:** `compose.prod.yaml` tiene una
+línea `name: estetican-prod` (agregada en algún momento posterior a la primera vez que se
+levantaron los contenedores). Docker Compose deriva el nombre de sus redes internas del nombre de
+proyecto: los contenedores viejos (`estetican_mysql`, `estetican_redis`) quedaron para siempre en
+`backoffice-laravel_estetican` (el nombre de proyecto *antes* de que existiera esa línea `name:`),
+mientras que **recrear cualquier contenedor con el compose file actual lo pone en una red nueva y
+distinta, `estetican-prod_estetican`** — sin ninguna conexión a la anterior. Esto llevaba
+dormido, invisible, desde que se agregó `name: estetican-prod` — nadie había vuelto a recrear
+`app` desde entonces (los despliegues previos de este proyecto eran cambios de código, con
+`.:/var/www/html` montado, sin necesitar rebuild de imagen ni recreate de contenedor). Al ser la
+primera vez que se reconstruye/recrea `app` desde que esa línea existe, salió a la luz. Un efecto
+colateral: `docker compose up` también intentó **crear** un contenedor nuevo en vez de reemplazar
+el viejo (`Conflict: container name already in use`) — mismo motivo, la etiqueta de proyecto del
+contenedor viejo (`backoffice-laravel`) no coincidía con la del compose file actual
+(`estetican-prod`), así que Compose no lo reconoció como "suyo" para reemplazarlo en el lugar.
+
+**Fix aplicado en el momento:** `docker stop`/`docker rm` del contenedor viejo (sin datos propios,
+todo el código va montado y la BD vive aparte) para destrabar el conflicto de nombre, luego
+`docker network connect backoffice-laravel_estetican estetican_app` para unir el contenedor nuevo
+a la red real donde vive `mysql`. Verificado de punta a punta: `getent hosts mysql` resuelve,
+`app.estetican.org` responde 302/200 normal, login procesa contra la BD real (422 de validación,
+no 500), CSS/JS de `/build/assets/` sirven 200, API vía `mov.estetican.org/api/*` responde 401
+correcto (no autenticado, no error de conexión).
+
+**`estetican_redis` no se reconectó — no hacía falta.** Confirmado en `.env`:
+`SESSION_DRIVER=database`, `CACHE_STORE=database`, `QUEUE_CONNECTION=database` — Redis no está en
+uso real para nada crítico pese a estar declarado en `compose.prod.yaml` y tener `REDIS_HOST=redis`
+en `.env`. El contenedor `estetican_redis` ni siquiera estaba corriendo (`Created`, nunca
+`Start`eado) — situación previa a esta sesión, no causada por este cambio.
+
+**Riesgo real que queda abierto:** si en el futuro se recrea `estetican_mysql` o `estetican_redis`
+(no solo `app`) usando el `compose.prod.yaml` actual, esos contenedores caerían en
+`estetican-prod_estetican` — la red "nueva" — mientras que `app` seguiría (a mano) en
+`backoffice-laravel_estetican`, repitiendo el mismo problema al revés. La reconciliación real
+(unificar todo bajo un solo nombre de proyecto, con una migración ordenada de red) no se hizo —
+solo se resolvió lo mínimo para restaurar el servicio. Vale la pena una sesión aparte dedicada a
+esto antes de que alguien más recree cualquiera de estos contenedores sin saber del problema.
+
+**Lección:** agregar o cambiar `name:` en un `compose.prod.yaml` real, después de que los
+contenedores ya existen, es una bomba de tiempo silenciosa — no rompe nada hasta la primera vez
+que alguien recrea (no solo reinicia) cualquiera de los contenedores del proyecto. Si se cambia
+ese campo, hay que planear la migración de red de una — reconectar todos los contenedores
+existentes a la red nueva (o viceversa) en el momento del cambio, no confiar en que "va a seguir
+funcionando porque nadie tocó nada".
