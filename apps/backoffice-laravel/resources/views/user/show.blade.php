@@ -33,10 +33,6 @@
     </x-slot:actions>
 </x-page-header>
 
-@if(session('success'))
-    <div class="alert alert-success mt-3">{{ session('success') }}</div>
-@endif
-
 <div class="row g-4 mt-1">
     {{-- Columna Izquierda: Identidad y Acceso --}}
     <div class="col-lg-4">

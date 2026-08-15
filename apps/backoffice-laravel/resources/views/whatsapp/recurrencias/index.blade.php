@@ -32,13 +32,6 @@
         ])->values()) }},
     })"
 >
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
     <div class="card shadow-sm border-0 mb-3">
         <div class="card-body d-flex flex-wrap align-items-center gap-3">
             <label class="fw-semibold mb-0">Plantilla a usar:</label>

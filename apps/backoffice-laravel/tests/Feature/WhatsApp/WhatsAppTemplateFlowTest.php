@@ -56,6 +56,31 @@ class WhatsAppTemplateFlowTest extends TestCase
         ]);
     }
 
+    public function test_creating_a_template_via_normal_form_shows_the_success_message_only_once(): void
+    {
+        $response = $this->actingAs($this->admin())
+            ->from(route('whatsapp.plantillas.index'))
+            ->post(route('whatsapp.plantillas.store'), [
+                'name' => 'Recordatorio único',
+                'body' => 'Hola {cliente}, {mascota} tiene una cita.',
+                'context' => 'cita',
+                'is_active' => true,
+            ]);
+
+        $response->assertRedirect(route('whatsapp.plantillas.index'));
+
+        $indexResponse = $this->get(route('whatsapp.plantillas.index'));
+        $indexResponse->assertOk();
+
+        // La vista tenía su propio banner "Plantilla creada correctamente" además del toast
+        // global de layouts/app.blade.php — ambos leían session('success') y lo mostraban dos
+        // veces. Solo debe quedar el toast global.
+        $this->assertSame(
+            1,
+            substr_count($indexResponse->getContent(), 'Plantilla creada correctamente'),
+        );
+    }
+
     public function test_creating_a_template_via_json_with_invalid_data_returns_validation_errors(): void
     {
         $response = $this->actingAs($this->admin())

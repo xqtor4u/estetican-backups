@@ -81,8 +81,8 @@
             $color = $eventColors[$activity->event] ?? 'secondary';
             $label = $eventLabels[$activity->event] ?? ucfirst($activity->event ?? '–');
             $logLabel = $logNames[$activity->log_name] ?? $activity->log_name;
-            $changes = $activity->properties->get('attributes', []);
-            $old = $activity->properties->get('old', []);
+            $changes = $activity->attribute_changes->get('attributes', []);
+            $old = $activity->attribute_changes->get('old', []);
         @endphp
         <tr>
             <td class="text-muted small">

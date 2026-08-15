@@ -35,13 +35,6 @@
         ])->values()) }},
     })"
 >
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
         <a href="{{ route('whatsapp.bandeja', ['date' => $selectedDate->copy()->subDay()->toDateString()]) }}" class="btn btn-outline-secondary btn-sm">&laquo; Día anterior</a>
         <a href="{{ route('whatsapp.bandeja', ['date' => now()->toDateString()]) }}" class="btn btn-outline-secondary btn-sm {{ $selectedDate->isToday() ? 'active' : '' }}">Hoy</a>

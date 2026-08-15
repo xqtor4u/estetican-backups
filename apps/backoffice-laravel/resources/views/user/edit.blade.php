@@ -19,10 +19,6 @@
     </x-slot:actions>
 </x-page-header>
 
-@if(session('success'))
-    <div class="alert alert-success mt-3">{{ session('success') }}</div>
-@endif
-
 @if($errors->any())
     <div class="alert alert-danger mt-3">
         <strong>Revisa los errores:</strong>
