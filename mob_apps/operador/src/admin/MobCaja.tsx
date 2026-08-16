@@ -397,7 +397,11 @@ export function MobCaja() {
         <ScreenHeader {...headerProps} subtitle={page.branch.name} />
         <div className="flex flex-col items-center gap-4 px-6 pt-16 text-center">
           <span className="material-symbols-outlined text-5xl text-on-surface-variant">point_of_sale</span>
-          <h2 className="text-base font-semibold text-on-surface">Sin sesión activa</h2>
+          {/* "Sesión" en esta app también significa sesión de LOGIN ("Cerrar sesión" en el
+              menú) — "Sin sesión activa" a secas, sin leer el párrafo de abajo, se lee como
+              "no estás logueado". Mismo tipo de término sobrecargado que ya se aclaró en el
+              cobro (SYNC-020, la palabra "Caja") — acá se saca "sesión" del título. */}
+          <h2 className="text-base font-semibold text-on-surface">Sin caja abierta</h2>
           <p className="text-sm text-on-surface-variant">
             No hay ninguna sesión de caja abierta en <strong>{page.branch.name}</strong>.
           </p>
@@ -408,7 +412,7 @@ export function MobCaja() {
             onClick={() => loadSession()}
             className="mt-2 px-6 py-2.5 rounded-2xl border border-outline-variant text-sm text-on-surface active:scale-95 transition-transform"
           >
-            Actualizar
+            Reintentar
           </button>
         </div>
       </div>
