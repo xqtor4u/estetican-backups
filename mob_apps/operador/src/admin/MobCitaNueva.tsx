@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getNavCrumbs, setNavCrumbs } from '../navState';
+import { consumeCitaPresetDate, getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { useAuth } from '../AuthContext';
 import { ScreenHeader } from '../ScreenHeader';
@@ -82,9 +82,17 @@ export function MobCitaNueva() {
   const [pet,       setPet]       = useState<PetMin | null>(null);
   const [services,  setServices]  = useState<Service[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
-  const [selDate,   setSelDate]   = useState<Date>(() =>
-    new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  );
+  const [selDate,   setSelDate]   = useState<Date>(() => {
+    // Si venimos de Agenda con una fecha ya elegida (flujo + Cita), arrancar ahí en vez
+    // de en HOY — antes esta pantalla siempre ignoraba la fecha de Agenda y el operador
+    // terminaba agendando en un día distinto al que estaba viendo sin darse cuenta.
+    const preset = consumeCitaPresetDate();
+    if (preset) {
+      const [y, m, d] = preset.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  });
   const [occupied,     setOccupied]     = useState<Set<string>>(new Set());
   const [blockedSlots, setBlockedSlots] = useState<Set<string>>(new Set());
   const [loadSlots, setLoadSlots] = useState(false);

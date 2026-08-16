@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { clearNavCrumbs, setNavCrumbs } from '../navState';
+import { clearNavCrumbs, setCitaPresetDate, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
   CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap, expandDateRange,
@@ -235,7 +235,12 @@ export function GlobalAgenda() {
             </div>
             <div className="px-4 pb-8 pt-2 flex flex-col gap-2">
               <button
-                onClick={() => { setShowAddMenu(false); setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate('/mascotas'); }}
+                onClick={() => {
+                  setShowAddMenu(false);
+                  setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
+                  setCitaPresetDate(toDateStr(selectedDate));
+                  navigate('/mascotas');
+                }}
                 className="flex items-center gap-3 px-4 py-3.5 bg-surface-container rounded-2xl text-left active:scale-[0.98] transition-transform"
               >
                 <span className="material-symbols-outlined text-2xl text-primary">event</span>

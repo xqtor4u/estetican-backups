@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setNavCrumbs } from '../navState';
+import { peekCitaPresetDate, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 
 interface Pet {
@@ -38,7 +38,22 @@ export function PetSearch() {
 
   const filtered = pets;
 
+  // Si venimos de Agenda → + Cita → Nueva cita, saltar directo al formulario de cita en
+  // vez de pasar por el detalle completo de la mascota — ese salto extra era el flujo
+  // largo (y el punto donde se perdía la fecha elegida en Agenda) que se reportó.
+  const citaPresetDate = peekCitaPresetDate();
+  const citaPresetLabel = citaPresetDate
+    ? (() => {
+        const [y, m, d] = citaPresetDate.split('-').map(Number);
+        return new Date(y, m - 1, d).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+      })()
+    : null;
+
   const goToPet = (id: number) => {
+    if (citaPresetDate) {
+      navigate(`/mascotas/${id}/cita/nueva`);
+      return;
+    }
     const nc = [{ label: 'Mascotas', to: '/mascotas' }];
     setNavCrumbs(nc);
     navigate(`/mascotas/${id}`, { state: { _crumbs: nc } });
@@ -47,18 +62,21 @@ export function PetSearch() {
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
       <ScreenHeader
-        title="Mascotas"
+        title={citaPresetDate ? 'Elegí la mascota' : 'Mascotas'}
+        subtitle={citaPresetLabel ? `Cita para ${citaPresetLabel}` : undefined}
         screenTag="MobPetSrch"
         onBack={() => navigate(-1)}
         noCrumbs
         rightAction={
-          <button
-            onClick={() => navigate('/clientes/seleccionar', { state: { returnTo: '/mascotas/nuevo' } })}
-            className="flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-sm font-semibold active:scale-95 transition-transform"
-          >
-            <span className="material-symbols-outlined text-lg">add</span>
-            Nueva
-          </button>
+          citaPresetDate ? undefined : (
+            <button
+              onClick={() => navigate('/clientes/seleccionar', { state: { returnTo: '/mascotas/nuevo' } })}
+              className="flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-sm font-semibold active:scale-95 transition-transform"
+            >
+              <span className="material-symbols-outlined text-lg">add</span>
+              Nueva
+            </button>
+          )
         }
       />
 
