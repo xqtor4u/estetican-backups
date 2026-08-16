@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { setCitaPresetDate, setCitaPresetOperator, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
@@ -62,6 +62,7 @@ export function GroomerAgenda() {
   const [bookings,     setBookings]     = useState<Booking[]>([]);
   const [blocked,      setBlocked]      = useState<Unavailability[]>([]);
   const [loadingAg,    setLoadingAg]    = useState(true);
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   // Cargar info del operador
   useEffect(() => {
@@ -253,18 +254,28 @@ export function GroomerAgenda() {
             })}
 
             <input
+              ref={dateInputRef}
               type="date"
               className="sr-only"
               id="groomer-date-picker"
               value={toDateStr(selectedDate)}
               onChange={e => e.target.value && setSelectedDate(new Date(e.target.value + 'T12:00:00'))}
             />
-            <label
-              htmlFor="groomer-date-picker"
-              className="p-1.5 rounded-full hover:bg-surface-container-high transition-colors shrink-0 cursor-pointer"
+            <button
+              type="button"
+              onClick={() => {
+                // En Chrome de escritorio, enfocar el input (ej. vía label) no abre el
+                // calendario nativo — solo showPicker() lo hace explícitamente, mismo
+                // patrón ya usado en MobCitaNueva.tsx para este problema.
+                const el = dateInputRef.current;
+                if (el && typeof el.showPicker === 'function') el.showPicker();
+                else el?.focus();
+              }}
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0"
+              aria-label="Elegir otra fecha del calendario"
             >
               <span className="material-symbols-outlined text-on-surface-variant text-lg">calendar_month</span>
-            </label>
+            </button>
 
             <button
               onClick={() => setSelectedDate(addDays(selectedDate, 1))}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { clearNavCrumbs, setCitaPresetDate, setCitaPresetOperator, setNavCrumbs } from '../navState';
@@ -76,6 +76,7 @@ export function GlobalAgenda() {
 
   const [today]        = useState(() => new Date());
   const [searchParams] = useSearchParams();
+  const dateInputRef = useRef<HTMLInputElement>(null);
   // Si llegamos con ?date=YYYY-MM-DD (ej. al volver de crear una cita), arrancar en ese
   // día en vez de HOY — para que el operador pueda comprobar de un vistazo que la cita
   // quedó agendada donde correspondía, sin tener que navegar manualmente hasta ahí.
@@ -431,18 +432,28 @@ export function GlobalAgenda() {
             })}
 
             <input
+              ref={dateInputRef}
               type="date"
               className="sr-only"
               id="date-picker"
               value={toDateStr(selectedDate)}
               onChange={e => e.target.value && setSelectedDate(new Date(e.target.value + 'T12:00:00'))}
             />
-            <label
-              htmlFor="date-picker"
-              className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0 cursor-pointer"
+            <button
+              type="button"
+              onClick={() => {
+                // En Chrome de escritorio, enfocar el input (ej. vía label) no abre el
+                // calendario nativo — solo showPicker() lo hace explícitamente, mismo
+                // patrón ya usado en MobCitaNueva.tsx para este problema.
+                const el = dateInputRef.current;
+                if (el && typeof el.showPicker === 'function') el.showPicker();
+                else el?.focus();
+              }}
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0"
+              aria-label="Elegir otra fecha del calendario"
             >
               <span className="material-symbols-outlined text-on-surface-variant text-lg">calendar_month</span>
-            </label>
+            </button>
 
             <button
               onClick={() => setSelectedDate(addDays(selectedDate, 1))}

@@ -160,6 +160,7 @@ export function MobCitaDet() {
   /* Toast de éxito */
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const detDateInputRef = useRef<HTMLInputElement>(null);
   const showToast = (msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(msg);
@@ -993,17 +994,28 @@ export function MobCitaDet() {
                     </button>
                   );
                 })}
-                <input type="date" id="det-date" className="sr-only" value={localDateStr(selDate)}
+                <input ref={detDateInputRef} type="date" id="det-date" className="sr-only" value={localDateStr(selDate)}
                   onChange={e => {
                     if (e.target.value) {
                       const [y, m, d] = e.target.value.split('-').map(Number);
                       setSelDate(new Date(y, m - 1, d));
                     }
                   }} />
-                <label htmlFor="det-date"
-                  className="p-2 rounded-xl bg-surface-container border border-outline-variant shrink-0 cursor-pointer">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // En Chrome de escritorio, enfocar el input (ej. vía label) no abre el
+                    // calendario nativo — solo showPicker() lo hace explícitamente, mismo
+                    // patrón ya usado en MobCitaNueva.tsx para este problema.
+                    const el = detDateInputRef.current;
+                    if (el && typeof el.showPicker === 'function') el.showPicker();
+                    else el?.focus();
+                  }}
+                  className="p-2 rounded-xl bg-surface-container border border-outline-variant shrink-0"
+                  aria-label="Elegir otra fecha del calendario"
+                >
                   <span className="material-symbols-outlined text-on-surface-variant text-xl">calendar_month</span>
-                </label>
+                </button>
               </div>
             </section>
             )}
