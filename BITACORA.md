@@ -1,5 +1,73 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 16/08/2026 — `SYNC-024`/`SYNC-025` portados desde Zeus-Estetican: Caja deja de depender del check-in (sucursal asignada + permisos granulares + reversión de movimientos)
+
+### ✅ Logros y Cambios
+
+Sesión de porteo puro — todo el trabajo real (diseño, construcción, 5 bugs encontrados en
+auditoría propia y corregidos, tests) se hizo del lado de Zeus-Estetican (`tenants/tst`), mismo
+criterio que sesiones anteriores. Detalle técnico completo en
+`docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus-Estetican (`SYNC-024`/`SYNC-025`,
+movidos a "Aplicados").
+
+**`SYNC-024` — Caja pasa de depender del check-in del día (RH/asistencia) a `users.branch_id`
+(sucursal asignada, dato organizacional persistente) + permisos granulares:**
+- `CashController.php`: `resolveBranchId()` nuevo (nunca más `OperatorCheckin`), `updateMovement()`/
+  `revertMovement()` nuevos (con lock anti-carrera, rechazan operar sobre una sesión ya cerrada —
+  hallazgo real de la auditoría de hoy, no estaba en el diseño original).
+- Migraciones: `users.branch_id`, `cash_movements.reversed_at`+`reversal_of_movement_id`.
+- `BaseRolesSeeder`: 4 permisos granulares nuevos (`caja.ver`, `caja.movimientos.{crear,editar,
+  revertir}`) — el rol `admin` los recibe automáticamente vía `syncPermissions()`, corrido en
+  producción real (`php artisan db:seed --class=BaseRolesSeeder --force`).
+- `routes/api.php`: los 5 endpoints de Caja pasan de `permission:caja.abrir` único a permisos
+  específicos por acción; 2 rutas nuevas (`PATCH .../movements/{id}`, `POST .../revert`).
+- `UserController.php` + `user/{edit,create}.blade.php`: selector "Sucursal asignada" + 6
+  checkboxes de Caja — antes no existía ninguna forma de asignar esto a un usuario no-admin.
+- Móvil (`MobCaja.tsx`, `MobCajaMovimientos.tsx`, `App.tsx`, `AuthContext.tsx`): pantallas
+  `no_branch`/`select_branch`, botones Editar/Revertir gateados por permiso y por tipo de
+  movimiento (nunca sobre cobros, que no son `CashMovement` reales), badges "Revertido"/
+  "Reversión", y el ítem "Caja" del menú ahora se oculta si falta `caja.ver`.
+
+**`SYNC-025` — `operator-roles/create.blade.php` capturaba `return_to` pero nunca mostraba un
+link "Regresar" ni lo respetaba en "Cancelar":** encontrado al arreglar (del lado de `tst`) la
+suite de tests completa, no directamente relacionado con Caja. Un archivo, un `@if` con el mismo
+patrón que ya usa `branches/create`.
+
+**Verificado en producción real antes de dar por cerrado:**
+migraciones corridas (`php artisan migrate --force`), permisos confirmados en el rol `admin`
+vía tinker, 24 tests nuevos/reescritos (`CashMovementsBranchScopingTest`, `CashOpenSessionTest`
+reescrito, `UserBranchAssignmentTest`) corridos contra la BD real de testing — los 24 pasan.
+Bundle móvil reconstruido (`node:20-alpine`, mismo mecanismo que sesiones anteriores) y
+verificado sirviendo el JS nuevo en el volumen de `estetican_mob` (grep del mensaje de error
+nuevo en el bundle servido). Suite completa corrida aparte: 481 pasan, 37 fallan — **las 37 son
+exactamente los mismos tests preexistentes rotos que ya se encontraron y corrigieron del lado
+de `tst` hoy** (sin `actingAs()`, texto de UI desactualizado, no relacionados con Caja) — no se
+tocaron acá por estar fuera de alcance de este porteo y no ser una emergencia.
+
+**Pendiente operativo real, no de código:** los usuarios reales de producción no tienen
+`branch_id` asignado todavía — quedan en el estado `no_branch` de Caja hasta que un admin se lo
+asigne desde la pantalla de usuario nueva. No bloquea nada de forma irreversible, pero es el
+primer paso después de este despliegue.
+
+### 📁 Archivos principales tocados
+- `apps/backoffice-laravel/app/Http/Controllers/Api/CashController.php`
+- `apps/backoffice-laravel/app/Models/{User,CashMovement}.php`
+- `apps/backoffice-laravel/database/migrations/2026_08_16_*` (2 nuevas)
+- `apps/backoffice-laravel/database/seeders/BaseRolesSeeder.php`
+- `apps/backoffice-laravel/routes/api.php`
+- `apps/backoffice-laravel/app/Http/Controllers/UserController.php`, `resources/views/user/{edit,create}.blade.php`
+- `apps/backoffice-laravel/resources/views/operator-roles/create.blade.php`
+- `apps/backoffice-laravel/tests/Feature/Api/{CashOpenSessionTest.php (reescrito),CashMovementsBranchScopingTest.php (nuevo)}`, `tests/Feature/UserBranchAssignmentTest.php` (nuevo)
+- `mob_apps/operador/src/{AuthContext.tsx,App.tsx,admin/MobCaja.tsx,admin/MobCajaMovimientos.tsx}`
+
+### 🛑 Pendientes activos
+- Asignar `branch_id` a los usuarios reales de producción desde la pantalla de usuario (ver arriba).
+- Los 37 tests preexistentes rotos (auth faltante en tests, texto de UI desactualizado) siguen
+  sin corregir en este repo — se corrigieron del lado de `tst`, portar esos fixes de test no es
+  una emergencia, queda para una sesión futura si se decide que vale la pena.
+
+---
+
 ## 📅 Cierre de sesión: 15/08/2026 — 13 commits portados desde Zeus-Estetican (`SYNC-009` a `SYNC-020`): IDOR crítico en Clínico, Agenda no filtraba "Hoy", Dashboard subestimaba ingresos, y una tanda grande de UX en la app móvil (incluida Caja)
 
 ### ✅ Logros y Cambios
