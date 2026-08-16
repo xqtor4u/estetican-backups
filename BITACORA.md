@@ -1,6 +1,6 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
-## 📅 Cierre de sesión: 15/08/2026 — 11 commits portados desde Zeus-Estetican (`SYNC-009` a `SYNC-018`): IDOR crítico en Clínico, Agenda no filtraba "Hoy", Dashboard subestimaba ingresos, y una tanda grande de UX en la app móvil
+## 📅 Cierre de sesión: 15/08/2026 — 13 commits portados desde Zeus-Estetican (`SYNC-009` a `SYNC-020`): IDOR crítico en Clínico, Agenda no filtraba "Hoy", Dashboard subestimaba ingresos, y una tanda grande de UX en la app móvil (incluida Caja)
 
 ### ✅ Logros y Cambios
 
@@ -8,7 +8,7 @@ Sesión de porteo puro — todo el trabajo real (hallazgos, fixes, tests, prueba
 Playwright) se hizo del lado de Zeus-Estetican (`tenants/tst`), siguiendo la regla de alcance
 vigente (producción real solo se toca para portar lo ya probado en sandbox, nunca para
 desarrollar directo acá). Detalle técnico completo de cada hallazgo en
-`docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus-Estetican (`SYNC-009` a `SYNC-018`).
+`docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus-Estetican (`SYNC-009` a `SYNC-020`).
 Acá el resumen de lo que quedó en este repo, por orden de commit:
 
 1. **`e059b8b`** — Agenda no filtraba por fecha al entrar: `whereDate()` solo se aplicaba para
@@ -48,6 +48,13 @@ Acá el resumen de lo que quedó en este repo, por orden de commit:
    un input oculto no dispara el picker de forma confiable en Chrome de escritorio, hace falta
    `showPicker()` explícito (patrón que ya existía en `MobCitaNueva.tsx`, nunca replicado). Ver
    `NT-061`.
+10. **`54a0d10`** — Caja sin check-in activo no dejaba hacer check-in ahí mismo (había que ir al
+    menú a buscar "Registrar"). `CheckinWidget` se extrae a archivo propio, reusado en `MobCaja`
+    con el selector de sucursal ya expandido.
+11. **`602bc56`** — El cobro decía "Se registrará en Caja", implicando una atadura a la sesión de
+    caja que no existe — el pago se guarda como `Payment` suelto sin relación con `CashSession`.
+    Reescrito a "Efectivo"/"como efectivo" en los 4 lugares donde aparecía, decisión tomada con
+    Tomas de aclarar el texto en vez de bloquear el cobro sin check-in.
 
 **Verificado al cierre:** árbol de trabajo limpio (nada sin commitear), rebuild fresco de la app
 móvil desde el commit actual sirviendo el mismo hash que ya estaba en producción (confirma que lo
