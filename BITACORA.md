@@ -44,10 +44,13 @@ exactamente los mismos tests preexistentes rotos que ya se encontraron y corrigi
 de `tst` hoy** (sin `actingAs()`, texto de UI desactualizado, no relacionados con Caja) — no se
 tocaron acá por estar fuera de alcance de este porteo y no ser una emergencia.
 
-**Pendiente operativo real, no de código:** los usuarios reales de producción no tienen
-`branch_id` asignado todavía — quedan en el estado `no_branch` de Caja hasta que un admin se lo
-asigne desde la pantalla de usuario nueva. No bloquea nada de forma irreversible, pero es el
-primer paso después de este despliegue.
+**Actualización el mismo día — `branch_id` asignado a los 5 usuarios reales.** Solo existe 1
+sucursal activa (Aguascalientes Colinas del Río, id=1), sin ambigüedad de a cuál asignar cada
+usuario. Los 5 (`Admin`, `arantxa`, `tomasmg`, `tester` — los 4 con `can_login`, todos `role:
+admin` — y `GRO-JMP`, un registro de operador sin `can_login` todavía) quedaron con
+`branch_id=1` vía `User::update()` en tinker. Como los 4 con login son super-admin, no
+dependían de esto para usar Caja (eligen sucursal explícita), pero ahora ya no ven la pantalla
+de selección cada vez.
 
 ### 📁 Archivos principales tocados
 - `apps/backoffice-laravel/app/Http/Controllers/Api/CashController.php`
