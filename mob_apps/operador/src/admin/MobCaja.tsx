@@ -50,6 +50,33 @@ type PageState =
   | { status: 'active'; session: SessionInfo; totals: Totals; movements: Movement[] }
   | { status: 'error'; message: string };
 
+/* Revisión rápida por período sin salir a /caja/movimientos — reutiliza el mismo
+   /api/cash/movements que esa pantalla, pero solo trae entradas/salidas/count: no hay
+   "fondo inicial" ni "saldo esperado" fuera del turno abierto, esos conceptos son por sesión. */
+type ViewMode = 'turno' | 'hoy' | 'semana' | 'mes' | 'rango';
+const VIEW_MODES: { key: ViewMode; label: string }[] = [
+  { key: 'turno',  label: 'Turno actual' },
+  { key: 'hoy',    label: 'Hoy' },
+  { key: 'semana', label: 'Semana' },
+  { key: 'mes',    label: 'Mes' },
+  { key: 'rango',  label: 'Rango' },
+];
+interface PeriodMovement {
+  id: number | string;
+  type: string;
+  direction: 'entrada' | 'salida';
+  amount: number;
+  concept: string;
+  notes: string | null;
+  account: string | null;
+  created_at: string;
+}
+interface PeriodTotals {
+  total_entradas: number;
+  total_salidas: number;
+  count: number;
+}
+
 /* ── Helpers ─────────────────────────────────────────────── */
 function fmtMoney(n: number) {
   return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -61,6 +88,21 @@ function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString('es-MX', {
     hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short',
   });
+}
+/** Fecha local en formato YYYY-MM-DD (no usar toISOString: convierte a UTC y puede correr la
+    fecha un día según la hora del dispositivo) — mismo criterio que MobCajaMovimientos. */
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function todayStr()       { return toDateStr(new Date()); }
+function startOfWeekStr() {
+  const d = new Date(), day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  return toDateStr(d);
+}
+function startOfMonthStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -288,6 +330,15 @@ export function MobCaja() {
   const [opening,       setOpening]       = useState(false);
   const [openError,     setOpenError]     = useState<string | null>(null);
 
+  // Revisión rápida por período (Hoy/Semana/Mes/Rango) sin salir a /caja/movimientos.
+  const [viewMode,        setViewMode]        = useState<ViewMode>('turno');
+  const [rangeFrom,       setRangeFrom]       = useState(startOfMonthStr());
+  const [rangeTo,         setRangeTo]         = useState(todayStr());
+  const [periodMovements, setPeriodMovements] = useState<PeriodMovement[]>([]);
+  const [periodTotals,    setPeriodTotals]    = useState<PeriodTotals | null>(null);
+  const [periodLoading,   setPeriodLoading]   = useState(false);
+  const [periodError,     setPeriodError]     = useState<string | null>(null);
+
   const loadSession = async (quiet = false) => {
     if (!quiet) setPage({ status: 'loading' });
     else setRefreshing(true);
@@ -342,8 +393,38 @@ export function MobCaja() {
     loadMovementTypes();
   }, []);
 
+  const fetchPeriod = async () => {
+    let from: string, to: string;
+    if (viewMode === 'hoy')         { from = todayStr();       to = todayStr(); }
+    else if (viewMode === 'semana') { from = startOfWeekStr(); to = todayStr(); }
+    else if (viewMode === 'mes')    { from = startOfMonthStr(); to = todayStr(); }
+    else if (viewMode === 'rango')  { from = rangeFrom;         to = rangeTo; }
+    else return;
+
+    setPeriodLoading(true);
+    setPeriodError(null);
+    try {
+      const res = await fetch(`/api/cash/movements?date_from=${from}&date_to=${to}`);
+      if (!res.ok) { setPeriodError('No se pudo cargar el período.'); return; }
+      const data = await res.json();
+      setPeriodMovements(data.movements);
+      setPeriodTotals(data.totals);
+    } catch {
+      setPeriodError('No se pudo conectar con el servidor.');
+    } finally {
+      setPeriodLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (page.status !== 'active' || viewMode === 'turno') return;
+    fetchPeriod();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.status, viewMode, rangeFrom, rangeTo]);
+
   const handleSaved = (m: Movement) => {
     setShowForm(false);
+    if (viewMode !== 'turno') fetchPeriod();
     // Actualizar estado local sin refetch completo
     setPage(prev => {
       if (prev.status !== 'active') return prev;
@@ -526,72 +607,144 @@ export function MobCaja() {
         )}
       </div>
 
-      {/* Resumen de totales */}
-      <div className="mx-4 mb-4 grid grid-cols-2 gap-3">
-        <div className="bg-surface-container rounded-2xl px-4 py-3">
-          <p className="text-xs text-on-surface-variant mb-1">Fondo inicial</p>
-          <p className="text-base font-bold text-on-surface">{fmtMoney(totals.opening_amount)}</p>
-        </div>
-        <div className="bg-surface-container rounded-2xl px-4 py-3">
-          <p className="text-xs text-on-surface-variant mb-1">Saldo esperado</p>
-          <p className="text-base font-bold text-primary">{fmtMoney(totals.saldo_esperado)}</p>
-        </div>
-        <div className="bg-surface-container rounded-2xl px-4 py-3">
-          <p className="text-xs text-on-surface-variant mb-1">Entradas</p>
-          <p className="text-base font-semibold text-primary">+{fmtMoney(totals.total_entradas)}</p>
-        </div>
-        <div className="bg-surface-container rounded-2xl px-4 py-3">
-          <p className="text-xs text-on-surface-variant mb-1">Salidas</p>
-          <p className="text-base font-semibold text-error">-{fmtMoney(totals.total_salidas)}</p>
-        </div>
+      {/* Selector de período — para revisar rápido sin salir a /caja/movimientos */}
+      <div className="flex gap-2 px-4 pb-2 overflow-x-auto scrollbar-none">
+        {VIEW_MODES.map(v => (
+          <button key={v.key} onClick={() => setViewMode(v.key)}
+            className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              viewMode === v.key ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'
+            }`}>
+            {v.label}
+          </button>
+        ))}
       </div>
 
-      {/* Lista de movimientos */}
-      <div className="mx-4 mb-4">
-        <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-2 px-1">
-          Movimientos ({movements.length})
-        </p>
-
-        {movements.length === 0 ? (
-          <div className="bg-surface-container rounded-2xl px-4 py-6 text-center">
-            <span className="material-symbols-outlined text-3xl text-on-surface-variant">receipt_long</span>
-            <p className="text-sm text-on-surface-variant mt-2">Sin movimientos en esta sesión</p>
+      {viewMode === 'rango' && (
+        <div className="flex gap-2 px-4 pb-3">
+          <div className="flex-1">
+            <label className="text-[10px] text-on-surface-variant font-medium uppercase tracking-wider block mb-1 pl-1">Desde</label>
+            <input type="date" value={rangeFrom} max={rangeTo}
+              onChange={e => setRangeFrom(e.target.value)}
+              className="w-full bg-surface-container rounded-xl px-3 py-2 text-sm text-on-surface border border-outline-variant focus:outline-none focus:border-primary" />
           </div>
-        ) : (
-          <div className="bg-surface-container rounded-2xl overflow-hidden">
-            {movements.map((m, i) => (
-              <div
-                key={m.id}
-                className={`flex items-start gap-3 px-4 py-3 ${i < movements.length - 1 ? 'border-b border-outline-variant' : ''}`}
-              >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                  m.direction === 'entrada' ? 'bg-primary/10' : 'bg-error/10'
-                }`}>
-                  <span
-                    className="material-symbols-outlined text-lg"
-                    style={{ color: m.direction === 'entrada' ? 'var(--color-primary)' : 'var(--color-error)' }}
-                  >
-                    {m.direction === 'entrada' ? 'add' : 'remove'}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-on-surface truncate">{m.concept}</p>
-                  <p className="text-xs text-on-surface-variant">
-                    {TYPE_LABELS[m.type] ?? m.type}
-                    {m.account ? ` · ${m.account}` : ''}
-                  </p>
-                  <p className="text-xs text-on-surface-variant">{fmtDateTime(m.created_at)}</p>
-                </div>
-                <p className={`text-sm font-semibold shrink-0 ${
-                  m.direction === 'entrada' ? 'text-primary' : 'text-error'
-                }`}>
-                  {m.direction === 'entrada' ? '+' : '-'}{fmtMoney(m.amount)}
+          <div className="flex-1">
+            <label className="text-[10px] text-on-surface-variant font-medium uppercase tracking-wider block mb-1 pl-1">Hasta</label>
+            <input type="date" value={rangeTo} min={rangeFrom} max={todayStr()}
+              onChange={e => setRangeTo(e.target.value)}
+              className="w-full bg-surface-container rounded-xl px-3 py-2 text-sm text-on-surface border border-outline-variant focus:outline-none focus:border-primary" />
+          </div>
+        </div>
+      )}
+
+      {/* Resumen de totales */}
+      {viewMode === 'turno' ? (
+        <div className="mx-4 mb-4 grid grid-cols-2 gap-3">
+          <div className="bg-surface-container rounded-2xl px-4 py-3">
+            <p className="text-xs text-on-surface-variant mb-1">Fondo inicial</p>
+            <p className="text-base font-bold text-on-surface">{fmtMoney(totals.opening_amount)}</p>
+          </div>
+          <div className="bg-surface-container rounded-2xl px-4 py-3">
+            <p className="text-xs text-on-surface-variant mb-1">Saldo esperado</p>
+            <p className="text-base font-bold text-primary">{fmtMoney(totals.saldo_esperado)}</p>
+          </div>
+          <div className="bg-surface-container rounded-2xl px-4 py-3">
+            <p className="text-xs text-on-surface-variant mb-1">Entradas</p>
+            <p className="text-base font-semibold text-primary">+{fmtMoney(totals.total_entradas)}</p>
+          </div>
+          <div className="bg-surface-container rounded-2xl px-4 py-3">
+            <p className="text-xs text-on-surface-variant mb-1">Salidas</p>
+            <p className="text-base font-semibold text-error">-{fmtMoney(totals.total_salidas)}</p>
+          </div>
+        </div>
+      ) : periodLoading ? (
+        <div className="flex justify-center py-8">
+          <span className="material-symbols-outlined text-3xl text-on-surface-variant animate-spin">progress_activity</span>
+        </div>
+      ) : periodError ? (
+        <div className="mx-4 mb-4 bg-error-container rounded-2xl px-4 py-4 text-center">
+          <p className="text-sm text-on-error-container">{periodError}</p>
+          <button onClick={fetchPeriod}
+            className="mt-2 px-5 py-1.5 rounded-xl bg-primary text-on-primary text-sm font-semibold active:scale-95 transition-transform">
+            Reintentar
+          </button>
+        </div>
+      ) : periodTotals && (
+        <div className="mx-4 mb-4 grid grid-cols-3 gap-2">
+          <div className="bg-primary/10 rounded-2xl px-3 py-3">
+            <p className="text-[10px] font-semibold text-primary uppercase tracking-wide mb-0.5">Entradas</p>
+            <p className="text-sm font-bold text-primary">+{fmtMoney(periodTotals.total_entradas)}</p>
+          </div>
+          <div className="bg-error/10 rounded-2xl px-3 py-3">
+            <p className="text-[10px] font-semibold text-error uppercase tracking-wide mb-0.5">Salidas</p>
+            <p className="text-sm font-bold text-error">-{fmtMoney(periodTotals.total_salidas)}</p>
+          </div>
+          {(() => {
+            const neto = periodTotals.total_entradas - periodTotals.total_salidas;
+            return (
+              <div className={`${neto >= 0 ? 'bg-primary/5' : 'bg-error/5'} rounded-2xl px-3 py-3`}>
+                <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide mb-0.5">Neto</p>
+                <p className={`text-sm font-bold ${neto >= 0 ? 'text-primary' : 'text-error'}`}>
+                  {neto >= 0 ? '+' : ''}{fmtMoney(neto)}
                 </p>
               </div>
-            ))}
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Lista de movimientos */}
+      {!periodLoading && !periodError && (() => {
+        const list: (Movement | PeriodMovement)[] = viewMode === 'turno' ? movements : periodMovements;
+        return (
+          <div className="mx-4 mb-4">
+            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-2 px-1">
+              {viewMode === 'turno' ? `Movimientos (${list.length})` : `Movimientos del período (${list.length})`}
+            </p>
+
+            {list.length === 0 ? (
+              <div className="bg-surface-container rounded-2xl px-4 py-6 text-center">
+                <span className="material-symbols-outlined text-3xl text-on-surface-variant">receipt_long</span>
+                <p className="text-sm text-on-surface-variant mt-2">
+                  {viewMode === 'turno' ? 'Sin movimientos en esta sesión' : 'Sin movimientos para este período'}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-surface-container rounded-2xl overflow-hidden">
+                {list.map((m, i) => (
+                  <div
+                    key={m.id}
+                    className={`flex items-start gap-3 px-4 py-3 ${i < list.length - 1 ? 'border-b border-outline-variant' : ''}`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                      m.direction === 'entrada' ? 'bg-primary/10' : 'bg-error/10'
+                    }`}>
+                      <span
+                        className="material-symbols-outlined text-lg"
+                        style={{ color: m.direction === 'entrada' ? 'var(--color-primary)' : 'var(--color-error)' }}
+                      >
+                        {m.direction === 'entrada' ? 'add' : 'remove'}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-on-surface truncate">{m.concept}</p>
+                      <p className="text-xs text-on-surface-variant">
+                        {TYPE_LABELS[m.type] ?? m.type}
+                        {m.account ? ` · ${m.account}` : ''}
+                      </p>
+                      <p className="text-xs text-on-surface-variant">{fmtDateTime(m.created_at)}</p>
+                    </div>
+                    <p className={`text-sm font-semibold shrink-0 ${
+                      m.direction === 'entrada' ? 'text-primary' : 'text-error'
+                    }`}>
+                      {m.direction === 'entrada' ? '+' : '-'}{fmtMoney(m.amount)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Enlace a historial */}
       <div className="mx-4 mb-4">
