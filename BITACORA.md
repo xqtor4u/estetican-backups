@@ -78,6 +78,42 @@ móvil `mob_apps/operador/`), sin ninguna migración (todos cambios de código/v
 
 ---
 
+## 📅 Cierre de sesión: 15/08/2026 (cont.) — SYNC-021 a SYNC-023 portados: wording de Caja, abrir turno desde el móvil, selector de período
+
+### ✅ Logros y Cambios
+
+Continuación de la sesión de porteo puro de arriba, misma regla de alcance vigente. Detalle
+técnico completo en `docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus-Estetican
+(`SYNC-021` a `SYNC-023`).
+
+1. **(sin commit propio, texto ya incluido en `SYNC-020` de arriba)** `SYNC-021` — "Sin sesión
+   activa" en Caja se leía como "no estás logueado" (mismo overload de la palabra "sesión" que ya
+   se resolvió para "Caja"/"efectivo") — título pasa a "Sin caja abierta".
+2. **`b448a19`** — `SYNC-022`: abrir una `CashSession` directo desde la app móvil (antes solo
+   desde el backoffice web). `CashController::openSession()` nuevo (`POST /api/cash/session`),
+   resuelve la caja a partir del check-in activo, mismo lock (`lockForUpdate()` en
+   `DB::transaction()`) que `CashSessionController::store()` para evitar dos sesiones abiertas
+   simultáneas. 3 tests nuevos en verde. Probado en vivo con Playwright antes de portar.
+3. **`c5cd349`** — `SYNC-023`: selector de período (Turno actual/Hoy/Semana/Mes/Rango) arriba de
+   los totales en la pantalla principal de Caja — antes solo mostraba el turno abierto, sin forma
+   de revisar otro período sin salir a `/caja/movimientos`. 100% frontend, reusa
+   `GET /api/cash/movements` ya existente, sin backend nuevo.
+
+**Nota de proceso sobre `SYNC-023`:** se construyó y desplegó a `mov.estetican.org` (bundle de
+`mob_apps/operador`, servido por bind-mount directo) antes de señalar que era una mejora de UX no
+urgente y que, según la regla de alcance del 13/08/2026 (ver abajo), debía flaggearse *antes* de
+construirse — el trabajo ya estaba listo y probado en `tst` cuando se cayó en la cuenta. Señalado
+a Tomas después del hecho, con la opción de revertir producción; confirmó dejarlo en vivo ("si no
+se rompe nada, hazlo"). Sin incidente real — cambio de bajo riesgo (sin backend nuevo, mismo
+endpoint ya verificado), pero el proceso de flaggear antes de construir no se siguió esta vez.
+
+### 🛑 Pendientes activos
+- Mismos de la entrada de arriba (`BL-078`, divergencia `useBusinessName()` sin portar).
+- `ZEUS-034` (cerrar turno desde el móvil) y `ZEUS-035` (desglose por método de pago) siguen en
+  backlog de Zeus-Estetican, sin construir.
+
+---
+
 ## 📅 Cierre de sesión: 13/08/2026 — Emergencia real (mascota duplicada + citas cruzadas), bug de UI en Agenda (NT-058), y nueva regla de alcance con Zeus-Estetican (producción = solo emergencias)
 
 ### ✅ Logros y Cambios
