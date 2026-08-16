@@ -200,6 +200,13 @@ export function GlobalAgenda() {
   );
   };
 
+  const startNewCita = () => {
+    setShowAddMenu(false);
+    setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
+    setCitaPresetDate(toDateStr(selectedDate));
+    navigate('/mascotas');
+  };
+
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-20 md:pb-0">
       <ScreenHeader
@@ -216,7 +223,17 @@ export function GlobalAgenda() {
               <span className="material-symbols-outlined text-on-surface-variant text-xl">person_search</span>
             </button>
             <button
-              onClick={() => setShowAddMenu(true)}
+              onClick={() => {
+                // La hoja inferior solo tiene sentido cuando hay más de una opción real
+                // ("Bloquear mi horario" es exclusivo de operadores con perfil) — para
+                // el resto de los usuarios, mostrar un menú de un solo botón es un tap
+                // de más sin ninguna decisión real que tomar.
+                if (user?.operator_role) {
+                  setShowAddMenu(true);
+                } else {
+                  startNewCita();
+                }
+              }}
               className="flex items-center gap-1 bg-primary text-on-primary px-3 py-1.5 rounded-full text-xs font-semibold active:scale-95 transition-transform ml-1"
             >
               <span className="material-symbols-outlined text-base">add</span>
@@ -235,12 +252,7 @@ export function GlobalAgenda() {
             </div>
             <div className="px-4 pb-8 pt-2 flex flex-col gap-2">
               <button
-                onClick={() => {
-                  setShowAddMenu(false);
-                  setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
-                  setCitaPresetDate(toDateStr(selectedDate));
-                  navigate('/mascotas');
-                }}
+                onClick={startNewCita}
                 className="flex items-center gap-3 px-4 py-3.5 bg-surface-container rounded-2xl text-left active:scale-[0.98] transition-transform"
               >
                 <span className="material-symbols-outlined text-2xl text-primary">event</span>
