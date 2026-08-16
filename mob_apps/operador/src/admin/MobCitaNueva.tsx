@@ -336,7 +336,9 @@ export function MobCitaNueva() {
       if (data.vaccination_warning) setVaccinationWarning(data.vaccination_warning);
       // Esperar más si hay alguna advertencia, para que el operador la alcance a leer
       const hasWarning = data.coverage_warning || data.vaccination_warning;
-      setTimeout(() => navigate(`/mascotas/${pet!.id}`, { replace: true }), hasWarning ? 4000 : 1500);
+      // Volver a la Agenda del día agendado (no a la ficha de la mascota) — así el
+      // operador comprueba de un vistazo que la cita quedó donde correspondía.
+      setTimeout(() => navigate(`/agenda?date=${localDateStr(selDate)}`, { replace: true }), hasWarning ? 4000 : 1500);
 
     } catch (err) {
       setSaveErr('No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.');

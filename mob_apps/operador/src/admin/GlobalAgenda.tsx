@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { clearNavCrumbs, setCitaPresetDate, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
@@ -75,7 +75,18 @@ export function GlobalAgenda() {
   const { user } = useAuth();
 
   const [today]        = useState(() => new Date());
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [searchParams] = useSearchParams();
+  // Si llegamos con ?date=YYYY-MM-DD (ej. al volver de crear una cita), arrancar en ese
+  // día en vez de HOY — para que el operador pueda comprobar de un vistazo que la cita
+  // quedó agendada donde correspondía, sin tener que navegar manualmente hasta ahí.
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const dateParam = searchParams.get('date');
+    if (dateParam) {
+      const [y, m, d] = dateParam.split('-').map(Number);
+      if (y && m && d) return new Date(y, m - 1, d);
+    }
+    return new Date();
+  });
   const [calView,      setCalView]      = useState<CalView>('day');
   const [operators,    setOperators]    = useState<Operator[]>([]);
   const [branches,     setBranches]     = useState<Branch[]>([]);
