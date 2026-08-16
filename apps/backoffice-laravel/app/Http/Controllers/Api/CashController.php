@@ -10,6 +10,7 @@ use App\Models\CashRegister;
 use App\Models\CashSession;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Models\SpaBooking;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,10 @@ class CashController extends Controller
 {
     private const CAJA_ACCOUNT_ID = 6;
     private const SALIDA_TYPES = ['retiro', 'deposito_banco', 'gasto', 'perdida'];
+
+    public function __construct(
+        private readonly \App\Domain\Accounting\Contracts\CashSessionExpectedAmountServiceInterface $expectedAmountService,
+    ) {}
 
     /**
      * Resuelve a qué sucursal se refiere Caja para este request — NUNCA a partir del check-in
@@ -90,8 +95,19 @@ class CashController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        $totalEntradas = $movements->where('direction', 'entrada')->sum('amount');
-        $totalSalidas  = $movements->where('direction', 'salida')->sum('amount');
+        $totalEntradasManual = $movements->where('direction', 'entrada')->sum('amount');
+        $totalSalidas        = $movements->where('direction', 'salida')->sum('amount');
+
+        // "Entradas" tiene que incluir los cobros reales en efectivo, no solo los movimientos
+        // manuales — si no, "saldo esperado" (fondo inicial + entradas - salidas) deja de
+        // cuadrar con lo que se muestra arriba. Hallazgo real (16/08/2026): esta pantalla nunca
+        // sumó cobros, a diferencia del cierre real del backoffice web — ver
+        // CashSessionExpectedAmountServiceInterface para el detalle completo.
+        $periodStart   = $this->expectedAmountService->periodStart($cashSession);
+        $totalCobros   = $this->expectedAmountService->paymentsForPeriod($periodStart, null)
+            ->where('destination', 'caja')
+            ->sum('amount');
+        $totalEntradas = $totalEntradasManual + $totalCobros;
 
         return response()->json([
             'status'  => 'active',
@@ -254,11 +270,474 @@ class CashController extends Controller
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
         ]);
 
+        [$items, $isSuperAdmin, $movementBranchId] = $this->resolveMovementsItems($request, $user);
+
+        $sorted = $items->sortByDesc('created_at')->values();
+
+        return response()->json([
+            'movements'      => $sorted,
+            'totals'         => [
+                'total_entradas' => round($sorted->where('direction', 'entrada')->sum('amount'), 2),
+                'total_salidas'  => round($sorted->where('direction', 'salida')->sum('amount'), 2),
+                'count'          => $sorted->count(),
+            ],
+            'branch_filter' => [
+                'can_select_branch' => $isSuperAdmin,
+                'selected_branch_id' => $movementBranchId,
+                'own_branch_id' => $user->branch_id,
+            ],
+        ]);
+    }
+
+    /**
+     * Mismos datos agregados que `resumenPdf()`, en JSON — el frontend consume esto en vez de
+     * volver a agregar `movements()` crudo por su cuenta (era lo que hacía `MobCajaResumen.tsx`
+     * al principio): dos implementaciones independientes de la misma agregación divergieron de
+     * verdad en la práctica (bug de agrupar por `type` sin `direction`, encontrado en ambos
+     * lados por separado el mismo día) — una sola fuente de verdad la evita de raíz.
+     */
+    public function resumen(Request $request): JsonResponse
+    {
+        return response()->json($this->buildResumenData($request));
+    }
+
+    /**
+     * Reporte "Resumen de caja" en PDF — mismos datos que `movements()`, reempaquetados.
+     * Deliberadamente sin preset de "turno actual": esta consulta mezcla `CashMovement` con
+     * cobros (`Payment`/`cash_ledgers`/`bank_ledgers`), que `/api/cash/session` nunca incluye —
+     * ver la nota en `MobCajaResumen.tsx` del lado móvil.
+     */
+    public function resumenPdf(Request $request)
+    {
+        $data = $this->buildResumenData($request);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.resumen-pdf', $data)->setPaper('letter');
+
+        return $pdf->download('resumen-caja-' . $data['dateFrom'] . '-a-' . $data['dateTo'] . '.pdf');
+    }
+
+    /** Mismo reporte que `resumenPdf()`, mandado por correo en vez de descargado. */
+    public function resumenEmail(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $data = $this->buildResumenData($request);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.resumen-pdf', $data)->setPaper('letter');
+        $filename = 'resumen-caja-' . $data['dateFrom'] . '-a-' . $data['dateTo'] . '.pdf';
+
+        \Illuminate\Support\Facades\Mail::to($validated['email'])
+            ->send(new \App\Mail\CashResumenMail($data, $pdf->output(), $filename));
+
+        return response()->json(['message' => 'Reporte enviado a ' . $validated['email'] . '.']);
+    }
+
+    /**
+     * Reporte "Métodos de pago" — desglosa solo los cobros (cobro_efectivo/cobro_banco) por el
+     * `payment_method` real que quedó registrado (Payment/cash_ledgers/bank_ledgers), nunca los
+     * movimientos manuales de CashMovement: esos no tienen un "método de pago" en ese sentido,
+     * lo que tienen es una cuenta contable contraparte (gasto, banco, capital), un concepto
+     * distinto que ya cubre el desglose por tipo del Resumen de caja.
+     */
+    /** Mismos datos agregados que `metodosPagoPdf()`, en JSON — ver nota en `resumen()`. */
+    public function metodosPago(Request $request): JsonResponse
+    {
+        return response()->json($this->buildMetodosPagoData($request));
+    }
+
+    public function metodosPagoPdf(Request $request)
+    {
+        $data = $this->buildMetodosPagoData($request);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.metodos-pago-pdf', $data)->setPaper('letter');
+
+        return $pdf->download('metodos-pago-' . $data['dateFrom'] . '-a-' . $data['dateTo'] . '.pdf');
+    }
+
+    public function metodosPagoEmail(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $data = $this->buildMetodosPagoData($request);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.metodos-pago-pdf', $data)->setPaper('letter');
+        $filename = 'metodos-pago-' . $data['dateFrom'] . '-a-' . $data['dateTo'] . '.pdf';
+
+        \Illuminate\Support\Facades\Mail::to($validated['email'])
+            ->send(new \App\Mail\CashMetodosPagoMail($data, $pdf->output(), $filename));
+
+        return response()->json(['message' => 'Reporte enviado a ' . $validated['email'] . '.']);
+    }
+
+    private function buildMetodosPagoData(Request $request): array
+    {
+        $user = auth()->user();
+
+        $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to'   => ['nullable', 'date'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+        ]);
+
+        [$items, $isSuperAdmin, $movementBranchId] = $this->resolveMovementsItems($request, $user);
+
+        $cobros = $items->whereIn('type', ['cobro_efectivo', 'cobro_banco']);
+        $totalCobrado = round($cobros->sum('amount'), 2);
+
+        // `payment_method` viene de 3 fuentes distintas (Payment/cash_ledgers/bank_ledgers) sin
+        // una sola fuente de verdad que garantice mayúsculas consistentes — hallazgo real
+        // (16/08/2026): dos cobros reales de Payment quedaron guardados como "Efectivo" y
+        // "efectivo", que MySQL ya trata como iguales por el collation por defecto pero un
+        // `groupBy()` de PHP sobre la colección no — agrupar por el string crudo los separaba
+        // en dos filas del mismo método. Normalizar a Título Case para agrupar Y mostrar.
+        $byMethod = $cobros
+            ->groupBy(fn ($m) => mb_strtolower(trim($m['account'] ?: 'Sin especificar')))
+            ->map(fn ($group, $normalizedKey) => [
+                'method' => mb_convert_case($normalizedKey, MB_CASE_TITLE, 'UTF-8'),
+                'count'  => $group->count(),
+                'amount' => round($group->sum('amount'), 2),
+            ])
+            ->sortByDesc('amount')
+            ->values();
+
+        return [
+            'dateFrom'        => $request->input('date_from') ?: 'inicio',
+            'dateTo'          => $request->input('date_to') ?: now()->toDateString(),
+            'branchName'      => $movementBranchId ? Branch::find($movementBranchId)?->name : 'Todas las sucursales',
+            'canSelectBranch' => $isSuperAdmin,
+            'totalCobrado'    => $totalCobrado,
+            'byMethod'        => $byMethod,
+            'generatedBy'     => $user->name,
+            'businessName'    => app(\App\Support\SystemSettings\SystemSettings::class)->all()['brand_business_name'] ?? 'EstetiCAN',
+            'logoPath'        => $this->brandLogoPath(),
+        ];
+    }
+
+    /**
+     * Arma los datos agregados del "Resumen de caja" (tarjetas + desglose por tipo) a partir
+     * de la misma consulta que ya usa `movements()` — sin duplicar la lógica de las 4 fuentes
+     * (CashMovement/Payment/cash_ledgers/bank_ledgers).
+     */
+    private function buildResumenData(Request $request): array
+    {
+        $user = auth()->user();
+
+        $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to'   => ['nullable', 'date'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+        ]);
+
+        [$items, $isSuperAdmin, $movementBranchId] = $this->resolveMovementsItems($request, $user);
+
+        $cobroTypes = ['cobro_efectivo', 'cobro_banco'];
+        $typeLabels = [
+            'cobro_efectivo' => 'Cobros efectivo',
+            'cobro_banco'    => 'Cobros banco/tarjeta',
+            'entrada'        => 'Entrada manual',
+            'retiro'         => 'Retiro',
+            'deposito_banco' => 'Depósito banco',
+            'gasto'          => 'Gasto',
+            'perdida'        => 'Pérdida',
+        ];
+
+        $totalEntradas = round($items->where('direction', 'entrada')->sum('amount'), 2);
+        $totalSalidas  = round($items->where('direction', 'salida')->sum('amount'), 2);
+        $totalCobrado  = round($items->whereIn('type', $cobroTypes)->sum('amount'), 2);
+
+        // Agrupado por tipo Y dirección — nunca solo por tipo. Una reversión conserva el
+        // `type` del movimiento original pero invierte la `direction` (ver revertMovement()):
+        // agrupar solo por tipo sumaría un "entrada" original junto con su reversión (salida)
+        // en la misma fila, mostrando el doble del monto real en vez de que se cancelen.
+        $byTypeFor = fn (string $direction) => collect($typeLabels)
+            ->map(function ($label, $type) use ($items, $direction) {
+                $group = $items->where('type', $type)->where('direction', $direction);
+
+                return ['type' => $type, 'label' => $label, 'count' => $group->count(), 'amount' => round($group->sum('amount'), 2)];
+            })
+            ->filter(fn ($g) => $g['count'] > 0)
+            ->values();
+
+        return [
+            'dateFrom'        => $request->input('date_from') ?: 'inicio',
+            'dateTo'          => $request->input('date_to') ?: now()->toDateString(),
+            'branchName'      => $movementBranchId ? Branch::find($movementBranchId)?->name : 'Todas las sucursales',
+            'canSelectBranch' => $isSuperAdmin,
+            'totalCobrado'    => $totalCobrado,
+            'totalEntradas'   => $totalEntradas,
+            'totalSalidas'    => $totalSalidas,
+            'neto'            => round($totalEntradas - $totalSalidas, 2),
+            'byTypeEntradas'  => $byTypeFor('entrada'),
+            'byTypeSalidas'   => $byTypeFor('salida'),
+            'generatedBy'     => $user->name,
+            'businessName'    => app(\App\Support\SystemSettings\SystemSettings::class)->all()['brand_business_name'] ?? 'EstetiCAN',
+            'logoPath'        => $this->brandLogoPath(),
+        ];
+    }
+
+    // ── Por operador ────────────────────────────────────────────────────────
+
+    public function porOperador(Request $request): JsonResponse
+    {
+        return response()->json($this->buildPorOperadorData($request));
+    }
+
+    public function porOperadorPdf(Request $request)
+    {
+        $data = $this->buildPorOperadorData($request);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.por-operador-pdf', $data)->setPaper('letter');
+
+        return $pdf->download('por-operador-' . $data['dateFrom'] . '-a-' . $data['dateTo'] . '.pdf');
+    }
+
+    public function porOperadorEmail(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['email' => ['required', 'email']]);
+
+        $data = $this->buildPorOperadorData($request);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.por-operador-pdf', $data)->setPaper('letter');
+        $filename = 'por-operador-' . $data['dateFrom'] . '-a-' . $data['dateTo'] . '.pdf';
+
+        \Illuminate\Support\Facades\Mail::to($validated['email'])
+            ->send(new \App\Mail\CashPorOperadorMail($data, $pdf->output(), $filename));
+
+        return response()->json(['message' => 'Reporte enviado a ' . $validated['email'] . '.']);
+    }
+
+    /**
+     * "Por operador" — quién registró cada movimiento (manual o cobro), separado en
+     * entradas/salidas por la misma razón que el desglose por tipo del Resumen: una reversión
+     * la crea quien la revierte, no necesariamente el mismo operador del movimiento original,
+     * así que mezclar ambos sentidos en un solo monto por operador podría verse raro (un
+     * operador con una sola reversión grande se vería con "actividad" que en realidad es de
+     * otra persona cancelándola) — mantenerlos separados es más honesto.
+     */
+    private function buildPorOperadorData(Request $request): array
+    {
+        $user = auth()->user();
+
+        $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to'   => ['nullable', 'date'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+        ]);
+
+        [$items, $isSuperAdmin, $movementBranchId] = $this->resolveMovementsItems($request, $user);
+
+        $byOperator = $items
+            ->groupBy(fn ($m) => $m['created_by'] ?: 'Sin registrar')
+            ->map(function ($group, $name) {
+                return [
+                    'name'          => $name,
+                    'count'         => $group->count(),
+                    'totalEntradas' => round($group->where('direction', 'entrada')->sum('amount'), 2),
+                    'totalSalidas'  => round($group->where('direction', 'salida')->sum('amount'), 2),
+                ];
+            })
+            ->sortByDesc(fn ($g) => $g['totalEntradas'] + $g['totalSalidas'])
+            ->values();
+
+        return [
+            'dateFrom'        => $request->input('date_from') ?: 'inicio',
+            'dateTo'          => $request->input('date_to') ?: now()->toDateString(),
+            'branchName'      => $movementBranchId ? Branch::find($movementBranchId)?->name : 'Todas las sucursales',
+            'canSelectBranch' => $isSuperAdmin,
+            'byOperator'      => $byOperator,
+            'generatedBy'     => $user->name,
+            'businessName'    => app(\App\Support\SystemSettings\SystemSettings::class)->all()['brand_business_name'] ?? 'EstetiCAN',
+            'logoPath'        => $this->brandLogoPath(),
+        ];
+    }
+
+    // ── Pendientes por cobrar ───────────────────────────────────────────────
+
+    public function pendientes(Request $request): JsonResponse
+    {
+        return response()->json($this->buildPendientesData());
+    }
+
+    public function pendientesPdf(Request $request)
+    {
+        $data = $this->buildPendientesData();
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.pendientes-pdf', $data)->setPaper('letter');
+
+        return $pdf->download('pendientes-por-cobrar-' . now()->toDateString() . '.pdf');
+    }
+
+    public function pendientesEmail(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['email' => ['required', 'email']]);
+
+        $data = $this->buildPendientesData();
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.pendientes-pdf', $data)->setPaper('letter');
+        $filename = 'pendientes-por-cobrar-' . now()->toDateString() . '.pdf';
+
+        \Illuminate\Support\Facades\Mail::to($validated['email'])
+            ->send(new \App\Mail\CashPendientesMail($data, $pdf->output(), $filename));
+
+        return response()->json(['message' => 'Reporte enviado a ' . $validated['email'] . '.']);
+    }
+
+    /**
+     * "Pendientes por cobrar" — a diferencia de los demás reportes de Caja, esto NO sale de
+     * `movements()`/`resolveMovementsItems()` (esa consulta es de dinero que YA se movió) ni
+     * tiene selector de período: es una lista viva de citas terminadas o en proceso con saldo
+     * pendiente real, ordenadas por fecha (las más viejas primero, las más urgentes de
+     * cobrar). Reusa `SpaBooking::unpaidBalance()`, el mismo método que ya usa el backoffice
+     * web para esto — no se reimplementa el cálculo acá (ver el bug real de "Total" en $0 para
+     * citas cobradas desde móvil sin Quote, ya corregido una vez en ese método, documentado en
+     * su propio docblock — repetir la lógica acá arriesgaría el mismo bug de nuevo).
+     * Sin filtro de sucursal: `SpaBooking` no tiene `branch_id` propio todavía (ver BL-078 de
+     * EstetiCAN — hoy solo existe una sucursal real en producción, no es una limitación
+     * práctica ahora mismo).
+     */
+    private function buildPendientesData(): array
+    {
+        $user = auth()->user();
+
+        $items = SpaBooking::whereIn('status', ['work_order', 'completed'])
+            ->with(['pet.client', 'quotes.cashLedgers', 'quotes.bankLedgers', 'payments'])
+            ->orderBy('scheduled_at')
+            ->get()
+            ->map(fn (SpaBooking $b) => [
+                'booking'  => $b,
+                'unpaid'   => round($b->unpaidBalance(), 2),
+            ])
+            ->filter(fn ($x) => $x['unpaid'] > 0.01)
+            ->map(fn ($x) => [
+                'petName'     => $x['booking']->pet?->name ?? '—',
+                'clientName'  => $x['booking']->pet?->client?->full_name ?? '—',
+                'scheduledAt' => $x['booking']->scheduled_at?->format('Y-m-d H:i'),
+                'status'      => $x['booking']->status === 'completed' ? 'Terminado' : 'En proceso',
+                'unpaid'      => $x['unpaid'],
+            ])
+            ->values();
+
+        return [
+            'items'          => $items,
+            'totalPendiente' => round($items->sum('unpaid'), 2),
+            'count'          => $items->count(),
+            'generatedAt'    => now()->format('Y-m-d H:i'),
+            'generatedBy'    => $user->name,
+            'businessName'   => app(\App\Support\SystemSettings\SystemSettings::class)->all()['brand_business_name'] ?? 'EstetiCAN',
+            'logoPath'       => $this->brandLogoPath(),
+        ];
+    }
+
+    // ── Cierre de turno ─────────────────────────────────────────────────────
+
+    public function cierres(Request $request): JsonResponse
+    {
+        return response()->json($this->buildCierresData($request));
+    }
+
+    public function cierresPdf(Request $request)
+    {
+        $data = $this->buildCierresData($request);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.cierres-pdf', $data)->setPaper('letter');
+
+        return $pdf->download('cierres-de-turno-' . $data['dateFrom'] . '-a-' . $data['dateTo'] . '.pdf');
+    }
+
+    public function cierresEmail(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['email' => ['required', 'email']]);
+
+        $data = $this->buildCierresData($request);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('cash.cierres-pdf', $data)->setPaper('letter');
+        $filename = 'cierres-de-turno-' . $data['dateFrom'] . '-a-' . $data['dateTo'] . '.pdf';
+
+        \Illuminate\Support\Facades\Mail::to($validated['email'])
+            ->send(new \App\Mail\CashCierresMail($data, $pdf->output(), $filename));
+
+        return response()->json(['message' => 'Reporte enviado a ' . $validated['email'] . '.']);
+    }
+
+    /**
+     * "Cierre de turno" — a diferencia de los demás reportes, no recalcula nada: lee
+     * directo `cash_sessions.{opening_amount,expected_amount,closing_amount,difference}`, los
+     * mismos valores reales que `Finances\CashSessionController::doClose()` ya calculó y
+     * guardó al momento del cierre real. Recalcular "efectivo esperado" acá con la misma
+     * fórmula de `resolveMovementsItems()` sería un tercer lugar con la cuenta — y esa fórmula
+     * ni siquiera es la misma: `doClose()` sí suma `Payment` con `destination=caja` al
+     * esperado, cosa que `CashController::session()` (el "saldo esperado" que ve un operador
+     * con el turno todavía abierto) no hace todavía. No se toca esa discrepancia acá, queda
+     * anotada para revisar aparte — este reporte solo lee lo que ya quedó guardado en el
+     * cierre real, that's la fuente de verdad para un turno YA cerrado.
+     */
+    private function buildCierresData(Request $request): array
+    {
+        $user = auth()->user();
+
+        $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to'   => ['nullable', 'date'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+        ]);
+
+        $isSuperAdmin = $user->is_super_admin;
+        $requestedBranch = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
+        $branchId = $isSuperAdmin ? $requestedBranch : $user->branch_id;
+
+        $from  = $request->filled('date_from') ? $request->date_from . ' 00:00:00' : null;
+        $until = $request->filled('date_to')   ? $request->date_to   . ' 23:59:59' : null;
+
+        $sessions = CashSession::where('status', 'cerrada')
+            ->with(['branch:id,name', 'closedBy:id,name'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($from,  fn ($q) => $q->where('closed_at', '>=', $from))
+            ->when($until, fn ($q) => $q->where('closed_at', '<=', $until))
+            ->orderByDesc('closed_at')
+            ->get();
+
+        $items = $sessions->map(fn (CashSession $s) => [
+            'branchName'     => $s->branch?->name ?? '—',
+            'closedBy'       => $s->closedBy?->name ?? '—',
+            'closedAt'       => $s->closed_at?->format('Y-m-d H:i'),
+            'openingAmount'  => (float) $s->opening_amount,
+            'expectedAmount' => (float) ($s->expected_amount ?? 0),
+            'closingAmount'  => (float) ($s->closing_amount ?? 0),
+            'difference'     => (float) ($s->difference ?? 0),
+        ]);
+
+        return [
+            'dateFrom'        => $request->input('date_from') ?: 'inicio',
+            'dateTo'          => $request->input('date_to') ?: now()->toDateString(),
+            'branchName'      => $branchId ? Branch::find($branchId)?->name : 'Todas las sucursales',
+            'canSelectBranch' => $isSuperAdmin,
+            'items'           => $items,
+            'totalDifference' => round($items->sum('difference'), 2),
+            'count'           => $items->count(),
+            'generatedBy'     => $user->name,
+            'businessName'    => app(\App\Support\SystemSettings\SystemSettings::class)->all()['brand_business_name'] ?? 'EstetiCAN',
+            'logoPath'        => $this->brandLogoPath(),
+        ];
+    }
+
+    private function brandLogoPath(): ?string
+    {
+        $logo = app(\App\Support\SystemSettings\SystemSettings::class)->all()['brand_logo_print']
+            ?? app(\App\Support\SystemSettings\SystemSettings::class)->all()['brand_logo_web']
+            ?? null;
+
+        if (! $logo || ! \Illuminate\Support\Facades\Storage::disk('public')->exists($logo)) {
+            return null;
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('public')->path($logo);
+    }
+
+    /**
+     * @return array{0: \Illuminate\Support\Collection, 1: bool, 2: int|null} [items, isSuperAdmin, movementBranchId]
+     */
+    private function resolveMovementsItems(Request $request, User $user): array
+    {
         $from  = $request->filled('date_from') ? $request->date_from . ' 00:00:00' : null;
         $until = $request->filled('date_to')   ? $request->date_to   . ' 23:59:59' : null;
 
         $typeFilter = $request->input('type');
-        $cobroTypes = ['cobro_efectivo', 'cobro_banco'];
         $movTypes   = ['retiro', 'deposito_banco', 'gasto', 'perdida', 'entrada'];
 
         // El scope de sucursal para CashMovement solo lo puede elegir un super-admin
@@ -384,21 +863,7 @@ class CashController extends Controller
             ]));
         }
 
-        $sorted = $items->sortByDesc('created_at')->values();
-
-        return response()->json([
-            'movements'      => $sorted,
-            'totals'         => [
-                'total_entradas' => round($sorted->where('direction', 'entrada')->sum('amount'), 2),
-                'total_salidas'  => round($sorted->where('direction', 'salida')->sum('amount'), 2),
-                'count'          => $sorted->count(),
-            ],
-            'branch_filter' => [
-                'can_select_branch' => $isSuperAdmin,
-                'selected_branch_id' => $movementBranchId,
-                'own_branch_id' => $user->branch_id,
-            ],
-        ]);
+        return [$items, $isSuperAdmin, $movementBranchId];
     }
 
     public function storeMovement(Request $request, CashSession $cashSession): JsonResponse

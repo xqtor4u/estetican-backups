@@ -95,6 +95,21 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/cash/sessions/{cashSession}/movements', [CashController::class, 'storeMovement'])->middleware('permission:caja.movimientos.crear');
     Route::patch('/cash/movements/{movement}', [CashController::class, 'updateMovement'])->middleware('permission:caja.movimientos.editar');
     Route::post('/cash/movements/{movement}/revert', [CashController::class, 'revertMovement'])->middleware('permission:caja.movimientos.revertir');
+    Route::get('/cash/reports/resumen', [CashController::class, 'resumen'])->middleware('permission:caja.ver');
+    Route::get('/cash/reports/resumen/pdf', [CashController::class, 'resumenPdf'])->middleware('permission:caja.ver');
+    Route::post('/cash/reports/resumen/email', [CashController::class, 'resumenEmail'])->middleware('permission:caja.ver');
+    Route::get('/cash/reports/metodos-pago', [CashController::class, 'metodosPago'])->middleware('permission:caja.ver');
+    Route::get('/cash/reports/metodos-pago/pdf', [CashController::class, 'metodosPagoPdf'])->middleware('permission:caja.ver');
+    Route::post('/cash/reports/metodos-pago/email', [CashController::class, 'metodosPagoEmail'])->middleware('permission:caja.ver');
+    Route::get('/cash/reports/por-operador', [CashController::class, 'porOperador'])->middleware('permission:caja.ver');
+    Route::get('/cash/reports/por-operador/pdf', [CashController::class, 'porOperadorPdf'])->middleware('permission:caja.ver');
+    Route::post('/cash/reports/por-operador/email', [CashController::class, 'porOperadorEmail'])->middleware('permission:caja.ver');
+    Route::get('/cash/reports/pendientes', [CashController::class, 'pendientes'])->middleware('permission:caja.ver');
+    Route::get('/cash/reports/pendientes/pdf', [CashController::class, 'pendientesPdf'])->middleware('permission:caja.ver');
+    Route::post('/cash/reports/pendientes/email', [CashController::class, 'pendientesEmail'])->middleware('permission:caja.ver');
+    Route::get('/cash/reports/cierres', [CashController::class, 'cierres'])->middleware('permission:caja.ver');
+    Route::get('/cash/reports/cierres/pdf', [CashController::class, 'cierresPdf'])->middleware('permission:caja.ver');
+    Route::post('/cash/reports/cierres/email', [CashController::class, 'cierresEmail'])->middleware('permission:caja.ver');
 
     // Tipos de orden activos — fuente de verdad desde DocumentSeries
     Route::get('/work-order-types', function () {

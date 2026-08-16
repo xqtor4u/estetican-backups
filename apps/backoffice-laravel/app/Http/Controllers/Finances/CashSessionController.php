@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Finances;
 
+use App\Domain\Accounting\Contracts\CashSessionExpectedAmountServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\CashMovement;
 use App\Models\CashRegister;
 use App\Models\CashSession;
-use App\Models\Payment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +15,10 @@ use Illuminate\View\View;
 
 class CashSessionController extends Controller
 {
+    public function __construct(
+        private readonly CashSessionExpectedAmountServiceInterface $expectedAmountService,
+    ) {}
+
     public function index(): View
     {
         $sessions = CashSession::with(['cashRegister', 'branch', 'openedBy', 'closedBy'])
@@ -45,7 +49,8 @@ class CashSessionController extends Controller
         // que dos requests casi simultáneas sobre la misma caja (doble clic, dos operadores)
         // no pasen el chequeo "¿hay sesión abierta?" antes de que exista la primera — sin esto,
         // se podían crear dos CashSession con status='abierta' para la misma caja, y
-        // periodStart()/allPaymentsForPeriod() asumen como máximo una.
+        // CashSessionExpectedAmountService::periodStart()/paymentsForPeriod() asumen como
+        // máximo una.
         $session = DB::transaction(function () use ($request, $cashRegister, $validated) {
             $lockedRegister = CashRegister::lockForUpdate()->findOrFail($cashRegister->id);
 
@@ -77,10 +82,10 @@ class CashSessionController extends Controller
     {
         $cashSession->load(['cashRegister', 'branch', 'openedBy', 'closedBy']);
 
-        $from = $this->periodStart($cashSession);
+        $from = $this->expectedAmountService->periodStart($cashSession);
         $until = $cashSession->closed_at;
 
-        $payments = $this->allPaymentsForPeriod($from, $until);
+        $payments = $this->expectedAmountService->paymentsForPeriod($from, $until);
 
         $movements = CashMovement::where('cash_session_id', $cashSession->id)
             ->with('counterpartAccount', 'createdBy')
@@ -92,7 +97,7 @@ class CashSessionController extends Controller
         $totalEntradas  = $movements->where('direction', 'entrada')->sum('amount');
         $totalSalidas   = $movements->where('direction', 'salida')->sum('amount');
         $totalCobros    = $totalEfectivo;
-        $expectedAmount = $cashSession->opening_amount + $totalEfectivo + $totalEntradas - $totalSalidas;
+        $expectedAmount = $this->expectedAmountService->expectedAmount($cashSession, $until);
 
         $movementTypeOptions = [
             'retiro'        => 'Retiro / disposición',
@@ -121,10 +126,17 @@ class CashSessionController extends Controller
 
         $cashSession->load(['cashRegister', 'branch', 'openedBy']);
 
-        $from = $this->periodStart($cashSession);
-
-        $totalCobros    = $this->allPaymentsForPeriod($from, null)->where('destination', 'caja')->sum('amount');
-        $expectedAmount = $cashSession->opening_amount + $totalCobros;
+        // Hallazgo real (16/08/2026): esta pantalla de previsualización (antes de cerrar)
+        // calculaba "esperado" como solo fondo inicial + cobros, sin sumar/restar los
+        // movimientos manuales (CashMovement) — una TERCERA fórmula distinta de la que
+        // realmente usaba doClose() para cerrar de verdad. El número que se le mostraba al
+        // operador antes de contar la caja no coincidía con el que se usaba para calcular la
+        // diferencia real un instante después. Corregido para usar la misma fuente única.
+        $from           = $this->expectedAmountService->periodStart($cashSession);
+        $totalCobros    = $this->expectedAmountService->paymentsForPeriod($from, null)
+            ->where('destination', 'caja')
+            ->sum('amount');
+        $expectedAmount = $this->expectedAmountService->expectedAmount($cashSession);
 
         return view('finances.cash-sessions.close', compact('cashSession', 'totalCobros', 'expectedAmount'));
     }
@@ -141,15 +153,7 @@ class CashSessionController extends Controller
             'notes'          => ['nullable', 'string', 'max:500'],
         ]);
 
-        $from = $this->periodStart($cashSession);
-
-        $totalCobros  = $this->allPaymentsForPeriod($from, $cashSession->closed_at)
-            ->where('destination', 'caja')->sum('amount');
-        $movements    = CashMovement::where('cash_session_id', $cashSession->id)->get();
-        $totalEntradas = $movements->where('direction', 'entrada')->sum('amount');
-        $totalSalidas  = $movements->where('direction', 'salida')->sum('amount');
-
-        $expected   = round($cashSession->opening_amount + $totalCobros + $totalEntradas - $totalSalidas, 2);
+        $expected   = $this->expectedAmountService->expectedAmount($cashSession);
         $closing    = round((float) $validated['closing_amount'], 2);
         $difference = round($closing - $expected, 2);
 
@@ -165,84 +169,5 @@ class CashSessionController extends Controller
 
         return redirect()->route('finances.cash-sessions.show', $cashSession)
             ->with('success', 'Sesión cerrada. Diferencia: $' . number_format(abs($difference), 2) . ($difference >= 0 ? ' sobrante' : ' faltante'));
-    }
-
-    /**
-     * Devuelve el inicio del período de esta sesión.
-     * Si hay una sesión anterior cerrada en la misma caja, el período empieza cuando esa cerró.
-     * Si es la primera sesión, no hay límite inferior (muestra todos los cobros históricos).
-     */
-    private function periodStart(CashSession $cashSession): ?\Illuminate\Support\Carbon
-    {
-        $prev = CashSession::where('cash_register_id', $cashSession->cash_register_id)
-            ->where('id', '<', $cashSession->id)
-            ->whereNotNull('closed_at')
-            ->orderByDesc('closed_at')
-            ->value('closed_at');
-
-        return $prev ? \Illuminate\Support\Carbon::parse($prev) : null;
-    }
-
-    /**
-     * Devuelve una colección unificada de cobros del período,
-     * combinando payments (sistema nuevo), cash_ledgers y bank_ledgers (sistema legacy).
-     */
-    private function allPaymentsForPeriod(
-        ?\Illuminate\Support\Carbon $from,
-        mixed $until
-    ): \Illuminate\Support\Collection {
-        $applyRange = fn ($q, string $col) => $q
-            ->when($from,  fn ($q) => $q->where($col, '>=', $from))
-            ->when($until, fn ($q) => $q->where($col, '<=', $until));
-
-        // payments (nuevo)
-        $newPayments = Payment::with('client')
-            ->when($from,  fn ($q) => $q->where('created_at', '>=', $from))
-            ->when($until, fn ($q) => $q->where('created_at', '<=', $until))
-            ->get()
-            ->map(fn ($p) => (object) [
-                'created_at'     => $p->created_at,
-                'client_name'    => $p->client?->full_name,
-                'destination'    => $p->destination,
-                'payment_method' => $p->payment_method,
-                'amount'         => (float) $p->amount,
-            ]);
-
-        // cash_ledgers (legacy)
-        $cashRows = $applyRange(DB::table('cash_ledgers'), 'cash_ledgers.created_at')
-            ->leftJoin('clients', 'cash_ledgers.client_id', '=', 'clients.id')
-            ->select('cash_ledgers.created_at', DB::raw("CONCAT_WS(' ', clients.first_name, clients.apellido_paterno, clients.apellido_materno) as client_name"),
-                     'cash_ledgers.amount', 'cash_ledgers.payment_method')
-            ->get()
-            ->map(fn ($r) => (object) [
-                'created_at'     => $r->created_at,
-                'client_name'    => $r->client_name,
-                'destination'    => 'caja',
-                'payment_method' => $r->payment_method,
-                'amount'         => (float) $r->amount,
-            ]);
-
-        // bank_ledgers (legacy)
-        $bankRows = $applyRange(DB::table('bank_ledgers'), 'bank_ledgers.created_at')
-            ->leftJoin('clients', 'bank_ledgers.client_id', '=', 'clients.id')
-            ->select('bank_ledgers.created_at', 'bank_ledgers.cleared_at',
-                     DB::raw("CONCAT_WS(' ', clients.first_name, clients.apellido_paterno, clients.apellido_materno) as client_name"),
-                     'bank_ledgers.amount', 'bank_ledgers.payment_method')
-            ->get()
-            ->map(fn ($r) => (object) [
-                'created_at'     => $r->created_at,
-                'client_name'    => $r->client_name,
-                'destination'    => 'banco',
-                'payment_method' => $r->payment_method,
-                'amount'         => (float) $r->amount,
-                'cleared_at'     => $r->cleared_at,
-            ]);
-
-        return collect()
-            ->merge($newPayments)
-            ->merge($cashRows)
-            ->merge($bankRows)
-            ->sortByDesc('created_at')
-            ->values();
     }
 }

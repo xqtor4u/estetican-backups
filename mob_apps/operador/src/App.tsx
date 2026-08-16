@@ -20,8 +20,15 @@ import { MobCobro }      from './admin/MobCobro';
 import { MobPetJobs }    from './admin/MobPetJobs';
 import { MobUserConfig } from './admin/MobUserConfig';
 import { MobUnavailability } from './admin/MobUnavailability';
+import { MobFinanzas }         from './admin/MobFinanzas';
 import { MobCaja }             from './admin/MobCaja';
 import { MobCajaMovimientos } from './admin/MobCajaMovimientos';
+import { MobCajaReportes } from './admin/MobCajaReportes';
+import { MobCajaResumen } from './admin/MobCajaResumen';
+import { MobCajaMetodosPago } from './admin/MobCajaMetodosPago';
+import { MobCajaPorOperador } from './admin/MobCajaPorOperador';
+import { MobCajaPendientes } from './admin/MobCajaPendientes';
+import { MobCajaCierres } from './admin/MobCajaCierres';
 import { ItemSearch } from './admin/ItemSearch';
 import { clearNavCrumbs } from './navState';
 import { CheckinWidget } from './CheckinWidget';
@@ -53,7 +60,7 @@ export const MENU_SECTIONS: MenuSection[] = [
   {
     title: 'Finanzas',
     items: [
-      { to: '/caja', icon: 'point_of_sale', label: 'Caja', requiresCajaView: true },
+      { to: '/finanzas', icon: 'account_balance_wallet', label: 'Finanzas', requiresCajaView: true },
     ],
   },
   {
@@ -349,8 +356,15 @@ export default function App() {
             <Route path="/clientes/seleccionar" element={<AdminLayout><ClientSearch /></AdminLayout>} />
             <Route path="/clientes/nuevo"       element={<AdminLayout><ClientDetail /></AdminLayout>} />
             <Route path="/clientes/:id"         element={<AdminLayout><ClientDetail /></AdminLayout>} />
+            <Route path="/finanzas"             element={<AdminLayout><MobFinanzas /></AdminLayout>} />
             <Route path="/caja"                 element={<AdminLayout><MobCaja /></AdminLayout>} />
             <Route path="/caja/movimientos"    element={<AdminLayout><MobCajaMovimientos /></AdminLayout>} />
+            <Route path="/caja/reportes"        element={<AdminLayout><MobCajaReportes /></AdminLayout>} />
+            <Route path="/caja/reportes/resumen" element={<AdminLayout><MobCajaResumen /></AdminLayout>} />
+            <Route path="/caja/reportes/metodos-pago" element={<AdminLayout><MobCajaMetodosPago /></AdminLayout>} />
+            <Route path="/caja/reportes/por-operador" element={<AdminLayout><MobCajaPorOperador /></AdminLayout>} />
+            <Route path="/caja/reportes/pendientes" element={<AdminLayout><MobCajaPendientes /></AdminLayout>} />
+            <Route path="/caja/reportes/cierres" element={<AdminLayout><MobCajaCierres /></AdminLayout>} />
             <Route path="/configuracion"        element={<AdminLayout><MobUserConfig /></AdminLayout>} />
             <Route path="/configuracion/disponibilidad" element={<AdminLayout><MobUnavailability /></AdminLayout>} />
             <Route path="/articulos"            element={<AdminLayout><ItemSearch /></AdminLayout>} />
