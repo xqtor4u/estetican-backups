@@ -15,6 +15,9 @@
                     <div class="col-md-5">
                         <h5 class="mb-0">Dar de alta tipo de operador</h5>
                         <p class="text-body-secondary small mb-0">Captura la información base o clona uno existente.</p>
+                        @if($returnTo ?? null)
+                            <a href="{{ old('return_to', $returnTo) }}" class="btn btn-sm btn-outline-secondary mt-2">Regresar</a>
+                        @endif
                     </div>
                     <div class="col-md-7">
                         <div class="input-group">
