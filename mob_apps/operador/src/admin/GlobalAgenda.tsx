@@ -471,7 +471,7 @@ export function GlobalAgenda() {
               <span className="material-symbols-outlined text-5xl text-on-surface-variant/30" style={{ fontVariationSettings: "'FILL' 1" }}>event_busy</span>
               <p className="text-sm text-on-surface-variant">Sin citas para este día</p>
               <button
-                onClick={() => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate('/mascotas'); }}
+                onClick={startNewCita}
                 className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-transform"
               >
                 <span className="material-symbols-outlined text-base">add</span>

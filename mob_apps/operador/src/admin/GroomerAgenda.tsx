@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { setNavCrumbs } from '../navState';
+import { setCitaPresetDate, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
   CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap, expandDateRange,
@@ -356,6 +356,7 @@ export function GroomerAgenda() {
               <button
                 onClick={() => {
                   setNavCrumbs([{ label: 'Operador', to: '/groomer' }]);
+                  setCitaPresetDate(toDateStr(selectedDate));
                   navigate('/mascotas');
                 }}
                 className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-transform"
