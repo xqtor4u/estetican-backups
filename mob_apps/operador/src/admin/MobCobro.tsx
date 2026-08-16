@@ -356,7 +356,7 @@ export function MobCobro() {
             <>
               <p className="text-3xl font-bold text-on-surface">{fmtMoney(ds.amount)}</p>
               <p className="text-base text-on-surface-variant">
-                {ds.methodName} · {ds.dest === 'caja' ? 'Caja' : 'Banco'}
+                {ds.methodName} · {ds.dest === 'caja' ? 'Efectivo' : 'Banco'}
               </p>
             </>
           )}
@@ -408,7 +408,12 @@ export function MobCobro() {
             <p className="text-3xl font-bold text-on-surface">{fmtMoney(amount)}</p>
             <p className="text-base text-on-surface-variant mt-1">{selectedMethod.name}</p>
             <p className="text-sm text-on-surface-variant">
-              {selectedMethod.dest === 'caja' ? 'Se registrará en Caja' : 'Se registrará en Banco'}
+              {/* "Caja"/"Banco" acá es el destino contable del pago (efectivo vs. cuenta
+                  bancaria) — no tiene relación con la sesión de Caja (turno) que se abre por
+                  check-in. El texto viejo decía literal "Se registrará en Caja", que sonaba
+                  a que dependía de tener una sesión de caja abierta — no es así, este cobro
+                  se guarda igual exista o no una sesión abierta. */}
+              {selectedMethod.dest === 'caja' ? 'Se registrará como efectivo' : 'Se registrará como transferencia/banco'}
             </p>
             {reference && (
               <p className="text-xs text-on-surface-variant/70 mt-1">Ref: {reference}</p>
@@ -765,8 +770,8 @@ export function MobCobro() {
               {selectedMethod.dest === 'caja' ? 'point_of_sale' : 'account_balance'}
             </span>
             <p className="text-xs text-on-surface-variant">
-              Se registrará en <span className="font-semibold">
-                {selectedMethod.dest === 'caja' ? 'Caja' : 'Banco'}
+              Se registrará como <span className="font-semibold">
+                {selectedMethod.dest === 'caja' ? 'efectivo' : 'transferencia/banco'}
               </span>
             </p>
           </div>
@@ -829,7 +834,7 @@ export function MobCobro() {
             style={{ fontVariationSettings: "'FILL' 1" }}>
             {selectedMethod?.dest === 'caja' ? 'point_of_sale' : 'account_balance'}
           </span>
-          Cobrar {fmtMoney(amount)}{selectedMethod ? ` · ${selectedMethod.dest === 'caja' ? 'Caja' : 'Banco'}` : ''}
+          Cobrar {fmtMoney(amount)}{selectedMethod ? ` · ${selectedMethod.dest === 'caja' ? 'Efectivo' : 'Banco'}` : ''}
         </button>
       </div>
 
