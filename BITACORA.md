@@ -1,5 +1,76 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 15/08/2026 — 11 commits portados desde Zeus-Estetican (`SYNC-009` a `SYNC-018`): IDOR crítico en Clínico, Agenda no filtraba "Hoy", Dashboard subestimaba ingresos, y una tanda grande de UX en la app móvil
+
+### ✅ Logros y Cambios
+
+Sesión de porteo puro — todo el trabajo real (hallazgos, fixes, tests, pruebas en vivo con
+Playwright) se hizo del lado de Zeus-Estetican (`tenants/tst`), siguiendo la regla de alcance
+vigente (producción real solo se toca para portar lo ya probado en sandbox, nunca para
+desarrollar directo acá). Detalle técnico completo de cada hallazgo en
+`docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus-Estetican (`SYNC-009` a `SYNC-018`).
+Acá el resumen de lo que quedó en este repo, por orden de commit:
+
+1. **`e059b8b`** — Agenda no filtraba por fecha al entrar: `whereDate()` solo se aplicaba para
+   `dateScope=custom`, nunca para `today`/`tomorrow` — "Hoy" mostraba citas de todos los días
+   mezcladas. De paso, estados por defecto ganan `completed`, orden pasa a ascendente.
+2. **`72ffbd2`** — Mensaje flash duplicado en 19 vistas (toast global + banner propio de cada
+   vista leyendo la misma key de sesión) + Bitácora mostrando "–" en vez del diff real
+   (`spatie/laravel-activitylog` v5 separó el diff en `attribute_changes`, la vista seguía
+   leyendo `properties`, siempre vacía en esta versión).
+3. **`f812754`** — **IDOR crítico** en vacunas/alergias/condiciones del módulo Clínico:
+   `PetVaccinationController`/`PetAllergyController`/`PetConditionController` resolvían el ID del
+   registro sin confirmar que perteneciera a la mascota de la URL — cualquier usuario con el
+   permiso podía editar/borrar el dato clínico de OTRA mascota. Fix: `Route::scopeBindings()`,
+   mismo patrón que ya usa `resources.events.*`. Ver `NT-060` más abajo.
+4. **`c8dd5cb`** — Dashboard "Ingresos del día" nunca sumaba `Payment` (cobro directo desde la
+   app móvil sin presupuesto) — solo `CashLedger`/`BankLedger`. Con Caja/Banco en $0, el widget
+   real mostraba $0.00 pese a $571.50 reales en pagos móviles. **Nota:** esto es un bug distinto
+   del ya documentado en `BL-078` (que es sobre falta de filtro por sucursal, sigue abierto y sin
+   relación).
+5. **`2d5b9eb`** — Condición de carrera al abrir sesión de caja (check-then-act sin lock) podía
+   crear dos `CashSession` abiertas para la misma caja. Fix: `lockForUpdate()` en
+   `DB::transaction()`, mismo patrón que `AccountingService::getNextFolio()`.
+6. **`badc67d`** — 4 hallazgos de UX en la app móvil: íconos mostrando texto crudo por falta de
+   `display=block` + guard de carga; sin ruta catch-all (cualquier typo dejaba pantalla en
+   blanco); botones bajo 44px; badge del identificador de soporte con separación visual.
+7. **`ddfccff`/`f91da3d`/`2824447`/`2fea247`** — Crear cita desde Agenda perdía la fecha
+   seleccionada (podía terminar agendando para HOY habiendo elegido "Mañana" — riesgo real de
+   citas en el día equivocado) y pasaba por 3 pantallas de más. Encadenado con: `+ Cita` abría un
+   menú de un solo botón para usuarios sin perfil de operador; un tercer botón "Nueva cita" (y su
+   duplicado en `GroomerAgenda.tsx`) con la misma lógica vieja; y al agendar, la app volvía a la
+   ficha de la mascota en vez de a la Agenda del día agendado.
+8. **`5571161`** — Estrategia "MCP" (fases 1-3, ver `ZEUS-028`/`029`/`030` en el backlog de Zeus):
+   preselección de operador, servicio sugerido según historial de la mascota, acciones directas
+   en tarjetas de Agenda ("Iniciar"/"Cobrar"/WhatsApp) sin entrar al detalle.
+9. **`2af78ef`** — Botón de calendario junto a las fechas no abría el selector nativo en 3
+   pantallas (`GlobalAgenda`/`GroomerAgenda`/`MobCitaDet` al reagendar) — `<label htmlFor>` sobre
+   un input oculto no dispara el picker de forma confiable en Chrome de escritorio, hace falta
+   `showPicker()` explícito (patrón que ya existía en `MobCitaNueva.tsx`, nunca replicado). Ver
+   `NT-061`.
+
+**Verificado al cierre:** árbol de trabajo limpio (nada sin commitear), rebuild fresco de la app
+móvil desde el commit actual sirviendo el mismo hash que ya estaba en producción (confirma que lo
+desplegado coincide exactamente con lo commiteado, sin desfase), 126 tests de backend
+(Agenda/Clínico/Dashboard/Caja/WhatsApp/Bitácora) en verde contra `estetican_app` real,
+`app.estetican.org`/`mov.estetican.org` respondiendo 200 normal.
+
+### 📁 Archivos principales tocados
+Ver el commit correspondiente de cada punto arriba — 2 áreas (backend `apps/backoffice-laravel/`,
+móvil `mob_apps/operador/`), sin ninguna migración (todos cambios de código/vista puro).
+
+### 🛑 Pendientes activos
+- **`BL-078` sigue abierto** (Dashboard "Ingresos hoy" sin filtro de sucursal) — no relacionado
+  con el fix de hoy (que era sobre una fuente de datos faltante, `Payment`, no sobre sucursales).
+- **Divergencia pendiente sin tocar a propósito**, dos veces mencionada en los commits de hoy:
+  `useBusinessName()`/`brand_business_name` en `GlobalAgenda.tsx` (`SYNC-001` de Zeus, evaluado
+  pero nunca portado) — el título de la app móvil real sigue fijo en "EstetiCAN" en vez de leer
+  el nombre configurado. Queda para una sesión aparte.
+- Nada más pendiente de portar de Zeus-Estetican — `PENDIENTES_SINCRONIZAR_ESTETICAN.md` queda
+  vacío en Pendientes.
+
+---
+
 ## 📅 Cierre de sesión: 13/08/2026 — Emergencia real (mascota duplicada + citas cruzadas), bug de UI en Agenda (NT-058), y nueva regla de alcance con Zeus-Estetican (producción = solo emergencias)
 
 ### ✅ Logros y Cambios

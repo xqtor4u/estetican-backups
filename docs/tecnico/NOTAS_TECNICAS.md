@@ -1501,3 +1501,75 @@ que alguien recrea (no solo reinicia) cualquiera de los contenedores del proyect
 ese campo, hay que planear la migración de red de una — reconectar todos los contenedores
 existentes a la red nueva (o viceversa) en el momento del cambio, no confiar en que "va a seguir
 funcionando porque nadie tocó nada".
+
+---
+
+## NT-060 — IDOR real en vacunas/alergias/condiciones clínicas: bindings implícitos de ruta no validan pertenencia entre padre e hijo salvo que se pida explícitamente
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 15/08/2026 |
+| **Severidad** | P1 — cualquier usuario con el permiso `alergias.administrar` podía editar/borrar el registro clínico (vacuna, alergia o condición) de OTRA mascota, armando la URL a mano con un `{pet}` y un `{vaccination}`/`{allergy}`/`{condition}` que no correspondieran entre sí. Sin ningún error visible — la UI mostraba "actualizado correctamente" igual |
+| **Componente** | `routes/web.php` (grupo `clinico.`), `PetVaccinationController`/`PetAllergyController`/`PetConditionController::update()`/`destroy()` |
+
+**Síntoma:** ninguno visible en operación normal — el bug solo se explota armando la URL a mano
+(o con una petición HTTP directa), nunca aparece navegando la UI normalmente, porque la UI siempre
+arma URLs correctas. Encontrado en una caza de bugs proactiva de Zeus-Estetican (`SYNC-011`), no
+en un reporte de un usuario real.
+
+**Causa raíz:** Laravel resuelve `{pet}` y `{vaccination}` (o `{allergy}`/`{condition}`) como dos
+bindings de ruta **independientes** por defecto — cada uno busca su modelo por su propio ID, sin
+ninguna relación implícita entre ambos aunque la URL los anide (`mascotas/{pet}/vacunas/{vaccination}`).
+El controller nunca comprobaba `$vaccination->pet_id === $pet->id`. El controller hermano
+`ClinicalAttachmentController::destroy()` sí tenía el guard correcto
+(`abort_if($attachment->pet_id !== $pet->id, 404)`), pero no se replicó en los otros 3 — cada uno
+se escribió por separado sin copiar el patrón de seguridad del primero.
+
+**Fix:** `Route::scopeBindings()` envolviendo los 9 endpoints afectados — con esto, Laravel
+resuelve `{vaccination}` (y análogos) **a través de** la relación `Pet::vaccinations()` del `{pet}`
+de la URL, en vez de por ID global. Si el ID no pertenece a ese padre, tira 404 automático, sin
+código de validación manual en el controller. Mismo patrón que ya usaba `resources.events.*` en
+el mismo archivo de rutas — el patrón correcto ya existía en el proyecto, solo faltaba aplicarlo
+acá.
+
+**Lección:** en cualquier ruta anidada `padre/{parent}/hijo/{child}` donde el hijo pertenezca
+exclusivamente a ese padre (relación 1:N con FK), usar `Route::scopeBindings()` desde el momento
+en que se escribe la ruta — no confiar en que cada controller vaya a acordarse de validar la
+pertenencia a mano. Es más fácil de auditar (una línea en `routes/web.php` cubre `update` y
+`destroy` a la vez) que revisar cada método por separado buscando el guard.
+
+---
+
+## NT-061 — Un `<label htmlFor>` asociado a un `<input type="date" class="sr-only">` no abre el calendario nativo de forma confiable en Chrome de escritorio — hace falta `showPicker()` explícito
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 15/08/2026 |
+| **Severidad** | P2 — el botón de calendario simplemente no hacía nada al tocarlo, en 3 pantallas de la app móvil (`GlobalAgenda`, `GroomerAgenda`, `MobCitaDet` al reagendar) |
+| **Componente** | `mob_apps/operador/src/admin/{GlobalAgenda,GroomerAgenda,MobCitaDet}.tsx` |
+
+**Síntoma:** tocar el ícono de calendario junto al selector de fecha rápida (chips Hoy/Mañana/...)
+no abría ningún selector, sin ningún error visible ni en consola.
+
+**Causa raíz:** el patrón usado era `<input type="date" id="x" className="sr-only" /><label
+htmlFor="x">🗓</label>` — la idea es que el input real queda accesible pero visualmente oculto
+(`sr-only`), y el ícono visible es un `<label>` asociado que, en teoría, al hacer foco en el input
+por el label, dispara el selector nativo del navegador. **En la práctica, en Chrome de
+escritorio esto no es confiable** — el foco por label no dispara el picker, hace falta que el
+usuario haga clic directamente sobre el control real del input (su propio ícono de calendario,
+que en este patrón está oculto). El resultado: el botón parece existir pero nunca hace nada.
+
+**Fix:** reemplazar el `<label>` por un `<button type="button">` con `onClick` que llama a
+`HTMLInputElement.showPicker()` (vía `ref`) — API estándar desde Chrome 99 diseñada exactamente
+para esto: abrir el selector nativo de un input `date`/`color`/etc. programáticamente. Con
+fallback a `.focus()` si `showPicker` no existe (navegadores viejos sin la API). Este patrón ya
+existía, correctamente resuelto con el comentario explicando el motivo, en
+`MobCitaNueva.tsx` — nunca se replicó a los otros 3 lugares con el mismo patrón `sr-only` +
+`label`, porque se escribieron por separado sin buscar si ya existía una solución.
+
+**Lección:** cualquier `<input type="date">` (o `color`, `time`) oculto vía `sr-only` con un
+ícono/botón "de mentira" al lado necesita `showPicker()` explícito, nunca solo un `<label
+htmlFor>` — el label-abre-picker es un comportamiento que algunos navegadores dan por soporte
+opcional/inconsistente, no una garantía de la especificación HTML. Antes de escribir este patrón
+de nuevo, buscar `showPicker` en el proyecto — ya existe un ejemplo resuelto con el porqué
+documentado en el propio código.
