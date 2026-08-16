@@ -1,5 +1,35 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 16/08/2026 (cont.) — `SYNC-026` portado desde Zeus-Estetican: hub Finanzas móvil + 5 reportes de Caja (PDF/email) + fix de saldo esperado
+
+### ✅ Logros y Cambios
+
+Sesión de porteo puro, mismo criterio que `SYNC-024`/`025` (abajo). Detalle técnico completo en
+`docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus-Estetican (`SYNC-026`, Aplicados).
+
+**Resumen:** el menú móvil "Finanzas" pasa a ser un hub (Caja + Reportes de caja) en vez de entrar
+directo a Caja; 5 reportes nuevos de Caja con PDF y envío por correo. Fix real de fondo: existían
+tres fórmulas distintas de "efectivo esperado" de una sesión de caja (celular en vivo, preview web
+antes de cerrar, cierre real) y solo una era correcta — se unificaron en
+`Domain/Accounting/CashSessionExpectedAmountService`.
+
+**Verificado en vivo contra producción real, no solo escrito:** 35 tests de Caja pasan sin
+regresiones (suite completa: 498 pasan/37 fallan, mismas 37 preexistentes de siempre, +17 exacto
+por los tests nuevos); bundle móvil reconstruido y confirmado servido; endpoint de resumen probado
+con datos reales de producción; PDF descargado y validado; **correo enviado de verdad contra el
+SMTP real de producción** (`mail.supremecenterhost.com`, configurado en `SystemSettings`, no en
+`.env` — confirmado con HTTP 200 síncrono).
+
+**Dos hallazgos del proceso de porteo, documentados en detalle en Zeus-Estetican:** un bug real que
+el propio refactor había introducido en `tst` (una vista dejaba de recibir una variable que sí usa)
+detectado por diffear contra el baseline de producción antes de portar, no por confiar solo en los
+tests; y un incidente de contraseña de Admin en `tst` (no en producción) durante la verificación en
+vivo, ya resuelto con el mejor respaldo disponible.
+
+Commit: `2021a82`.
+
+---
+
 ## 📅 Cierre de sesión: 16/08/2026 — `SYNC-024`/`SYNC-025` portados desde Zeus-Estetican: Caja deja de depender del check-in (sucursal asignada + permisos granulares + reversión de movimientos)
 
 ### ✅ Logros y Cambios
