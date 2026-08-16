@@ -89,6 +89,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::get('/settings/photos', [SettingController::class, 'photos']);
 
     Route::get('/cash/session', [CashController::class, 'session'])->middleware('permission:caja.abrir');
+    Route::post('/cash/session', [CashController::class, 'openSession'])->middleware('permission:caja.abrir');
     Route::get('/cash/movement-types', [CashController::class, 'movementTypes'])->middleware('permission:caja.abrir');
     Route::get('/cash/movements', [CashController::class, 'movements'])->middleware('permission:caja.abrir');
     Route::post('/cash/sessions/{cashSession}/movements', [CashController::class, 'storeMovement'])->middleware('permission:caja.abrir');

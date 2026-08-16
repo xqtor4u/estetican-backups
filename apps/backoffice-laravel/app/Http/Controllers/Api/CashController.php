@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\CashMovement;
+use App\Models\CashRegister;
 use App\Models\CashSession;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\OperatorCheckin;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CashController extends Controller
 {
@@ -78,6 +80,64 @@ class CashController extends Controller
                 'created_at' => $m->created_at,
             ])->values(),
         ]);
+    }
+
+    /**
+     * Abrir sesión de caja directo desde la app móvil — antes esto solo era posible desde el
+     * backoffice web (Finanzas → Cajas → Abrir), la pantalla de Caja del móvil solo te decía
+     * "Abre la sesión desde el backoffice de finanzas" sin ninguna forma de resolverlo ahí.
+     */
+    public function openSession(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        $checkin = OperatorCheckin::where('user_id', $user->id)
+            ->whereNull('checked_out_at')
+            ->latest('checked_in_at')
+            ->first();
+
+        if (! $checkin) {
+            return response()->json(['message' => 'Necesitas hacer check-in en una sucursal antes de abrir caja.'], 422);
+        }
+
+        $cashRegister = CashRegister::where('branch_id', $checkin->branch_id)->first();
+
+        if (! $cashRegister) {
+            return response()->json(['message' => 'Esta sucursal no tiene ninguna caja configurada.'], 422);
+        }
+
+        $validated = $request->validate([
+            'opening_amount' => ['required', 'numeric', 'min:0'],
+            'notes'          => ['nullable', 'string', 'max:500'],
+        ]);
+
+        // Mismo bloqueo que CashSessionController::store() del lado web (SYNC-011) — evita que
+        // dos requests casi simultáneas (doble tap, dos operadores) pasen el chequeo "¿hay
+        // sesión abierta?" antes de que exista la primera y terminen creando dos sesiones
+        // abiertas para la misma caja.
+        $session = DB::transaction(function () use ($cashRegister, $validated, $user) {
+            $lockedRegister = CashRegister::lockForUpdate()->findOrFail($cashRegister->id);
+
+            if ($lockedRegister->activeSession) {
+                return null;
+            }
+
+            return CashSession::create([
+                'cash_register_id'   => $lockedRegister->id,
+                'branch_id'          => $lockedRegister->branch_id,
+                'opened_by_user_id'  => $user->id,
+                'opened_at'          => now(),
+                'opening_amount'     => $validated['opening_amount'],
+                'notes'              => $validated['notes'] ?? null,
+                'status'             => 'abierta',
+            ]);
+        });
+
+        if ($session === null) {
+            return response()->json(['message' => 'La caja ya tiene una sesión abierta.'], 409);
+        }
+
+        // Reusa la misma forma de respuesta que ya consume el frontend (status: 'active', ...).
+        return $this->session();
     }
 
     public function movementTypes(): JsonResponse

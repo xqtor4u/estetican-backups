@@ -281,6 +281,13 @@ export function MobCaja() {
   const [showForm, setShowForm]       = useState(false);
   const [refreshing, setRefreshing]   = useState(false);
 
+  // Abrir caja directo desde el móvil — antes esta pantalla solo decía "Abre la sesión desde
+  // el backoffice de finanzas", sin ninguna forma de resolverlo acá.
+  const [openingAmount, setOpeningAmount] = useState('');
+  const [openingNotes,  setOpeningNotes]  = useState('');
+  const [opening,       setOpening]       = useState(false);
+  const [openError,     setOpenError]     = useState<string | null>(null);
+
   const loadSession = async (quiet = false) => {
     if (!quiet) setPage({ status: 'loading' });
     else setRefreshing(true);
@@ -292,6 +299,31 @@ export function MobCaja() {
       setPage({ status: 'error', message: 'No se pudo conectar con el servidor.' });
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const openCashSession = async () => {
+    const amount = parseFloat(openingAmount);
+    if (isNaN(amount) || amount < 0) return;
+    setOpening(true);
+    setOpenError(null);
+    try {
+      const res = await fetch('/api/cash/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opening_amount: amount, notes: openingNotes.trim() || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOpenError(data.message ?? 'No se pudo abrir la caja.');
+        setOpening(false);
+        return;
+      }
+      setPage(data as PageState);
+    } catch {
+      setOpenError('No se pudo conectar con el servidor.');
+    } finally {
+      setOpening(false);
     }
   };
 
@@ -395,7 +427,7 @@ export function MobCaja() {
     return (
       <div className="min-h-screen bg-background pb-16">
         <ScreenHeader {...headerProps} subtitle={page.branch.name} />
-        <div className="flex flex-col items-center gap-4 px-6 pt-16 text-center">
+        <div className="flex flex-col items-center gap-3 px-6 pt-10 text-center">
           <span className="material-symbols-outlined text-5xl text-on-surface-variant">point_of_sale</span>
           {/* "Sesión" en esta app también significa sesión de LOGIN ("Cerrar sesión" en el
               menú) — "Sin sesión activa" a secas, sin leer el párrafo de abajo, se lee como
@@ -403,16 +435,52 @@ export function MobCaja() {
               cobro (SYNC-020, la palabra "Caja") — acá se saca "sesión" del título. */}
           <h2 className="text-base font-semibold text-on-surface">Sin caja abierta</h2>
           <p className="text-sm text-on-surface-variant">
-            No hay ninguna sesión de caja abierta en <strong>{page.branch.name}</strong>.
+            No hay ninguna caja abierta en <strong>{page.branch.name}</strong>. Ábrela para
+            empezar a registrar cobros y movimientos.
           </p>
-          <p className="text-xs text-on-surface-variant">
-            Abre la sesión desde el backoffice de finanzas.
-          </p>
+        </div>
+
+        {/* Antes esta pantalla solo decía "Abre la sesión desde el backoffice de finanzas" —
+            sin ninguna forma de resolverlo acá, había que salir a una computadora. */}
+        <div className="mx-4 mt-4 bg-surface-container rounded-2xl px-4 py-4 flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-on-surface-variant">Fondo inicial</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={openingAmount}
+              onChange={e => setOpeningAmount(e.target.value)}
+              placeholder="0.00"
+              className="bg-background border border-outline-variant rounded-xl px-3 py-2.5 text-base text-on-surface outline-none focus:border-primary"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-on-surface-variant">Notas (opcional)</label>
+            <input
+              type="text"
+              value={openingNotes}
+              onChange={e => setOpeningNotes(e.target.value)}
+              placeholder="Ej. turno de la mañana"
+              className="bg-background border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+            />
+          </div>
+          {openError && (
+            <p className="text-xs text-error">{openError}</p>
+          )}
+          <button
+            onClick={openCashSession}
+            disabled={opening || openingAmount.trim() === '' || isNaN(parseFloat(openingAmount))}
+            className="mt-1 py-3 rounded-2xl bg-primary text-on-primary text-sm font-semibold active:scale-95 transition-transform disabled:opacity-40"
+          >
+            {opening ? 'Abriendo…' : 'Abrir caja'}
+          </button>
           <button
             onClick={() => loadSession()}
-            className="mt-2 px-6 py-2.5 rounded-2xl border border-outline-variant text-sm text-on-surface active:scale-95 transition-transform"
+            className="text-xs text-on-surface-variant"
           >
-            Reintentar
+            Reintentar (por si ya la abrieron desde otro lado)
           </button>
         </div>
       </div>
