@@ -88,11 +88,13 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::get('/settings/booking', [SettingController::class, 'booking']);
     Route::get('/settings/photos', [SettingController::class, 'photos']);
 
-    Route::get('/cash/session', [CashController::class, 'session'])->middleware('permission:caja.abrir');
+    Route::get('/cash/session', [CashController::class, 'session'])->middleware('permission:caja.ver');
     Route::post('/cash/session', [CashController::class, 'openSession'])->middleware('permission:caja.abrir');
-    Route::get('/cash/movement-types', [CashController::class, 'movementTypes'])->middleware('permission:caja.abrir');
-    Route::get('/cash/movements', [CashController::class, 'movements'])->middleware('permission:caja.abrir');
-    Route::post('/cash/sessions/{cashSession}/movements', [CashController::class, 'storeMovement'])->middleware('permission:caja.abrir');
+    Route::get('/cash/movement-types', [CashController::class, 'movementTypes'])->middleware('permission:caja.ver');
+    Route::get('/cash/movements', [CashController::class, 'movements'])->middleware('permission:caja.ver');
+    Route::post('/cash/sessions/{cashSession}/movements', [CashController::class, 'storeMovement'])->middleware('permission:caja.movimientos.crear');
+    Route::patch('/cash/movements/{movement}', [CashController::class, 'updateMovement'])->middleware('permission:caja.movimientos.editar');
+    Route::post('/cash/movements/{movement}/revert', [CashController::class, 'revertMovement'])->middleware('permission:caja.movimientos.revertir');
 
     // Tipos de orden activos — fuente de verdad desde DocumentSeries
     Route::get('/work-order-types', function () {

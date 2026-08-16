@@ -12,6 +12,13 @@ interface AuthUser {
   roles: string[];
   is_admin: boolean;
   can_override_schedule: boolean;
+  branch_id: number | null;
+  branch_name: string | null;
+  can_view_caja: boolean;
+  can_open_caja: boolean;
+  can_create_caja_movement: boolean;
+  can_edit_caja_movement: boolean;
+  can_revert_caja_movement: boolean;
   operator_id: number | null;
   operator_role: string | null;
   photo_url: string | null;

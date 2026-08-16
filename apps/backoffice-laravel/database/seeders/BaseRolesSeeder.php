@@ -49,8 +49,12 @@ class BaseRolesSeeder extends Seeder
         $granularPermissions = [
             'ver dashboard',
             'cobros.registrar',
+            'caja.ver',
             'caja.abrir',
             'caja.cerrar',
+            'caja.movimientos.crear',
+            'caja.movimientos.editar',
+            'caja.movimientos.revertir',
             'asientos.aprobar',
             'clinico.firmar',
             'alergias.administrar',

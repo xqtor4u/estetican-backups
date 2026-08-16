@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Models\Branch;
 use App\Models\CashMovement;
 use App\Models\CashRegister;
 use App\Models\CashSession;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
-use App\Models\OperatorCheckin;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,20 +20,60 @@ class CashController extends Controller
     private const CAJA_ACCOUNT_ID = 6;
     private const SALIDA_TYPES = ['retiro', 'deposito_banco', 'gasto', 'perdida'];
 
-    public function session(): JsonResponse
+    /**
+     * Resuelve a qué sucursal se refiere Caja para este request — NUNCA a partir del check-in
+     * (eso es solo asistencia/RH, sin relación con autorización). Para un usuario normal es su
+     * `branch_id` asignado (dato organizacional persistente); para un super-admin, la sucursal
+     * que elija explícitamente vía `branch_id` en la query/body, porque un super-admin puede
+     * operar cualquier caja de cualquier sucursal.
+     *
+     * @return array{0: int|null, 1: bool} [branchId, needsSelection] — needsSelection=true solo
+     *         para super-admin sin `branch_id` en el request (hace falta que elija una).
+     */
+    private function resolveBranchId(Request $request, User $user): array
     {
-        $user    = auth()->user();
-        $checkin = OperatorCheckin::where('user_id', $user->id)
-            ->whereNull('checked_out_at')
-            ->with('branch:id,name')
-            ->latest('checked_in_at')
-            ->first();
+        if ($user->is_super_admin) {
+            $branchId = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
 
-        if (! $checkin) {
-            return response()->json(['status' => 'no_checkin']);
+            return [$branchId, $branchId === null];
         }
 
-        $cashSession = CashSession::where('branch_id', $checkin->branch_id)
+        return [$user->branch_id, false];
+    }
+
+    private function serializeMovement(CashMovement $m): array
+    {
+        return [
+            'id'                      => $m->id,
+            'type'                    => $m->type,
+            'direction'               => $m->direction,
+            'amount'                  => $m->amount,
+            'concept'                 => $m->concept,
+            'notes'                   => $m->notes,
+            'account'                 => $m->counterpartAccount?->name,
+            'created_at'              => $m->created_at,
+            'is_reversed'             => $m->isReversed(),
+            'reversal_of_movement_id' => $m->reversal_of_movement_id,
+        ];
+    }
+
+    public function session(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        [$branchId, $needsSelection] = $this->resolveBranchId($request, $user);
+
+        if ($needsSelection) {
+            return response()->json([
+                'status'   => 'select_branch',
+                'branches' => Branch::orderBy('name')->get(['id', 'name']),
+            ]);
+        }
+
+        if (! $branchId) {
+            return response()->json(['status' => 'no_branch']);
+        }
+
+        $cashSession = CashSession::where('branch_id', $branchId)
             ->where('status', 'abierta')
             ->with(['cashRegister:id,name', 'branch:id,name', 'openedBy:id,name'])
             ->first();
@@ -40,7 +81,7 @@ class CashController extends Controller
         if (! $cashSession) {
             return response()->json([
                 'status' => 'no_session',
-                'branch' => ['id' => $checkin->branch_id, 'name' => $checkin->branch->name],
+                'branch' => ['id' => $branchId, 'name' => Branch::find($branchId)?->name],
             ]);
         }
 
@@ -69,16 +110,7 @@ class CashController extends Controller
                 'total_salidas'  => round($totalSalidas, 2),
                 'saldo_esperado' => round($cashSession->opening_amount + $totalEntradas - $totalSalidas, 2),
             ],
-            'movements' => $movements->map(fn ($m) => [
-                'id'         => $m->id,
-                'type'       => $m->type,
-                'direction'  => $m->direction,
-                'amount'     => $m->amount,
-                'concept'    => $m->concept,
-                'notes'      => $m->notes,
-                'account'    => $m->counterpartAccount?->name,
-                'created_at' => $m->created_at,
-            ])->values(),
+            'movements' => $movements->map(fn ($m) => $this->serializeMovement($m))->values(),
         ]);
     }
 
@@ -86,20 +118,24 @@ class CashController extends Controller
      * Abrir sesión de caja directo desde la app móvil — antes esto solo era posible desde el
      * backoffice web (Finanzas → Cajas → Abrir), la pantalla de Caja del móvil solo te decía
      * "Abre la sesión desde el backoffice de finanzas" sin ninguna forma de resolverlo ahí.
+     *
+     * La sucursal se resuelve por `branch_id` asignado al usuario (o elegido explícitamente si
+     * es super-admin) — nunca por check-in, ver `resolveBranchId()`.
      */
     public function openSession(Request $request): JsonResponse
     {
         $user = auth()->user();
-        $checkin = OperatorCheckin::where('user_id', $user->id)
-            ->whereNull('checked_out_at')
-            ->latest('checked_in_at')
-            ->first();
+        [$branchId] = $this->resolveBranchId($request, $user);
 
-        if (! $checkin) {
-            return response()->json(['message' => 'Necesitas hacer check-in en una sucursal antes de abrir caja.'], 422);
+        if (! $branchId) {
+            $message = $user->is_super_admin
+                ? 'Selecciona una sucursal.'
+                : 'No tienes una sucursal asignada. Contacta a un administrador.';
+
+            return response()->json(['message' => $message], 422);
         }
 
-        $cashRegister = CashRegister::where('branch_id', $checkin->branch_id)->first();
+        $cashRegister = CashRegister::where('branch_id', $branchId)->first();
 
         if (! $cashRegister) {
             return response()->json(['message' => 'Esta sucursal no tiene ninguna caja configurada.'], 422);
@@ -108,6 +144,7 @@ class CashController extends Controller
         $validated = $request->validate([
             'opening_amount' => ['required', 'numeric', 'min:0'],
             'notes'          => ['nullable', 'string', 'max:500'],
+            'branch_id'      => ['nullable', 'integer'],
         ]);
 
         // Mismo bloqueo que CashSessionController::store() del lado web (SYNC-011) — evita que
@@ -137,7 +174,7 @@ class CashController extends Controller
         }
 
         // Reusa la misma forma de respuesta que ya consume el frontend (status: 'active', ...).
-        return $this->session();
+        return $this->session($request);
     }
 
     public function movementTypes(): JsonResponse
@@ -203,14 +240,10 @@ class CashController extends Controller
 
     public function movements(Request $request): JsonResponse
     {
-        $user    = auth()->user();
-        $checkin = OperatorCheckin::where('user_id', $user->id)
-            ->whereNull('checked_out_at')
-            ->latest('checked_in_at')
-            ->first();
+        $user = auth()->user();
 
-        if (! $checkin) {
-            return response()->json(['error' => 'Sin check-in activo'], 403);
+        if (! $user->is_super_admin && ! $user->branch_id) {
+            return response()->json(['error' => 'No tienes sucursal asignada'], 422);
         }
 
         $request->validate([
@@ -233,7 +266,7 @@ class CashController extends Controller
         // sin importar qué branch_id mande el cliente (nunca confiar en el scope del request).
         $isSuperAdmin  = $user->is_super_admin;
         $requestedBranch = $request->filled('branch_id') ? (int) $request->input('branch_id') : null;
-        $movementBranchId = $isSuperAdmin ? $requestedBranch : $checkin->branch_id;
+        $movementBranchId = $isSuperAdmin ? $requestedBranch : $user->branch_id;
 
         $items = collect();
 
@@ -248,17 +281,19 @@ class CashController extends Controller
                 ->when($typeFilter && in_array($typeFilter, $movTypes), fn ($q) => $q->where('type', $typeFilter));
 
             $items = $items->concat($q->get()->map(fn ($m) => [
-                'id'          => 'm-' . $m->id,
-                'type'        => $m->type,
-                'direction'   => $m->direction,
-                'amount'      => (float) $m->amount,
-                'concept'     => $m->concept,
-                'notes'       => $m->notes,
-                'account'     => $m->counterpartAccount?->name,
-                'branch_name' => $m->cashSession?->branch?->name,
-                'client_name' => null,
-                'created_by'  => $m->createdBy?->name,
-                'created_at'  => $m->created_at->toISOString(),
+                'id'                      => 'm-' . $m->id,
+                'type'                    => $m->type,
+                'direction'               => $m->direction,
+                'amount'                  => (float) $m->amount,
+                'concept'                 => $m->concept,
+                'notes'                   => $m->notes,
+                'account'                 => $m->counterpartAccount?->name,
+                'branch_name'             => $m->cashSession?->branch?->name,
+                'client_name'             => null,
+                'created_by'              => $m->createdBy?->name,
+                'created_at'              => $m->created_at->toISOString(),
+                'is_reversed'             => $m->isReversed(),
+                'reversal_of_movement_id' => $m->reversal_of_movement_id,
             ]));
         }
 
@@ -286,6 +321,8 @@ class CashController extends Controller
                 'client_name' => $p->client?->full_name,
                 'created_by'  => $p->createdBy?->name,
                 'created_at'  => \Illuminate\Support\Carbon::parse($p->created_at)->toISOString(),
+                'is_reversed' => false,
+                'reversal_of_movement_id' => null,
             ]));
         }
 
@@ -313,6 +350,8 @@ class CashController extends Controller
                 'client_name' => trim($r->client_name) ?: null,
                 'created_by'  => $r->created_by_name,
                 'created_at'  => \Illuminate\Support\Carbon::parse($r->created_at)->toISOString(),
+                'is_reversed' => false,
+                'reversal_of_movement_id' => null,
             ]));
         }
 
@@ -340,6 +379,8 @@ class CashController extends Controller
                 'client_name' => trim($r->client_name) ?: null,
                 'created_by'  => $r->created_by_name,
                 'created_at'  => \Illuminate\Support\Carbon::parse($r->created_at)->toISOString(),
+                'is_reversed' => false,
+                'reversal_of_movement_id' => null,
             ]));
         }
 
@@ -355,20 +396,17 @@ class CashController extends Controller
             'branch_filter' => [
                 'can_select_branch' => $isSuperAdmin,
                 'selected_branch_id' => $movementBranchId,
-                'own_branch_id' => $checkin->branch_id,
+                'own_branch_id' => $user->branch_id,
             ],
         ]);
     }
 
     public function storeMovement(Request $request, CashSession $cashSession): JsonResponse
     {
-        $checkin = OperatorCheckin::where('user_id', $request->user()->id)
-            ->whereNull('checked_out_at')
-            ->latest('checked_in_at')
-            ->first();
+        $user = $request->user();
 
-        if (! $checkin || $checkin->branch_id !== $cashSession->branch_id) {
-            return response()->json(['message' => 'Esta sesión de caja no corresponde a tu sucursal activa.'], 403);
+        if (! $user->is_super_admin && $user->branch_id !== $cashSession->branch_id) {
+            return response()->json(['message' => 'Esta sesión de caja no corresponde a tu sucursal asignada.'], 403);
         }
 
         if (! $cashSession->isOpen()) {
@@ -428,15 +466,117 @@ class CashController extends Controller
 
         $movement->load('counterpartAccount:id,name');
 
-        return response()->json([
-            'id'         => $movement->id,
-            'type'       => $movement->type,
-            'direction'  => $movement->direction,
-            'amount'     => $movement->amount,
-            'concept'    => $movement->concept,
-            'notes'      => $movement->notes,
-            'account'    => $movement->counterpartAccount?->name,
-            'created_at' => $movement->created_at,
-        ], 201);
+        return response()->json($this->serializeMovement($movement), 201);
+    }
+
+    /**
+     * Editar un movimiento ya registrado — deliberadamente limitado a concepto/notas (texto).
+     * Nunca se edita monto ni tipo: cada movimiento ya tiene un asiento contable real posteado
+     * (`JournalEntry`), cambiar esos campos sin tocar el asiento rompería la contabilidad. Si el
+     * monto estaba mal, el flujo correcto es revertir (`revertMovement`) y registrar uno nuevo.
+     */
+    public function updateMovement(Request $request, CashMovement $movement): JsonResponse
+    {
+        $user = $request->user();
+        $movement->loadMissing('cashSession');
+
+        if (! $user->is_super_admin && $user->branch_id !== $movement->cashSession->branch_id) {
+            return response()->json(['message' => 'Este movimiento no corresponde a tu sucursal asignada.'], 403);
+        }
+
+        if (! $movement->cashSession->isOpen()) {
+            return response()->json(['message' => 'La caja de este movimiento ya está cerrada.'], 422);
+        }
+
+        $validated = $request->validate([
+            'concept' => ['required', 'string', 'max:255'],
+            'notes'   => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $movement->update($validated);
+        $movement->load('counterpartAccount:id,name');
+
+        return response()->json($this->serializeMovement($movement));
+    }
+
+    /**
+     * Revertir un movimiento — nunca se borra: se crea un movimiento contrario (mismo monto,
+     * dirección opuesta) con su propio asiento contable espejo, y el original queda marcado
+     * `reversed_at` sin desaparecer. Mantiene el rastro de auditoría y la contabilidad cuadrada
+     * (el efecto neto de original + reversión es cero).
+     */
+    public function revertMovement(Request $request, CashMovement $movement): JsonResponse
+    {
+        $user = $request->user();
+        $movement->loadMissing('cashSession');
+
+        if (! $user->is_super_admin && $user->branch_id !== $movement->cashSession->branch_id) {
+            return response()->json(['message' => 'Este movimiento no corresponde a tu sucursal asignada.'], 403);
+        }
+
+        if ($movement->reversal_of_movement_id) {
+            return response()->json(['message' => 'No se puede revertir una reversión.'], 422);
+        }
+
+        if (! $movement->cashSession->isOpen()) {
+            return response()->json(['message' => 'La caja de este movimiento ya está cerrada.'], 422);
+        }
+
+        $reversal = DB::transaction(function () use ($movement, $user) {
+            $locked = CashMovement::lockForUpdate()->findOrFail($movement->id);
+
+            if ($locked->isReversed()) {
+                return null;
+            }
+
+            $oppositeDirection = $locked->direction === 'entrada' ? 'salida' : 'entrada';
+            $description       = 'Reversión — ' . $locked->concept;
+
+            $entry = JournalEntry::create([
+                'entry_date'         => now()->toDateString(),
+                'description'        => $description,
+                'status'             => 'aplicado',
+                'branch_id'          => $locked->cashSession->branch_id,
+                'created_by_user_id' => $user->id,
+                'posted_by_user_id'  => $user->id,
+                'posted_at'          => now(),
+                'reference_type'     => CashSession::class,
+                'reference_id'       => $locked->cash_session_id,
+            ]);
+
+            // Espejo exacto e invertido del asiento original (mismas cuentas, débito/crédito al revés).
+            if ($oppositeDirection === 'salida') {
+                JournalEntryLine::create(['journal_entry_id' => $entry->id, 'account_id' => $locked->counterpart_account_id, 'debit' => $locked->amount, 'credit' => 0, 'description' => $description]);
+                JournalEntryLine::create(['journal_entry_id' => $entry->id, 'account_id' => self::CAJA_ACCOUNT_ID, 'debit' => 0, 'credit' => $locked->amount, 'description' => $description]);
+            } else {
+                JournalEntryLine::create(['journal_entry_id' => $entry->id, 'account_id' => self::CAJA_ACCOUNT_ID, 'debit' => $locked->amount, 'credit' => 0, 'description' => $description]);
+                JournalEntryLine::create(['journal_entry_id' => $entry->id, 'account_id' => $locked->counterpart_account_id, 'debit' => 0, 'credit' => $locked->amount, 'description' => $description]);
+            }
+
+            $newReversal = CashMovement::create([
+                'cash_session_id'         => $locked->cash_session_id,
+                'type'                    => $locked->type,
+                'direction'               => $oppositeDirection,
+                'amount'                  => $locked->amount,
+                'concept'                 => 'Reversión: ' . $locked->concept,
+                'notes'                   => $locked->notes,
+                'counterpart_account_id'  => $locked->counterpart_account_id,
+                'journal_entry_id'        => $entry->id,
+                'created_by_user_id'      => $user->id,
+                'reversal_of_movement_id' => $locked->id,
+            ]);
+
+            $locked->update(['reversed_at' => now()]);
+
+            return $newReversal;
+        });
+
+        if ($reversal === null) {
+            return response()->json(['message' => 'Este movimiento ya fue revertido.'], 409);
+        }
+
+        $reversal->load('counterpartAccount:id,name');
+
+        return response()->json($this->serializeMovement($reversal), 201);
     }
 }

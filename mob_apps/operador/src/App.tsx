@@ -29,7 +29,18 @@ import { CheckinWidget } from './CheckinWidget';
 /* ═══════════════════════════════════════════════════════════
    FUENTE ÚNICA DEL MENÚ — agregar secciones aquí
    ═══════════════════════════════════════════════════════════ */
-export const MENU_SECTIONS = [
+interface MenuItem {
+  to: string;
+  icon: string;
+  label: string;
+  /** Oculta el ítem si el usuario no tiene `caja.ver` (`AuthUser.can_view_caja`). */
+  requiresCajaView?: boolean;
+}
+interface MenuSection {
+  title: string;
+  items: MenuItem[];
+}
+export const MENU_SECTIONS: MenuSection[] = [
   {
     title: 'Principal',
     items: [
@@ -42,7 +53,7 @@ export const MENU_SECTIONS = [
   {
     title: 'Finanzas',
     items: [
-      { to: '/caja', icon: 'point_of_sale', label: 'Caja' },
+      { to: '/caja', icon: 'point_of_sale', label: 'Caja', requiresCajaView: true },
     ],
   },
   {
@@ -121,20 +132,26 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
         <CheckinWidget />
 
         <div className="px-4 pb-4 flex flex-col gap-5">
-          {MENU_SECTIONS.map(section => (
+          {MENU_SECTIONS.map(section => {
+            // El único ítem que hoy exige permiso es "Caja" (`caja.ver`) — sin este filtro,
+            // el menú lo mostraba a cualquier usuario logueado sin importar sus permisos
+            // granulares, y quien no tuviera `caja.ver` entraba a una pantalla rota.
+            const items = section.items.filter(item => !item.requiresCajaView || user?.can_view_caja);
+            if (items.length === 0) return null;
+            return (
             <div key={section.title}>
               <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-2 px-1">
                 {section.title}
               </p>
               <div className="bg-surface-container rounded-2xl overflow-hidden">
-                {section.items.map((item, i) => {
+                {items.map((item, i) => {
                   const isActive = pathname.startsWith(item.to);
                   return (
                     <button
                       key={item.to}
                       onClick={() => go(item.to)}
                       className={`w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-surface-container-high transition-colors ${
-                        i < section.items.length - 1 ? 'border-b border-outline-variant' : ''
+                        i < items.length - 1 ? 'border-b border-outline-variant' : ''
                       }`}
                     >
                       <span
@@ -155,7 +172,8 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                 })}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {/* Configuración personal */}
           <div className="bg-surface-container rounded-2xl overflow-hidden">

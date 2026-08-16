@@ -17,10 +17,13 @@ class CashMovement extends Model
         'counterpart_account_id',
         'journal_entry_id',
         'created_by_user_id',
+        'reversed_at',
+        'reversal_of_movement_id',
     ];
 
     protected $casts = [
         'amount' => 'float',
+        'reversed_at' => 'datetime',
     ];
 
     public function cashSession(): BelongsTo
@@ -41,5 +44,16 @@ class CashMovement extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    /** El movimiento original que este revierte (si este mismo ES una reversión). */
+    public function reversalOf(): BelongsTo
+    {
+        return $this->belongsTo(CashMovement::class, 'reversal_of_movement_id');
+    }
+
+    public function isReversed(): bool
+    {
+        return $this->reversed_at !== null;
     }
 }

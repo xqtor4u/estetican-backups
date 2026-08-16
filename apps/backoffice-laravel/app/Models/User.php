@@ -38,6 +38,7 @@ use Spatie\Permission\Traits\HasRoles;
     'operator_code',
     'operator_role_id',
     'operator_id',
+    'branch_id',
     'notes',
     'screen_lock_idle_minutes',
     'google_personal_email',
@@ -89,6 +90,15 @@ class User extends Authenticatable
     public function operator()
     {
         return $this->belongsTo(Operator::class, 'operator_id');
+    }
+
+    /**
+     * Sucursal asignada — dato organizacional persistente (RH/administración), sin relación
+     * con el check-in del día. Fuente de verdad para el alcance de Caja y similares.
+     */
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function getLastNameAttribute()
@@ -181,6 +191,13 @@ class User extends Authenticatable
             'roles' => $this->getRoleNames()->toArray(),
             'is_admin' => $this->is_super_admin,
             'can_override_schedule' => $this->can('agenda.forzar_horario') || $this->is_super_admin,
+            'branch_id' => $this->branch_id,
+            'branch_name' => $this->branch?->name,
+            'can_view_caja' => $this->can('caja.ver') || $this->is_super_admin,
+            'can_open_caja' => $this->can('caja.abrir') || $this->is_super_admin,
+            'can_create_caja_movement' => $this->can('caja.movimientos.crear') || $this->is_super_admin,
+            'can_edit_caja_movement' => $this->can('caja.movimientos.editar') || $this->is_super_admin,
+            'can_revert_caja_movement' => $this->can('caja.movimientos.revertir') || $this->is_super_admin,
             'operator_id' => $this->operator_id,
             'operator_role' => $this->operatorRole?->name,
             'photo_url' => $this->profile_photo_url,

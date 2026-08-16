@@ -18,6 +18,8 @@ interface Movement {
   client_name: string | null;
   created_by: string | null;
   created_at: string;
+  is_reversed: boolean;
+  reversal_of_movement_id: number | string | null;
 }
 interface Totals {
   total_entradas: number;
@@ -61,6 +63,10 @@ const TYPE_ICONS: Record<string, string> = {
   perdida:        'money_off',
 };
 const TYPE_ORDER = ['cobro_efectivo', 'cobro_banco', 'entrada', 'retiro', 'deposito_banco', 'gasto', 'perdida'];
+/** Solo estos tipos son `CashMovement` reales — cobros (`cobro_efectivo`/`cobro_banco`, que
+    vienen de `Payment` o de las tablas legacy `cash_ledgers`/`bank_ledgers`) no lo son y nunca
+    deben ofrecer Editar/Revertir: esos endpoints solo existen para `CashMovement`. */
+const EDITABLE_TYPES = new Set(['retiro', 'deposito_banco', 'gasto', 'perdida', 'entrada']);
 
 const PRESETS: { key: Preset; label: string }[] = [
   { key: 'hoy',    label: 'Hoy' },
@@ -103,14 +109,165 @@ function startOfMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-/* ── Fila de movimiento individual ───────────────────────── */
-function MovementRow({ m, last, showBranch }: { m: Movement; last: boolean; showBranch: boolean }) {
+/** Los movimientos de esta pantalla vienen de `/api/cash/movements` con `id` prefijado
+    (`"m-123"`, `"p-45"`, …) para distinguir su origen — la API de editar/revertir espera el id
+    numérico real de `CashMovement`, sin el prefijo. */
+function movementApiId(id: string): number {
+  return parseInt(id.replace(/^m-/, ''), 10);
+}
+
+/* ── Editar movimiento — solo concepto/notas (nunca monto/tipo), mismo criterio que MobCaja ── */
+function EditMovementSheet({ movement, onClose, onSaved }: {
+  movement: Movement;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [concept, setConcept] = useState(movement.concept);
+  const [notes, setNotes]     = useState(movement.notes ?? '');
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+
+  const canSubmit = concept.trim().length > 0 && !saving;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/cash/movements/${movementApiId(movement.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ concept: concept.trim(), notes: notes.trim() || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message ?? 'Error al guardar');
+      onSaved();
+    } catch (e: any) {
+      setError(e.message ?? 'Error al guardar');
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className={`flex items-start gap-3 px-4 py-3 ${last ? '' : 'border-b border-outline-variant'}`}>
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed left-0 right-0 bottom-0 z-50 bg-surface rounded-t-3xl shadow-2xl"
+           style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-outline-variant" />
+        </div>
+        <div className="px-4 pb-8 pt-2 flex flex-col gap-4">
+          <h2 className="text-base font-semibold text-on-surface">Editar movimiento</h2>
+          <p className="text-xs text-on-surface-variant">
+            Solo se puede corregir el concepto y las notas — el monto ({fmtMoney(movement.amount)})
+            no se edita directo. Si estaba mal, revierte el movimiento y registra uno nuevo.
+          </p>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-on-surface-variant font-medium">Concepto</label>
+            <input type="text" value={concept} onChange={e => setConcept(e.target.value)} maxLength={255}
+              className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-on-surface-variant font-medium">Notas (opcional)</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} maxLength={1000}
+              className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary resize-none" />
+          </div>
+          {error && <p className="text-sm text-error bg-error/10 rounded-xl px-3 py-2">{error}</p>}
+          <button onClick={handleSubmit} disabled={!canSubmit}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-primary text-on-primary active:scale-[0.98] transition-transform disabled:opacity-40">
+            {saving ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ── Revertir movimiento — nunca se borra, se cancela con uno contrario ── */
+function RevertMovementSheet({ movement, onClose, onReverted }: {
+  movement: Movement;
+  onClose: () => void;
+  onReverted: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  const handleConfirm = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/cash/movements/${movementApiId(movement.id)}/revert`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message ?? 'No se pudo revertir');
+      onReverted();
+    } catch (e: any) {
+      setError(e.message ?? 'No se pudo revertir');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed left-0 right-0 bottom-0 z-50 bg-surface rounded-t-3xl shadow-2xl"
+           style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-outline-variant" />
+        </div>
+        <div className="px-4 pb-8 pt-2 flex flex-col gap-4">
+          <h2 className="text-base font-semibold text-on-surface">¿Revertir este movimiento?</h2>
+          <div className="bg-surface-container rounded-2xl px-4 py-3">
+            <p className="text-sm font-medium text-on-surface">{movement.concept}</p>
+            <p className={`text-sm font-semibold mt-1 ${movement.direction === 'entrada' ? 'text-primary' : 'text-error'}`}>
+              {movement.direction === 'entrada' ? '+' : '-'}{fmtMoney(movement.amount)}
+            </p>
+          </div>
+          <p className="text-xs text-on-surface-variant">
+            Se registrará un movimiento contrario por el mismo monto para cancelar su efecto —
+            este movimiento no se borra, queda marcado como revertido para mantener el historial.
+          </p>
+          {error && <p className="text-sm text-error bg-error/10 rounded-xl px-3 py-2">{error}</p>}
+          <button onClick={handleConfirm} disabled={saving}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-error text-on-error active:scale-[0.98] transition-transform disabled:opacity-40">
+            {saving ? 'Revirtiendo…' : 'Sí, revertir'}
+          </button>
+          <button onClick={onClose} disabled={saving} className="text-xs text-on-surface-variant">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ── Fila de movimiento individual ───────────────────────── */
+function MovementRow({ m, last, showBranch, canEdit, canRevert, onEdit, onRevert }: {
+  m: Movement;
+  last: boolean;
+  showBranch: boolean;
+  canEdit: boolean;
+  canRevert: boolean;
+  onEdit: (m: Movement) => void;
+  onRevert: (m: Movement) => void;
+}) {
+  return (
+    <div className={`flex items-start gap-3 px-4 py-3 ${last ? '' : 'border-b border-outline-variant'} ${m.is_reversed ? 'opacity-50' : ''}`}>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-on-surface truncate">
-          {m.client_name ?? m.concept}
-        </p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-sm font-medium text-on-surface truncate">
+            {m.client_name ?? m.concept}
+          </p>
+          {m.is_reversed && (
+            <span className="text-[10px] font-semibold text-on-surface-variant bg-outline-variant/40 rounded-full px-1.5 py-0.5 shrink-0">
+              Revertido
+            </span>
+          )}
+          {!!m.reversal_of_movement_id && (
+            <span className="text-[10px] font-semibold text-error bg-error/10 rounded-full px-1.5 py-0.5 shrink-0">
+              Reversión
+            </span>
+          )}
+        </div>
         <p className="text-xs text-on-surface-variant">
           {m.account ?? '—'}{' · '}{fmtDateTime(m.created_at)}
           {showBranch && ' · '}
@@ -120,6 +277,20 @@ function MovementRow({ m, last, showBranch }: { m: Movement; last: boolean; show
         <p className="text-[10px] text-on-surface-variant/60 truncate">
           Registró: {m.created_by ?? 'Sin registrar'}
         </p>
+        {(canEdit || canRevert) && (
+          <div className="flex gap-3 mt-1">
+            {canEdit && (
+              <button onClick={() => onEdit(m)} className="text-[11px] text-primary font-medium">
+                Editar
+              </button>
+            )}
+            {canRevert && (
+              <button onClick={() => onRevert(m)} className="text-[11px] text-error font-medium">
+                Revertir
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <p className={`text-sm font-semibold shrink-0 ${m.direction === 'entrada' ? 'text-primary' : 'text-error'}`}>
         {m.direction === 'entrada' ? '+' : '-'}{fmtMoney(m.amount)}
@@ -153,7 +324,15 @@ function GroupHeader({ type, items, color }: {
 }
 
 /* ── Vista balance + detalle ─────────────────────────────── */
-function BalanceDetailView({ movements, totals, showBranch }: { movements: Movement[]; totals: Totals; showBranch: boolean }) {
+function BalanceDetailView({ movements, totals, showBranch, canEditCaja, canRevertCaja, onEdit, onRevert }: {
+  movements: Movement[];
+  totals: Totals;
+  showBranch: boolean;
+  canEditCaja: boolean;
+  canRevertCaja: boolean;
+  onEdit: (m: Movement) => void;
+  onRevert: (m: Movement) => void;
+}) {
   const neto = totals.total_entradas - totals.total_salidas;
 
   const entradaGroups = TYPE_ORDER
@@ -195,7 +374,16 @@ function BalanceDetailView({ movements, totals, showBranch }: { movements: Movem
             <React.Fragment key={type}>
               <GroupHeader type={type} items={items} color="primary" />
               {items.map((m, i) => (
-                <MovementRow key={m.id} m={m} last={i === items.length - 1} showBranch={showBranch} />
+                <MovementRow
+                  key={m.id}
+                  m={m}
+                  last={i === items.length - 1}
+                  showBranch={showBranch}
+                  canEdit={canEditCaja && EDITABLE_TYPES.has(m.type)}
+                  canRevert={canRevertCaja && EDITABLE_TYPES.has(m.type) && !m.is_reversed && !m.reversal_of_movement_id}
+                  onEdit={onEdit}
+                  onRevert={onRevert}
+                />
               ))}
             </React.Fragment>
           ))}
@@ -213,7 +401,16 @@ function BalanceDetailView({ movements, totals, showBranch }: { movements: Movem
             <React.Fragment key={type}>
               <GroupHeader type={type} items={items} color="error" />
               {items.map((m, i) => (
-                <MovementRow key={m.id} m={m} last={i === items.length - 1} showBranch={showBranch} />
+                <MovementRow
+                  key={m.id}
+                  m={m}
+                  last={i === items.length - 1}
+                  showBranch={showBranch}
+                  canEdit={canEditCaja && EDITABLE_TYPES.has(m.type)}
+                  canRevert={canRevertCaja && EDITABLE_TYPES.has(m.type) && !m.is_reversed && !m.reversal_of_movement_id}
+                  onEdit={onEdit}
+                  onRevert={onRevert}
+                />
               ))}
             </React.Fragment>
           ))}
@@ -247,6 +444,8 @@ export function MobCajaMovimientos() {
   const [result,     setResult]     = useState<ApiResult | null>(null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState<string | null>(null);
+  const [editingMovement,   setEditingMovement]   = useState<Movement | null>(null);
+  const [revertingMovement, setRevertingMovement] = useState<Movement | null>(null);
 
   const applyPreset = (p: Preset) => {
     setPreset(p);
@@ -276,7 +475,7 @@ export function MobCajaMovimientos() {
       if (typeFilter)  params.set('type', typeFilter);
       if (branchId !== '') params.set('branch_id', String(branchId));
       const res = await fetch(`/api/cash/movements?${params}`);
-      if (res.status === 403) { setError('Sin check-in activo en ninguna sucursal.'); return; }
+      if (res.status === 422) { setError('No tienes una sucursal asignada — pídele a un administrador que te la asigne.'); return; }
       if (!res.ok)            { setError('Error al cargar movimientos.'); return; }
       setResult(await res.json());
     } catch {
@@ -385,9 +584,29 @@ export function MobCajaMovimientos() {
             movements={result.movements}
             totals={result.totals}
             showBranch={result.branch_filter.can_select_branch && branchId === ''}
+            canEditCaja={!!user?.can_edit_caja_movement}
+            canRevertCaja={!!user?.can_revert_caja_movement}
+            onEdit={setEditingMovement}
+            onRevert={setRevertingMovement}
           />
         )}
       </div>
+
+      {editingMovement && (
+        <EditMovementSheet
+          movement={editingMovement}
+          onClose={() => setEditingMovement(null)}
+          onSaved={() => { setEditingMovement(null); fetchMovements(); }}
+        />
+      )}
+
+      {revertingMovement && (
+        <RevertMovementSheet
+          movement={revertingMovement}
+          onClose={() => setRevertingMovement(null)}
+          onReverted={() => { setRevertingMovement(null); fetchMovements(); }}
+        />
+      )}
     </div>
   );
 }

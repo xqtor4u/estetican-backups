@@ -143,13 +143,45 @@
                             </div>
                     </div>
 
-                    <div class="mb-0">
+                    <div class="mb-4">
                         <label for="is_active" class="form-label small fw-bold">Estado del Empleado</label>
                         <select class="form-select" id="is_active" name="is_active">
                             <option value="1" @selected(old('is_active', true))>Empleado Activo</option>
                             <option value="0" @selected(old('is_active') === '0')>Inactivo</option>
                         </select>
                     </div>
+
+                    <div class="mb-0">
+                        <label for="branch_id" class="form-label small fw-bold">Sucursal asignada</label>
+                        <select class="form-select" id="branch_id" name="branch_id">
+                            <option value="">Sin asignar</option>
+                            @foreach($branches as $branch)
+                                <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id)>
+                                    {{ $branch->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted d-block mt-2 lh-sm">Dato organizacional — de qué sucursal es este usuario. No tiene relación con el check-in del día a día; es lo que usa Caja para saber qué sucursal puede operar.</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <h4 class="h6 mb-4 text-uppercase letter-space border-bottom pb-2">Caja</h4>
+                    <div class="row g-2 mb-2">
+                        @foreach($cajaPermissions as $permName => $permLabel)
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="perm_{{ str_replace('.', '_', $permName) }}"
+                                           name="permissions[]" value="{{ $permName }}"
+                                           @checked(is_array(old('permissions')) && in_array($permName, old('permissions')))>
+                                    <label class="form-check-label small" for="perm_{{ str_replace('.', '_', $permName) }}">{{ $permLabel }}</label>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <small class="text-muted d-block">Los administradores tienen todos estos permisos por defecto mediante su rol, sin importar estos checkboxes.</small>
                 </div>
             </div>
 

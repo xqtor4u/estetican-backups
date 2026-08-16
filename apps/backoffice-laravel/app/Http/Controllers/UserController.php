@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Operator;
 use App\Models\OperatorRole;
 use App\Models\User;
@@ -23,6 +24,21 @@ class UserController extends Controller
         'ver disponibilidad_propia',
         'crear disponibilidad_propia',
         'eliminar disponibilidad_propia',
+    ];
+
+    /**
+     * Permisos granulares de Caja (SYNC-024) — antes de esto no había forma de otorgarle
+     * ninguno a un usuario no-admin desde esta pantalla (ni siquiera los que ya existían,
+     * `caja.abrir`/`caja.cerrar`); ahora que Caja depende de estos en vez del check-in, hace
+     * falta poder asignarlos de verdad, junto con la sucursal.
+     */
+    private const CAJA_PERMISSIONS = [
+        'caja.ver' => 'Ver caja y reportes',
+        'caja.abrir' => 'Abrir turno',
+        'caja.cerrar' => 'Cerrar turno',
+        'caja.movimientos.crear' => 'Registrar movimientos',
+        'caja.movimientos.editar' => 'Editar movimientos (concepto/notas)',
+        'caja.movimientos.revertir' => 'Revertir movimientos',
     ];
 
     protected UserPhotoImageManager $imageManager;
@@ -77,7 +93,10 @@ class UserController extends Controller
             'eliminar' => 'Borrar',
         ];
 
-        return view('user.create', compact('operatorRoles', 'modules', 'actions'));
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $cajaPermissions = self::CAJA_PERMISSIONS;
+
+        return view('user.create', compact('operatorRoles', 'modules', 'actions', 'branches', 'cajaPermissions'));
     }
 
     // Guardar nuevo usuario (Fusión 14-Abr)
@@ -101,6 +120,7 @@ class UserController extends Controller
             'is_operator' => 'required|boolean',
             'operator_code' => 'nullable|string|max:255|unique:users,operator_code',
             'operator_role_id' => 'nullable|exists:operator_roles,id',
+            'branch_id' => 'nullable|exists:branches,id',
             'notes' => 'nullable|string',
             'profile_photo' => 'nullable|image|max:5120',
         ], [
@@ -172,8 +192,10 @@ class UserController extends Controller
 
         $userPermissions = $user->getPermissionNames()->toArray();
         $canManageOwnAvailability = $user->hasPermissionTo('crear disponibilidad_propia');
+        $branches = Branch::orderBy('name')->get(['id', 'name']);
+        $cajaPermissions = self::CAJA_PERMISSIONS;
 
-        return view('user.edit', compact('user', 'operatorRoles', 'modules', 'actions', 'userPermissions', 'canManageOwnAvailability'));
+        return view('user.edit', compact('user', 'operatorRoles', 'modules', 'actions', 'userPermissions', 'canManageOwnAvailability', 'branches', 'cajaPermissions'));
     }
 
     // Actualizar usuario (Fusión 14-Abr)
@@ -201,6 +223,7 @@ class UserController extends Controller
                 Rule::unique('users')->ignore($user->id),
             ],
             'operator_role_id' => 'nullable|exists:operator_roles,id',
+            'branch_id' => 'nullable|exists:branches,id',
             'notes' => 'nullable|string',
             'profile_photo' => 'nullable|image|max:5120',
             'google_personal_email' => 'nullable|email|max:255',

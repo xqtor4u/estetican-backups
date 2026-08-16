@@ -202,6 +202,36 @@
                         <small class="text-muted d-block mt-2 lh-sm">Los empleados inactivos no aparecen en selectores de agenda ni listas operativas.</small>
                     </div>
 
+                    <div class="mb-4">
+                        <label for="branch_id" class="form-label small fw-bold">Sucursal asignada</label>
+                        <select class="form-select" id="branch_id" name="branch_id">
+                            <option value="">Sin asignar</option>
+                            @foreach($branches as $branch)
+                                <option value="{{ $branch->id }}" @selected(old('branch_id', $user->branch_id) == $branch->id)>
+                                    {{ $branch->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted d-block mt-2 lh-sm">Dato organizacional — de qué sucursal es este usuario. No tiene relación con el check-in del día a día; es lo que usa Caja para saber qué sucursal puede operar (un super-admin puede operar cualquiera sin necesitar esto).</small>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="h6 mb-3 text-uppercase letter-space">Caja</h5>
+                    <div class="row g-2 mb-2">
+                        @foreach($cajaPermissions as $permName => $permLabel)
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="perm_{{ str_replace('.', '_', $permName) }}"
+                                           name="permissions[]" value="{{ $permName }}"
+                                           @checked(in_array($permName, $userPermissions))>
+                                    <label class="form-check-label small" for="perm_{{ str_replace('.', '_', $permName) }}">{{ $permLabel }}</label>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <small class="text-muted d-block mb-4">Los administradores tienen todos estos permisos por defecto mediante su rol, sin importar estos checkboxes.</small>
+
                     <hr class="my-4">
 
                     <h5 class="h6 mb-3 text-uppercase letter-space">Matriz de Permisos (CRUD)</h5>
