@@ -28,3 +28,17 @@ export function consumeCitaPresetDate(): string | null {
   _citaPresetDate = null;
   return d;
 }
+
+/**
+ * Operador "en tránsito" del mismo flujo — si Agenda tenía un filtro de operador activo
+ * (o GroomerAgenda, que YA está viendo la agenda de un operador puntual), no tiene sentido
+ * volver a preguntarlo en el formulario. Mismo patrón one-shot que la fecha.
+ */
+let _citaPresetOperator: number | null = null;
+
+export function setCitaPresetOperator(operatorId: number | null) { _citaPresetOperator = operatorId; }
+export function consumeCitaPresetOperator(): number | null {
+  const o = _citaPresetOperator;
+  _citaPresetOperator = null;
+  return o;
+}

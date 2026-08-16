@@ -131,6 +131,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
                 'status' => $b->status,
                 'order_folio' => $b->order_folio,
                 'descripcion' => $b->services->map(fn ($s) => $s->service?->name ?? '—')->filter()->join(' · ') ?: '—',
+                'service_ids' => $b->services->pluck('service_id')->values(),
                 'total' => (float) ($b->total_estimated_price ?? $b->services->sum('current_price')),
             ]);
 

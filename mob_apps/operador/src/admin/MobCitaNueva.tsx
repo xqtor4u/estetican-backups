@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { consumeCitaPresetDate, getNavCrumbs, setNavCrumbs } from '../navState';
+import { consumeCitaPresetDate, consumeCitaPresetOperator, getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { useAuth } from '../AuthContext';
 import { ScreenHeader } from '../ScreenHeader';
@@ -81,6 +81,7 @@ export function MobCitaNueva() {
   /* Estado principal */
   const [pet,       setPet]       = useState<PetMin | null>(null);
   const [services,  setServices]  = useState<Service[]>([]);
+  const [petBookingHistory, setPetBookingHistory] = useState<Array<{ model_type: string; status: string; service_ids?: number[] }>>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
   const [selDate,   setSelDate]   = useState<Date>(() => {
     // Si venimos de Agenda con una fecha ya elegida (flujo + Cita), arrancar ahí en vez
@@ -100,7 +101,11 @@ export function MobCitaNueva() {
   const [selSlot,      setSelSlot]      = useState<string | null>(null);
   const [selSvcs,      setSelSvcs]      = useState<number[]>([]);
   const [svcPrices,    setSvcPrices]    = useState<Record<number, number>>({});
-  const [selOp,        setSelOp]        = useState<number | null>(null);
+  // Si venimos de Agenda con un operador ya filtrado (o de GroomerAgenda, viendo la agenda
+  // de un operador puntual), arrancar con ese operador elegido — el efecto de abajo
+  // (auto-elegirse a sí mismo si el usuario logueado es operador) ya respeta esto, solo
+  // corre si selOp sigue en null.
+  const [selOp,        setSelOp]        = useState<number | null>(() => consumeCitaPresetOperator());
   const [customDur,    setCustomDur]    = useState<number | null>(null); // null = usar catálogo
   const [notes,        setNotes]        = useState('');
 
@@ -128,6 +133,10 @@ export function MobCitaNueva() {
       .catch(() => {});
     fetch('/api/services').then(r => r.json()).then(setServices).catch(() => {});
     fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
+    fetch(`/api/pets/${id}/bookings`)
+      .then(r => r.json())
+      .then(setPetBookingHistory)
+      .catch(() => {});
     fetch('/api/settings/booking')
       .then(r => r.json())
       .then((d: { opening_time?: string; closing_time?: string }) => {
@@ -146,6 +155,29 @@ export function MobCitaNueva() {
       setSelOp(user.operator_id);
     }
   }, [operators, user, selOp]);
+
+  /* Sugerir (preseleccionar) el servicio más frecuente del historial de esta mascota — si
+     ya se bañó 3 veces con "Baño chico", lo más probable es que hoy sea lo mismo. Espera a
+     que el catálogo de servicios ya haya cargado, para no sugerir un id que no exista más
+     (servicio desactivado desde entonces) — en ese caso services.some(...) filtra el conteo. */
+  useEffect(() => {
+    if (selSvcs.length > 0 || services.length === 0 || petBookingHistory.length === 0) return;
+    const activeIds = new Set(services.map(s => s.id));
+    const counts = new Map<number, number>();
+    for (const b of petBookingHistory) {
+      if (b.model_type !== 'spa' || b.status === 'cancelled' || b.status === 'no_show') continue;
+      for (const svcId of b.service_ids ?? []) {
+        if (activeIds.has(svcId)) counts.set(svcId, (counts.get(svcId) ?? 0) + 1);
+      }
+    }
+    if (counts.size === 0) return;
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const [topId, topCount] = sorted[0];
+    // Solo si hay un ganador claro (no empatado con el segundo) — un empate no es
+    // "frecuente", es indistinto, mejor dejar que el operador elija.
+    if (sorted.length > 1 && sorted[1][1] === topCount) return;
+    toggleSvc(topId);
+  }, [services, petBookingHistory, selSvcs.length]);
 
   const ALL_SLOTS = useMemo(
     () => buildSlots(businessHours.start, businessHours.end),

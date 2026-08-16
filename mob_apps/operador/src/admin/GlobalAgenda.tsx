@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { clearNavCrumbs, setCitaPresetDate, setNavCrumbs } from '../navState';
+import { clearNavCrumbs, setCitaPresetDate, setCitaPresetOperator, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
   CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap, expandDateRange,
@@ -21,7 +21,7 @@ interface Booking  {
   notes: string | null;
   total: number | null;
   pet: { id: number; name: string; species: string | null; breed: string | null; photo: string | null };
-  client: { id: number; name: string } | null;
+  client: { id: number; name: string; phone: string | null } | null;
   services: { id: number | null; name: string; type: string | null }[];
   operators: { id: number; name: string; photo_url: string | null }[];
 }
@@ -97,12 +97,20 @@ export function GlobalAgenda() {
   const [vencidas,          setVencidas]          = useState<Vencida[]>([]);
   const [showVencidasModal, setShowVencidasModal]  = useState(false);
   const [showAddMenu,       setShowAddMenu]        = useState(false);
+  const [graceMinutes,      setGraceMinutes]        = useState(15);
+  const [startingCitaId,    setStartingCitaId]      = useState<number | null>(null);
 
-  // Carga inicial: operadores, sucursales y citas vencidas
+  // Carga inicial: operadores, sucursales, citas vencidas y minutos de gracia (para saber
+  // si el botón rápido "Iniciar" de la tarjeta aplica, o si hay que ir al detalle porque
+  // está fuera de la ventana y hace falta el diálogo de confirmación completo).
   useEffect(() => {
     fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
     fetch('/api/branches').then(r => r.json()).then(setBranches).catch(() => {});
     fetch('/api/agenda/vencidas').then(r => r.ok ? r.json() : []).then(setVencidas).catch(() => {});
+    fetch('/api/settings/booking')
+      .then(r => r.json())
+      .then((d: { grace_minutes?: number }) => { if (d.grace_minutes != null) setGraceMinutes(d.grace_minutes); })
+      .catch(() => {});
   }, []);
 
   // Carga de agenda al cambiar fecha o vista (día/semana/mes)
@@ -205,16 +213,86 @@ export function GlobalAgenda() {
               </span>
             )}
           </div>
+
+          {/* Acciones directas — evitan entrar al detalle para lo más común del día a día */}
+          {(() => {
+            const scheduledAt = new Date(`${b.date}T${b.time}:00`);
+            const diffMin = Math.abs((Date.now() - scheduledAt.getTime()) / 60000);
+            const withinGrace = diffMin <= graceMinutes;
+            const showIniciar = b.status === 'scheduled' && withinGrace;
+            const showCobrar = b.status === 'work_order';
+            const waHref = b.client?.phone ? `https://wa.me/${b.client.phone.replace(/\D/g, '')}` : null;
+            if (!showIniciar && !showCobrar && !waHref) return null;
+            return (
+              <div className="flex items-center gap-2 mt-2">
+                {showIniciar && (
+                  <button
+                    disabled={startingCitaId === b.id}
+                    onClick={e => { e.stopPropagation(); startCita(b.id); }}
+                    className="min-h-11 flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/30 px-3 rounded-full text-xs font-semibold active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-base">
+                      {startingCitaId === b.id ? 'progress_activity' : 'play_arrow'}
+                    </span>
+                    Iniciar
+                  </button>
+                )}
+                {showCobrar && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate(`/citas/${b.id}/cobro`); }}
+                    className="min-h-11 flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/30 px-3 rounded-full text-xs font-semibold active:scale-95 transition-transform"
+                  >
+                    <span className="material-symbols-outlined text-base">point_of_sale</span>
+                    Cobrar
+                  </button>
+                )}
+                {waHref && (
+                  <a
+                    href={waHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="min-h-11 min-w-11 flex items-center justify-center bg-green-100 text-green-700 rounded-full active:scale-95 transition-transform"
+                    aria-label="WhatsApp"
+                  >
+                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
+                  </a>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
   );
   };
 
+  // Acción rápida "Iniciar" desde la tarjeta — mismo PATCH que ya hace MobCitaDet para
+  // scheduled → work_order, pero solo se ofrece acá cuando la cita está dentro de la
+  // ventana de gracia (igual que el detalle): fuera de esa ventana, el detalle completo
+  // tiene el diálogo de confirmación ("¿seguro? faltan/pasaron X minutos") que no
+  // conviene duplicar en el espacio chico de una tarjeta.
+  const startCita = async (bookingId: number) => {
+    setStartingCitaId(bookingId);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'work_order' }),
+      });
+      if (res.ok) loadAgenda(selectedDate, calView);
+    } finally {
+      setStartingCitaId(null);
+    }
+  };
+
   const startNewCita = () => {
     setShowAddMenu(false);
     setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
     setCitaPresetDate(toDateStr(selectedDate));
+    // Si Agenda ya tiene un operador filtrado (no "Todos"), preseleccionarlo en el
+    // formulario — el sistema ya sabe la respuesta, no hace falta repreguntarla.
+    setCitaPresetOperator(filterOp);
     navigate('/mascotas');
   };
 
