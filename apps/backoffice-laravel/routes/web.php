@@ -21,6 +21,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Finances\AccountController;
 use App\Http\Controllers\Finances\CashMovementController;
 use App\Http\Controllers\Finances\CashRegisterController;
+use App\Http\Controllers\Finances\CashReportController;
 use App\Http\Controllers\Finances\CashSessionController;
 use App\Http\Controllers\Finances\DocumentController;
 use App\Http\Controllers\Finances\DocumentSeriesController;
@@ -257,6 +258,24 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
             Route::post('cash-sessions/{cashSession}/close', [CashSessionController::class, 'doClose'])->name('cash-sessions.do-close');
             Route::post('cash-sessions/{cashSession}/movements', [CashMovementController::class, 'store'])->name('cash-sessions.movements.store');
             Route::delete('cash-sessions/{cashSession}/movements/{cashMovement}', [CashMovementController::class, 'destroy'])->name('cash-sessions.movements.destroy');
+
+            Route::prefix('cash-reports')->name('cash-reports.')->group(function () {
+                Route::get('resumen', [CashReportController::class, 'resumen'])->name('resumen');
+                Route::get('resumen/pdf', [CashReportController::class, 'resumenPdf'])->name('resumen.pdf');
+                Route::post('resumen/email', [CashReportController::class, 'resumenEmail'])->name('resumen.email');
+                Route::get('metodos-pago', [CashReportController::class, 'metodosPago'])->name('metodos-pago');
+                Route::get('metodos-pago/pdf', [CashReportController::class, 'metodosPagoPdf'])->name('metodos-pago.pdf');
+                Route::post('metodos-pago/email', [CashReportController::class, 'metodosPagoEmail'])->name('metodos-pago.email');
+                Route::get('por-operador', [CashReportController::class, 'porOperador'])->name('por-operador');
+                Route::get('por-operador/pdf', [CashReportController::class, 'porOperadorPdf'])->name('por-operador.pdf');
+                Route::post('por-operador/email', [CashReportController::class, 'porOperadorEmail'])->name('por-operador.email');
+                Route::get('pendientes', [CashReportController::class, 'pendientes'])->name('pendientes');
+                Route::get('pendientes/pdf', [CashReportController::class, 'pendientesPdf'])->name('pendientes.pdf');
+                Route::post('pendientes/email', [CashReportController::class, 'pendientesEmail'])->name('pendientes.email');
+                Route::get('cierres', [CashReportController::class, 'cierres'])->name('cierres');
+                Route::get('cierres/pdf', [CashReportController::class, 'cierresPdf'])->name('cierres.pdf');
+                Route::post('cierres/email', [CashReportController::class, 'cierresEmail'])->name('cierres.email');
+            });
         });
     });
 

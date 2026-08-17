@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
+use App\Domain\Accounting\Contracts\CashReportServiceInterface;
 use App\Domain\Accounting\Contracts\CashSessionExpectedAmountServiceInterface;
 use App\Domain\Accounting\Services\AccountingService;
+use App\Domain\Accounting\Services\CashReportService;
 use App\Domain\Accounting\Services\CashSessionExpectedAmountService;
 use App\Domain\Catalog\Contracts\ServiceCatalogRepositoryInterface;
 use App\Domain\Catalog\Contracts\ServiceCatalogServiceInterface;
@@ -48,6 +50,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(QuoteServiceInterface::class, QuoteService::class);
         $this->app->bind(AccountingServiceInterface::class, AccountingService::class);
         $this->app->bind(CashSessionExpectedAmountServiceInterface::class, CashSessionExpectedAmountService::class);
+        $this->app->bind(CashReportServiceInterface::class, CashReportService::class);
         $this->app->bind(ServiceCatalogRepositoryInterface::class, ServiceCatalogRepository::class);
         $this->app->bind(ServiceCatalogServiceInterface::class, ServiceCatalogService::class);
         $this->app->bind(ClinicalVisitServiceInterface::class, ClinicalVisitService::class);

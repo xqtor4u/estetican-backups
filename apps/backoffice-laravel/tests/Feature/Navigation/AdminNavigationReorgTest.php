@@ -72,9 +72,36 @@ class AdminNavigationReorgTest extends TestCase
 
         $reportes = $this->groupByLabel('Reportes');
         $this->assertNotNull($reportes);
-        $this->assertTrue(collect($reportes['items'])->pluck('label')->contains('Bitácora de actividad'));
+
+        $general = collect($reportes['subgroups'])->firstWhere('label', 'General');
+        $this->assertNotNull($general);
+        $this->assertTrue(collect($general['items'])->pluck('label')->contains('Bitácora de actividad'));
 
         $catalogos = $this->groupByLabel('Catálogos');
         $this->assertFalse(collect($catalogos['items'] ?? [])->pluck('label')->contains('Bitácora de actividad'));
+    }
+
+    /**
+     * 16/08/2026: "Reportes" pasó de grupo plano a subgrupos (mismo patrón que "Operaciones del
+     * negocio") para poder sumar los 5 reportes de Caja sin mezclarlos con Bitácora de actividad
+     * — a pedido del usuario, aplicando el mismo principio de "un solo lugar por subcategorías".
+     */
+    public function test_reportes_has_a_caja_subgroup_with_the_five_cash_reports(): void
+    {
+        $user = $this->superAdmin();
+        $this->actingAs($user);
+
+        $reportes = $this->groupByLabel('Reportes');
+        $this->assertNotNull($reportes);
+
+        $caja = collect($reportes['subgroups'])->firstWhere('label', 'Caja');
+        $this->assertNotNull($caja);
+
+        $labels = collect($caja['items'])->pluck('label');
+        $this->assertTrue($labels->contains('Resumen de caja'));
+        $this->assertTrue($labels->contains('Métodos de pago'));
+        $this->assertTrue($labels->contains('Por operador'));
+        $this->assertTrue($labels->contains('Pendientes por cobrar'));
+        $this->assertTrue($labels->contains('Cierre de turno'));
     }
 }
