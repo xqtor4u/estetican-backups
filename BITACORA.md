@@ -1,5 +1,25 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 16/08/2026 (cont. 2) — `SYNC-027` portado desde Zeus-Estetican: versión web de los 5 reportes de Caja, "Reportes" reestructurado a subgrupos
+
+### ✅ Logros y Cambios
+
+Sesión de porteo puro, mismo criterio que las anteriores. Detalle técnico completo en
+`docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus-Estetican (`SYNC-027`, Aplicados).
+
+**Resumen:** la pestaña "Reportes" (antes solo Bitácora de actividad) pasa a subgrupos
+General/Caja — los 5 reportes de Caja que ya existían en el celular (`SYNC-026`) ahora también
+tienen versión web, reusando la misma agregación (`CashReportService`, extraído de
+`Api\CashController` en este porteo — mismo principio que `CashSessionExpectedAmountService`).
+
+**Verificado en vivo contra producción real:** login con usuario desechable, dropdown "Reportes"
+con los subgrupos correctos, reporte "Resumen de caja" con datos reales de producción
+($6,950.00), descarga de PDF válida. 51 tests de Caja sin regresiones.
+
+Commit: `a117f2a`.
+
+---
+
 ## 📅 Cierre de sesión: 16/08/2026 (cont.) — `SYNC-026` portado desde Zeus-Estetican: hub Finanzas móvil + 5 reportes de Caja (PDF/email) + fix de saldo esperado
 
 ### ✅ Logros y Cambios
