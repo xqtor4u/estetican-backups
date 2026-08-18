@@ -1,5 +1,42 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 17/08/2026 — `SYNC-029` portado desde Zeus-Estetican: cambiar foto de mascota con "mantener presionado" en buscador y ficha (app móvil)
+
+### ✅ Logros y Cambios
+
+Pedido directo del usuario en esta misma sesión: en `MobPetSrch`, mantener presionada la foto de
+una mascota debía ofrecer elegir otra desde cámara/galería, con opción de cancelar — "igual en la
+ficha de la mascota". Es una mejora de UX, no una emergencia — señalado antes de construir; el
+usuario confirmó construirlo en `tst` (Zeus-Estetican) y portarlo después, según la regla de
+alcance del repo.
+
+**Construido y verificado en `tst` (detalle completo en `docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md`
+de Zeus-Estetican, `SYNC-029`):** menú nuevo (`PhotoSourceSheet.tsx`, Tomar foto/Elegir de
+galería/Cancelar) que reusa la misma estructura de overlay ya probada en producción
+(`fixed inset-0 z-50`, igual que `PhotoEditorModal`) — evita repetir el fallo real de un overlay
+similar en un dispositivo Android (ver sesión 06/08/2026). `usePhotoPicker` se extrajo de
+`PetDetail.tsx` a un hook compartido para reusarlo también en `PetSearch.tsx`. En la ficha
+complementa, no reemplaza, los botones de cámara/galería ya existentes. **El usuario probó el
+gesto en su teléfono real contra `tstmov.estetican.org` y confirmó que funciona bien** antes de
+autorizar el porteo.
+
+**Portado a este repo:** confirmado primero que `PetSearch.tsx`/`PetDetail.tsx` de producción no
+tenían divergencia propia respecto al baseline de `tst` (`diff` limpio salvo el cambio de esta
+feature). Copiados 5 archivos (2 modificados + 3 nuevos): `mob_apps/operador/src/PhotoSourceSheet.tsx`,
+`mob_apps/operador/src/hooks/{usePhotoPicker.tsx,useLongPress.ts}`,
+`mob_apps/operador/src/admin/{PetSearch.tsx,PetDetail.tsx}`. `tsc --noEmit` limpio (mismos 2
+errores preexistentes de `MobCajaMovimientos.tsx`, no tocados, confirmados sin relación). Build
+de producción (`npm run build` vía `node:20-alpine`) limpio, contenedor `estetican_mob`
+reiniciado, `md5sum` idéntico host/contenedor confirmado. Sin cambios de backend (reusa
+`POST /api/pets/{id}/photo` existente) — no aplica correr la suite PHP.
+
+Commit: `8ba961b`.
+
+### 🛑 Pendientes activos
+- Ninguno — feature completa, verificada en dispositivo real y en producción.
+
+---
+
 ## 📅 Cierre de sesión: 16/08/2026 (cont. 2) — `SYNC-027` portado desde Zeus-Estetican: versión web de los 5 reportes de Caja, "Reportes" reestructurado a subgrupos
 
 ### ✅ Logros y Cambios
