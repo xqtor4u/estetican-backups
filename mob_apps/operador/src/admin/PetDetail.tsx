@@ -1,9 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
 import { PhotoEditorModal } from '../PhotoEditorModal';
+import { PhotoSourceSheet } from '../PhotoSourceSheet';
+import { usePhotoPicker } from '../hooks/usePhotoPicker';
+import { createLongPressHandlers } from '../hooks/useLongPress';
 
 interface Owner { id: number; name: string; phone: string | null }
 interface Alert { id: number; description: string }
@@ -87,37 +90,6 @@ function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: bool
 }
 
 /* ── Chip de vista ──────────────────────────────────────── */
-/**
- * Un solo <input type="file" accept="image/*"> sin `capture` debería dejar elegir entre
- * cámara y galería en el selector nativo — pero en la práctica varios navegadores/WebView
- * de Android solo ofrecen la galería ahí. `capture="environment"` fuerza la cámara directo,
- * así que hacen falta dos inputs separados, cada uno con su propio disparador visible
- * (sin overlay/hoja intermedia — ese patrón se probó y falló en un dispositivo real).
- */
-function usePhotoPicker(onPick: (file: File) => void) {
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (f) onPick(f);
-  };
-
-  const inputs = (
-    <>
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleChange} />
-      <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
-    </>
-  );
-
-  return {
-    inputs,
-    openCamera: () => cameraRef.current?.click(),
-    openGallery: () => galleryRef.current?.click(),
-  };
-}
-
 function Chip({ icon, label, highlight }: { icon: string; label: string; highlight?: boolean }) {
   return (
     <span className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium ${
@@ -375,6 +347,7 @@ export function PetDetail() {
   const { inputs: photoInputs, openCamera: openPhotoCamera, openGallery: openPhotoGallery } = usePhotoPicker(setEditingPhotoFile);
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [showPhotoMenu, setShowPhotoMenu] = useState(false);
 
   const set = (key: keyof EditState) => (val: string | boolean) =>
     setEdits(d => d ? { ...d, [key]: val } : d);
@@ -529,11 +502,20 @@ export function PetDetail() {
           <>
             {/* Foto + nombre */}
             <div className="flex items-center gap-4">
-              <div className="w-24 h-24 rounded-2xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0 shadow">
+              <div
+                {...createLongPressHandlers(() => setShowPhotoMenu(true))}
+                className="w-24 h-24 rounded-2xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0 shadow select-none relative"
+                style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
+              >
                 {pet.photo
-                  ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover" />
-                  : <span className="material-symbols-outlined text-5xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
+                  ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
+                  : <span className="material-symbols-outlined text-5xl text-primary pointer-events-none" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
                 }
+                {photoUploading && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-white text-xl animate-spin">progress_activity</span>
+                  </div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-2xl font-bold text-on-surface">{pet.name}</h2>
@@ -729,6 +711,15 @@ export function PetDetail() {
       </div>
 
       {photoInputs}
+
+      {showPhotoMenu && (
+        <PhotoSourceSheet
+          title={`Foto de ${pet.name}`}
+          onPickCamera={() => { setShowPhotoMenu(false); openPhotoCamera(); }}
+          onPickGallery={() => { setShowPhotoMenu(false); openPhotoGallery(); }}
+          onClose={() => setShowPhotoMenu(false)}
+        />
+      )}
 
       {editingPhotoFile && (
         <PhotoEditorModal

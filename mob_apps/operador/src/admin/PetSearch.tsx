@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { peekCitaPresetDate, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
+import { PhotoEditorModal } from '../PhotoEditorModal';
+import { PhotoSourceSheet } from '../PhotoSourceSheet';
+import { usePhotoPicker } from '../hooks/usePhotoPicker';
+import { createLongPressHandlers } from '../hooks/useLongPress';
 
 interface Pet {
   id: number;
@@ -12,12 +16,67 @@ interface Pet {
   next_visit: string | null;
 }
 
+function PetPhotoThumb({ pet, size, uploading, onLongPress }: { pet: Pet; size: 'sm' | 'lg'; uploading: boolean; onLongPress: () => void }) {
+  const dims = size === 'lg' ? 'w-14 h-14' : 'w-8 h-8';
+  const iconSize = size === 'lg' ? 'text-3xl' : 'text-base';
+  return (
+    <div
+      {...createLongPressHandlers(onLongPress)}
+      className={`${dims} rounded-full bg-primary/10 overflow-hidden flex items-center justify-center shrink-0 select-none relative`}
+      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
+    >
+      {pet.photo
+        ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
+        : <span className={`material-symbols-outlined ${iconSize} text-primary pointer-events-none`} style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
+      }
+      {uploading && (
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+          <span className="material-symbols-outlined text-white text-sm animate-spin">progress_activity</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PetSearch() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [view, setView] = useState<'table' | 'cards'>('cards');
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
+
+  /* ── Cambiar foto desde la lista (long-press) ──────────── */
+  const [menuPetId, setMenuPetId] = useState<number | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<{ file: File; pet: Pet } | null>(null);
+  const [uploadingId, setUploadingId] = useState<number | null>(null);
+  const [watermarkEnabled, setWatermarkEnabled] = useState(false);
+  const activePetRef = useRef<Pet | null>(null);
+
+  const { inputs: photoInputs, openCamera: openPhotoCamera, openGallery: openPhotoGallery } = usePhotoPicker(file => {
+    if (activePetRef.current) setEditingPhoto({ file, pet: activePetRef.current });
+  });
+
+  useEffect(() => {
+    fetch('/api/settings/photos')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setWatermarkEnabled(!!data.watermark_enabled); })
+      .catch(() => {});
+  }, []);
+
+  const openPhotoMenuFor = (pet: Pet) => setMenuPetId(pet.id);
+
+  const uploadPetPhoto = async (pet: Pet, blob: Blob) => {
+    setUploadingId(pet.id);
+    try {
+      const body = new FormData();
+      body.append('photo', blob, 'photo.jpg');
+      const res = await fetch(`/api/pets/${pet.id}/photo`, { method: 'POST', body, headers: { Accept: 'application/json' } });
+      const data = await res.json();
+      if (res.ok) setPets(ps => ps.map(p => p.id === pet.id ? { ...p, photo: data.photo } : p));
+    } finally {
+      setUploadingId(null);
+    }
+  };
 
   const fetchPets = useCallback(async (search: string) => {
     setLoading(true);
@@ -139,12 +198,7 @@ export function PetSearch() {
                 onClick={() => goToPet(pet.id)}
                 className="bg-surface border border-outline-variant rounded-2xl p-4 flex flex-col items-center gap-2 active:scale-95 transition-transform shadow-sm text-left"
               >
-                <div className="w-14 h-14 rounded-full bg-primary/10 overflow-hidden flex items-center justify-center">
-                  {pet.photo
-                    ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover" />
-                    : <span className="material-symbols-outlined text-3xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
-                  }
-                </div>
+                <PetPhotoThumb pet={pet} size="lg" uploading={uploadingId === pet.id} onLongPress={() => openPhotoMenuFor(pet)} />
                 <div className="w-full text-center">
                   <p className="font-bold text-on-surface text-sm">{pet.name}</p>
                   <p className="text-xs text-on-surface-variant truncate">{pet.owner ?? '—'}</p>
@@ -176,12 +230,7 @@ export function PetSearch() {
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
-                    {pet.photo
-                      ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover" />
-                      : <span className="material-symbols-outlined text-base text-primary">pets</span>
-                    }
-                  </div>
+                  <PetPhotoThumb pet={pet} size="sm" uploading={uploadingId === pet.id} onLongPress={() => openPhotoMenuFor(pet)} />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-on-surface truncate">{pet.name}</p>
                     <p className="text-[10px] text-on-surface-variant/60 truncate">{pet.breed}</p>
@@ -209,6 +258,35 @@ export function PetSearch() {
           </div>
         )}
       </div>
+
+      {photoInputs}
+
+      {menuPetId !== null && (
+        <PhotoSourceSheet
+          title={`Foto de ${pets.find(p => p.id === menuPetId)?.name ?? 'la mascota'}`}
+          onPickCamera={() => {
+            const pet = pets.find(p => p.id === menuPetId);
+            setMenuPetId(null);
+            if (pet) { activePetRef.current = pet; openPhotoCamera(); }
+          }}
+          onPickGallery={() => {
+            const pet = pets.find(p => p.id === menuPetId);
+            setMenuPetId(null);
+            if (pet) { activePetRef.current = pet; openPhotoGallery(); }
+          }}
+          onClose={() => setMenuPetId(null)}
+        />
+      )}
+
+      {editingPhoto && (
+        <PhotoEditorModal
+          file={editingPhoto.file}
+          label={editingPhoto.pet.name}
+          watermarkEnabled={watermarkEnabled}
+          onCancel={() => setEditingPhoto(null)}
+          onConfirm={blob => { const pet = editingPhoto.pet; setEditingPhoto(null); uploadPetPhoto(pet, blob); }}
+        />
+      )}
     </div>
   );
 }
