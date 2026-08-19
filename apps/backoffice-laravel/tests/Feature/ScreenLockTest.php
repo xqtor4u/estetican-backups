@@ -119,6 +119,14 @@ class ScreenLockTest extends TestCase
         $response->assertRedirect(route('dashboard.index'));
     }
 
+    public function test_settings_page_renders_with_never_option(): void
+    {
+        $response = $this->actingAs($this->user())->get(route('user.settings'));
+
+        $response->assertOk();
+        $response->assertSee('Nunca');
+    }
+
     public function test_user_can_update_personal_idle_timeout(): void
     {
         $user = $this->user();
@@ -135,8 +143,29 @@ class ScreenLockTest extends TestCase
         $user = $this->user();
         $other = $this->user();
 
-        $this->actingAs($user)->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 3]);
+        $this->actingAs($user)->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 2]);
 
         $this->assertNull($other->fresh()->screen_lock_idle_minutes);
+    }
+
+    public function test_user_can_set_idle_timeout_to_never(): void
+    {
+        $user = $this->user();
+
+        $response = $this->actingAs($user)
+            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 0]);
+
+        $response->assertRedirect();
+        $this->assertSame(0, $user->fresh()->screen_lock_idle_minutes);
+    }
+
+    public function test_updating_idle_timeout_rejects_values_outside_the_fixed_set(): void
+    {
+        $user = $this->user();
+
+        $response = $this->actingAs($user)
+            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 7]);
+
+        $response->assertSessionHasErrors('screen_lock_idle_minutes');
     }
 }

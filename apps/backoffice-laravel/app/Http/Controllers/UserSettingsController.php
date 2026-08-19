@@ -101,7 +101,7 @@ class UserSettingsController extends Controller
     public function updatePreferences(Request $request)
     {
         $validated = $request->validate([
-            'screen_lock_idle_minutes' => 'required|integer|min:1|max:120',
+            'screen_lock_idle_minutes' => 'required|integer|in:0,1,2,5,10,15,30',
         ]);
 
         Auth::user()->update($validated);
