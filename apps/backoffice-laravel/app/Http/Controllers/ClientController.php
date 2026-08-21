@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Rules\ValidPhoneNumber;
 use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class ClientController extends Controller
             ->select(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'email'])
             ->with([
                 'addresses:id,client_id,type,street,exterior_number,interior_number,colonia,city,state,zip,country',
-                'phones:id,client_id,number,type',
+                'phones:id,client_id,number,extension,type',
                 'pets' => fn ($query) => $query
                     ->select(['id', 'client_id', 'name', 'species', 'breed', 'birth_date', 'death_date', 'microchip_code'])
                     ->whereNull('death_date')
@@ -93,10 +94,14 @@ class ClientController extends Controller
      */
     public function create(SystemSettings $systemSettings)
     {
+        $phoneRule = ValidPhoneNumber::fromSettings($systemSettings);
+
         return view('clients.create', [
             'suggestAreaCode' => $systemSettings->all()['commercial_clients_suggest_area_code'] ?? false,
             'defaultAreaCode' => $systemSettings->all()['commercial_clients_default_area_code'] ?? '',
             'defaultSpecies' => $systemSettings->all()['commercial_pets_default_species'] ?? '',
+            'phoneMinDigits' => $phoneRule->minDigits,
+            'phoneMaxDigits' => $phoneRule->maxDigits,
         ]);
 
     }
@@ -104,7 +109,7 @@ class ClientController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, SystemSettings $systemSettings)
     {
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
@@ -126,8 +131,9 @@ class ClientController extends Controller
             'addresses.*.lat' => 'nullable|numeric|between:-90,90',
             'addresses.*.lng' => 'nullable|numeric|between:-180,180',
             'phones' => 'required|array|min:1',
-            'phones.*.number' => 'required|string',
-            'phones.*.type' => 'required|string',
+            'phones.*.number' => ['required', 'string', ValidPhoneNumber::fromSettings($systemSettings)],
+            'phones.*.extension' => 'nullable|string|max:10|regex:/^\d{1,10}$/',
+            'phones.*.type' => 'required|in:mobile,home,work,other',
             'pets' => 'nullable|array',
             'pets.*.name' => 'required|string|max:255',
             'pets.*.species' => 'nullable|string|max:255',
@@ -167,8 +173,10 @@ class ClientController extends Controller
         }
 
         if ($request->phones) {
+            $order = 0;
             foreach ($request->phones as $phoneData) {
                 $phoneData['client_id'] = $client->id;
+                $phoneData['sort_order'] = $order++;
                 $client->phones()->create($phoneData);
             }
         }
@@ -200,7 +208,7 @@ class ClientController extends Controller
     {
         $client->load([
             'addresses:id,client_id,type,street,exterior_number,interior_number,colonia,city,state,zip,country,lat,lng',
-            'phones:id,client_id,number,type',
+            'phones:id,client_id,number,extension,type',
             'pets' => fn ($query) => $query
                 ->select(['id', 'client_id', 'name', 'species', 'breed', 'birth_date', 'death_date', 'microchip_code'])
                 ->whereNull('death_date')
@@ -223,16 +231,20 @@ class ClientController extends Controller
                 ->with(['primaryPhoto', 'latestPhoto']),
         ]);
 
+        $phoneRule = ValidPhoneNumber::fromSettings($systemSettings);
+
         return view('clients.edit', [
             'client' => $client,
             'defaultSpecies' => $systemSettings->all()['commercial_pets_default_species'] ?? '',
+            'phoneMinDigits' => $phoneRule->minDigits,
+            'phoneMaxDigits' => $phoneRule->maxDigits,
         ]);
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Client $client)
+    public function update(Request $request, Client $client, SystemSettings $systemSettings)
     {
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
@@ -257,8 +269,9 @@ class ClientController extends Controller
             'addresses.*.lat' => 'nullable|numeric|between:-90,90',
             'addresses.*.lng' => 'nullable|numeric|between:-180,180',
             'phones' => 'required|array|min:1',
-            'phones.*.number' => 'required|string',
-            'phones.*.type' => 'required|string',
+            'phones.*.number' => ['required', 'string', ValidPhoneNumber::fromSettings($systemSettings)],
+            'phones.*.extension' => 'nullable|string|max:10|regex:/^\d{1,10}$/',
+            'phones.*.type' => 'required|in:mobile,home,work,other',
             'pets' => 'nullable|array',
             'pets.*.name' => 'required|string|max:255',
             'pets.*.species' => 'nullable|string|max:255',
@@ -306,6 +319,10 @@ class ClientController extends Controller
 
         // Teléfonos
         if ($request->phones) {
+            // El navegador manda los campos en el orden real del DOM (independiente del índice
+            // numérico de phones[N]), así que este contador refleja el orden de importancia
+            // visual — incluido después de reordenar con los botones subir/bajar.
+            $order = 0;
             foreach ($request->phones as $phoneData) {
                 if (! empty($phoneData['delete']) && ! empty($phoneData['id'])) {
                     $client->phones()->where('id', $phoneData['id'])->delete();
@@ -315,6 +332,7 @@ class ClientController extends Controller
 
                 if (empty($phoneData['delete'])) {
                     $phoneData['client_id'] = $client->id;
+                    $phoneData['sort_order'] = $order++;
                     $client->phones()->updateOrCreate(
                         ['id' => $phoneData['id'] ?? null],
                         $phoneData

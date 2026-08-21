@@ -32,7 +32,7 @@
                 <td>
                     @if($primaryPhone)
                         <div class="fw-semibold">{{ $client->email }}</div>
-                        <div class="text-body-secondary small">{{ $primaryPhone->number }} · {{ match($primaryPhone->type) { 'mobile' => 'Móvil', 'fixed' => 'Fijo', default => ucfirst($primaryPhone->type) } }}</div>
+                        <div class="text-body-secondary small">{{ $primaryPhone->number }}@if($primaryPhone->extension) ext. {{ $primaryPhone->extension }}@endif · {{ match($primaryPhone->type) { 'mobile' => 'Móvil', 'home' => 'Casa', 'work' => 'Trabajo', 'other' => 'Otro', 'fixed' => 'Fijo', default => ucfirst($primaryPhone->type) } }}</div>
                     @else
                         <div class="fw-semibold">{{ $client->email }}</div>
                         <span class="text-body-secondary small">Sin teléfono</span>

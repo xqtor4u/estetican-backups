@@ -82,6 +82,87 @@ const showPersistentWarning = ({
     window.bootstrap.Modal.getOrCreateInstance(modal).show();
 };
 
+const movePhoneItem = (trigger) => {
+    const item = trigger.closest('.phone-item');
+
+    if (!item) {
+        return false;
+    }
+
+    const direction = trigger.dataset.movePhone;
+    const sibling = direction === 'up' ? item.previousElementSibling : item.nextElementSibling;
+
+    if (!sibling || !sibling.classList.contains('phone-item')) {
+        return false;
+    }
+
+    if (direction === 'up') {
+        item.parentNode.insertBefore(item, sibling);
+    } else {
+        item.parentNode.insertBefore(sibling, item);
+    }
+
+    return true;
+};
+
+const digitsOnly = (value, maxLength) => value.replace(/\D+/g, '').slice(0, maxLength);
+
+/* México/Norteamérica exige 10 dígitos exactos por default — activable desde Configuración →
+   Clientes ("Permitir código de país en teléfonos") para zonas fronterizas o clientes de otro
+   país, que amplía el rango a 8-15 dígitos (estándar internacional E.164). El form lleva estos
+   límites en data-phone-min-digits/data-phone-max-digits (ver ClientController@create/edit). */
+const phoneDigitRange = (input) => {
+    const form = input.closest('form');
+
+    return phoneDigitRangeOf(form);
+};
+
+const phoneDigitRangeOf = (form) => ({
+    min: parseInt(form?.dataset.phoneMinDigits, 10) || 10,
+    max: parseInt(form?.dataset.phoneMaxDigits, 10) || 10,
+});
+
+const phoneDigitsHintText = ({ min, max }) => (min === max ? `${min} dígitos` : `entre ${min} y ${max} dígitos`);
+
+/* Filtra a solo dígitos mientras se escribe (nunca deja entrar letras/espacios/guiones) y marca
+   el campo como inválido de inmediato si ya tiene contenido pero está fuera del rango permitido
+   — sin esperar a que el usuario le dé "Actualizar"/"Crear cliente" para enterarse. */
+const sanitizePhoneNumberInput = (input) => {
+    const { min, max } = phoneDigitRange(input);
+    const sanitized = digitsOnly(input.value, max);
+
+    if (sanitized !== input.value) {
+        input.value = sanitized;
+    }
+
+    input.classList.toggle('is-invalid', sanitized.length > 0 && (sanitized.length < min || sanitized.length > max));
+};
+
+const sanitizePhoneExtensionInput = (input) => {
+    const sanitized = digitsOnly(input.value, 10);
+
+    if (sanitized !== input.value) {
+        input.value = sanitized;
+    }
+};
+
+/* Delegado a nivel de formulario: cubre tanto los campos ya presentes al cargar la página como
+   los agregados después dinámicamente (addPhone/confirmAddPhoneModal), sin tener que cablear
+   cada input nuevo uno por uno. */
+const attachLivePhoneValidation = (form) => {
+    form.addEventListener('input', (event) => {
+        if (event.target.matches('input[name^="phones["][name$="[number]"]')) {
+            sanitizePhoneNumberInput(event.target);
+        }
+
+        if (event.target.matches('input[name^="phones["][name$="[extension]"]')) {
+            sanitizePhoneExtensionInput(event.target);
+        }
+    });
+
+    getPhoneNumberInputs(form).forEach(sanitizePhoneNumberInput);
+};
+
 const getPhoneNumberInputs = (form) => Array.from(form.querySelectorAll('input[name^="phones["][name$="[number]"]'));
 
 const phoneInputIsMarkedForDelete = (input) => Boolean(
@@ -105,10 +186,21 @@ const collectClientFormWarnings = (form) => {
 
     const activePhoneInputs = getPhoneNumberInputs(form)
         .filter((input) => !phoneInputIsMarkedForDelete(input));
+    const nonEmptyPhoneInputs = activePhoneInputs.filter((input) => input.value.trim() !== '');
 
-    if (activePhoneInputs.length === 0 || activePhoneInputs.every((input) => input.value.trim() === '')) {
+    if (nonEmptyPhoneInputs.length === 0) {
         warnings.push('Debe capturarse al menos un telefono activo.');
     }
+
+    const phoneRange = phoneDigitRangeOf(form);
+
+    nonEmptyPhoneInputs.forEach((input) => {
+        const digits = input.value.replace(/\D+/g, '');
+
+        if (digits.length < phoneRange.min || digits.length > phoneRange.max) {
+            warnings.push(`El telefono "${input.value.trim()}" debe tener ${phoneDigitsHintText(phoneRange)}.`);
+        }
+    });
 
     if (requiresPetForNextStep) {
         const petNameInputs = Array.from(form.querySelectorAll('input[name^="pets["][name$="[name]"]'));
@@ -137,6 +229,8 @@ const initClientCreateForm = () => {
 
     form.dataset.clientCreateInitialized = 'true';
 
+    attachLivePhoneValidation(form);
+
     let addressIndex = countNodes('#addresses .address-item');
     let phoneIndex = countNodes('#phones .phone-item');
     let petIndex = countNodes('#pets .pet-item');
@@ -158,18 +252,32 @@ const initClientCreateForm = () => {
     };
 
     const addPhone = () => {
+        const phoneRange = phoneDigitRangeOf(form);
+        const phoneHint = phoneDigitsHintText(phoneRange);
+
         const html = `
             <div class="phone-item mb-3 border p-3">
+                <div class="d-flex justify-content-end gap-1 mb-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-move-phone="up" title="Subir importancia">&uarr;</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-move-phone="down" title="Bajar importancia">&darr;</button>
+                </div>
                 <div class="mb-2">
                     <label for="phone-type-${phoneIndex}">Tipo:</label>
                     <select id="phone-type-${phoneIndex}" name="phones[${phoneIndex}][type]" class="form-control" required>
                         <option value="mobile">Móvil</option>
-                        <option value="fixed">Fijo</option>
+                        <option value="home">Casa</option>
+                        <option value="work">Trabajo</option>
+                        <option value="other">Otro</option>
                     </select>
                 </div>
                 <div class="mb-2">
-                    <label for="phone-number-${phoneIndex}">Número:</label>
-                    <input id="phone-number-${phoneIndex}" type="text" name="phones[${phoneIndex}][number]" class="form-control" required>
+                    <label for="phone-number-${phoneIndex}">Número (${phoneHint}):</label>
+                    <input id="phone-number-${phoneIndex}" type="text" inputmode="numeric" name="phones[${phoneIndex}][number]" class="form-control" required maxlength="${phoneRange.max}">
+                    <div class="invalid-feedback">Debe tener ${phoneHint}.</div>
+                </div>
+                <div class="mb-2">
+                    <label for="phone-extension-${phoneIndex}">Ext. (opcional):</label>
+                    <input id="phone-extension-${phoneIndex}" type="text" inputmode="numeric" name="phones[${phoneIndex}][extension]" class="form-control" maxlength="10">
                 </div>
             </div>
         `;
@@ -276,6 +384,14 @@ const initClientCreateForm = () => {
     });
 
     form.addEventListener('click', (event) => {
+        const moveTrigger = event.target.closest('[data-move-phone]');
+
+        if (moveTrigger) {
+            movePhoneItem(moveTrigger);
+
+            return;
+        }
+
         const actionTrigger = event.target.closest('[data-client-create-action]');
 
         if (actionTrigger) {
@@ -312,6 +428,14 @@ const initClientEditForm = () => {
     }
 
     form.dataset.clientEditInitialized = 'true';
+
+    attachLivePhoneValidation(form);
+
+    // El modal "Agregar teléfono" vive fuera de la fila de la tabla (sus campos no tienen
+    // name="phones[...]", los lee confirmAddPhoneModal por id) — necesita su propio cableado,
+    // el delegado de attachLivePhoneValidation no lo alcanza.
+    document.getElementById('modalPhoneNumber')?.addEventListener('input', (event) => sanitizePhoneNumberInput(event.target));
+    document.getElementById('modalPhoneExtension')?.addEventListener('input', (event) => sanitizePhoneExtensionInput(event.target));
 
     let addressIndex = countNodes('#addresses .address-item');
     let phoneIndex = countNodes('#phones .phone-item');
@@ -397,17 +521,21 @@ const initClientEditForm = () => {
 
         document.getElementById('modalPhoneType').value = 'mobile';
         document.getElementById('modalPhoneNumber').value = '';
+        document.getElementById('modalPhoneExtension').value = '';
     };
 
     const confirmAddPhoneModal = () => {
         const type = document.getElementById('modalPhoneType').value;
         const number = document.getElementById('modalPhoneNumber').value;
+        const extension = document.getElementById('modalPhoneExtension').value;
+        const phoneRange = phoneDigitRangeOf(form);
+        const phoneHint = phoneDigitsHintText(phoneRange);
 
-        if (!number) {
+        if (!number || number.length < phoneRange.min || number.length > phoneRange.max) {
             showPersistentWarning({
                 title: 'Telefono incompleto',
                 message: 'El telefono nuevo no se agrego todavia.',
-                items: ['Captura el numero antes de confirmar el alta.'],
+                items: [number ? `El numero debe tener ${phoneHint}.` : 'Captura el numero antes de confirmar el alta.'],
             });
             return;
         }
@@ -417,10 +545,20 @@ const initClientEditForm = () => {
                 <td>
                     <select name="phones[${phoneIndex}][type]" class="form-control" required aria-labelledby="phones-th-type">
                         <option value="mobile" ${type === 'mobile' ? 'selected' : ''}>Móvil</option>
-                        <option value="fixed" ${type === 'fixed' ? 'selected' : ''}>Fijo</option>
+                        <option value="home" ${type === 'home' ? 'selected' : ''}>Casa</option>
+                        <option value="work" ${type === 'work' ? 'selected' : ''}>Trabajo</option>
+                        <option value="other" ${type === 'other' ? 'selected' : ''}>Otro</option>
                     </select>
                 </td>
-                <td><input type="text" name="phones[${phoneIndex}][number]" value="${number}" class="form-control" required aria-labelledby="phones-th-number"></td>
+                <td>
+                    <input type="text" inputmode="numeric" name="phones[${phoneIndex}][number]" value="${number}" class="form-control" required maxlength="${phoneRange.max}" aria-labelledby="phones-th-number">
+                    <div class="invalid-feedback">Debe tener ${phoneHint}.</div>
+                </td>
+                <td><input type="text" inputmode="numeric" name="phones[${phoneIndex}][extension]" value="${extension}" class="form-control" maxlength="10" aria-labelledby="phones-th-extension"></td>
+                <td class="text-center align-middle">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-move-phone="up" title="Subir importancia">&uarr;</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-move-phone="down" title="Bajar importancia">&darr;</button>
+                </td>
                 <td class="text-center align-middle">
                     <input type="checkbox" name="phones[${phoneIndex}][delete]" value="1" aria-labelledby="phones-th-delete">
                 </td>
@@ -532,6 +670,16 @@ const initClientEditForm = () => {
     form.addEventListener('input', markFormChanged, true);
     form.addEventListener('change', markFormChanged, true);
     form.addEventListener('click', (event) => {
+        const moveTrigger = event.target.closest('[data-move-phone]');
+
+        if (moveTrigger) {
+            if (movePhoneItem(moveTrigger)) {
+                markFormChanged();
+            }
+
+            return;
+        }
+
         const trigger = event.target.closest('[data-client-edit-action]');
 
         if (!trigger) {

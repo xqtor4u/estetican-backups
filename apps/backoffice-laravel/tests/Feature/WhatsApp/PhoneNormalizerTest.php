@@ -53,4 +53,14 @@ class PhoneNormalizerTest extends TestCase
 
         $this->assertSame('5511112222', PhoneNormalizer::bestPhoneFor($client->fresh(['phones'])));
     }
+
+    public function test_prefers_the_highest_priority_mobile_when_the_client_has_more_than_one(): void
+    {
+        $client = Client::create(['first_name' => 'Carla', 'apellido_paterno' => 'Vega']);
+        $client->phones()->create(['number' => '5522223333', 'type' => 'mobile', 'sort_order' => 1]);
+        $client->phones()->create(['number' => '5511110000', 'type' => 'mobile', 'sort_order' => 0]);
+        $client->phones()->create(['number' => '5599998888', 'type' => 'home', 'sort_order' => 2]);
+
+        $this->assertSame('5511110000', PhoneNormalizer::bestPhoneFor($client->fresh(['phones'])));
+    }
 }

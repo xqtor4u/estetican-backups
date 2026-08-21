@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Phone;
+use App\Rules\ValidPhoneNumber;
 use App\Support\Search\TokenSearch;
+use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -48,9 +50,10 @@ class ClientController extends Controller
             'zip_code'   => $client->zip_code,
             'notes'      => $client->notes,
             'phones'     => $client->phones->map(fn ($p) => [
-                'id'     => $p->id,
-                'number' => $p->number,
-                'type'   => $p->type,
+                'id'        => $p->id,
+                'number'    => $p->number,
+                'extension' => $p->extension,
+                'type'      => $p->type,
             ]),
             'pets' => $client->pets->map(fn ($pet) => [
                 'id'    => $pet->id,
@@ -61,14 +64,23 @@ class ClientController extends Controller
         ];
     }
 
-    public function store(Request $request)
+    public function store(Request $request, SystemSettings $systemSettings)
     {
+        $phoneRule = ValidPhoneNumber::fromSettings($systemSettings);
+
         $data = $request->validate([
             'first_name' => 'required|string|max:255',
             'apellido_paterno' => 'nullable|string|max:255',
             'apellido_materno' => 'nullable|string|max:255',
             'email'      => 'nullable|email|max:255',
-            'phone'      => 'required|string|max:30',
+            // 'phone' (forma legada, un solo móvil) sigue soportado por compatibilidad hacia
+            // atrás — 'phones' (array, con tipo y orden de importancia) es la forma preferida
+            // que ya usa la app móvil actualizada.
+            'phone'      => ['required_without:phones', 'nullable', 'string', $phoneRule],
+            'phones'     => 'sometimes|array|min:1',
+            'phones.*.number' => ['required_with:phones', 'string', $phoneRule],
+            'phones.*.extension' => 'nullable|string|max:10|regex:/^\d{1,10}$/',
+            'phones.*.type'   => 'sometimes|in:mobile,home,work,other',
             'address'    => 'nullable|string|max:255',
             'city'       => 'nullable|string|max:255',
             'state'      => 'nullable|string|max:255',
@@ -76,13 +88,29 @@ class ClientController extends Controller
             'notes'      => 'nullable|string',
         ]);
 
-        $client = Client::create(collect($data)->except('phone')->all());
+        $client = Client::create(collect($data)->except(['phone', 'phones'])->all());
 
-        Phone::create([
-            'client_id' => $client->id,
-            'number'    => $data['phone'],
-            'type'      => 'mobile',
-        ]);
+        if (! empty($data['phones'])) {
+            $order = 0;
+            foreach ($data['phones'] as $p) {
+                if (trim($p['number'] ?? '') === '') {
+                    continue;
+                }
+
+                $client->phones()->create([
+                    'number'     => $p['number'],
+                    'extension'  => $p['extension'] ?? null,
+                    'type'       => $p['type'] ?? 'mobile',
+                    'sort_order' => $order++,
+                ]);
+            }
+        } else {
+            Phone::create([
+                'client_id' => $client->id,
+                'number'    => $data['phone'],
+                'type'      => 'mobile',
+            ]);
+        }
 
         return response()->json([
             'id'   => $client->id,
@@ -90,7 +118,7 @@ class ClientController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, Client $client)
+    public function update(Request $request, Client $client, SystemSettings $systemSettings)
     {
         $data = $request->validate([
             'first_name' => 'sometimes|required|string|max:255',
@@ -103,19 +131,25 @@ class ClientController extends Controller
             'zip_code'   => 'sometimes|nullable|string|max:20',
             'notes'      => 'sometimes|nullable|string',
             'phones'     => 'sometimes|array',
-            'phones.*.number' => 'required_with:phones|string|max:30',
-            'phones.*.type'   => 'sometimes|in:mobile,home,work',
+            'phones.*.number' => ['required_with:phones', 'string', ValidPhoneNumber::fromSettings($systemSettings)],
+            'phones.*.extension' => 'nullable|string|max:10|regex:/^\d{1,10}$/',
+            'phones.*.type'   => 'sometimes|in:mobile,home,work,other',
         ]);
 
         $client->update(collect($data)->except('phones')->all());
 
         if ($request->has('phones')) {
             $client->phones()->delete();
+            // El array llega en el orden de importancia que el usuario armó en la app (JSON
+            // preserva orden) — el índice de recorrido es directamente el sort_order.
+            $order = 0;
             foreach ($data['phones'] as $p) {
                 if (!empty(trim($p['number']))) {
                     $client->phones()->create([
-                        'number' => $p['number'],
-                        'type'   => $p['type'] ?? 'mobile',
+                        'number'     => $p['number'],
+                        'extension'  => $p['extension'] ?? null,
+                        'type'       => $p['type'] ?? 'mobile',
+                        'sort_order' => $order++,
                     ]);
                 }
             }

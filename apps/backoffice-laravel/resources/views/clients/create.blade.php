@@ -3,6 +3,12 @@
 
     $page = \App\Support\Pages\ClientsPage::create();
     $breadcrumbs = $page['breadcrumbs'];
+
+    $phoneMinDigits = $phoneMinDigits ?? 10;
+    $phoneMaxDigits = $phoneMaxDigits ?? 10;
+    $phoneDigitsHint = $phoneMinDigits === $phoneMaxDigits
+        ? "{$phoneMinDigits} dígitos"
+        : "entre {$phoneMinDigits} y {$phoneMaxDigits} dígitos";
 @endphp
 @extends('layouts.app')
 
@@ -17,7 +23,7 @@
     </x-slot:actions>
 </x-page-header>
 
-<form id="client-create-form" action="{{ route('clients.store') }}" method="POST" data-pet-default-species="{{ $defaultSpecies ?? '' }}" novalidate>
+<form id="client-create-form" action="{{ route('clients.store') }}" method="POST" data-pet-default-species="{{ $defaultSpecies ?? '' }}" data-phone-min-digits="{{ $phoneMinDigits ?? 10 }}" data-phone-max-digits="{{ $phoneMaxDigits ?? 10 }}" novalidate>
     @csrf
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-body p-4">
@@ -60,22 +66,32 @@
                     <div id="phones">
                         <div class="phone-item border rounded-3 p-3 bg-body-tertiary">
                             <div class="row g-2 align-items-end">
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="phones-0-type" class="form-label small mb-1">Tipo</label>
                                     <select id="phones-0-type" name="phones[0][type]" class="form-control" required>
                                         <option value="mobile" @selected(old('phones.0.type', 'mobile') === 'mobile')>Móvil</option>
-                                        <option value="fixed" @selected(old('phones.0.type') === 'fixed')>Fijo</option>
+                                        <option value="home" @selected(old('phones.0.type') === 'home')>Casa</option>
+                                        <option value="work" @selected(old('phones.0.type') === 'work')>Trabajo</option>
+                                        <option value="other" @selected(old('phones.0.type') === 'other')>Otro</option>
                                     </select>
                                 </div>
-                                <div class="col-md-8">
+                                <div class="col-md-4">
                                     <label for="phones-0-number" class="form-label small mb-1">Teléfono principal <span class="text-danger">*</span></label>
-                                    <input id="phones-0-number" type="text" name="phones[0][number]" value="{{ old('phones.0.number', ($suggestAreaCode ? $defaultAreaCode : '')) }}" class="form-control" required placeholder="{{ $suggestAreaCode ? 'Ej: ' . $defaultAreaCode . ' 123 4567' : '' }}">
+                                    <input id="phones-0-number" type="text" inputmode="numeric" name="phones[0][number]" value="{{ old('phones.0.number', ($suggestAreaCode ? $defaultAreaCode : '')) }}" class="form-control" required maxlength="{{ $phoneMaxDigits }}" placeholder="{{ $phoneDigitsHint }}">
+                                    <div class="invalid-feedback">Debe tener {{ $phoneDigitsHint }}.</div>
                                 </div>
-
+                                <div class="col-md-3">
+                                    <label for="phones-0-extension" class="form-label small mb-1">Ext. <span class="text-secondary">(Opcional)</span></label>
+                                    <input id="phones-0-extension" type="text" inputmode="numeric" name="phones[0][extension]" value="{{ old('phones.0.extension') }}" class="form-control" maxlength="10" placeholder="Ej: 105">
+                                </div>
+                                <div class="col-md-2 d-flex gap-1 justify-content-end">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-move-phone="up" title="Subir importancia">&uarr;</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-move-phone="down" title="Bajar importancia">&darr;</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="form-text mt-2">Debe existir al menos un teléfono activo para guardar el cliente.</div>
+                    <div class="form-text mt-2">Debe existir al menos un teléfono activo, con {{ $phoneDigitsHint }}, para guardar el cliente. El primer teléfono de tipo <strong>Móvil</strong> en la lista es el que se usa para WhatsApp/SMS — usa las flechas para reordenar por importancia.</div>
                 </div>
             </div>
         </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Rules\ValidPhoneNumber;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\JsonResponse;
 
@@ -25,6 +26,17 @@ class SettingController extends Controller
 
         return response()->json([
             'watermark_enabled' => (bool) ($all['photo_watermark_enabled'] ?? false),
+        ]);
+    }
+
+    public function phoneFormat(SystemSettings $settings): JsonResponse
+    {
+        $rule = ValidPhoneNumber::fromSettings($settings);
+
+        return response()->json([
+            'allow_country_code' => (bool) ($settings->all()['commercial_clients_phone_allow_country_code'] ?? false),
+            'min_digits' => $rule->minDigits,
+            'max_digits' => $rule->maxDigits,
         ]);
     }
 }

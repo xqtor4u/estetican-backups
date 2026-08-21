@@ -45,7 +45,7 @@ class Client extends Model
 
     public function phones()
     {
-        return $this->hasMany(Phone::class);
+        return $this->hasMany(Phone::class)->orderBy('sort_order')->orderBy('id');
     }
 
     public function pets()

@@ -29,7 +29,10 @@ class PhoneNormalizer
     }
 
     /**
-     * Elige el teléfono más apropiado del cliente: prefiere type=mobile, si no hay usa el primero.
+     * Elige el teléfono más apropiado del cliente: prefiere type=mobile (WhatsApp/SMS solo
+     * funcionan con celular) según el orden de importancia capturado (Client::phones() ya
+     * viene ordenado por sort_order); si no hay ningún móvil, usa el de mayor importancia
+     * de cualquier tipo.
      */
     public static function bestPhoneFor(Client $client): ?string
     {

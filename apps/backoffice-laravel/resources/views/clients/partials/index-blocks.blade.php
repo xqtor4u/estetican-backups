@@ -19,7 +19,7 @@
             @if($client->phones->count() > 0)
                 <ul>
                     @foreach($client->phones as $phone)
-                        <li>{{ match($phone->type) { 'mobile' => 'Móvil', 'fixed' => 'Fijo', default => ucfirst($phone->type) } }}: {{ $phone->number }}</li>
+                        <li>{{ match($phone->type) { 'mobile' => 'Móvil', 'home' => 'Casa', 'work' => 'Trabajo', 'other' => 'Otro', 'fixed' => 'Fijo', default => ucfirst($phone->type) } }}: {{ $phone->number }}@if($phone->extension) ext. {{ $phone->extension }}@endif</li>
                     @endforeach
                 </ul>
             @else

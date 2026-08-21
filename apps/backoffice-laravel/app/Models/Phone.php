@@ -12,7 +12,9 @@ class Phone extends Model
     protected $fillable = [
         'client_id',
         'number',
+        'extension',
         'type',
+        'sort_order',
     ];
 
     public function client()

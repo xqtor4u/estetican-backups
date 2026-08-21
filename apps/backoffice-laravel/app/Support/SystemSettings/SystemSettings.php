@@ -434,6 +434,19 @@ class SystemSettings
                     ],
                 ],
             ],
+            'clients' => [
+                'label' => 'Clientes',
+                'description' => 'Reglas de captura para los datos de contacto de los clientes.',
+                'fields' => [
+                    'commercial_clients_phone_allow_country_code' => [
+                        'label' => 'Permitir código de país en teléfonos',
+                        'type' => 'boolean',
+                        'default' => false,
+                        'rules' => ['nullable', 'boolean'],
+                        'help' => 'Por defecto se exige el estándar de México/Norteamérica: exactamente 10 dígitos, sin código de país. Actívalo si atiendes clientes de zona fronteriza o de otro país que necesitan capturar su código de país — el estándar internacional E.164 permite hasta 15 dígitos en total (código de país de 1 a 3 dígitos + número nacional, sin contar el signo "+" ni prefijos de salida como el 00). Con esta opción activa se acepta entre 8 y 15 dígitos en total.',
+                    ],
+                ],
+            ],
             'fiscal' => [
                 'label' => 'Datos Fiscales',
                 'description' => 'Información legal para reportes.',

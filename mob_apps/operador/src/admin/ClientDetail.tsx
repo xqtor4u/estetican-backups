@@ -3,8 +3,9 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
+import { usePhoneFormat, phoneDigitsHint, type PhoneFormat } from '../lib/usePhoneFormat';
 
-interface Phone  { id: number; number: string; type: string }
+interface Phone  { id: number; number: string; extension: string | null; type: string }
 interface PetRef { id: number; name: string; breed: string | null; photo: string | null }
 
 interface Client {
@@ -24,7 +25,19 @@ interface Client {
   pets: PetRef[];
 }
 
-type PhoneEdit = { number: string; type: string };
+type PhoneEdit = { number: string; extension: string; type: string };
+
+/* Filtra a solo dígitos y recorta a maxLength mientras se escribe — el campo nunca llega a
+   contener una letra o un espacio, así que "isValidPhoneLength" abajo es solo cuestión de
+   longitud dentro del rango [minDigits, maxDigits] (10-10 por default; ampliable desde
+   Configuración → Clientes con "Permitir código de país", ver usePhoneFormat). */
+function digitsOnly(value: string, maxLength: number): string {
+  return value.replace(/\D+/g, '').slice(0, maxLength);
+}
+
+function isValidPhoneLength(number: string, format: PhoneFormat): boolean {
+  return number.length >= format.minDigits && number.length <= format.maxDigits;
+}
 
 type EditState = {
   first_name: string; apellido_paterno: string; apellido_materno: string; email: string;
@@ -55,31 +68,69 @@ function clientToEdits(c: Client): EditState {
     city: c.city ?? '', state: c.state ?? '',
     zip_code: c.zip_code ?? '', notes: c.notes ?? '',
     phones: c.phones.length
-      ? c.phones.map(p => ({ number: p.number, type: p.type }))
-      : [{ number: '', type: 'mobile' }],
+      ? c.phones.map(p => ({ number: p.number, extension: p.extension ?? '', type: p.type }))
+      : [{ number: '', extension: '', type: 'mobile' }],
   };
 }
 
-const PHONE_TYPE: Record<string, string> = { mobile: 'Celular', home: 'Casa', work: 'Trabajo' };
+const PHONE_TYPE: Record<string, string> = { mobile: 'Celular', home: 'Casa', work: 'Trabajo', other: 'Otro' };
+
+/* Botones subir/bajar reutilizados por el editor de teléfonos del alta y de la edición —
+   el primer teléfono tipo "mobile" de la lista es el que se usa para WhatsApp/SMS. */
+function PhoneReorderButtons({ index, count, onMove }: { index: number; count: number; onMove: (from: number, to: number) => void }) {
+  return (
+    <div className="flex flex-col gap-0.5 shrink-0">
+      <button
+        type="button"
+        disabled={index === 0}
+        onClick={() => onMove(index, index - 1)}
+        className="p-1 rounded-full text-on-surface-variant disabled:opacity-30 active:bg-surface-container-high transition-colors"
+      >
+        <span className="material-symbols-outlined text-base">keyboard_arrow_up</span>
+      </button>
+      <button
+        type="button"
+        disabled={index === count - 1}
+        onClick={() => onMove(index, index + 1)}
+        className="p-1 rounded-full text-on-surface-variant disabled:opacity-30 active:bg-surface-container-high transition-colors"
+      >
+        <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
+      </button>
+    </div>
+  );
+}
+
+function reorderList<T>(list: T[], from: number, to: number): T[] {
+  const next = [...list];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
 
 /* ══════════════════════════════════════════════════════════
    Formulario de alta de nuevo cliente
    ══════════════════════════════════════════════════════════ */
 function NewClientForm({ navigate, returnTo }: { navigate: ReturnType<typeof useNavigate>; returnTo?: string }) {
   const [form, setForm] = useState({
-    first_name: '', apellido_paterno: '', apellido_materno: '', phone: '', email: '',
+    first_name: '', apellido_paterno: '', apellido_materno: '', email: '',
     address: '', city: '', state: '', zip_code: '', notes: '',
   });
+  const [phones, setPhones] = useState<PhoneEdit[]>([{ number: '', extension: '', type: 'mobile' }]);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const phoneFormat = usePhoneFormat();
 
   const set = (key: string) => (val: string) =>
     setForm(f => ({ ...f, [key]: val }));
 
+  const movePhone = (from: number, to: number) => setPhones(p => reorderList(p, from, to));
+
   const save = async () => {
+    const activePhones = phones.filter(p => p.number.trim());
     const errs: Record<string, string> = {};
     if (!form.first_name.trim()) errs.first_name = 'El nombre es obligatorio';
-    if (!form.phone.trim())      errs.phone      = 'El teléfono es obligatorio';
+    if (!activePhones.length)    errs.phones     = 'Debe capturarse al menos un teléfono';
+    else if (activePhones.some(p => !isValidPhoneLength(p.number, phoneFormat))) errs.phones = `Cada teléfono debe tener ${phoneDigitsHint(phoneFormat)}`;
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSaving(true);
     setErrors({});
@@ -91,7 +142,7 @@ function NewClientForm({ navigate, returnTo }: { navigate: ReturnType<typeof use
         first_name: form.first_name,
         apellido_paterno: form.apellido_paterno || null,
         apellido_materno: form.apellido_materno || null,
-        phone:      form.phone,
+        phones:     activePhones,
         email:      form.email      || null,
         address:    form.address    || null,
         city:       form.city       || null,
@@ -143,12 +194,6 @@ function NewClientForm({ navigate, returnTo }: { navigate: ReturnType<typeof use
             <TextInput value={form.apellido_materno} onChange={set('apellido_materno')} placeholder="Apellido materno" />
           </Field>
           <div className="col-span-2">
-            <Field label="Teléfono celular *">
-              <TextInput value={form.phone} onChange={set('phone')} type="tel" placeholder="10 dígitos" />
-              {errors.phone && <p className="text-xs text-error mt-1">{errors.phone}</p>}
-            </Field>
-          </div>
-          <div className="col-span-2">
             <Field label="Correo electrónico">
               <TextInput value={form.email} onChange={set('email')} type="email" placeholder="correo@ejemplo.com" />
             </Field>
@@ -167,6 +212,70 @@ function NewClientForm({ navigate, returnTo }: { navigate: ReturnType<typeof use
           <Field label="Código postal">
             <TextInput value={form.zip_code} onChange={set('zip_code')} />
           </Field>
+        </div>
+
+        {/* Teléfonos */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-on-surface-variant">Teléfonos *</label>
+            <button
+              type="button"
+              onClick={() => setPhones(p => [...p, { number: '', extension: '', type: 'mobile' }])}
+              className="flex items-center gap-1 text-xs text-primary font-medium"
+            >
+              <span className="material-symbols-outlined text-base">add</span>
+              Agregar
+            </button>
+          </div>
+          {phones.map((p, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <PhoneReorderButtons index={i} count={phones.length} onMove={movePhone} />
+              <select
+                value={p.type}
+                onChange={e => setPhones(list => { const next = [...list]; next[i] = { ...next[i], type: e.target.value }; return next; })}
+                className="bg-surface-container border border-outline-variant rounded-xl px-2 py-2.5 text-sm text-on-surface outline-none focus:border-primary shrink-0"
+              >
+                <option value="mobile">Celular</option>
+                <option value="home">Casa</option>
+                <option value="work">Trabajo</option>
+                <option value="other">Otro</option>
+              </select>
+              <div className="flex-1 flex flex-col gap-1">
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={phoneFormat.maxDigits}
+                  value={p.number}
+                  onChange={e => setPhones(list => { const next = [...list]; next[i] = { ...next[i], number: digitsOnly(e.target.value, phoneFormat.maxDigits) }; return next; })}
+                  placeholder={phoneDigitsHint(phoneFormat)}
+                  className={`w-full bg-surface-container border rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary ${p.number.length > 0 && !isValidPhoneLength(p.number, phoneFormat) ? 'border-error' : 'border-outline-variant'}`}
+                />
+                {p.number.length > 0 && !isValidPhoneLength(p.number, phoneFormat) && (
+                  <p className="text-xs text-error">Debe tener {phoneDigitsHint(phoneFormat)}.</p>
+                )}
+              </div>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                value={p.extension}
+                onChange={e => setPhones(list => { const next = [...list]; next[i] = { ...next[i], extension: digitsOnly(e.target.value, 10) }; return next; })}
+                placeholder="Ext."
+                className="w-16 shrink-0 bg-surface-container border border-outline-variant rounded-xl px-2 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+              />
+              {phones.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setPhones(list => list.filter((_, j) => j !== i))}
+                  className="p-2 rounded-full text-error active:bg-error/10 transition-colors shrink-0"
+                >
+                  <span className="material-symbols-outlined text-xl">delete</span>
+                </button>
+              )}
+            </div>
+          ))}
+          {errors.phones && <p className="text-xs text-error mt-1">{errors.phones}</p>}
+          <p className="text-xs text-on-surface-variant">El primer teléfono <strong>Celular</strong> de la lista es el que se usa para WhatsApp/SMS — usa las flechas para reordenar por importancia.</p>
         </div>
 
         <Field label="Notas">
@@ -194,6 +303,8 @@ export function ClientDetail() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [edits, setEdits] = useState<EditState | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const phoneFormat = usePhoneFormat();
 
   const set = (key: keyof EditState) => (val: string) =>
     setEdits(d => d ? { ...d, [key]: val } : d);
@@ -207,10 +318,19 @@ export function ClientDetail() {
     });
   }, [id, isNew]);
 
-  const cancelEdit = () => { setEditing(false); if (client) setEdits(clientToEdits(client)); };
+  const cancelEdit = () => { setEditing(false); setPhoneError(null); if (client) setEdits(clientToEdits(client)); };
 
   const save = async () => {
     if (!client || !edits) return;
+
+    const activePhones = edits.phones.filter(p => p.number.trim());
+
+    if (activePhones.some(p => !isValidPhoneLength(p.number, phoneFormat))) {
+      setPhoneError(`Cada teléfono debe tener ${phoneDigitsHint(phoneFormat)}.`);
+      return;
+    }
+
+    setPhoneError(null);
     setSaving(true);
     await fetch(`/api/clients/${client.id}`, {
       method: 'PATCH',
@@ -222,7 +342,7 @@ export function ClientDetail() {
         email: edits.email || null, address: edits.address || null,
         city: edits.city || null, state: edits.state || null,
         zip_code: edits.zip_code || null, notes: edits.notes || null,
-        phones: edits.phones.filter(p => p.number.trim()),
+        phones: activePhones,
       }),
     });
     const updated: Client = await fetch(`/api/clients/${client.id}`).then(r => r.json());
@@ -303,7 +423,7 @@ export function ClientDetail() {
                       {p.type === 'mobile' ? 'smartphone' : 'call'}
                     </span>
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-on-surface">{p.number}</p>
+                      <p className="text-sm font-semibold text-on-surface">{p.number}{p.extension ? ` ext. ${p.extension}` : ''}</p>
                       <p className="text-xs text-on-surface-variant">{PHONE_TYPE[p.type] ?? p.type}</p>
                     </div>
                     <a href={`tel:${p.number}`} className="p-2 rounded-full bg-primary/10 text-primary active:scale-95 transition-transform">
@@ -412,7 +532,7 @@ export function ClientDetail() {
                 <label className="text-xs text-on-surface-variant">Teléfonos</label>
                 <button
                   type="button"
-                  onClick={() => setEdits(d => d ? { ...d, phones: [...d.phones, { number: '', type: 'mobile' }] } : d)}
+                  onClick={() => setEdits(d => d ? { ...d, phones: [...d.phones, { number: '', extension: '', type: 'mobile' }] } : d)}
                   className="flex items-center gap-1 text-xs text-primary font-medium"
                 >
                   <span className="material-symbols-outlined text-base">add</span>
@@ -421,6 +541,11 @@ export function ClientDetail() {
               </div>
               {edits.phones.map((p, i) => (
                 <div key={i} className="flex items-center gap-2">
+                  <PhoneReorderButtons
+                    index={i}
+                    count={edits.phones.length}
+                    onMove={(from, to) => setEdits(d => d ? { ...d, phones: reorderList(d.phones, from, to) } : d)}
+                  />
                   <select
                     value={p.type}
                     onChange={e => setEdits(d => {
@@ -434,18 +559,40 @@ export function ClientDetail() {
                     <option value="mobile">Celular</option>
                     <option value="home">Casa</option>
                     <option value="work">Trabajo</option>
+                    <option value="other">Otro</option>
                   </select>
+                  <div className="flex-1 flex flex-col gap-1">
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={phoneFormat.maxDigits}
+                      value={p.number}
+                      onChange={e => setEdits(d => {
+                        if (!d) return d;
+                        const phones = [...d.phones];
+                        phones[i] = { ...phones[i], number: digitsOnly(e.target.value, phoneFormat.maxDigits) };
+                        return { ...d, phones };
+                      })}
+                      placeholder={phoneDigitsHint(phoneFormat)}
+                      className={`w-full bg-surface-container border rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary ${p.number.length > 0 && !isValidPhoneLength(p.number, phoneFormat) ? 'border-error' : 'border-outline-variant'}`}
+                    />
+                    {p.number.length > 0 && !isValidPhoneLength(p.number, phoneFormat) && (
+                      <p className="text-xs text-error">Debe tener {phoneDigitsHint(phoneFormat)}.</p>
+                    )}
+                  </div>
                   <input
-                    type="tel"
-                    value={p.number}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={p.extension}
                     onChange={e => setEdits(d => {
                       if (!d) return d;
                       const phones = [...d.phones];
-                      phones[i] = { ...phones[i], number: e.target.value };
+                      phones[i] = { ...phones[i], extension: digitsOnly(e.target.value, 10) };
                       return { ...d, phones };
                     })}
-                    placeholder="Número"
-                    className="flex-1 bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+                    placeholder="Ext."
+                    className="w-16 shrink-0 bg-surface-container border border-outline-variant rounded-xl px-2 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
                   />
                   <button
                     type="button"
@@ -456,6 +603,8 @@ export function ClientDetail() {
                   </button>
                 </div>
               ))}
+              {phoneError && <p className="text-xs text-error">{phoneError}</p>}
+              <p className="text-xs text-on-surface-variant">El primer teléfono <strong>Celular</strong> de la lista es el que se usa para WhatsApp/SMS.</p>
             </div>
           </div>
         )}

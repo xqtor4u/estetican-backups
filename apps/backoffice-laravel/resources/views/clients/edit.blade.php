@@ -3,6 +3,12 @@
 
     $page = \App\Support\Pages\ClientsPage::edit($client);
     $breadcrumbs = $page['breadcrumbs'];
+
+    $phoneMinDigits = $phoneMinDigits ?? 10;
+    $phoneMaxDigits = $phoneMaxDigits ?? 10;
+    $phoneDigitsHint = $phoneMinDigits === $phoneMaxDigits
+        ? "{$phoneMinDigits} dígitos"
+        : "entre {$phoneMinDigits} y {$phoneMaxDigits} dígitos";
 @endphp
 @extends('layouts.app')
 
@@ -18,7 +24,7 @@
     </x-slot:actions>
 </x-page-header>
 
-<form id="client-edit-form" action="{{ route('clients.update', $client) }}" method="POST" data-pet-default-species="{{ $defaultSpecies ?? '' }}" novalidate>
+<form id="client-edit-form" action="{{ route('clients.update', $client) }}" method="POST" data-pet-default-species="{{ $defaultSpecies ?? '' }}" data-phone-min-digits="{{ $phoneMinDigits }}" data-phone-max-digits="{{ $phoneMaxDigits }}" novalidate>
     @csrf
     @method('PUT')
     <div class="mb-2">
@@ -99,11 +105,14 @@
     <button type="button" class="btn btn-sm btn-secondary" data-client-edit-action="show-address-modal">Agregar Dirección</button>
 
     <h4>Teléfonos</h4>
+    <p class="text-muted small">El teléfono de tipo <strong>Móvil</strong> con mayor importancia (más arriba en la lista) es el que se usa para WhatsApp/SMS. Usa las flechas para reordenar.</p>
     <table class="table table-bordered" id="phones">
         <thead>
             <tr>
                 <th id="phones-th-type">Tipo <span class="text-danger" title="Obligatorio">*</span></th>
-                <th id="phones-th-number">Número <span class="text-danger" title="Obligatorio">*</span></th>
+                <th id="phones-th-number">Número ({{ $phoneDigitsHint }}) <span class="text-danger" title="Obligatorio">*</span></th>
+                <th id="phones-th-extension">Ext.</th>
+                <th id="phones-th-order">Orden</th>
                 <th id="phones-th-delete">Eliminar</th>
             </tr>
         </thead>
@@ -114,10 +123,20 @@
                 <td>
                     <select name="phones[{{ $j }}][type]" class="form-control" required aria-labelledby="phones-th-type">
                         <option value="mobile" @if($phone->type=='mobile') selected @endif>Móvil</option>
-                        <option value="fixed" @if($phone->type=='fixed') selected @endif>Fijo</option>
+                        <option value="home" @if($phone->type=='home') selected @endif>Casa</option>
+                        <option value="work" @if($phone->type=='work') selected @endif>Trabajo</option>
+                        <option value="other" @if($phone->type=='other') selected @endif>Otro</option>
                     </select>
                 </td>
-                <td><input type="text" name="phones[{{ $j }}][number]" value="{{ $phone->number }}" class="form-control" required aria-labelledby="phones-th-number"></td>
+                <td>
+                    <input type="text" inputmode="numeric" name="phones[{{ $j }}][number]" value="{{ $phone->number }}" class="form-control" required maxlength="{{ $phoneMaxDigits }}" aria-labelledby="phones-th-number">
+                    <div class="invalid-feedback">Debe tener {{ $phoneDigitsHint }}.</div>
+                </td>
+                <td><input type="text" inputmode="numeric" name="phones[{{ $j }}][extension]" value="{{ $phone->extension }}" class="form-control" maxlength="10" aria-labelledby="phones-th-extension"></td>
+                <td class="text-center align-middle">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-move-phone="up" title="Subir importancia" aria-labelledby="phones-th-order">&uarr;</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-move-phone="down" title="Bajar importancia" aria-labelledby="phones-th-order">&darr;</button>
+                </td>
                 <td class="text-center align-middle">
                     <input type="checkbox" name="phones[{{ $j }}][delete]" value="1" aria-labelledby="phones-th-delete">
                 </td>
@@ -297,10 +316,17 @@
                     <x-form-label required for="modalPhoneType">Tipo</x-form-label>
                     <select id="modalPhoneType" class="form-control">
                         <option value="mobile">Móvil</option>
-                        <option value="fixed">Fijo</option>
+                        <option value="home">Casa</option>
+                        <option value="work">Trabajo</option>
+                        <option value="other">Otro</option>
                     </select>
                 </div>
-                <div class="mb-2"><x-form-label required for="modalPhoneNumber">Número</x-form-label><input type="text" id="modalPhoneNumber" class="form-control"></div>
+                <div class="mb-2">
+                    <x-form-label required for="modalPhoneNumber">Número ({{ $phoneDigitsHint }})</x-form-label>
+                    <input type="text" inputmode="numeric" id="modalPhoneNumber" class="form-control" maxlength="{{ $phoneMaxDigits }}">
+                    <div class="invalid-feedback">Debe tener {{ $phoneDigitsHint }}.</div>
+                </div>
+                <div class="mb-2"><x-form-label for="modalPhoneExtension">Extensión <small class="text-body-secondary fw-normal">(opcional)</small></x-form-label><input type="text" inputmode="numeric" id="modalPhoneExtension" class="form-control" maxlength="10" placeholder="Ej: 105"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>

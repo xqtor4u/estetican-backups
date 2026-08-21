@@ -87,6 +87,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
 
     Route::get('/settings/booking', [SettingController::class, 'booking']);
     Route::get('/settings/photos', [SettingController::class, 'photos']);
+    Route::get('/settings/phone-format', [SettingController::class, 'phoneFormat']);
 
     Route::get('/cash/session', [CashController::class, 'session'])->middleware('permission:caja.ver');
     Route::post('/cash/session', [CashController::class, 'openSession'])->middleware('permission:caja.abrir');
