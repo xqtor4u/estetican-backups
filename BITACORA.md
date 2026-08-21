@@ -1,5 +1,74 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 20/08/2026 — `SYNC-034` portado desde Zeus-Estetican: teléfonos con tipo/orden/extensión + código de país configurable (app y móvil)
+
+### ✅ Logros y Cambios
+
+Sesión de porteo puro, a pedido directo del usuario ("pórtealo a producción app y mov"). Construido
+y verificado en `tst` durante varias iteraciones el mismo día (detalle técnico completo en
+`docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus-Estetican, `SYNC-034`, movido a Aplicados).
+
+**Resumen:**
+- Tipo de teléfono pasa de `mobile`/`fixed` (2 valores) a `mobile`/`home`/`work`/`other` (4) —
+  varios teléfonos por cliente, reordenables por importancia (botones ↑/↓) en web y móvil. El
+  teléfono `mobile` de mayor importancia sigue siendo el que usa WhatsApp/SMS
+  (`PhoneNormalizer::bestPhoneFor()`, mismo comportamiento, ahora respeta el orden real vía
+  `phones.sort_order` nueva).
+- Subcampo `phones.extension` (opcional, solo dígitos) en los 4 formularios.
+- Validación real de 10 dígitos (`App\Rules\ValidPhoneNumber`, nueva) con filtrado numérico **en
+  vivo** mientras se escribe (no solo al enviar) — pedido explícito del usuario en dos vueltas
+  distintas de la sesión de `tst`.
+- **El estándar de 10 dígitos (México/Norteamérica) ahora es configurable**: nueva sección
+  "Clientes" en Configuración con un toggle "Permitir código de país en teléfonos" (default
+  apagado) — activo amplía a 8-15 dígitos según el estándar internacional E.164, para clínicas
+  con clientes de zona fronteriza o de otro país. Endpoint nuevo `GET /api/settings/phone-format`
+  (mismo patrón que `/settings/booking`/`/settings/photos` ya existentes, dentro del grupo
+  autenticado, sin `permission:` adicional — igual criterio que sus pares, ninguno expone datos
+  de negocio).
+- Alta de cliente nueva desde el móvil gana captura de varios teléfonos con tipo (antes un campo
+  suelto sin tipo).
+
+**Verificación antes de portar:**
+- Diff archivo por archivo entre el HEAD de `tst` (antes de esta sesión) y este repo confirmó que
+  ningún archivo tocado había divergido de forma independiente — con 2 excepciones puntuales
+  (`SettingController.php`/`routes/api.php`, donde `tst` tiene un endpoint `branding` que este
+  repo nunca recibió, de un porteo anterior incompleto y ajeno a esta sesión) — para esos 2
+  archivos se aplicó solo el agregado puntual (`phoneFormat()` + su ruta), sin arrastrar esa
+  diferencia previa.
+- Backup real de la BD de producción antes de migrar
+  (`backups/estetican_pre-sync034-phones-sortorder-extension-countrycode_20260820_2043.sql`).
+- Suite completa corrida **dos veces** (`git stash -u` para volver al estado previo, correr,
+  `git stash pop` para restaurar) — **mismos 37 fallos preexistentes en ambos casos, diff vacío**
+  entre las dos listas de fallos — confirma que la deuda de tests existente no tiene relación con
+  este cambio. Con el cambio aplicado: 552 pasan (antes 517), la diferencia son los tests nuevos
+  de esta feature.
+- Migración real corrida contra la BD de producción: 39 teléfonos existentes, todos ganaron
+  `sort_order` (preservando su orden de captura por `id`), 0 quedaron en `type=fixed` (no había
+  ninguno realmente, la reclasificación fue un no-op en este tenant).
+- Verificado también contra la API real (`app.estetican.org`, usuario y datos desechables,
+  borrados al terminar): alta con 2 teléfonos (uno con extensión) devuelta correctamente en el
+  `GET` siguiente.
+- Bundle web reconstruido (`npm run build` dentro de un contenedor `node:20-alpine` — el host es
+  ARM64 con Node glibc nativo, pero `node_modules` de este repo solo trae el binario nativo de
+  Rollup para musl, mismo hallazgo ya documentado del lado de `tst`). Bundle móvil reconstruido
+  igual — `estetican_mob` sirve `mob_apps/operador/dist/` por bind mount directo (`nginx:alpine`
+  sin imagen propia), así que no hizo falta recrear el contenedor, el `npm run build` ya deja el
+  archivo nuevo servido de inmediato (confirmado por `grep` dentro del contenedor).
+- `docs/tecnico/MODELO_BD.md` actualizado: tabla `phones` corregida (documentaba una relación
+  polimórfica ya removida desde 2026-03-20 — se aprovechó para dejarla con el esquema real actual,
+  incluidas las 2 columnas nuevas de este cambio).
+
+Commit `dd567e0`, pusheado a `origin/main`.
+
+### 🛑 Pendientes activos
+- Deuda real de 37 tests fallando en la suite (confirmada preexistente, sin relación con este
+  cambio) — sigue sin auditar, pendiente de una sesión dedicada.
+- El toggle "Permitir código de país en teléfonos" queda apagado por default en producción — no
+  se activó, es una decisión de negocio que le corresponde al usuario tomar si/cuando la
+  necesite.
+
+---
+
 ## 📅 Cierre de sesión: 17/08/2026 — `SYNC-029` portado desde Zeus-Estetican: cambiar foto de mascota con "mantener presionado" en buscador y ficha (app móvil)
 
 ### ✅ Logros y Cambios

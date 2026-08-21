@@ -198,18 +198,19 @@ Direcciones normalizadas de clientes (polimórfico hacia `clients`).
 ---
 
 ### `phones`
-Teléfonos de clientes y operadores (polimórfico).
+Teléfonos de clientes. Un cliente puede tener varios, ordenados por importancia.
 
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | bigint PK | |
-| `phoneable_id` | bigint | Polimórfico |
-| `phoneable_type` | string | Clase del modelo dueño |
-| `number` | string | |
-| `type` | string | `mobile`, `fixed` |
+| `client_id` | bigint FK → `clients` | `onDelete: cascade` |
+| `number` | string | Sin formato forzado en BD; validado en captura (`App\Rules\ValidPhoneNumber`) — 10 dígitos exactos por default (México/Norteamérica), o 8-15 (E.164) si el tenant activó `commercial_clients_phone_allow_country_code` en Configuración → Clientes |
+| `extension` | string, nullable | Extensión opcional (interno de PBX), solo dígitos, máx. 10 |
+| `type` | string | `mobile`, `home`, `work`, `other` (antes `mobile`/`fixed` — `fixed` reclasificado a `home` en la migración `2026_08_20_000001`) |
+| `sort_order` | unsigned smallint, default 0 | Orden de importancia dentro del cliente — el primer `mobile` en ese orden es el que usa WhatsApp/SMS (`PhoneNormalizer::bestPhoneFor()`) |
 | `timestamps` | | |
 
-> **Nota NT:** La relación `Address::phones()` morphMany fue removida (migración 2026-03-20 eliminó esas columnas en `phones`). Los teléfonos apuntan directamente a `clients`.
+> **Nota NT:** La relación polimórfica original (`phoneable_id`/`phoneable_type`) fue removida en 2026-03-20 — los teléfonos apuntan directo a `clients` vía `client_id` desde entonces. `Client::phones()` trae `orderBy('sort_order')->orderBy('id')` por default.
 
 ---
 
