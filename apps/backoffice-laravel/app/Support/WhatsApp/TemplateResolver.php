@@ -108,19 +108,25 @@ class TemplateResolver
 
     /**
      * Resuelve una plantilla de contexto "general" (campaña, oferta de temporada, u otro
-     * mensaje libre) enviada desde la ficha del cliente — sin cita de por medio. `{cliente}` y
-     * `{mascota}` (solo si el cliente tiene una única mascota viva, para no adivinar cuál)
-     * se rellenan con datos reales; el resto de las variables de `availableVariables('general')`
-     * no tiene de dónde salir en este flujo y queda en blanco, nunca como texto literal
-     * `{variable}` visible para el cliente.
+     * mensaje libre) enviada desde la ficha del cliente o desde una cita — sin depender de una
+     * cita real de por medio (por eso no usa `resolve()`). `{cliente}` siempre se rellena.
+     * `{mascota}`: si se pasa `$pet` explícito (ej. la mascota de la cita desde donde se envía,
+     * o la que eligió el usuario cuando el cliente tiene varias) se usa esa; si no, se intenta
+     * adivinar solo cuando es inequívoco (el cliente tiene una única mascota viva) — con cero o
+     * varias mascotas sin `$pet` explícito, queda en blanco en vez de adivinar mal. El resto de
+     * las variables de `availableVariables('general')` no tiene de dónde salir en este flujo y
+     * queda en blanco, nunca como texto literal `{variable}` visible para el cliente.
      */
-    public static function resolveGeneral(string $body, Client $client): string
+    public static function resolveGeneral(string $body, Client $client, ?Pet $pet = null): string
     {
-        $livePets = $client->livePets;
+        if (! $pet) {
+            $livePets = $client->livePets;
+            $pet = $livePets->count() === 1 ? $livePets->first() : null;
+        }
 
         $replacements = [
             '{cliente}' => $client->full_name ?: 'Cliente',
-            '{mascota}' => $livePets->count() === 1 ? ($livePets->first()->name ?: '') : '',
+            '{mascota}' => $pet?->name ?: '',
             '{servicio}' => '',
             '{fecha}' => '',
             '{hora}' => '',

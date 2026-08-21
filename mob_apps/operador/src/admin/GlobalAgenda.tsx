@@ -101,7 +101,7 @@ export function GlobalAgenda() {
   const [showAddMenu,       setShowAddMenu]        = useState(false);
   const [graceMinutes,      setGraceMinutes]        = useState(15);
   const [startingCitaId,    setStartingCitaId]      = useState<number | null>(null);
-  const [waSheet,           setWaSheet]              = useState<{ clientId: number; phone: string } | null>(null);
+  const [waSheet,           setWaSheet]              = useState<{ clientId: number; phone: string; petId: number } | null>(null);
 
   // Carga inicial: operadores, sucursales, citas vencidas y minutos de gracia (para saber
   // si el botón rápido "Iniciar" de la tarjeta aplica, o si hay que ir al detalle porque
@@ -224,7 +224,7 @@ export function GlobalAgenda() {
             const withinGrace = diffMin <= graceMinutes;
             const showIniciar = b.status === 'scheduled' && withinGrace;
             const showCobrar = b.status === 'work_order';
-            const clientForWa = b.client && b.client.phone ? { clientId: b.client.id, phone: b.client.phone } : null;
+            const clientForWa = b.client && b.client.phone ? { clientId: b.client.id, phone: b.client.phone, petId: b.pet.id } : null;
             if (!showIniciar && !showCobrar && !clientForWa) return null;
             return (
               <div className="flex items-center gap-2 mt-2">
@@ -657,7 +657,7 @@ export function GlobalAgenda() {
       </div>
 
       {waSheet && (
-        <WhatsAppMessageSheet clientId={waSheet.clientId} phone={waSheet.phone} onClose={() => setWaSheet(null)} />
+        <WhatsAppMessageSheet clientId={waSheet.clientId} phone={waSheet.phone} petId={waSheet.petId} onClose={() => setWaSheet(null)} />
       )}
     </div>
   );

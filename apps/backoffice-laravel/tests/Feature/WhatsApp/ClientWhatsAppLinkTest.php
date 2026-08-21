@@ -134,6 +134,58 @@ class ClientWhatsAppLinkTest extends TestCase
         $response->assertJson(['message' => 'Hola Renata Vidal, saludos a .']);
     }
 
+    public function test_web_link_endpoint_uses_the_explicit_pet_id_when_the_client_has_multiple_pets(): void
+    {
+        $client = $this->clientWithPhone();
+        Pet::create(['client_id' => $client->id, 'name' => 'Firulais']);
+        $michi = Pet::create(['client_id' => $client->id, 'name' => 'Michi']);
+        $template = WhatsAppTemplate::create([
+            'name' => 'Oferta genérica',
+            'body' => 'Hola {cliente}, saludos a {mascota}.',
+            'context' => 'general',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin())
+            ->getJson(route('clients.whatsapp.link', $client).'?phone=8110000001&template_id='.$template->id.'&pet_id='.$michi->id);
+
+        $response->assertOk();
+        $response->assertJson(['message' => 'Hola Renata Vidal, saludos a Michi.']);
+    }
+
+    public function test_web_link_endpoint_rejects_a_pet_id_that_does_not_belong_to_the_client(): void
+    {
+        $client = $this->clientWithPhone();
+        $otherClient = Client::create(['first_name' => 'Otro', 'apellido_paterno' => 'Cliente']);
+        $foreignPet = Pet::create(['client_id' => $otherClient->id, 'name' => 'Ajeno']);
+        $template = WhatsAppTemplate::create([
+            'name' => 'Oferta genérica',
+            'body' => 'Hola {cliente}, saludos a {mascota}.',
+            'context' => 'general',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin())
+            ->getJson(route('clients.whatsapp.link', $client).'?phone=8110000001&template_id='.$template->id.'&pet_id='.$foreignPet->id);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_web_live_pets_endpoint_returns_only_live_pets_sorted_by_name(): void
+    {
+        $client = $this->clientWithPhone();
+        Pet::create(['client_id' => $client->id, 'name' => 'Zeus']);
+        Pet::create(['client_id' => $client->id, 'name' => 'Ajax']);
+        Pet::create(['client_id' => $client->id, 'name' => 'Difunto', 'death_date' => now()->subDay()]);
+
+        $response = $this->actingAs($this->admin())->getJson(route('clients.whatsapp.live-pets', $client));
+
+        $response->assertOk();
+        $response->assertJsonCount(2);
+        $names = collect($response->json())->pluck('name')->all();
+        $this->assertSame(['Ajax', 'Zeus'], $names);
+    }
+
     public function test_web_link_endpoint_returns_a_bare_wa_link_without_a_template(): void
     {
         $client = $this->clientWithPhone();
@@ -206,6 +258,7 @@ class ClientWhatsAppLinkTest extends TestCase
 
         $this->actingAs($user)->getJson(route('clients.whatsapp.templates'))->assertForbidden();
         $this->actingAs($user)->getJson(route('clients.whatsapp.link', $client).'?phone=8110000001')->assertForbidden();
+        $this->actingAs($user)->getJson(route('clients.whatsapp.live-pets', $client))->assertForbidden();
     }
 
     public function test_api_link_endpoint_works_with_a_bearer_token_for_the_mobile_app(): void

@@ -285,7 +285,7 @@
                             <div class="small text-body-secondary d-flex align-items-center">
                                 {{ $clientPhone ?? 'Sin teléfono' }}
                                 @if($client && $clientPhone)
-                                    <x-whatsapp-phone-link :client-id="$client->id" :phone="$clientPhone" />
+                                    <x-whatsapp-phone-link :client-id="$client->id" :phone="$clientPhone" :pet-id="$pet?->id" />
                                 @endif
                             </div>
                         </div>

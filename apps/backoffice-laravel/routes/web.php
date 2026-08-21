@@ -103,6 +103,7 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
         ->middlewareFor('destroy', 'permission:eliminar clientes');
     Route::get('whatsapp-templates', [ClientWhatsAppController::class, 'templates'])->name('clients.whatsapp.templates')->middleware('permission:ver clientes');
     Route::get('clients/{client}/whatsapp-link', [ClientWhatsAppController::class, 'link'])->name('clients.whatsapp.link')->middleware('permission:ver clientes');
+    Route::get('clients/{client}/whatsapp-live-pets', [ClientWhatsAppController::class, 'livePets'])->name('clients.whatsapp.live-pets')->middleware('permission:ver clientes');
     Route::middleware('hotel.module')->group(function () {
         Route::resource('hotel-reservations', HotelReservationController::class)->except(['destroy'])
             ->middlewareFor('index', 'permission:ver hotel')

@@ -64,6 +64,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::patch('/clients/{client}', [ClientController::class, 'update'])->middleware('permission:editar clientes');
     Route::get('/whatsapp-templates', [ClientWhatsAppController::class, 'templates'])->middleware('permission:ver clientes');
     Route::get('/clients/{client}/whatsapp-link', [ClientWhatsAppController::class, 'link'])->middleware('permission:ver clientes');
+    Route::get('/clients/{client}/whatsapp-live-pets', [ClientWhatsAppController::class, 'livePets'])->middleware('permission:ver clientes');
 
     Route::get('/agenda', [AgendaController::class, 'index'])->middleware('permission:ver agenda');
     Route::get('/agenda/vencidas', [AgendaController::class, 'vencidas'])->middleware('permission:ver agenda');
