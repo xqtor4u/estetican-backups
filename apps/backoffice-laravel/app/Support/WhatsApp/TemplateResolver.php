@@ -2,6 +2,7 @@
 
 namespace App\Support\WhatsApp;
 
+use App\Models\Client;
 use App\Models\Pet;
 use App\Models\Service;
 use App\Models\SpaBooking;
@@ -21,6 +22,12 @@ class TemplateResolver
                 'servicio' => 'Servicio recurrente (ej. Baño)',
                 'ultima_fecha' => 'Fecha del último servicio realizado',
                 'dias_vencido' => 'Días transcurridos desde que se cumplió el ciclo de recurrencia',
+            ];
+        }
+
+        if ($context === 'cliente') {
+            return [
+                'cliente' => 'Nombre del cliente',
             ];
         }
 
@@ -69,6 +76,19 @@ class TemplateResolver
             '{servicio}' => $service->name,
             '{ultima_fecha}' => $lastServiceAt->format($dateFormat),
             '{dias_vencido}' => (string) max($daysOverdue, 0),
+        ];
+
+        return strtr($body, $replacements);
+    }
+
+    /**
+     * Resuelve una plantilla de contexto "cliente" (mensaje directo, sin cita/servicio de por
+     * medio) — solo `{cliente}` está disponible en este contexto, ver `availableVariables()`.
+     */
+    public static function resolveForClient(string $body, Client $client): string
+    {
+        $replacements = [
+            '{cliente}' => $client->full_name ?: 'Cliente',
         ];
 
         return strtr($body, $replacements);

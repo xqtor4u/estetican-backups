@@ -47,7 +47,10 @@
         @if($client->phones->count() > 0)
             <ul>
                 @foreach($client->phones as $phone)
-                    <li><strong>{{ match($phone->type) { 'mobile' => 'Móvil', 'home' => 'Casa', 'work' => 'Trabajo', 'other' => 'Otro', 'fixed' => 'Fijo', default => ucfirst($phone->type) } }}:</strong> {{ $phone->number }}@if($phone->extension) <span class="text-body-secondary">ext. {{ $phone->extension }}</span>@endif</li>
+                    <li class="d-flex align-items-center flex-wrap">
+                        <span><strong>{{ match($phone->type) { 'mobile' => 'Móvil', 'home' => 'Casa', 'work' => 'Trabajo', 'other' => 'Otro', 'fixed' => 'Fijo', default => ucfirst($phone->type) } }}:</strong> {{ $phone->number }}@if($phone->extension) <span class="text-body-secondary">ext. {{ $phone->extension }}</span>@endif</span>
+                        <x-whatsapp-phone-link :client-id="$client->id" :phone="$phone->number" />
+                    </li>
                 @endforeach
             </ul>
         @else

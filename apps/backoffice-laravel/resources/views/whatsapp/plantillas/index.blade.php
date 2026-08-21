@@ -34,6 +34,8 @@
                             <td>
                                 @if($template->context === 'recurrencia')
                                     <span class="badge bg-info-subtle text-info-emphasis">Recurrencias</span>
+                                @elseif($template->context === 'cliente')
+                                    <span class="badge bg-success-subtle text-success-emphasis">Mensaje directo</span>
                                 @else
                                     <span class="badge bg-primary-subtle text-primary-emphasis">Bandeja diaria</span>
                                 @endif

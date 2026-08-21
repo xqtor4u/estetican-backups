@@ -282,7 +282,12 @@
                         </div>
                         <div>
                             <div class="fw-bold">{{ $client?->full_name }}</div>
-                            <div class="small text-body-secondary">{{ $clientPhone ?? 'Sin teléfono' }}</div>
+                            <div class="small text-body-secondary d-flex align-items-center">
+                                {{ $clientPhone ?? 'Sin teléfono' }}
+                                @if($client && $clientPhone)
+                                    <x-whatsapp-phone-link :client-id="$client->id" :phone="$clientPhone" />
+                                @endif
+                            </div>
                         </div>
                     </div>
                     @if($client?->email)

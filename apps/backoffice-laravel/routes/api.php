@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\BookingProcessNoteController;
 use App\Http\Controllers\Api\CashController;
 use App\Http\Controllers\Api\CheckinController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\ClientWhatsAppController;
 use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PaymentController;
@@ -61,6 +62,8 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::post('/clients', [ClientController::class, 'store'])->middleware('permission:crear clientes');
     Route::get('/clients/{client}', [ClientController::class, 'show'])->middleware('permission:ver clientes');
     Route::patch('/clients/{client}', [ClientController::class, 'update'])->middleware('permission:editar clientes');
+    Route::get('/whatsapp-templates', [ClientWhatsAppController::class, 'templates'])->middleware('permission:ver clientes');
+    Route::get('/clients/{client}/whatsapp-link', [ClientWhatsAppController::class, 'link'])->middleware('permission:ver clientes');
 
     Route::get('/agenda', [AgendaController::class, 'index'])->middleware('permission:ver agenda');
     Route::get('/agenda/vencidas', [AgendaController::class, 'vencidas'])->middleware('permission:ver agenda');

@@ -5,6 +5,7 @@
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\BookingMessageController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\Api\ClientWhatsAppController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPreferencesController;
 use App\Http\Controllers\Clinical\ClinicalAttachmentController;
@@ -100,6 +101,8 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
         ->middlewareFor(['create', 'store'], 'permission:crear clientes')
         ->middlewareFor(['edit', 'update'], 'permission:editar clientes')
         ->middlewareFor('destroy', 'permission:eliminar clientes');
+    Route::get('whatsapp-templates', [ClientWhatsAppController::class, 'templates'])->name('clients.whatsapp.templates')->middleware('permission:ver clientes');
+    Route::get('clients/{client}/whatsapp-link', [ClientWhatsAppController::class, 'link'])->name('clients.whatsapp.link')->middleware('permission:ver clientes');
     Route::middleware('hotel.module')->group(function () {
         Route::resource('hotel-reservations', HotelReservationController::class)->except(['destroy'])
             ->middlewareFor('index', 'permission:ver hotel')

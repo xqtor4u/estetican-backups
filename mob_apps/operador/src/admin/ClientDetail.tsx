@@ -4,6 +4,7 @@ import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
 import { usePhoneFormat, phoneDigitsHint, type PhoneFormat } from '../lib/usePhoneFormat';
+import { WhatsAppMessageSheet } from '../WhatsAppMessageSheet';
 
 interface Phone  { id: number; number: string; extension: string | null; type: string }
 interface PetRef { id: number; name: string; breed: string | null; photo: string | null }
@@ -304,6 +305,7 @@ export function ClientDetail() {
   const [saving, setSaving] = useState(false);
   const [edits, setEdits] = useState<EditState | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [waSheetPhone, setWaSheetPhone] = useState<string | null>(null);
   const phoneFormat = usePhoneFormat();
 
   const set = (key: keyof EditState) => (val: string) =>
@@ -429,10 +431,10 @@ export function ClientDetail() {
                     <a href={`tel:${p.number}`} className="p-2 rounded-full bg-primary/10 text-primary active:scale-95 transition-transform">
                       <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>call</span>
                     </a>
-                    <a href={`https://wa.me/${p.number.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                    <button onClick={() => setWaSheetPhone(p.number)}
                       className="p-2 rounded-full bg-green-100 text-green-700 active:scale-95 transition-transform">
                       <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
-                    </a>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -610,6 +612,10 @@ export function ClientDetail() {
         )}
 
       </div>
+
+    {waSheetPhone && (
+      <WhatsAppMessageSheet clientId={client.id} phone={waSheetPhone} onClose={() => setWaSheetPhone(null)} />
+    )}
     </div>
   );
 }

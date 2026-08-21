@@ -8,6 +8,7 @@ import {
   agendaAlertKind, AGENDA_ALERT_LABEL,
 } from './agendaViews';
 import { WeekGrid, MonthGrid } from './AgendaCalendarGrid';
+import { WhatsAppMessageSheet } from '../WhatsAppMessageSheet';
 
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
 interface Branch   { id: number; name: string }
@@ -100,6 +101,7 @@ export function GlobalAgenda() {
   const [showAddMenu,       setShowAddMenu]        = useState(false);
   const [graceMinutes,      setGraceMinutes]        = useState(15);
   const [startingCitaId,    setStartingCitaId]      = useState<number | null>(null);
+  const [waSheet,           setWaSheet]              = useState<{ clientId: number; phone: string } | null>(null);
 
   // Carga inicial: operadores, sucursales, citas vencidas y minutos de gracia (para saber
   // si el botón rápido "Iniciar" de la tarjeta aplica, o si hay que ir al detalle porque
@@ -222,8 +224,8 @@ export function GlobalAgenda() {
             const withinGrace = diffMin <= graceMinutes;
             const showIniciar = b.status === 'scheduled' && withinGrace;
             const showCobrar = b.status === 'work_order';
-            const waHref = b.client?.phone ? `https://wa.me/${b.client.phone.replace(/\D/g, '')}` : null;
-            if (!showIniciar && !showCobrar && !waHref) return null;
+            const clientForWa = b.client && b.client.phone ? { clientId: b.client.id, phone: b.client.phone } : null;
+            if (!showIniciar && !showCobrar && !clientForWa) return null;
             return (
               <div className="flex items-center gap-2 mt-2">
                 {showIniciar && (
@@ -247,17 +249,14 @@ export function GlobalAgenda() {
                     Cobrar
                   </button>
                 )}
-                {waHref && (
-                  <a
-                    href={waHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={e => e.stopPropagation()}
+                {clientForWa && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setWaSheet(clientForWa); }}
                     className="min-h-11 min-w-11 flex items-center justify-center bg-green-100 text-green-700 rounded-full active:scale-95 transition-transform"
                     aria-label="WhatsApp"
                   >
                     <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
-                  </a>
+                  </button>
                 )}
               </div>
             );
@@ -656,6 +655,10 @@ export function GlobalAgenda() {
           ))}
         </div>
       </div>
+
+      {waSheet && (
+        <WhatsAppMessageSheet clientId={waSheet.clientId} phone={waSheet.phone} onClose={() => setWaSheet(null)} />
+      )}
     </div>
   );
 }
