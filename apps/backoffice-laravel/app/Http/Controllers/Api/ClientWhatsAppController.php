@@ -13,12 +13,14 @@ use Illuminate\Http\Request;
 class ClientWhatsAppController extends Controller
 {
     /**
-     * Plantillas activas de contexto "cliente" (mensaje directo, sin cita de por medio) — las
-     * mismas que se administran en Configuración → WhatsApp → Plantillas.
+     * Plantillas activas de contexto "cliente" (mensaje directo, sin cita de por medio) o
+     * "general" (campaña, oferta de temporada u otro mensaje libre) — las mismas que se
+     * administran en Configuración → WhatsApp → Plantillas. Ambos contextos se resuelven solo
+     * con datos del cliente (sin cita de por medio), por eso comparten este mismo listado.
      */
     public function templates(): JsonResponse
     {
-        $templates = WhatsAppTemplate::where('context', 'cliente')
+        $templates = WhatsAppTemplate::whereIn('context', ['cliente', 'general'])
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name']);
@@ -59,7 +61,7 @@ class ClientWhatsAppController extends Controller
         $message = '';
 
         if (! empty($validated['template_id'])) {
-            $template = WhatsAppTemplate::where('context', 'cliente')
+            $template = WhatsAppTemplate::whereIn('context', ['cliente', 'general'])
                 ->where('is_active', true)
                 ->find($validated['template_id']);
 
@@ -69,7 +71,9 @@ class ClientWhatsAppController extends Controller
                 ], 404);
             }
 
-            $message = TemplateResolver::resolveForClient($template->body, $client);
+            $message = $template->context === 'general'
+                ? TemplateResolver::resolveGeneral($template->body, $client)
+                : TemplateResolver::resolveForClient($template->body, $client);
         }
 
         $waLink = 'https://wa.me/'.$waNumber.($message !== '' ? '?text='.rawurlencode($message) : '');

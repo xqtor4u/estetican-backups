@@ -18,6 +18,8 @@
             ? { cliente: 'Juan Pérez', mascota: 'Firulais', servicio: 'Baño y corte', ultima_fecha: '01/06/2026', dias_vencido: '15' }
             : this.context === 'cliente'
             ? { cliente: 'Juan Pérez' }
+            : this.context === 'general'
+            ? { cliente: 'Juan Pérez', mascota: 'Firulais', servicio: '', fecha: '', hora: '', ultima_fecha: '', dias_vencido: '' }
             : { cliente: 'Juan Pérez', mascota: 'Firulais', servicio: 'Baño y corte', fecha: '10/07/2026', hora: '10:30 AM' };
         let result = this.body;
         for (const [key, value] of Object.entries(samples)) {
@@ -51,6 +53,7 @@
             <option value="cita">Bandeja diaria (citas del día)</option>
             <option value="recurrencia">Recurrencias (servicio periódico vencido)</option>
             <option value="cliente">Mensaje directo a cliente (ficha del cliente)</option>
+            <option value="general">General (campaña, oferta de temporada u otro mensaje)</option>
         </select>
         @error('context')
             <div class="invalid-feedback">{{ $message }}</div>

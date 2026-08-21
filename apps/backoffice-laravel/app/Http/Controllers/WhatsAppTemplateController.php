@@ -97,7 +97,7 @@ class WhatsAppTemplateController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'subject' => ['nullable', 'string', 'max:255'],
             'body' => ['required', 'string'],
-            'context' => ['required', 'string', 'in:cita,recurrencia,cliente'],
+            'context' => ['required', 'string', 'in:cita,recurrencia,cliente,general'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }
@@ -111,6 +111,7 @@ class WhatsAppTemplateController extends Controller
             'cita' => TemplateResolver::availableVariables('cita'),
             'recurrencia' => TemplateResolver::availableVariables('recurrencia'),
             'cliente' => TemplateResolver::availableVariables('cliente'),
+            'general' => TemplateResolver::availableVariables('general'),
         ];
     }
 }

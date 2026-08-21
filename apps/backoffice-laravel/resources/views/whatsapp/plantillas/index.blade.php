@@ -36,6 +36,8 @@
                                     <span class="badge bg-info-subtle text-info-emphasis">Recurrencias</span>
                                 @elseif($template->context === 'cliente')
                                     <span class="badge bg-success-subtle text-success-emphasis">Mensaje directo</span>
+                                @elseif($template->context === 'general')
+                                    <span class="badge bg-warning-subtle text-warning-emphasis">General</span>
                                 @else
                                     <span class="badge bg-primary-subtle text-primary-emphasis">Bandeja diaria</span>
                                 @endif

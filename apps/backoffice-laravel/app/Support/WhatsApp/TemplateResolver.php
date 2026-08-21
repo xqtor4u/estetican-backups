@@ -31,6 +31,18 @@ class TemplateResolver
             ];
         }
 
+        if ($context === 'general') {
+            return [
+                'cliente' => 'Nombre del cliente',
+                'mascota' => 'Nombre de la mascota (solo se rellena si el cliente tiene una única mascota viva; si no, queda en blanco)',
+                'servicio' => 'Servicio — no se rellena al enviar desde la ficha del cliente, queda en blanco',
+                'fecha' => 'Fecha — no se rellena al enviar desde la ficha del cliente, queda en blanco',
+                'hora' => 'Hora — no se rellena al enviar desde la ficha del cliente, queda en blanco',
+                'ultima_fecha' => 'Fecha del último servicio — no se rellena al enviar desde la ficha del cliente, queda en blanco',
+                'dias_vencido' => 'Días de vencimiento — no se rellena al enviar desde la ficha del cliente, queda en blanco',
+            ];
+        }
+
         return [
             'cliente' => 'Nombre del cliente',
             'mascota' => 'Nombre de la mascota',
@@ -89,6 +101,31 @@ class TemplateResolver
     {
         $replacements = [
             '{cliente}' => $client->full_name ?: 'Cliente',
+        ];
+
+        return strtr($body, $replacements);
+    }
+
+    /**
+     * Resuelve una plantilla de contexto "general" (campaña, oferta de temporada, u otro
+     * mensaje libre) enviada desde la ficha del cliente — sin cita de por medio. `{cliente}` y
+     * `{mascota}` (solo si el cliente tiene una única mascota viva, para no adivinar cuál)
+     * se rellenan con datos reales; el resto de las variables de `availableVariables('general')`
+     * no tiene de dónde salir en este flujo y queda en blanco, nunca como texto literal
+     * `{variable}` visible para el cliente.
+     */
+    public static function resolveGeneral(string $body, Client $client): string
+    {
+        $livePets = $client->livePets;
+
+        $replacements = [
+            '{cliente}' => $client->full_name ?: 'Cliente',
+            '{mascota}' => $livePets->count() === 1 ? ($livePets->first()->name ?: '') : '',
+            '{servicio}' => '',
+            '{fecha}' => '',
+            '{hora}' => '',
+            '{ultima_fecha}' => '',
+            '{dias_vencido}' => '',
         ];
 
         return strtr($body, $replacements);
