@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Support\Navigation\MainNavigation;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Spatie\Permission\Models\Permission;
 use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
@@ -18,15 +19,15 @@ use Tests\TestCase;
  */
 class AdminNavigationReorgTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function superAdmin(): User
     {
         return $this->createAdminUser(['is_super_admin' => true]);
     }
 
-    private function groupLabels(): \Illuminate\Support\Collection
+    private function groupLabels(): Collection
     {
         return collect(MainNavigation::groups())->pluck('label');
     }
@@ -48,7 +49,7 @@ class AdminNavigationReorgTest extends TestCase
         $this->assertTrue(collect($rh['items'])->pluck('label')->contains('Usuarios'));
     }
 
-    public function test_operaciones_del_negocio_groups_inventario_finanzas_veterinaria_without_rh(): void
+    public function test_operaciones_del_negocio_groups_inventario_finanzas_without_rh_or_veterinaria(): void
     {
         app(SystemSettings::class)->saveFields('clinical', ['clinical_module_enabled' => true]);
         $this->actingAs($this->superAdmin());
@@ -59,8 +60,24 @@ class AdminNavigationReorgTest extends TestCase
         $subgroupLabels = collect($group['subgroups'])->pluck('label');
         $this->assertTrue($subgroupLabels->contains('Inventario'));
         $this->assertTrue($subgroupLabels->contains('Finanzas'));
-        $this->assertTrue($subgroupLabels->contains('Veterinaria'));
         $this->assertFalse($subgroupLabels->contains('RH'));
+        $this->assertFalse($subgroupLabels->contains('Veterinaria'));
+    }
+
+    /**
+     * 16/08/2026: "Veterinaria" salió de "Operaciones del negocio" y pasó a pestaña propia de
+     * nivel superior, a pedido del usuario — mismo criterio ya usado con RH el 03/08/2026.
+     */
+    public function test_veterinaria_is_now_a_top_level_group_not_nested(): void
+    {
+        app(SystemSettings::class)->saveFields('clinical', ['clinical_module_enabled' => true]);
+        $this->actingAs($this->superAdmin());
+
+        $this->assertTrue($this->groupLabels()->contains('Veterinaria'));
+
+        $veterinaria = $this->groupByLabel('Veterinaria');
+        $this->assertArrayNotHasKey('subgroups', $veterinaria);
+        $this->assertTrue(collect($veterinaria['items'])->pluck('label')->contains('Expediente clínico'));
     }
 
     public function test_reportes_is_a_new_top_level_group_with_activity_log(): void

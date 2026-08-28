@@ -3,6 +3,7 @@
 
     $isRootView = $isRootView ?? false;
     $returnViewMode = $returnViewMode ?? 'blocks';
+    $activeTab = $activeTab ?? 'resumen';
     $page = \App\Support\Pages\PetsPage::show($pet, $client, $isRootView, $returnViewMode);
     $breadcrumbs = $page['breadcrumbs'];
     $clinicalModuleEnabled = $clinicalModuleEnabled ?? (bool) app(\App\Support\SystemSettings\SystemSettings::class)->all()['clinical_module_enabled'];
@@ -48,6 +49,12 @@
     </div>
 @endif
 
+<x-pet-tabs :pet="$pet" :active-tab="$activeTab" />
+
+<div class="tab-content">
+
+<div class="tab-pane fade {{ $activeTab === 'resumen' ? 'show active' : '' }}" id="pet-tab-resumen" role="tabpanel" aria-labelledby="pet-tab-resumen-btn">
+
 <section id="core-profile" class="mb-4">
     <div class="card">
         <div class="card-body">
@@ -63,17 +70,17 @@
                 <div class="col-md-3 border-end pe-md-4 mb-4 mb-md-0 d-flex flex-column align-items-center justify-content-center">
                     <h3 class="h5 mb-3 text-center text-primary fw-bold">Foto de Perfil</h3>
                     <form id="pet-profile-photo-form"
-                          action="{{ $isRootView ? route('pets.profile-photo.update', $pet) : route('clients.pets.profile-photo.update', [$client, $pet]) }}" 
-                          method="POST" 
+                          action="{{ $isRootView ? route('pets.profile-photo.update', $pet) : route('clients.pets.profile-photo.update', [$client, $pet]) }}"
+                          method="POST"
                           enctype="multipart/form-data">
                         @csrf
                         <div>
-                            <x-image-upload 
-                                name="photo" 
-                                :value="$pet->profile_photo_path" 
-                                previewShape="circle" 
-                                :aspectRatio="1" 
-                                maxWidth="160px" 
+                            <x-image-upload
+                                name="photo"
+                                :value="$pet->profile_photo_path"
+                                previewShape="circle"
+                                :aspectRatio="1"
+                                maxWidth="160px"
                                 label="Actualizar foto"
                                 :watermarkText="$pet->name"
                                 autoSubmitFormId="pet-profile-photo-form"
@@ -83,7 +90,7 @@
                         <p class="text-center small text-muted mt-2 px-3">Recorte automático 1:1</p>
                     </form>
                 </div>
-                
+
                 <div class="col-md-9 ps-md-4">
                     <form action="{{ $isRootView ? route('pets.update', $pet) : route('clients.pets.update', [$client, $pet]) }}" method="POST" class="row g-3">
                         @csrf
@@ -250,61 +257,6 @@
         </div>
     </div>
 </div>
-
-<section id="upcoming-bookings" class="mb-5">
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div>
-            <h2 class="h4 mb-1">Servicios programados</h2>
-            <p class="text-muted mb-0">Lectura rápida de próximas sesiones para esta mascota dentro del módulo de Agenda.</p>
-        </div>
-        <a href="{{ route('agenda.index') }}" class="btn btn-outline-secondary">Abrir agenda</a>
-    </div>
-
-    <x-list-table>
-        <thead>
-            <tr>
-                <th>Fecha</th>
-                <th>Servicios</th>
-                <th>Estado</th>
-                <th>Total estimado</th>
-                <th class="text-end">Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($pet->spaBookings as $booking)
-                <tr>
-                    <td>
-                        <div class="fw-semibold">{{ $booking->scheduled_at?->format($datetimeFormat) }}</div>
-                        <div class="text-body-secondary small">{{ $booking->scheduled_at?->diffForHumans() }}</div>
-                    </td>
-                    <td>
-                        <div class="catalog-inline-tags">
-                            @foreach($booking->services as $bookingService)
-                                <span class="catalog-inline-tag">{{ $bookingService->service?->name ?? 'Servicio' }}</span>
-                            @endforeach
-                        </div>
-                    </td>
-                    <td>
-                        <span class="catalog-status-badge {{ $booking->status === 'scheduled' ? 'catalog-status-badge--active' : 'catalog-status-badge--inactive' }}">
-                            {{ $booking->status === 'scheduled' ? 'Programado' : ucfirst(str_replace('_', ' ', $booking->status)) }}
-                        </span>
-                    </td>
-                    <td>
-                        <div class="catalog-stat">${{ number_format((float) $booking->total_estimated_price, 2) }}</div>
-                        <div class="catalog-stat__hint">estimado</div>
-                    </td>
-                    <td class="text-end">
-                        <a href="{{ route('agenda.show', $booking) }}" class="btn btn-sm btn-outline-dark">Detalle</a>
-                    </td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="5" class="text-center py-4 text-body-secondary">Aún no hay servicios programados para esta mascota.</td>
-                </tr>
-            @endforelse
-        </tbody>
-    </x-list-table>
-</section>
 
 @if($clinicalModuleEnabled && $pet->vaccinations->isNotEmpty())
 <section id="vaccination-summary" class="mb-5">
@@ -475,10 +427,10 @@
                         <option value="resultado">Resultado Final (Después)</option>
                         <option value="perfil">Perfil</option>
                     </select>
-                    
+
                     <div class="mt-3" x-show="photoType === 'perfil'" x-transition>
                         <div class="alert alert-primary mb-0 py-2 d-flex align-items-center">
-                            <i class="bi bi-info-circle-fill fs-4 me-2"></i> 
+                            <i class="bi bi-info-circle-fill fs-4 me-2"></i>
                             <small>Al guardar, reemplazará la foto de perfil en la ficha superior.</small>
                         </div>
                     </div>
@@ -548,7 +500,7 @@
                                     <option value="perfil">Perfil</option>
                                 </select>
                                 <input form="pet-photo-form-{{ $photo->id }}" type="hidden" name="is_primary" :value="editType === 'perfil' ? '1' : '0'">
-                                
+
                                 <div class="mt-2" x-show="editType === 'perfil'" x-cloak>
                                     <div class="alert alert-success p-2 mb-0 border-0 fs-6">
                                         <i class="bi bi-check-circle-fill me-1"></i> Esta es la foto principal.
@@ -575,6 +527,185 @@
         </div>
     </div>
 </section>
+
+</div>{{-- /pet-tab-resumen --}}
+
+<div class="tab-pane fade {{ $activeTab === 'agenda' ? 'show active' : '' }}" id="pet-tab-agenda" role="tabpanel" aria-labelledby="pet-tab-agenda-btn">
+<section id="upcoming-bookings" class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <h2 class="h4 mb-1">Servicios programados</h2>
+            <p class="text-muted mb-0">Lectura rápida de próximas sesiones para esta mascota dentro del módulo de Agenda.</p>
+        </div>
+        <a href="{{ route('agenda.index') }}" class="btn btn-outline-secondary">Abrir agenda</a>
+    </div>
+
+    <x-list-table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Servicios</th>
+                <th>Estado</th>
+                <th>Total estimado</th>
+                <th class="text-end">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($pet->spaBookings as $booking)
+                <tr>
+                    <td>
+                        <div class="fw-semibold">{{ $booking->scheduled_at?->format($datetimeFormat) }}</div>
+                        <div class="text-body-secondary small">{{ $booking->scheduled_at?->diffForHumans() }}</div>
+                    </td>
+                    <td>
+                        <div class="catalog-inline-tags">
+                            @foreach($booking->services as $bookingService)
+                                <span class="catalog-inline-tag">{{ $bookingService->service?->name ?? 'Servicio' }}</span>
+                            @endforeach
+                        </div>
+                    </td>
+                    <td>
+                        <span class="catalog-status-badge {{ $booking->status === 'scheduled' ? 'catalog-status-badge--active' : 'catalog-status-badge--inactive' }}">
+                            {{ $booking->status === 'scheduled' ? 'Programado' : ucfirst(str_replace('_', ' ', $booking->status)) }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="catalog-stat">${{ number_format((float) $booking->total_estimated_price, 2) }}</div>
+                        <div class="catalog-stat__hint">estimado</div>
+                    </td>
+                    <td class="text-end">
+                        <a href="{{ route('agenda.show', $booking) }}" class="btn btn-sm btn-outline-dark">Detalle</a>
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-body-secondary">Aún no hay servicios programados para esta mascota.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </x-list-table>
+</section>
+</div>{{-- /pet-tab-agenda --}}
+
+<div class="tab-pane fade {{ $activeTab === 'servicios' ? 'show active' : '' }}" id="pet-tab-servicios" role="tabpanel" aria-labelledby="pet-tab-servicios-btn">
+<section id="past-services" class="mb-5">
+    <div class="mb-3">
+        <h2 class="h4 mb-1">Servicios realizados</h2>
+        <p class="text-muted mb-0">Detalle de cada servicio ejecutado en citas pasadas de esta mascota.</p>
+    </div>
+    <x-list-table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Servicio</th>
+                <th>Operador</th>
+                <th class="text-end">Precio</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($pastBookings as $booking)
+                @forelse($booking->services as $bookingService)
+                    <tr>
+                        <td>{{ $booking->scheduled_at?->format('d/m/Y') }}</td>
+                        <td>{{ $bookingService->service?->name ?? 'Servicio' }}</td>
+                        <td>{{ $bookingService->operator?->name ?? '—' }}</td>
+                        <td class="text-end">${{ number_format((float) $bookingService->current_price, 2) }}</td>
+                    </tr>
+                @empty
+                @endforelse
+            @empty
+                <tr>
+                    <td colspan="4" class="text-center py-4 text-body-secondary">Aún no hay servicios realizados para esta mascota.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </x-list-table>
+</section>
+</div>{{-- /pet-tab-servicios --}}
+
+<div class="tab-pane fade {{ $activeTab === 'historial' ? 'show active' : '' }}" id="pet-tab-historial" role="tabpanel" aria-labelledby="pet-tab-historial-btn">
+<section id="booking-history" class="mb-5">
+    <div class="mb-3">
+        <h2 class="h4 mb-1">Historial de citas</h2>
+        <p class="text-muted mb-0">Citas completadas, canceladas o no presentadas de esta mascota.</p>
+    </div>
+    <x-list-table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Servicios</th>
+                <th>Estado</th>
+                <th class="text-end">Total estimado</th>
+                <th class="text-end">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($pastBookings as $booking)
+                <tr>
+                    <td>{{ $booking->scheduled_at?->format('d/m/Y H:i') }}</td>
+                    <td>
+                        <div class="catalog-inline-tags">
+                            @foreach($booking->services as $bookingService)
+                                <span class="catalog-inline-tag">{{ $bookingService->service?->name ?? 'Servicio' }}</span>
+                            @endforeach
+                        </div>
+                    </td>
+                    <td>
+                        <span class="catalog-status-badge {{ $booking->status === 'completed' ? 'catalog-status-badge--active' : 'catalog-status-badge--inactive' }}">
+                            {{ ucfirst(str_replace('_', ' ', $booking->status)) }}
+                        </span>
+                    </td>
+                    <td class="text-end">${{ number_format((float) $booking->total_estimated_price, 2) }}</td>
+                    <td class="text-end">
+                        <a href="{{ route('agenda.show', $booking) }}" class="btn btn-sm btn-outline-dark">Detalle</a>
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-body-secondary">Aún no hay citas pasadas para esta mascota.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </x-list-table>
+</section>
+</div>{{-- /pet-tab-historial --}}
+
+<div class="tab-pane fade {{ $activeTab === 'cobros' ? 'show active' : '' }}" id="pet-tab-cobros" role="tabpanel" aria-labelledby="pet-tab-cobros-btn">
+<section id="past-payments" class="mb-5">
+    <div class="mb-3">
+        <h2 class="h4 mb-1">Cobros</h2>
+        <p class="text-muted mb-0">Total cobrado y saldo pendiente por cita, misma fuente que usa Agenda para el total real.</p>
+    </div>
+    <x-list-table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th class="text-end">Total estimado</th>
+                <th class="text-end">Cobrado</th>
+                <th class="text-end">Pendiente</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($pastBookings as $booking)
+                <tr>
+                    <td>{{ $booking->scheduled_at?->format('d/m/Y') }}</td>
+                    <td class="text-end">${{ number_format((float) $booking->total_estimated_price, 2) }}</td>
+                    <td class="text-end text-success">${{ number_format($booking->totalPaid(), 2) }}</td>
+                    <td class="text-end {{ $booking->unpaidBalance() > 0.01 ? 'text-danger fw-semibold' : 'text-body-secondary' }}">
+                        ${{ number_format($booking->unpaidBalance(), 2) }}
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="4" class="text-center py-4 text-body-secondary">Aún no hay cobros registrados para esta mascota.</td>
+                </tr>
+            @endforelse
+        </tbody>
+    </x-list-table>
+</section>
+</div>{{-- /pet-tab-cobros --}}
+
+</div>{{-- /tab-content --}}
 
 {{-- Modal: Cambiar dueño --}}
 <div class="modal fade" id="modalChangeOwner" tabindex="-1" aria-hidden="true">

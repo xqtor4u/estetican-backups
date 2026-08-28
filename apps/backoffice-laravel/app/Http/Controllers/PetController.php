@@ -9,6 +9,7 @@ use App\Models\SpaBooking;
 use App\Support\CatalogCache\PetCatalogCache;
 use App\Support\PetPhotoImageManager;
 use App\Support\Search\TokenSearch;
+use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -130,12 +131,12 @@ class PetController extends Controller
 
         $client = $pet->client;
 
-        return $this->renderPetShow($client, $pet, true, $viewMode);
+        return $this->renderPetShow($client, $pet, true, $viewMode, $request);
     }
 
     public function show(Request $request, Client $client, Pet $pet)
     {
-        return $this->renderPetShow($client, $pet, false, $request->query('view') === 'table' ? 'table' : 'blocks');
+        return $this->renderPetShow($client, $pet, false, $request->query('view') === 'table' ? 'table' : 'blocks', $request);
     }
 
     public function update(Request $request, Pet $pet)
@@ -177,7 +178,7 @@ class PetController extends Controller
             ->with('success', 'Dueño de la mascota actualizado.');
     }
 
-    private function renderPetShow(Client $client, Pet $pet, bool $isRootView, string $returnViewMode)
+    private function renderPetShow(Client $client, Pet $pet, bool $isRootView, string $returnViewMode, ?Request $request = null)
     {
         $client->load([
             'pets' => fn ($query) => $query
@@ -203,7 +204,7 @@ class PetController extends Controller
                 ->limit(5),
         ]);
 
-        $clinicalModuleEnabled = (bool) app(\App\Support\SystemSettings\SystemSettings::class)->all()['clinical_module_enabled'];
+        $clinicalModuleEnabled = (bool) app(SystemSettings::class)->all()['clinical_module_enabled'];
 
         if ($clinicalModuleEnabled) {
             $pet->load(['vaccinations' => fn ($query) => $query->with('service:id,name')->orderByDesc('expires_at')]);
@@ -211,7 +212,26 @@ class PetController extends Controller
 
         $allClients = Client::orderBy('first_name')->orderBy('apellido_paterno')->orderBy('apellido_materno')->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'email']);
 
-        return view('pets.show', compact('client', 'pet', 'isRootView', 'returnViewMode', 'allClients', 'clinicalModuleEnabled'));
+        // Pestañas Servicios/Historial/Cobros: mismas citas (ya pasadas), reempaquetadas por
+        // ángulo distinto — reusa SpaBooking::totalPaid()/unpaidBalance() (ya existen, única
+        // fuente de verdad de lo cobrado real de una cita) en vez de recalcular montos aquí.
+        $pastBookings = $pet->spaBookings()
+            ->whereIn('status', ['completed', 'cancelled', 'no_show'])
+            ->with([
+                'services.service:id,code,name,type',
+                'services.operator:id,name',
+                'payments',
+                'quotes.cashLedgers',
+                'quotes.bankLedgers',
+            ])
+            ->orderByDesc('scheduled_at')
+            ->get();
+
+        $activeTab = in_array($request?->query('tab'), ['resumen', 'agenda', 'servicios', 'historial', 'cobros'], true)
+            ? $request->query('tab')
+            : 'resumen';
+
+        return view('pets.show', compact('client', 'pet', 'isRootView', 'returnViewMode', 'allClients', 'clinicalModuleEnabled', 'pastBookings', 'activeTab'));
     }
 
     public function destroy(Request $request, Pet $pet)

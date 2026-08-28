@@ -19,17 +19,21 @@ class MainNavigation
      * RH (Operadores/Tipos de operador/Usuarios) tiene su propia pestaña de nivel superior —
      * antes vivía como sub-sección dentro de "Administración", a pedido del usuario (03/08/2026)
      * se separó para no mezclarse con temas de negocio. "Operaciones del negocio" agrupa lo que
-     * queda de la antigua "Administración" (Inventario/Finanzas/Veterinaria) como sub-secciones
-     * dentro de un solo dropdown — distinto de "Operación" (Agenda/Recursos/Mapa/Config), que es
-     * de uso diario. "Reportes" es pestaña nueva, arranca solo con Bitácora de actividad (movida
-     * desde Catálogos, encaja mejor temáticamente ahí) hasta que se construya BL-008. Clientes
-     * (temas de clientes/mascotas/sucursales) se queda como persiana propia de nivel superior —
-     * es de uso más frecuente y el usuario pidió no mezclarla con el resto.
+     * queda de la antigua "Administración" (Inventario/Finanzas) como sub-secciones dentro de un
+     * solo dropdown — distinto de "Operación" (Agenda/Recursos/Mapa/Config), que es de uso
+     * diario. "Reportes" es pestaña nueva, arranca solo con Bitácora de actividad (movida desde
+     * Catálogos, encaja mejor temáticamente ahí) hasta que se construya BL-008. Clientes (temas
+     * de clientes/mascotas/sucursales) se queda como persiana propia de nivel superior — es de
+     * uso más frecuente y el usuario pidió no mezclarla con el resto. "Veterinaria" salió de
+     * "Operaciones del negocio" y pasó a pestaña propia de nivel superior (16/08/2026, a pedido
+     * del usuario) — junto con las pestañas nuevas en la ficha de mascota, deja de sentirse como
+     * un módulo secundario anidado y pasa a ser un flujo de trabajo de primera clase.
      */
     public static function structure(): array
     {
         return [
             ClientsNavigation::group(),
+            VeterinariaNavigation::group(),
             OperationsNavigation::group(),
             CatalogsNavigation::group(),
             HrNavigation::group(),
@@ -46,7 +50,6 @@ class MainNavigation
             'subgroups' => [
                 InventoryNavigation::group(),
                 FinanzasNavigation::group(),
-                VeterinariaNavigation::group(),
             ],
         ];
     }

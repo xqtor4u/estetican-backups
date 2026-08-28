@@ -117,12 +117,18 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
         ->middlewareFor(['create', 'store'], 'permission:crear catalogo_servicios')
         ->middlewareFor(['edit', 'update'], 'permission:editar catalogo_servicios')
         ->middlewareFor('destroy', 'permission:eliminar catalogo_servicios');
-    Route::middleware('store.module')->group(function () {
+    // El maestro de artículos en sí (items.*) es compartido con Veterinaria (Farmacia/Vacunas,
+    // ver EnsureStoreOrClinicalModuleEnabled) — accesible con Tienda O Veterinaria activa.
+    // Movimientos de inventario y sincronización de catálogo externo siguen siendo exclusivos
+    // de Tienda (concepto de venta al público/almacenes, no aplica a gestión de medicamentos).
+    Route::middleware('store_or_clinical.module')->group(function () {
         Route::resource('items', ItemController::class)->except(['show'])
             ->middlewareFor('index', 'permission:ver catalogo_articulos')
             ->middlewareFor(['create', 'store'], 'permission:crear catalogo_articulos')
             ->middlewareFor(['edit', 'update'], 'permission:editar catalogo_articulos')
             ->middlewareFor('destroy', 'permission:eliminar catalogo_articulos');
+    });
+    Route::middleware('store.module')->group(function () {
         Route::post('items/{item}/movements', [ItemMovementController::class, 'store'])
             ->name('items.movements.store')
             ->middleware('permission:editar catalogo_articulos');
