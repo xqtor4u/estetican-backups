@@ -35,7 +35,11 @@ use App\Domain\Resources\Services\ResourceAllocationService;
 use App\Domain\WhatsAppMessaging\Contracts\WhatsAppSenderInterface;
 use App\Domain\WhatsAppMessaging\Services\MetaWhatsAppSender;
 use App\Support\SystemSettings\SystemSettings;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -84,5 +88,19 @@ class AppServiceProvider extends ServiceProvider
         } catch (\Throwable) {
             // Tabla de configuración aún no existe (ej. antes de la primera migración) — se queda con el default de config/app.php.
         }
+
+        // Rate limit del login (`POST /login`, ver routes/web.php). Clave por
+        // credencial + IP: 5 intentos/min por (usuario, IP) frena el ataque a una
+        // cuenta concreta; un tope más holgado por IP (30/min) frena el barrido de
+        // muchos usuarios desde una IP sin castigar a una clínica entera detrás de
+        // un solo NAT en una mañana con dedos torpes.
+        RateLimiter::for('login', function (Request $request) {
+            $credential = Str::lower((string) $request->input('email'));
+
+            return [
+                Limit::perMinute(5)->by($credential.'|'.$request->ip()),
+                Limit::perMinute(30)->by($request->ip()),
+            ];
+        });
     }
 }

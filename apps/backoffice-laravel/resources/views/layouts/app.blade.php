@@ -34,6 +34,7 @@
         <link rel="preconnect" href="{{ $fontPreconnect }}" @if(str_contains($fontPreconnect, 'gstatic')) crossorigin @endif>
     @endforeach
     <link href="{{ data_get($backofficeConfig, 'fonts.stylesheet_url') }}" rel="stylesheet">
+    @stack('styles')
 </head>
 <body
     class="app-density-{{ $appDensity }}"

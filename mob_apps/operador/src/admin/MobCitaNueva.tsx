@@ -4,15 +4,20 @@ import { consumeCitaPresetDate, consumeCitaPresetOperator, getNavCrumbs, setNavC
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { useAuth } from '../AuthContext';
 import { ScreenHeader } from '../ScreenHeader';
+import { ServicePickerSheet } from './ServicePickerSheet';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface PetMin   { id: number; name: string; species: string | null; breed: string | null; size: string | null; weight_kg: number | string | null; photo: string | null }
 
 /** Etiqueta legible para el tamaño (`pets.size`) — incluye valores legado en español. */
 const SIZE_LABEL: Record<string, string> = { small: 'Pequeño', medium: 'Mediano', large: 'Grande', giant: 'Gigante' };
-interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null }
-interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
+interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null; operator_role_id: number | null }
+interface Operator { id: number; name: string; role: string | null; photo_url: string | null; role_ids: number[] }
 interface OccBooking { time: string; end_time: string | null; duration_minutes: number | null }
+
+/** Una línea de la cita: un servicio con su operador propio (obligatorio), precio y duración
+ *  editables (ambos arrancan del catálogo). */
+interface BookingLine { serviceId: number; price: number; operatorId: number | null; durationMinutes: number }
 
 /* ── Constantes de horario ───────────────────────────────── */
 const STEP = 30; // minutos por slot
@@ -84,7 +89,6 @@ export function MobCitaNueva() {
   /* Estado principal */
   const [pet,       setPet]       = useState<PetMin | null>(null);
   const [services,  setServices]  = useState<Service[]>([]);
-  const [petBookingHistory, setPetBookingHistory] = useState<Array<{ model_type: string; status: string; service_ids?: number[] }>>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
   const [selDate,   setSelDate]   = useState<Date>(() => {
     // Si venimos de Agenda con una fecha ya elegida (flujo + Cita), arrancar ahí en vez
@@ -102,14 +106,15 @@ export function MobCitaNueva() {
   const [loadSlots, setLoadSlots] = useState(false);
   const [businessHours, setBusinessHours] = useState({ start: DEFAULT_OPEN_MIN, end: DEFAULT_CLOSE_MIN });
   const [selSlot,      setSelSlot]      = useState<string | null>(null);
-  const [selSvcs,      setSelSvcs]      = useState<number[]>([]);
-  const [svcPrices,    setSvcPrices]    = useState<Record<number, number>>({});
-  // Si venimos de Agenda con un operador ya filtrado (o de GroomerAgenda, viendo la agenda
-  // de un operador puntual), arrancar con ese operador elegido — el efecto de abajo
-  // (auto-elegirse a sí mismo si el usuario logueado es operador) ya respeta esto, solo
-  // corre si selOp sigue en null.
-  const [selOp,        setSelOp]        = useState<number | null>(() => consumeCitaPresetOperator());
-  const [customDur,    setCustomDur]    = useState<number | null>(null); // null = usar catálogo
+  // Líneas de la cita, en orden de agregado. La primera manda: su operador es el "responsable"
+  // de la cita (operator_id a nivel booking) y contra su agenda se muestra la disponibilidad.
+  // El backend valida cada operador contra su propio tramo de tiempo al guardar (SYNC-040).
+  const [lines,        setLines]        = useState<BookingLine[]>([]);
+  const [pickerOpen,   setPickerOpen]   = useState(false);
+  // Operador preferido para autocompletar líneas nuevas: el que viene del filtro de Agenda /
+  // GroomerAgenda si lo hay, si no el usuario logueado cuando es operador. Solo se usa si está
+  // calificado para el servicio de la línea.
+  const [preferredOperatorId] = useState<number | null>(() => consumeCitaPresetOperator());
   const [notes,        setNotes]        = useState('');
 
   /* Estado de envío */
@@ -124,7 +129,6 @@ export function MobCitaNueva() {
   /* Refs para scroll a campos con error */
   const svcSectionRef  = useRef<HTMLElement>(null);
   const slotSectionRef = useRef<HTMLElement>(null);
-  const opSectionRef   = useRef<HTMLElement>(null);
   const freeDateInputRef = useRef<HTMLInputElement>(null);
 
   /* Carga inicial: mascota, servicios, operadores */
@@ -136,10 +140,6 @@ export function MobCitaNueva() {
       .catch(() => {});
     fetch('/api/services').then(r => r.json()).then(setServices).catch(() => {});
     fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
-    fetch(`/api/pets/${id}/bookings`)
-      .then(r => r.json())
-      .then(setPetBookingHistory)
-      .catch(() => {});
     fetch('/api/settings/booking')
       .then(r => r.json())
       .then((d: { opening_time?: string; closing_time?: string }) => {
@@ -149,38 +149,6 @@ export function MobCitaNueva() {
       })
       .catch(() => {});
   }, [id]);
-
-  /* Preseleccionar al operador logueado (si es operador) en cuanto llega la lista,
-     para que ya salga con su propia agenda de disponibilidad sin tener que elegirse a sí mismo. */
-  useEffect(() => {
-    if (selOp !== null || !user?.operator_id) return;
-    if (operators.some(o => o.id === user.operator_id)) {
-      setSelOp(user.operator_id);
-    }
-  }, [operators, user, selOp]);
-
-  /* Sugerir (preseleccionar) el servicio más frecuente del historial de esta mascota — si
-     ya se bañó 3 veces con "Baño chico", lo más probable es que hoy sea lo mismo. Espera a
-     que el catálogo de servicios ya haya cargado, para no sugerir un id que no exista más
-     (servicio desactivado desde entonces) — en ese caso services.some(...) filtra el conteo. */
-  useEffect(() => {
-    if (selSvcs.length > 0 || services.length === 0 || petBookingHistory.length === 0) return;
-    const activeIds = new Set(services.map(s => s.id));
-    const counts = new Map<number, number>();
-    for (const b of petBookingHistory) {
-      if (b.model_type !== 'spa' || b.status === 'cancelled' || b.status === 'no_show') continue;
-      for (const svcId of b.service_ids ?? []) {
-        if (activeIds.has(svcId)) counts.set(svcId, (counts.get(svcId) ?? 0) + 1);
-      }
-    }
-    if (counts.size === 0) return;
-    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-    const [topId, topCount] = sorted[0];
-    // Solo si hay un ganador claro (no empatado con el segundo) — un empate no es
-    // "frecuente", es indistinto, mejor dejar que el operador elija.
-    if (sorted.length > 1 && sorted[1][1] === topCount) return;
-    toggleSvc(topId);
-  }, [services, petBookingHistory, selSvcs.length]);
 
   const ALL_SLOTS = useMemo(
     () => buildSlots(businessHours.start, businessHours.end),
@@ -229,54 +197,54 @@ export function MobCitaNueva() {
       .catch(() => setBlockedSlots(new Set()));
   }, []);
 
-  useEffect(() => { loadOccupied(selDate, selOp); }, [selDate, selOp, loadOccupied]);
+  /* La primera línea manda: su operador es el "responsable" de la cita (operator_id a nivel
+     booking) y contra su agenda se muestra la disponibilidad de horarios. */
+  const primaryOperator = lines[0]?.operatorId ?? null;
 
-  /* Duración base del catálogo según servicios elegidos */
-  const catalogDuration = useMemo(() =>
-    services
-      .filter(s => selSvcs.includes(s.id))
-      .reduce((acc, s) => acc + (s.duration_minutes ?? STEP), 0),
-    [services, selSvcs]
+  useEffect(() => { loadOccupied(selDate, primaryOperator); }, [selDate, primaryOperator, loadOccupied]);
+
+  /* Duración total de la cita = suma de la duración (editable) de cada línea */
+  const totalDuration = useMemo(() =>
+    lines.reduce((acc, l) => acc + (l.durationMinutes || 0), 0),
+    [lines]
   );
 
-  /* Al cambiar servicios, resetear ajuste manual y limpiar error */
+  /* Al cambiar las líneas, limpiar el error de servicios si ya están completas */
   useEffect(() => {
-    setCustomDur(null);
-    if (selSvcs.length > 0) setFieldErrors(prev => { const n = { ...prev }; delete n.services; return n; });
-  }, [selSvcs]);
+    if (lines.length > 0 && lines.every(l => l.operatorId != null)) {
+      setFieldErrors(prev => { const n = { ...prev }; delete n.services; return n; });
+    }
+  }, [lines]);
 
   /* Al seleccionar horario, limpiar error de slot */
   useEffect(() => {
     if (selSlot) setFieldErrors(prev => { const n = { ...prev }; delete n.slot; return n; });
   }, [selSlot]);
 
-  /* Al elegir operador, limpiar error y resetear el horario ya elegido (puede ya no ser válido) */
+  /* Al cambiar el operador responsable, el horario ya elegido puede dejar de ser válido */
   useEffect(() => {
-    if (selOp !== null) setFieldErrors(prev => { const n = { ...prev }; delete n.operator; return n; });
     setSelSlot(null);
-  }, [selOp]);
+  }, [primaryOperator]);
 
-  /* Duración efectiva: la del usuario si la ajustó, sino la del catálogo (mínimo 15 min) */
-  const effectiveDuration = customDur ?? (catalogDuration > 0 ? catalogDuration : STEP);
+  /* Duración efectiva de la cita (mínimo un slot) */
+  const effectiveDuration = totalDuration > 0 ? totalDuration : STEP;
   const slotsNeeded = Math.max(1, Math.ceil(effectiveDuration / STEP));
 
-  /* Precio total — usa el precio editado por el usuario si existe, sino el sugerido del catálogo */
+  /* Precio total — suma del precio (editable) de cada línea */
   const totalPrice = useMemo(() =>
-    services
-      .filter(s => selSvcs.includes(s.id))
-      .reduce((acc, s) => acc + (svcPrices[s.id] ?? s.price), 0),
-    [services, selSvcs, svcPrices]
+    lines.reduce((acc, l) => acc + (l.price || 0), 0),
+    [lines]
   );
 
-  /* Ajuste de duración */
-  const DURATION_STEP = 15;
-  const DURATION_MIN  = 15;
-  const DURATION_MAX  = 480;
-  const adjustDur = (delta: number) => {
-    const base = effectiveDuration;
-    setCustomDur(Math.min(DURATION_MAX, Math.max(DURATION_MIN, base + delta)));
-  };
-  const isDurationModified = customDur !== null && customDur !== catalogDuration;
+  /* Servicios que todavía se pueden agregar (los que no están ya en una línea) */
+  const availableServices = useMemo(
+    () => services.filter(s => !lines.some(l => l.serviceId === s.id)),
+    [services, lines]
+  );
+
+  const LINE_DUR_STEP = 5;
+  const LINE_DUR_MIN  = 5;
+  const LINE_DUR_MAX  = 480;
 
   /* Índice del slot seleccionado */
   const selSlotIdx = selSlot ? ALL_SLOTS.indexOf(selSlot) : -1;
@@ -295,34 +263,75 @@ export function MobCitaNueva() {
     return false;
   };
 
-  const toggleSvc = (svcId: number) =>
-    setSelSvcs(prev => {
-      if (prev.includes(svcId)) return prev.filter(x => x !== svcId);
-      setSvcPrices(p => (svcId in p ? p : { ...p, [svcId]: services.find(s => s.id === svcId)?.price ?? 0 }));
-      return [...prev, svcId];
+  /* ── Líneas de servicio ────────────────────────────────── */
+  const qualifiedOperators = useCallback((svc: Service | undefined): Operator[] =>
+    svc == null
+      ? operators
+      : operators.filter(o => svc.operator_role_id == null || o.role_ids.includes(svc.operator_role_id)),
+    [operators]
+  );
+
+  /** Operador por defecto para una línea nueva: el preferido (filtro de Agenda / usuario
+   *  logueado) si está calificado; si no, el único calificado cuando hay exactamente uno. */
+  const defaultOperatorFor = useCallback((svc: Service | undefined): number | null => {
+    const qs = qualifiedOperators(svc);
+    if (qs.length === 0) return null;
+    const pref = preferredOperatorId ?? (user?.operator_id ?? null);
+    if (pref != null && qs.some(o => o.id === pref)) return pref;
+    return qs.length === 1 ? qs[0].id : null;
+  }, [qualifiedOperators, preferredOperatorId, user]);
+
+  const addLine = (svcId: number) => {
+    setLines(prev => {
+      if (prev.some(l => l.serviceId === svcId)) return prev;
+      const svc = services.find(s => s.id === svcId);
+      return [...prev, {
+        serviceId: svcId,
+        price: svc?.price ?? 0,
+        operatorId: defaultOperatorFor(svc),
+        durationMinutes: svc?.duration_minutes ?? STEP,
+      }];
     });
+    setPickerOpen(false);
+  };
+
+  const removeLine = (svcId: number) =>
+    setLines(prev => prev.filter(l => l.serviceId !== svcId));
+
+  const setLinePrice = (svcId: number, price: number) =>
+    setLines(prev => prev.map(l => (l.serviceId === svcId ? { ...l, price } : l)));
+
+  const setLineOperator = (svcId: number, operatorId: number | null) =>
+    setLines(prev => prev.map(l => (l.serviceId === svcId ? { ...l, operatorId } : l)));
+
+  const adjustLineDuration = (svcId: number, delta: number) =>
+    setLines(prev => prev.map(l => (
+      l.serviceId === svcId
+        ? { ...l, durationMinutes: Math.min(LINE_DUR_MAX, Math.max(LINE_DUR_MIN, l.durationMinutes + delta)) }
+        : l
+    )));
 
   /* ── Hora de fin estimada ──────────────────────────────── */
   const endTime = selSlot ? slotAddMins(selSlot, effectiveDuration) : null;
 
   /* ── Guardar ───────────────────────────────────────────── */
-  const canSave = selOp !== null && selSlot !== null && !isSlotInvalid(selSlot) && pet !== null;
+  const linesComplete = lines.length > 0 && lines.every(l => l.operatorId != null);
+  const canSave = linesComplete && selSlot !== null && !isSlotInvalid(selSlot) && pet !== null;
 
   const save = async (overrideAvailability = false) => {
     if (saving) return;
 
     // Validación client-side con feedback por campo
     const errs: Record<string, string> = {};
-    if (selSvcs.length === 0) errs.services = 'Selecciona al menos un servicio para continuar';
-    if (selOp === null)        errs.operator = 'Selecciona un operador antes de elegir horario';
-    if (!selSlot)              errs.slot     = 'Selecciona un horario';
-    else if (isSlotInvalid(selSlot)) errs.slot = 'Este horario tiene conflicto con otra cita';
+    if (lines.length === 0)                       errs.services = 'Agrega al menos un servicio para continuar';
+    else if (lines.some(l => l.operatorId == null)) errs.services = 'Cada servicio necesita un operador asignado';
+    if (!selSlot)                                 errs.slot     = 'Selecciona un horario';
+    else if (isSlotInvalid(selSlot))             errs.slot     = 'Este horario tiene conflicto con otra cita';
 
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
       setTimeout(() => {
         if (errs.services) svcSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        else if (errs.operator) opSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         else if (errs.slot) slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 50);
       return;
@@ -334,9 +343,11 @@ export function MobCitaNueva() {
     setOfferOverride(false);
 
     const scheduled_at = `${localDateStr(selDate)} ${selSlot!}:00`;
-    const servicesPayload = selSvcs.map(id => ({
-      id,
-      price: svcPrices[id] ?? (services.find(s => s.id === id)?.price ?? 0),
+    const servicesPayload = lines.map(l => ({
+      id:               l.serviceId,
+      price:            l.price,
+      operator_id:      l.operatorId,
+      duration_minutes: l.durationMinutes,
     }));
 
     try {
@@ -345,7 +356,7 @@ export function MobCitaNueva() {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
           pet_id:           pet!.id,
-          operator_id:      selOp,
+          operator_id:      primaryOperator,
           scheduled_at,
           duration_minutes: effectiveDuration,
           services:         servicesPayload,
@@ -514,15 +525,15 @@ export function MobCitaNueva() {
           </div>
         </section>
 
-        {/* ── 2. Servicios ─────────────────────────────── */}
+        {/* ── 2. Servicios + operador por línea ────────── */}
         <section ref={svcSectionRef}>
           <div className="flex items-center justify-between mb-2">
             <p className={`text-xs font-semibold uppercase tracking-wide ${fieldErrors.services ? 'text-error' : 'text-on-surface-variant'}`}>
               Servicios {fieldErrors.services ? '· requerido' : ''}
             </p>
-            {selSvcs.length > 0 && (
+            {lines.length > 0 && (
               <span className="text-xs text-on-surface-variant bg-surface-container border border-outline-variant px-2 py-0.5 rounded-full">
-                {minutesToHHMM(catalogDuration)} · ${totalPrice.toFixed(0)}
+                {minutesToHHMM(totalDuration)} · ${totalPrice.toFixed(0)}
               </span>
             )}
           </div>
@@ -533,164 +544,123 @@ export function MobCitaNueva() {
               {fieldErrors.services}
             </p>
           )}
+
           {services.length === 0 ? (
             <p className="text-sm text-on-surface-variant italic">Cargando servicios…</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {services.map(svc => {
-                const sel = selSvcs.includes(svc.id);
+              {lines.map((line, idx) => {
+                const svc = services.find(s => s.id === line.serviceId);
+                if (!svc) return null;
+                const qual = qualifiedOperators(svc);
+                const missingOp = line.operatorId == null;
                 return (
                   <div
-                    key={svc.id}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-colors ${
-                      sel
-                        ? 'bg-primary/10 border-primary/40'
-                        : fieldErrors.services
-                          ? 'bg-error/5 border-error/30'
-                          : 'bg-surface-container border-outline-variant'
+                    key={line.serviceId}
+                    className={`rounded-2xl border transition-colors ${
+                      missingOp && fieldErrors.services
+                        ? 'bg-error/5 border-error/30'
+                        : 'bg-primary/10 border-primary/40'
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => toggleSvc(svc.id)}
-                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
-                    >
-                      <span
-                        className={`material-symbols-outlined text-xl shrink-0 ${sel ? 'text-primary' : 'text-on-surface-variant'}`}
-                        style={{ fontVariationSettings: `'FILL' ${sel ? 1 : 0}` }}
+                    <div className="flex items-start gap-2 px-4 pt-3 pb-2">
+                      <p className="flex-1 min-w-0 text-sm font-semibold text-primary pt-1 break-words">{svc.name}</p>
+                      {idx === 0 && !missingOp && (
+                        <span className="text-[10px] uppercase tracking-wide text-on-surface-variant shrink-0 pt-1.5">responsable</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeLine(line.serviceId)}
+                        aria-label={`Quitar ${svc.name}`}
+                        className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant active:bg-surface-container-high transition-colors"
                       >
-                        {sel ? 'check_circle' : 'radio_button_unchecked'}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold truncate ${sel ? 'text-primary' : 'text-on-surface'}`}>
-                          {svc.name}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {!sel && svc.price > 0 && (
-                            <span className="text-xs text-on-surface-variant">${svc.price.toFixed(0)}</span>
-                          )}
-                          {svc.duration_minutes && (
-                            <span className="flex items-center gap-1 text-xs text-on-surface-variant">
-                              <span className="material-symbols-outlined text-xs">schedule</span>
-                              {minutesToHHMM(svc.duration_minutes)}
-                            </span>
-                          )}
-                        </div>
+                        <span className="material-symbols-outlined text-xl">close</span>
+                      </button>
+                    </div>
+
+                    <div className="px-4 pb-3 flex items-center gap-2 flex-wrap">
+                      {/* Duración de la línea (arranca del catálogo, editable) */}
+                      <div className="flex items-center bg-surface rounded-lg border border-outline-variant overflow-hidden shrink-0 h-8">
+                        <button
+                          type="button"
+                          onClick={() => adjustLineDuration(line.serviceId, -LINE_DUR_STEP)}
+                          disabled={line.durationMinutes <= LINE_DUR_MIN}
+                          className="w-7 h-8 flex items-center justify-center text-on-surface active:bg-surface-container-high disabled:opacity-30"
+                        >
+                          <span className="material-symbols-outlined text-base">remove</span>
+                        </button>
+                        <span className="text-xs font-semibold text-on-surface tabular-nums px-1 min-w-[3.25rem] text-center">
+                          {minutesToHHMM(line.durationMinutes)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => adjustLineDuration(line.serviceId, LINE_DUR_STEP)}
+                          disabled={line.durationMinutes >= LINE_DUR_MAX}
+                          className="w-7 h-8 flex items-center justify-center text-on-surface active:bg-surface-container-high disabled:opacity-30"
+                        >
+                          <span className="material-symbols-outlined text-base">add</span>
+                        </button>
                       </div>
-                    </button>
-                    {sel && (
-                      <div className="flex items-center gap-1 shrink-0 bg-surface rounded-xl border border-outline-variant px-2 py-1">
+
+                      {/* Precio de la línea */}
+                      <div className="flex items-center gap-1 shrink-0 bg-surface rounded-lg border border-outline-variant px-2 h-8">
                         <span className="text-xs text-on-surface-variant">$</span>
                         <input
                           type="number"
                           min={0}
                           step="0.01"
                           inputMode="decimal"
-                          value={svcPrices[svc.id] ?? svc.price}
-                          onClick={e => e.stopPropagation()}
-                          onChange={e => {
-                            const v = e.target.value === '' ? 0 : Number(e.target.value);
-                            setSvcPrices(p => ({ ...p, [svc.id]: v }));
-                          }}
-                          className="w-16 bg-transparent text-sm font-semibold text-on-surface text-right focus:outline-none"
+                          value={line.price}
+                          onChange={e => setLinePrice(line.serviceId, e.target.value === '' ? 0 : Number(e.target.value))}
+                          className="w-14 bg-transparent text-sm font-semibold text-on-surface text-right focus:outline-none"
                         />
                       </div>
-                    )}
+                    </div>
+
+                    <div className="px-4 pb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-sm text-on-surface-variant shrink-0">person</span>
+                      {qual.length === 0 ? (
+                        <span className="text-xs text-error">
+                          Ningún operador activo está calificado para este servicio
+                        </span>
+                      ) : (
+                        <select
+                          value={line.operatorId ?? ''}
+                          onChange={e => setLineOperator(line.serviceId, e.target.value ? Number(e.target.value) : null)}
+                          className={`flex-1 min-w-0 bg-surface border rounded-lg px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors ${
+                            missingOp ? 'border-error/50 text-error' : 'border-outline-variant text-on-surface'
+                          }`}
+                        >
+                          <option value="">Elegir operador…</option>
+                          {qual.map(op => (
+                            <option key={op.id} value={op.id}>{op.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   </div>
                 );
               })}
-            </div>
-          )}
-        </section>
 
-        {/* ── 3. Duración ──────────────────────────────── */}
-        <section>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide">Duración</p>
-            {isDurationModified && (
-              <button
-                onClick={() => setCustomDur(null)}
-                className="text-xs text-primary flex items-center gap-1"
-              >
-                <span className="material-symbols-outlined text-sm">restart_alt</span>
-                Restablecer catálogo
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center bg-surface-container border border-outline-variant rounded-2xl overflow-hidden">
-            {/* Botón − */}
-            <button
-              onClick={() => adjustDur(-DURATION_STEP)}
-              disabled={effectiveDuration <= DURATION_MIN}
-              className="flex items-center justify-center w-14 h-14 text-on-surface active:bg-surface-container-high transition-colors disabled:opacity-30"
-            >
-              <span className="material-symbols-outlined text-2xl">remove</span>
-            </button>
-
-            {/* Valor central */}
-            <div className="flex-1 flex flex-col items-center justify-center py-3">
-              <span className="text-2xl font-bold text-on-surface tabular-nums">
-                {minutesToHHMM(effectiveDuration)}
-              </span>
-              {!isDurationModified && catalogDuration > 0 ? (
-                <span className="text-[10px] text-on-surface-variant mt-0.5">Del catálogo</span>
-              ) : isDurationModified ? (
-                <span className="text-[10px] text-primary mt-0.5">Ajustado manualmente</span>
-              ) : (
-                <span className="text-[10px] text-on-surface-variant mt-0.5">Estimado</span>
+              {availableServices.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPickerOpen(true)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-dashed border-primary/50 text-primary text-sm font-semibold active:bg-primary/5 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-xl">add</span>
+                  Agregar servicio
+                </button>
               )}
             </div>
-
-            {/* Botón + */}
-            <button
-              onClick={() => adjustDur(DURATION_STEP)}
-              disabled={effectiveDuration >= DURATION_MAX}
-              className="flex items-center justify-center w-14 h-14 text-on-surface active:bg-surface-container-high transition-colors disabled:opacity-30"
-            >
-              <span className="material-symbols-outlined text-2xl">add</span>
-            </button>
-          </div>
-        </section>
-
-        {/* ── 4. Operador (obligatorio) ────────────────── */}
-        <section ref={opSectionRef}>
-          <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${fieldErrors.operator ? 'text-error' : 'text-on-surface-variant'}`}>
-            Operador {fieldErrors.operator ? '· requerido' : ''}
-          </p>
-          {fieldErrors.operator && (
-            <p className="text-xs text-error flex items-center gap-1 mb-2">
-              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
-              {fieldErrors.operator}
-            </p>
           )}
-          <div className="flex flex-wrap gap-2">
-            {operators.map(op => {
-              const sel = selOp === op.id;
-              return (
-                <button
-                  key={op.id}
-                  onClick={() => setSelOp(sel ? null : op.id)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm border transition-colors ${
-                    sel
-                      ? 'bg-primary text-on-primary border-primary'
-                      : 'bg-surface-container border-outline-variant text-on-surface'
-                  }`}
-                >
-                  {op.photo_url ? (
-                    <img src={op.photo_url} className="w-5 h-5 rounded-full object-cover" alt="" />
-                  ) : (
-                    <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
-                  )}
-                  <span className="font-medium">{op.name.split(' ')[0]}</span>
-                  {op.role && <span className={`text-xs ${sel ? 'opacity-80' : 'text-on-surface-variant'}`}>{op.role}</span>}
-                </button>
-              );
-            })}
-          </div>
         </section>
 
-        {/* ── 5. Horario ───────────────────────────────── */}
+        {/* La duración se ajusta por línea de servicio (sección 2); la duración total de la
+            cita es la suma. El operador también se elige por línea — el de la primera línea es
+            el "responsable" de la cita y contra su agenda se muestra la disponibilidad. */}
+
+        {/* ── 3. Horario ───────────────────────────────── */}
         <section ref={slotSectionRef}>
           <div className="flex items-center justify-between mb-2">
             <p className={`text-xs font-semibold uppercase tracking-wide ${fieldErrors.slot ? 'text-error' : 'text-on-surface-variant'}`}>
@@ -709,10 +679,10 @@ export function MobCitaNueva() {
               {fieldErrors.slot}
             </p>
           )}
-          {selOp === null ? (
+          {primaryOperator === null ? (
             <div className="flex items-center gap-2 py-6 text-on-surface-variant text-sm bg-surface-container border border-outline-variant rounded-2xl px-4">
               <span className="material-symbols-outlined text-xl">person_off</span>
-              Selecciona un operador primero para ver su disponibilidad.
+              Agrega un servicio y elige su operador para ver la disponibilidad.
             </div>
           ) : loadSlots ? (
             <div className="flex items-center gap-2 py-6 text-on-surface-variant text-sm">
@@ -788,7 +758,7 @@ export function MobCitaNueva() {
           )}
         </section>
 
-        {/* ── 6. Notas ─────────────────────────────────── */}
+        {/* ── 4. Notas ─────────────────────────────────── */}
         <section>
           <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Notas</p>
           <textarea
@@ -817,16 +787,19 @@ export function MobCitaNueva() {
               <p className="text-sm font-semibold text-on-surface">
                 {fmtLong(selDate)} · {selSlot}{endTime ? ` → ${endTime}` : ''}
               </p>
-              {selSvcs.length > 0 && (
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  {services.filter(s => selSvcs.includes(s.id)).map(s => s.name).join(' · ')}
-                </p>
-              )}
-              {selOp !== null && (
-                <p className="text-xs text-on-surface-variant mt-0.5 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-xs">person</span>
-                  {operators.find(o => o.id === selOp)?.name}
-                </p>
+              {lines.length > 0 && (
+                <div className="text-xs text-on-surface-variant mt-0.5 flex flex-col gap-0.5">
+                  {lines.map(l => {
+                    const svc = services.find(s => s.id === l.serviceId);
+                    const op = operators.find(o => o.id === l.operatorId);
+                    return (
+                      <span key={l.serviceId} className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs">person</span>
+                        {svc?.name ?? '—'}{op ? ` · ${op.name}` : ' · sin operador'}
+                      </span>
+                    );
+                  })}
+                </div>
               )}
               {totalPrice > 0 && (
                 <p className="text-xs font-semibold text-on-surface-variant mt-0.5">${totalPrice.toFixed(0)}</p>
@@ -917,6 +890,14 @@ export function MobCitaNueva() {
           )}
         </button>
       </div>
+
+      {pickerOpen && (
+        <ServicePickerSheet
+          services={availableServices}
+          onPick={addLine}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
 
     </div>
   );

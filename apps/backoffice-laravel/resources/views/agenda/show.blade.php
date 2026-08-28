@@ -87,6 +87,20 @@
                     </div>
                 @endforeach
             </div>
+            @if($booking->status === 'scheduled' && $booking->services->isNotEmpty())
+                <div class="d-flex align-items-center justify-content-between px-3 py-3 border-bottom gap-2 flex-wrap">
+                    <span class="small text-body-secondary">
+                        <i class="bi bi-play-circle me-1"></i>
+                        Empieza a trabajar la cita ahora — abre la orden de trabajo sin pasar por presupuesto.
+                    </span>
+                    <form action="{{ route('agenda.start', $booking) }}" method="POST" class="m-0">
+                        @csrf
+                        <button type="submit" class="btn btn-primary btn-sm fw-bold">
+                            <i class="bi bi-play-fill me-1"></i> Iniciar cita
+                        </button>
+                    </form>
+                </div>
+            @endif
             @if(in_array($booking->status, ['scheduled', 'work_order']))
                 <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-light gap-2 flex-wrap">
                     <span class="small text-body-secondary">

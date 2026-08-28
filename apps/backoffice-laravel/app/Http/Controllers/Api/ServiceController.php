@@ -11,14 +11,17 @@ class ServiceController extends Controller
     {
         $services = Service::where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'type', 'price', 'duration_minutes']);
+            ->get(['id', 'name', 'type', 'price', 'duration_minutes', 'operator_role_id']);
 
         return response()->json($services->map(fn ($s) => [
-            'id'               => $s->id,
-            'name'             => $s->name,
-            'type'             => $s->type,
-            'price'            => (float) $s->price,
+            'id' => $s->id,
+            'name' => $s->name,
+            'type' => $s->type,
+            'price' => (float) $s->price,
             'duration_minutes' => $s->duration_minutes,
+            // Rol que se necesita para ejecutar el servicio (null = cualquier operador).
+            // El agendado móvil filtra los operadores ofrecidos por línea con esto.
+            'operator_role_id' => $s->operator_role_id,
         ]));
     }
 }

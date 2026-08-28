@@ -34,8 +34,24 @@ interface BookingDetail {
     operator_name: string | null;
     is_external: boolean;
     external_cost: number | null;
+    started_at: string | null;
+    completed_at: string | null;
+    cancelled_at: string | null;
+    cancellation_reason: string | null;
+    not_performed_at: string | null;
+    not_performed_reason: string | null;
   }[];
   operator: { id: number; name: string; photo_url: string | null } | null;
+}
+
+/** Estado efectivo de una línea de servicio (misma cascada que el accessor del backend). */
+type LineState = 'cancelled' | 'not_performed' | 'completed' | 'in_progress' | 'pending';
+function lineStateOf(l: { cancelled_at: string | null; not_performed_at: string | null; completed_at: string | null; started_at: string | null }): LineState {
+  if (l.cancelled_at) return 'cancelled';
+  if (l.not_performed_at) return 'not_performed';
+  if (l.completed_at) return 'completed';
+  if (l.started_at) return 'in_progress';
+  return 'pending';
 }
 type BookingServiceLine = BookingDetail['services'][number];
 interface ServiceCat { id: number; name: string; type: string | null; price: number; duration_minutes: number | null }
@@ -85,7 +101,7 @@ const STATUS_BAR: Record<string, string> = {
 // sin importar la hora real de inicio/fin, y lleva directo a cobro.
 const NEXT_STATUSES: Record<string, { value: string; label: string; icon: string; danger?: boolean; cobro?: boolean; realizada?: boolean; unfulfilled?: boolean }[]> = {
   scheduled:  [
-    { value: 'work_order',    label: 'Iniciar servicio', icon: 'play_arrow' },
+    { value: 'work_order',    label: 'Iniciar cita', icon: 'play_arrow' },
     { value: 'realizada',     label: 'Realizada',        icon: 'task_alt',    realizada: true },
     { value: 'unfulfillable', label: 'No se realizó',    icon: 'person_off', danger: true, unfulfilled: true },
     { value: 'cancelled',     label: 'Cancelar cita',    icon: 'cancel',     danger: true },
@@ -199,6 +215,18 @@ export function MobCitaDet() {
   /* Tolerancia de inicio */
   const [graceMinutes, setGraceMinutes] = useState(15);
   const [graceDialog,  setGraceDialog]  = useState<{ diffMinutes: number } | null>(null);
+  // Checklist al iniciar una cita con 2+ servicios — a diferencia de graceDialog (solo
+  // confirma horario), acá se elige cuál(es) servicio(s) arrancan ahora y cuál(es) quedan
+  // pendientes. Al llegar acá la cita siempre sigue "scheduled" (el botón que lo abre solo
+  // existe en ese estado), así que ninguna línea pudo haber arrancado todavía.
+  const [startChecklist, setStartChecklist] = useState<{ diffMinutes: number | null; selected: Set<number> } | null>(null);
+  const [startingChecklist, setStartingChecklist] = useState(false);
+  const [startingLineId, setStartingLineId] = useState<number | null>(null); // booking_service_id de la línea que se está iniciando sola, desde "Servicio / Operador"
+  const [completingLineId, setCompletingLineId] = useState<number | null>(null); // ídem, para "Terminar"
+  const [lineActionId, setLineActionId] = useState<number | null>(null); // línea con un PATCH en curso (no realizó / cancelar / reactivar)
+  const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set()); // acordeón "Servicio / Operador"
+  const [voidPanel, setVoidPanel] = useState<{ lineId: number; kind: 'not_performed' | 'cancelled' } | null>(null);
+  const [voidReason, setVoidReason] = useState('');
 
   /* Pagos registrados */
   const [payments,     setPayments]     = useState<BookingPayment[]>([]);
@@ -235,7 +263,13 @@ export function MobCitaDet() {
   /* Movimientos unificados (servicios + cobros) */
   const txRows = useMemo<TxRow[]>(() => {
     if (!booking) return [];
-    const svcRows: TxRow[] = booking.services.map((s, i) => ({
+    // Mientras "Servicio / Operador" ya muestra nombre + precio + operador por línea
+    // (scheduled/work_order), repetir los servicios acá sería duplicar la misma información —
+    // Movimientos se limita a los cobros. En el resto de los estados (completada, cancelada,
+    // etc.) esa sección no se muestra, así que acá sigue siendo la única fuente.
+    const showsServiceOperatorSection =
+      (booking.status === 'scheduled' || booking.status === 'work_order') && booking.services.length > 0;
+    const svcRows: TxRow[] = showsServiceOperatorSection ? [] : booking.services.map((s, i) => ({
       key:        `svc-${i}`,
       tipo:       'Servicio',
       descripcion: s.name,
@@ -256,6 +290,17 @@ export function MobCitaDet() {
 
   const { sortKey: txSortKey, direction: txDir, toggle: txToggle, sorted: sortedTxRows } =
     useSortable<TxRow>(txRows, 'fecha_iso');
+
+  /* Acciones de toda la cita — cuando ya hay líneas de servicio en el acordeón, se recorta lo
+     que quedó duplicado: "Iniciar cita" (se inicia por línea) y "Realizada" en work_order
+     (redundante con "Completar y cobrar"). Sin líneas, la lista completa como antes. */
+  const acciones = useMemo(() => {
+    const base = booking ? (NEXT_STATUSES[booking.status] ?? []) : [];
+    if (!booking || booking.services.length === 0) return base;
+    return base.filter(a =>
+      a.value !== 'work_order' && !(a.realizada && booking.status === 'work_order')
+    );
+  }, [booking]);
 
   /* Guardado / error de carga */
   const [saving,    setSaving]    = useState(false);
@@ -293,6 +338,14 @@ export function MobCitaDet() {
         setBooking(b);
         setCatalog(svcs);
         setOperators(ops);
+        // Acordeón "Servicio / Operador": arrancar expandidas las líneas que todavía tienen
+        // algo que hacer (no completadas, no excluidas) — así las acciones por línea se ven
+        // sin tener que tocar. Las completadas/excluidas arrancan colapsadas.
+        setExpandedLines(new Set(
+          b.services
+            .filter(l => !l.cancelled_at && !l.not_performed_at && !l.completed_at)
+            .map(l => l.booking_service_id)
+        ));
 
         const dt = parseDateLocal(b.scheduled_at);
         setSelDate(new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()));
@@ -353,7 +406,15 @@ export function MobCitaDet() {
   };
 
   /* ── Asignar profesional / costo externo a una línea de servicio ── */
+  const toggleLineExpanded = (bookingServiceId: number) =>
+    setExpandedLines(prev => {
+      const next = new Set(prev);
+      if (next.has(bookingServiceId)) next.delete(bookingServiceId); else next.add(bookingServiceId);
+      return next;
+    });
+
   const openAssign = (line: BookingServiceLine) => {
+    setExpandedLines(prev => new Set(prev).add(line.booking_service_id));
     setAssigningLine(line);
     setAssignOperator(line.operator_id ?? '');
     setAssignExternal(line.is_external);
@@ -393,6 +454,103 @@ export function MobCitaDet() {
       showToast('Profesional asignado');
     } catch { setAssignErr('No se pudo conectar con el servidor.'); }
     setSavingAssign(false);
+  };
+
+  /* ── Iniciar una línea de servicio suelta (botón "Iniciar" en "Servicio / Operador") ── */
+  const startSingleLine = async (bookingServiceId: number) => {
+    if (!booking) return;
+    setStartingLineId(bookingServiceId);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/services/${bookingServiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mark_started: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSaveErr(data.message ?? 'Error'); setStartingLineId(null); return; }
+      setBooking(data);
+      showToast('Servicio iniciado');
+    } catch { setSaveErr('No se pudo conectar con el servidor.'); }
+    setStartingLineId(null);
+  };
+
+  /* ── Terminar una línea de servicio suelta (botón "Terminar" en "Servicio / Operador") —
+     independiente de "Completar y cobrar", que sigue cerrando toda la cita de un jalón. ── */
+  const completeSingleLine = async (bookingServiceId: number) => {
+    if (!booking) return;
+    setCompletingLineId(bookingServiceId);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/services/${bookingServiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mark_completed: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSaveErr(data.message ?? 'Error'); setCompletingLineId(null); return; }
+      setBooking(data);
+      showToast('Servicio terminado');
+    } catch { setSaveErr('No se pudo conectar con el servidor.'); }
+    setCompletingLineId(null);
+  };
+
+  /* ── "No se realizó" / "Cancelar" / "Reactivar" una línea suelta ──
+     Mismo endpoint que iniciar/terminar; una línea excluida sale del total a cobrar (backend). */
+  const patchLine = async (bookingServiceId: number, body: Record<string, unknown>, okToast: string) => {
+    if (!booking) return;
+    setLineActionId(bookingServiceId);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/services/${bookingServiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSaveErr(data.message ?? 'Error'); setLineActionId(null); return; }
+      setBooking(data);
+      showToast(okToast);
+    } catch { setSaveErr('No se pudo conectar con el servidor.'); }
+    setLineActionId(null);
+  };
+
+  const confirmVoidLine = () => {
+    if (!voidPanel) return;
+    const reason = voidReason.trim();
+    const body = voidPanel.kind === 'not_performed'
+      ? { mark_not_performed: true, not_performed_reason: reason || null }
+      : { mark_cancelled: true, cancellation_reason: reason || null };
+    patchLine(voidPanel.lineId, body, voidPanel.kind === 'not_performed' ? 'Servicio marcado como no realizado' : 'Servicio cancelado');
+    setVoidPanel(null);
+    setVoidReason('');
+  };
+
+  const reactivateLine = (bookingServiceId: number) =>
+    patchLine(bookingServiceId, { mark_reactivate: true }, 'Servicio reactivado');
+
+  const realizadaSingleLine = (bookingServiceId: number) =>
+    patchLine(bookingServiceId, { mark_realizada: true }, 'Servicio marcado como realizado');
+
+  /* ── Confirmar el checklist de "Iniciar cita" con 2+ servicios — un PATCH por línea marcada ── */
+  const confirmStartChecklist = async () => {
+    if (!booking || !startChecklist || startChecklist.selected.size === 0) return;
+    setStartingChecklist(true);
+    setSaveErr(null);
+    try {
+      let lastData: BookingDetail | null = null;
+      for (const bookingServiceId of startChecklist.selected) {
+        const res = await fetch(`/api/bookings/${booking.id}/services/${bookingServiceId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mark_started: true }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setSaveErr(data.message ?? 'Error'); setStartingChecklist(false); return; }
+        lastData = data;
+      }
+      if (lastData) setBooking(lastData);
+      setStartChecklist(null);
+      showToast('Cita iniciada');
+    } catch { setSaveErr('No se pudo conectar con el servidor.'); }
+    setStartingChecklist(false);
   };
 
   /* ── Editar "Notas de la cita" (rápido, sin modo edición completo) ── */
@@ -514,7 +672,7 @@ export function MobCitaDet() {
   };
 
   /* ── "Realizada": marca la cita como llevada a cabo tal como se programó,
-     sin la fricción de horario de "Iniciar servicio". Si aún no se había
+     sin la fricción de horario de "Iniciar cita". Si aún no se había
      iniciado, primero pasa a work_order en silencio y luego va a cobro. ── */
   const markRealizada = async () => {
     if (!booking) return;
@@ -695,34 +853,55 @@ export function MobCitaDet() {
         </div>
 
         {/* ── Cambio de estado (solo vista) ────────────── */}
-        {!editing && editable && NEXT_STATUSES[booking.status] && (
+        {!editing && editable && acciones.length > 0 && (
           <section>
             <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Acciones</p>
             <div className="flex flex-col gap-2">
-              {NEXT_STATUSES[booking.status].map(action => (
+              {acciones.map(action => (
                 <button
                   key={action.value}
                   disabled={saving}
                   onClick={() => {
-                    if (action.realizada)            { markRealizada(); return; }
-                    if (action.cobro)                { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/citas/${booking.id}/cobro`); return; }
-                    if (action.value === 'cancelled') { setShowCancel(true); return; }
-                    if (action.unfulfilled) {
-                      setUnfulfilledType(booking.status === 'scheduled' ? 'no_show' : 'unfulfillable');
-                      setUnfulfilledNote('');
-                      setShowUnfulfilled(true);
-                      return;
-                    }
-                    if (action.value === 'work_order') {
-                      const now = new Date();
-                      const scheduled = parseDateLocal(booking.scheduled_at);
-                      const diffMin = Math.round((now.getTime() - scheduled.getTime()) / 60000);
-                      if (Math.abs(diffMin) > graceMinutes) {
-                        setGraceDialog({ diffMinutes: diffMin });
+                    // Envuelto en try/catch a propósito: un error acá no debe fallar en
+                    // silencio (React lo traga en consola, invisible en un teléfono) — se
+                    // muestra en el banner de error que ya existe más abajo en la pantalla.
+                    try {
+                      if (action.realizada)            { markRealizada(); return; }
+                      if (action.cobro)                { setNavCrumbs([{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]); navigate(`/citas/${booking.id}/cobro`); return; }
+                      if (action.value === 'cancelled') { setShowCancel(true); return; }
+                      if (action.unfulfilled) {
+                        setUnfulfilledType(booking.status === 'scheduled' ? 'no_show' : 'unfulfillable');
+                        setUnfulfilledNote('');
+                        setShowUnfulfilled(true);
                         return;
                       }
+                      if (action.value === 'work_order') {
+                        const now = new Date();
+                        const scheduled = parseDateLocal(booking.scheduled_at);
+                        const diffMin = Math.round((now.getTime() - scheduled.getTime()) / 60000);
+                        const outsideGrace = Math.abs(diffMin) > graceMinutes;
+                        // Con 2+ servicios, siempre se elige cuál(es) arrancan ahora — la
+                        // cita todavía está "scheduled" (este botón solo existe en ese
+                        // estado), así que ninguna línea pudo haber arrancado todavía.
+                        if (booking.services.length >= 2) {
+                          setStartChecklist({
+                            diffMinutes: outsideGrace ? diffMin : null,
+                            selected: new Set(booking.services.map(s => s.booking_service_id)),
+                          });
+                          return;
+                        }
+                        if (outsideGrace) {
+                          setGraceDialog({ diffMinutes: diffMin });
+                          return;
+                        }
+                      }
+                      changeStatus(action.value);
+                    } catch (err) {
+                      setSaveErr(`Error interno al procesar "${action.label}": ${err instanceof Error ? err.message : String(err)}`);
+                      // El banner de error vive al fondo de la pantalla — sin esto, un error
+                      // acá quedaría invisible fuera de la vista, pareciendo que "no pasó nada".
+                      setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 50);
                     }
-                    changeStatus(action.value);
                   }}
                   className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border font-semibold text-sm transition-colors active:scale-[0.99] disabled:opacity-50 ${
                     action.danger
@@ -843,8 +1022,8 @@ export function MobCitaDet() {
                 </p>
                 <p className="text-xs mt-1" style={{ color: 'var(--color-on-surface-variant)' }}>
                   {graceDialog.diffMinutes > 0
-                    ? `La cita era a las ${booking.time}. ¿Confirmas que el servicio está comenzando ahora?`
-                    : `La cita es a las ${booking.time}. ¿Confirmas iniciar el servicio antes de la hora programada?`}
+                    ? `La cita era a las ${booking.time}. ¿Confirmas que está comenzando ahora?`
+                    : `La cita es a las ${booking.time}. ¿Confirmas iniciarla antes de la hora programada?`}
                 </p>
               </div>
             </div>
@@ -856,6 +1035,71 @@ export function MobCitaDet() {
               <button onClick={() => { setGraceDialog(null); changeStatus('work_order'); }} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-primary text-on-primary disabled:opacity-50">
                 Sí, iniciar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Checklist: qué servicio(s) iniciar ahora (2+ servicios) ─── */}
+        {startChecklist && (
+          <div className="bg-surface border border-outline-variant rounded-2xl px-4 py-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>checklist</span>
+              <p className="text-sm font-bold text-on-surface">¿Qué servicio(s) inician ahora?</p>
+            </div>
+
+            {startChecklist.diffMinutes !== null && (
+              <p className="text-xs font-semibold" style={{ color: 'var(--color-error)' }}>
+                {startChecklist.diffMinutes > 0
+                  ? `La cita era a las ${booking.time} — inicio con ${startChecklist.diffMinutes} min de retraso.`
+                  : `La cita es a las ${booking.time} — iniciando ${Math.abs(startChecklist.diffMinutes)} min antes de la hora.`}
+              </p>
+            )}
+
+            <div className="flex flex-col gap-2">
+              {booking.services.map(s => {
+                const checked = startChecklist.selected.has(s.booking_service_id);
+                return (
+                  <button
+                    key={s.booking_service_id}
+                    type="button"
+                    onClick={() => setStartChecklist(prev => {
+                      if (!prev) return prev;
+                      const next = new Set(prev.selected);
+                      if (next.has(s.booking_service_id)) next.delete(s.booking_service_id); else next.add(s.booking_service_id);
+                      return { ...prev, selected: next };
+                    })}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                      checked ? 'bg-primary/10 border-primary/40' : 'bg-surface-container border-outline-variant'
+                    }`}
+                  >
+                    <span
+                      className={`material-symbols-outlined text-xl shrink-0 ${checked ? 'text-primary' : 'text-on-surface-variant'}`}
+                      style={{ fontVariationSettings: `'FILL' ${checked ? 1 : 0}` }}
+                    >
+                      {checked ? 'check_box' : 'check_box_outline_blank'}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-on-surface truncate">{s.name}</p>
+                      <p className="text-xs text-on-surface-variant truncate">{s.operator_name ?? 'Sin profesional asignado'}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="text-[11px] text-on-surface-variant">
+              Lo que dejes sin marcar queda pendiente — se puede iniciar después, por separado, desde "Servicio / Operador".
+            </p>
+
+            <div className="flex gap-2">
+              <button onClick={() => setStartChecklist(null)} disabled={startingChecklist}
+                className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={confirmStartChecklist} disabled={startingChecklist || startChecklist.selected.size === 0}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-primary text-on-primary disabled:opacity-50">
+                {startingChecklist ? 'Iniciando…' : `Iniciar (${startChecklist.selected.size})`}
               </button>
             </div>
           </div>
@@ -890,77 +1134,6 @@ export function MobCitaDet() {
           </div>
         )}
 
-        {/* ── Panel: asignar profesional / costo externo por línea ── */}
-        {assigningLine && (
-          <div className="bg-secondary/8 border border-secondary/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-secondary text-xl">person_add</span>
-              <p className="text-sm font-semibold text-secondary">Asignar: {assigningLine.name}</p>
-            </div>
-
-            <div>
-              <label className="text-xs text-on-surface-variant mb-1 block">Especialista / Operador</label>
-              <select
-                value={assignOperator}
-                onChange={e => setAssignOperator(e.target.value ? Number(e.target.value) : '')}
-                className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary"
-              >
-                <option value="">Selecciona un profesional…</option>
-                {operators.map(op => (
-                  <option key={op.id} value={op.id}>{op.name}{op.role ? ` (${op.role})` : ''}</option>
-                ))}
-              </select>
-            </div>
-
-            <label className="flex items-center gap-2 text-sm text-on-surface">
-              <input type="checkbox" checked={assignExternal} onChange={e => setAssignExternal(e.target.checked)}
-                className="w-4 h-4 accent-secondary" />
-              Es servicio externo (ej. cremación, anestesia externa)
-            </label>
-
-            {assignExternal && (
-              <div>
-                <label className="text-xs text-on-surface-variant mb-1 block">Costo del proveedor externo</label>
-                <input type="number" inputMode="decimal" step="0.01" min="0" value={assignCost}
-                  onChange={e => setAssignCost(e.target.value)}
-                  className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
-                <p className="text-[11px] text-on-surface-variant mt-1">Lo que cobra el proveedor externo — distinto del precio de venta al cliente.</p>
-              </div>
-            )}
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-on-surface-variant">Precio de venta al cliente</label>
-                {assignSuggestedPrice && (
-                  <button type="button" onClick={() => setAssignPrice(assignSuggestedPrice)}
-                    className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary">
-                    Sugerido: ${assignSuggestedPrice} (usar)
-                  </button>
-                )}
-              </div>
-              <input type="number" inputMode="decimal" step="0.01" min="0" value={assignPrice}
-                onChange={e => setAssignPrice(e.target.value)}
-                className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
-              {assignSuggestedPrice && (
-                <p className="text-[11px] text-on-surface-variant mt-1">
-                  El costo externo cambió respecto al capturado antes — el precio sugerido mantiene la misma proporción, pero es editable, no se aplica solo.
-                </p>
-              )}
-            </div>
-
-            {assignErr && <p className="text-xs text-error">{assignErr}</p>}
-            <div className="flex gap-2">
-              <button onClick={closeAssign}
-                className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
-                Cancelar
-              </button>
-              <button onClick={saveAssign} disabled={savingAssign || !assignOperator}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-secondary text-on-secondary disabled:opacity-50">
-                {savingAssign ? 'Guardando…' : 'Confirmar asignación'}
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* ══════════════════════════════════════════════
             MODO EDICIÓN
@@ -1181,36 +1354,213 @@ export function MobCitaDet() {
               </p>
             </div>
 
-            {/* ── Profesional por servicio (solo mientras está "En proceso") ── */}
-            {booking.status === 'work_order' && booking.services.length > 0 && (
+            {/* ── Profesional por servicio (agendada o "En proceso" — antes solo aparecía en
+                "En proceso", pero desde que SYNC-040 asigna operador por servicio ya desde que
+                se agenda la cita, tiene sentido mostrarlo también con la cita solo agendada) ── */}
+            {(booking.status === 'scheduled' || booking.status === 'work_order') && booking.services.length > 0 && (
               <section>
-                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Servicios y profesionales</p>
+                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Servicio / Operador</p>
+                {(() => {
+                  const excluded = booking.services.filter(l => l.cancelled_at || l.not_performed_at).length;
+                  return excluded > 0 ? (
+                    <p className="text-xs text-error mb-2 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+                      {excluded} servicio{excluded > 1 ? 's' : ''} no se cobra{excluded > 1 ? 'n' : ''} (no realizado / cancelado).
+                    </p>
+                  ) : null;
+                })()}
                 <div className="flex flex-col gap-2">
-                  {booking.services.map(line => (
-                    <div key={line.booking_service_id} className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-on-surface truncate">{line.name}</p>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          {line.operator_name ? (
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                              {line.operator_name}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-on-surface-variant">Sin profesional asignado</span>
-                          )}
+                  {booking.services.map(line => {
+                    const st = lineStateOf(line);
+                    const voided = st === 'cancelled' || st === 'not_performed';
+                    const expanded = expandedLines.has(line.booking_service_id);
+                    const busy = lineActionId === line.booking_service_id;
+                    const stateChip =
+                      st === 'completed'     ? { label: 'Completado',    cls: 'bg-tertiary/10 text-tertiary' } :
+                      st === 'in_progress'   ? { label: 'En proceso',    cls: 'bg-secondary/10 text-secondary' } :
+                      st === 'not_performed' ? { label: 'No se realizó', cls: 'bg-error/10 text-error' } :
+                      st === 'cancelled'     ? { label: 'Cancelada',     cls: 'bg-error/10 text-error' } :
+                                               { label: 'Pendiente',     cls: 'bg-surface-container text-on-surface-variant' };
+                    return (
+                    <div key={line.booking_service_id} className={`bg-surface border rounded-2xl overflow-hidden ${voided ? 'border-error/30 opacity-70' : 'border-outline-variant'}`}>
+                      {/* Renglón-resumen — tap para expandir/colapsar (div, no button: adentro
+                          hay <p>/<div>, anidado inválido dentro de <button> y el tap se rompe
+                          en navegadores viejos — mismo motivo por el que el resto de esta
+                          pantalla usa <div onClick> para filas clickeables). */}
+                      <div role="button" tabIndex={0}
+                        onClick={() => toggleLineExpanded(line.booking_service_id)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLineExpanded(line.booking_service_id); } }}
+                        className="w-full px-4 py-3 flex items-center gap-2 text-left cursor-pointer active:bg-surface-container-high transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-semibold truncate ${voided ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{line.name}</p>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span className="text-xs font-semibold text-on-surface-variant">${line.price.toFixed(2)}</span>
+                            {line.operator_name ? (
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{line.operator_name}</span>
+                            ) : (
+                              <span className="text-xs text-on-surface-variant">Sin asignar</span>
+                            )}
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stateChip.cls}`}>{stateChip.label}</span>
+                          </div>
+                        </div>
+                        <span className="material-symbols-outlined text-on-surface-variant shrink-0">{expanded ? 'expand_less' : 'expand_more'}</span>
+                      </div>
+
+                      {expanded && (
+                        <div className="border-t border-outline-variant px-4 py-3 flex flex-col gap-3">
                           {line.is_external && (
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-error/10 text-error border border-error/30">
+                            <span className="self-start text-xs font-semibold px-2 py-0.5 rounded-full bg-error/10 text-error border border-error/30">
                               Externo{line.external_cost !== null ? ` — $${line.external_cost.toFixed(2)}` : ''}
                             </span>
                           )}
+
+                          {voided ? (
+                            <>
+                              {(line.cancellation_reason || line.not_performed_reason) && (
+                                <p className="text-xs text-on-surface-variant">Motivo: {line.cancellation_reason || line.not_performed_reason}</p>
+                              )}
+                              <button type="button" onClick={() => reactivateLine(line.booking_service_id)} disabled={busy}
+                                className="self-start text-xs font-semibold px-3 py-1.5 rounded-xl border border-primary text-primary disabled:opacity-50">
+                                {busy ? 'Reactivando…' : 'Reactivar'}
+                              </button>
+                            </>
+                          ) : st === 'completed' ? (
+                            <p className="text-xs text-on-surface-variant">Servicio completado.</p>
+                          ) : (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {st === 'in_progress' ? (
+                                <button type="button" onClick={() => completeSingleLine(line.booking_service_id)}
+                                  disabled={completingLineId === line.booking_service_id}
+                                  className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-tertiary/10 text-tertiary disabled:opacity-50">
+                                  {completingLineId === line.booking_service_id ? 'Terminando…' : 'Terminar'}
+                                </button>
+                              ) : (
+                                <>
+                                  <button type="button" onClick={() => startSingleLine(line.booking_service_id)}
+                                    disabled={startingLineId === line.booking_service_id}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-primary/10 text-primary disabled:opacity-50">
+                                    {startingLineId === line.booking_service_id ? 'Iniciando…' : 'Iniciar'}
+                                  </button>
+                                  <button type="button" onClick={() => realizadaSingleLine(line.booking_service_id)}
+                                    disabled={busy}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-tertiary/10 text-tertiary disabled:opacity-50">
+                                    Realizada
+                                  </button>
+                                </>
+                              )}
+                              <button type="button" onClick={() => { setVoidPanel({ lineId: line.booking_service_id, kind: 'not_performed' }); setVoidReason(''); }}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-error text-error">
+                                No se realizó
+                              </button>
+                              <button type="button" onClick={() => { setVoidPanel({ lineId: line.booking_service_id, kind: 'cancelled' }); setVoidReason(''); }}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-error text-error">
+                                Cancelar
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Sub-panel de motivo (No se realizó / Cancelar) */}
+                          {voidPanel?.lineId === line.booking_service_id && (
+                            <div className="bg-error/8 border border-error/30 rounded-2xl px-3 py-3 flex flex-col gap-2">
+                              <p className="text-xs font-semibold text-error">
+                                {voidPanel.kind === 'not_performed' ? 'Marcar como no realizado' : 'Cancelar este servicio'}
+                              </p>
+                              <textarea value={voidReason} onChange={e => setVoidReason(e.target.value)} rows={2}
+                                placeholder="Motivo (opcional)"
+                                className="w-full bg-background border border-error/30 rounded-xl px-3 py-2 text-sm outline-none resize-none focus:border-error" />
+                              <div className="flex gap-2">
+                                <button onClick={() => { setVoidPanel(null); setVoidReason(''); }}
+                                  className="flex-1 py-2 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                                  Cerrar
+                                </button>
+                                <button onClick={confirmVoidLine} disabled={busy}
+                                  className="flex-1 py-2 rounded-xl text-sm font-semibold bg-error text-on-error disabled:opacity-50">
+                                  Confirmar
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Asignar / Reasignar operador · precio · costo externo */}
+                          {!voided && st !== 'completed' && (
+                            <button onClick={() => (assigningLine?.booking_service_id === line.booking_service_id ? closeAssign() : openAssign(line))}
+                              className={`self-start text-xs font-semibold px-3 py-1.5 rounded-xl border ${
+                                line.operator_name ? 'border-secondary text-secondary' : 'bg-amber-500 border-amber-500 text-white'
+                              }`}>
+                              {assigningLine?.booking_service_id === line.booking_service_id ? 'Cerrar' : line.operator_name ? 'Reasignar operador / precio' : 'Asignar operador'}
+                            </button>
+                          )}
+
+                          {assigningLine?.booking_service_id === line.booking_service_id && (
+                            <div className="bg-secondary/8 border border-secondary/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
+                              <div>
+                                <label className="text-xs text-on-surface-variant mb-1 block">Especialista / Operador</label>
+                                <select
+                                  value={assignOperator}
+                                  onChange={e => setAssignOperator(e.target.value ? Number(e.target.value) : '')}
+                                  className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary"
+                                >
+                                  <option value="">Selecciona un profesional…</option>
+                                  {operators.map(op => (
+                                    <option key={op.id} value={op.id}>{op.name}{op.role ? ` (${op.role})` : ''}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <label className="flex items-center gap-2 text-sm text-on-surface">
+                                <input type="checkbox" checked={assignExternal} onChange={e => setAssignExternal(e.target.checked)}
+                                  className="w-4 h-4 accent-secondary" />
+                                Es servicio externo (ej. cremación, anestesia externa)
+                              </label>
+
+                              {assignExternal && (
+                                <div>
+                                  <label className="text-xs text-on-surface-variant mb-1 block">Costo del proveedor externo</label>
+                                  <input type="number" inputMode="decimal" step="0.01" min="0" value={assignCost}
+                                    onChange={e => setAssignCost(e.target.value)}
+                                    className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
+                                  <p className="text-[11px] text-on-surface-variant mt-1">Lo que cobra el proveedor externo — distinto del precio de venta al cliente.</p>
+                                </div>
+                              )}
+
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="text-xs text-on-surface-variant">Precio de venta al cliente</label>
+                                  {assignSuggestedPrice && (
+                                    <button type="button" onClick={() => setAssignPrice(assignSuggestedPrice)}
+                                      className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary">
+                                      Sugerido: ${assignSuggestedPrice} (usar)
+                                    </button>
+                                  )}
+                                </div>
+                                <input type="number" inputMode="decimal" step="0.01" min="0" value={assignPrice}
+                                  onChange={e => setAssignPrice(e.target.value)}
+                                  className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
+                                {assignSuggestedPrice && (
+                                  <p className="text-[11px] text-on-surface-variant mt-1">
+                                    El costo externo cambió respecto al capturado antes — el precio sugerido mantiene la misma proporción, pero es editable, no se aplica solo.
+                                  </p>
+                                )}
+                              </div>
+
+                              {assignErr && <p className="text-xs text-error">{assignErr}</p>}
+                              <div className="flex gap-2">
+                                <button onClick={closeAssign}
+                                  className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                                  Cancelar
+                                </button>
+                                <button onClick={saveAssign} disabled={savingAssign || !assignOperator}
+                                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-secondary text-on-secondary disabled:opacity-50">
+                                  {savingAssign ? 'Guardando…' : 'Confirmar asignación'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <button onClick={() => openAssign(line)}
-                        className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl border border-secondary text-secondary">
-                        Asignar
-                      </button>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             )}
@@ -1286,8 +1636,8 @@ export function MobCitaDet() {
               </section>
             )}
 
-            {/* Operador */}
-            {booking.operator && (
+            {/* Operador (omitido cuando ya se muestra por línea arriba, en "Servicio / Operador") */}
+            {booking.operator && !((booking.status === 'scheduled' || booking.status === 'work_order') && booking.services.length > 0) && (
               <div className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-secondary/10 overflow-hidden flex items-center justify-center shrink-0">
                   {booking.operator.photo_url

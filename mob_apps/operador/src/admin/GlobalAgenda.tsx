@@ -101,6 +101,10 @@ export function GlobalAgenda() {
   const [showAddMenu,       setShowAddMenu]        = useState(false);
   const [graceMinutes,      setGraceMinutes]        = useState(15);
   const [startingCitaId,    setStartingCitaId]      = useState<number | null>(null);
+  // Confirmación breve antes de disparar "Iniciar" desde la tarjeta — evita iniciar la cita
+  // equivocada por un mal toque en una lista con varias citas dentro de la ventana de gracia
+  // al mismo tiempo (nombre de mascota + hora, no todo el diálogo pesado del detalle).
+  const [pendingStart,      setPendingStart]        = useState<{ id: number; petName: string; time: string } | null>(null);
   const [waSheet,           setWaSheet]              = useState<{ clientId: number; phone: string; petId: number } | null>(null);
 
   // Carga inicial: operadores, sucursales, citas vencidas y minutos de gracia (para saber
@@ -236,7 +240,7 @@ export function GlobalAgenda() {
                 {showIniciar && (
                   <button
                     disabled={startingCitaId === b.id}
-                    onClick={e => { e.stopPropagation(); startCita(b.id); }}
+                    onClick={e => { e.stopPropagation(); setPendingStart({ id: b.id, petName: b.pet.name, time: b.time }); }}
                     className="min-h-11 flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/30 px-3 rounded-full text-xs font-semibold active:scale-95 transition-transform disabled:opacity-50"
                   >
                     <span className="material-symbols-outlined text-base">
@@ -276,7 +280,10 @@ export function GlobalAgenda() {
   // scheduled → work_order, pero solo se ofrece acá cuando la cita está dentro de la
   // ventana de gracia (igual que el detalle): fuera de esa ventana, el detalle completo
   // tiene el diálogo de confirmación ("¿seguro? faltan/pasaron X minutos") que no
-  // conviene duplicar en el espacio chico de una tarjeta.
+  // conviene duplicar en el espacio chico de una tarjeta. Sí lleva una confirmación
+  // breve propia (`pendingStart`, mascota + hora) — con varias citas dentro de la misma
+  // ventana de gracia en una lista larga, un mal toque podía iniciar la cita equivocada
+  // sin darse cuenta.
   const startCita = async (bookingId: number) => {
     setStartingCitaId(bookingId);
     try {
@@ -289,6 +296,13 @@ export function GlobalAgenda() {
     } finally {
       setStartingCitaId(null);
     }
+  };
+
+  const confirmStart = () => {
+    if (!pendingStart) return;
+    const { id } = pendingStart;
+    setPendingStart(null);
+    startCita(id);
   };
 
   const startNewCita = () => {
@@ -663,6 +677,37 @@ export function GlobalAgenda() {
 
       {waSheet && (
         <WhatsAppMessageSheet clientId={waSheet.clientId} phone={waSheet.phone} petId={waSheet.petId} onClose={() => setWaSheet(null)} />
+      )}
+
+      {/* Confirmación breve antes de iniciar desde la tarjeta — nombra mascota + hora para
+          que quede claro cuál cita se va a iniciar antes de disparar el cambio de estado. */}
+      {pendingStart && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setPendingStart(null)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+            <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm p-5 flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-on-surface">¿Iniciar esta cita?</p>
+                  <p className="text-xs text-on-surface-variant truncate">{pendingStart.petName} · {pendingStart.time}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setPendingStart(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                  Cancelar
+                </button>
+                <button onClick={confirmStart}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-primary text-on-primary">
+                  Iniciar
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

@@ -167,7 +167,7 @@ class SpaBooking extends Model
      * `Api\AgendaController::vencidas()` y el `agendaAlertKind()` del móvil — se
      * mantiene aquí como fuente única para no duplicar el umbral en cada vista web.
      * `$graceMinutes` es `booking_grace_minutes` (default 15, misma tolerancia que
-     * ya usa "Iniciar servicio").
+     * ya usa "Iniciar cita").
      */
     public function alertReason(int $graceMinutes = 15): ?string
     {

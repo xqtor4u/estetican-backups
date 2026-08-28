@@ -14,7 +14,7 @@ interface BookingSummary {
   notes: string | null;
   pet: { id: number; name: string; species: string | null; photo: string | null };
   client: { id: number; name: string } | null;
-  services: { booking_service_id: number; name: string; price: number }[];
+  services: { booking_service_id: number; name: string; price: number; cancelled_at: string | null; not_performed_at: string | null }[];
   operator: { name: string } | null;
   status: string;
 }
@@ -127,6 +127,9 @@ export function MobCobro() {
   const [editingLinePrice, setEditingLinePrice] = useState('');
   const [savingLineId,     setSavingLineId]     = useState<number | null>(null);
   const [lineErr,          setLineErr]          = useState<string | null>(null);
+  /* Checklist "qué se cobra": desmarcar una línea la excluye del total (mark_not_performed);
+     volver a marcarla la reactiva. */
+  const [togglingLineId,   setTogglingLineId]   = useState<number | null>(null);
 
   /* "Pendiente de cobro": cierra la cita sin registrar ningún pago — nada de
      entradas falsas ($0/$0.10) en caja. El saldo pendiente queda como pasivo
@@ -306,6 +309,29 @@ export function MobCobro() {
       setEditingLinePrice('');
     } catch { setLineErr('No se pudo conectar con el servidor.'); }
     setSavingLineId(null);
+  };
+
+  /* Marcar / desmarcar una línea del checklist de cobro. Desmarcar = no se cobra
+     (mark_not_performed, misma exclusión que "No se realizó"); marcar = reactivar. */
+  const toggleLineBillable = async (bookingServiceId: number, billNow: boolean) => {
+    if (!booking) return;
+    setTogglingLineId(bookingServiceId);
+    setLineErr(null);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}/services/${bookingServiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(billNow
+          ? { mark_reactivate: true }
+          : { mark_not_performed: true, not_performed_reason: 'No cobrado en el cierre' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setLineErr(data.message ?? 'Error'); setTogglingLineId(null); return; }
+      setBooking(data);
+      // Re-derivar el monto a cobrar del nuevo total (menos lo ya pagado).
+      setAmountStr(Math.max(0, data.total - totalPaid).toFixed(2));
+    } catch { setLineErr('No se pudo conectar con el servidor.'); }
+    setTogglingLineId(null);
   };
 
   /* ── "Pendiente de cobro": cierra la cita sin crear ningún Payment ───── */
@@ -543,46 +569,66 @@ export function MobCobro() {
           </div>
           {booking.services.length > 0 && (
             <div className="border-t border-outline-variant px-4 py-3 flex flex-col gap-2">
+              {booking.status !== 'completed' && (
+                <p className="text-[11px] text-on-surface-variant">Desmarca un servicio para no cobrarlo — el total se ajusta solo.</p>
+              )}
               {booking.services.map(s => {
-                const editable = booking.status !== 'completed';
-                if (editingLineId === s.booking_service_id) {
-                  return (
-                    <div key={s.booking_service_id} className="flex items-center gap-2">
-                      <span className="flex-1 text-sm text-on-surface truncate">{s.name}</span>
-                      <span className="text-sm font-bold text-on-surface-variant">$</span>
-                      <input
-                        type="number" inputMode="decimal" step="0.01" min="0" autoFocus
-                        value={editingLinePrice}
-                        onChange={e => setEditingLinePrice(e.target.value)}
-                        className="w-20 bg-surface-container border border-primary/40 rounded-lg px-2 py-1 text-sm font-semibold text-right outline-none focus:border-primary"
-                      />
-                      <button onClick={cancelEditLine} className="p-1.5 rounded-full text-on-surface-variant active:bg-surface-container">
-                        <span className="material-symbols-outlined text-base">close</span>
-                      </button>
-                      <button onClick={saveEditLine} disabled={savingLineId === s.booking_service_id}
-                        className="p-1.5 rounded-full text-primary active:bg-primary/10 disabled:opacity-50">
-                        <span className="material-symbols-outlined text-base">
-                          {savingLineId === s.booking_service_id ? 'progress_activity' : 'check'}
-                        </span>
-                      </button>
-                    </div>
-                  );
-                }
+                const billed = !(s.cancelled_at || s.not_performed_at);
+                const canToggle = booking.status !== 'completed';
+                const canEditPrice = canToggle && billed;
+                const isToggling = togglingLineId === s.booking_service_id;
+                const isEditing = editingLineId === s.booking_service_id;
                 return (
-                  <button
-                    key={s.booking_service_id}
-                    onClick={() => editable && startEditLine(s)}
-                    disabled={!editable}
-                    className="flex items-center justify-between text-left disabled:cursor-default"
-                  >
-                    <span className="text-sm text-on-surface flex items-center gap-1">
-                      {s.name}
-                      {editable && <span className="material-symbols-outlined text-xs text-on-surface-variant/50">edit</span>}
-                    </span>
-                    <span className={`text-sm font-semibold ${s.price === 0 ? 'text-tertiary' : ''}`}>
-                      {s.price === 0 ? 'Gratis' : fmtMoney(s.price)}
-                    </span>
-                  </button>
+                  <div key={s.booking_service_id} className="flex items-center gap-2">
+                    {canToggle && (
+                      <input
+                        type="checkbox"
+                        checked={billed}
+                        disabled={isToggling}
+                        onChange={() => toggleLineBillable(s.booking_service_id, !billed)}
+                        className="w-4 h-4 accent-primary shrink-0"
+                      />
+                    )}
+                    {isEditing ? (
+                      <>
+                        <span className="flex-1 text-sm text-on-surface truncate">{s.name}</span>
+                        <span className="text-sm font-bold text-on-surface-variant">$</span>
+                        <input
+                          type="number" inputMode="decimal" step="0.01" min="0" autoFocus
+                          value={editingLinePrice}
+                          onChange={e => setEditingLinePrice(e.target.value)}
+                          className="w-20 bg-surface-container border border-primary/40 rounded-lg px-2 py-1 text-sm font-semibold text-right outline-none focus:border-primary"
+                        />
+                        <button onClick={cancelEditLine} className="p-1.5 rounded-full text-on-surface-variant active:bg-surface-container">
+                          <span className="material-symbols-outlined text-base">close</span>
+                        </button>
+                        <button onClick={saveEditLine} disabled={savingLineId === s.booking_service_id}
+                          className="p-1.5 rounded-full text-primary active:bg-primary/10 disabled:opacity-50">
+                          <span className="material-symbols-outlined text-base">
+                            {savingLineId === s.booking_service_id ? 'progress_activity' : 'check'}
+                          </span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => canEditPrice && startEditLine(s)}
+                        disabled={!canEditPrice}
+                        className="flex-1 flex items-center justify-between text-left disabled:cursor-default gap-2"
+                      >
+                        <span className={`text-sm flex items-center gap-1 min-w-0 ${billed ? 'text-on-surface' : 'text-on-surface-variant/60 line-through'}`}>
+                          <span className="truncate">{s.name}</span>
+                          {canEditPrice && <span className="material-symbols-outlined text-xs text-on-surface-variant/50 shrink-0">edit</span>}
+                        </span>
+                        {billed ? (
+                          <span className={`text-sm font-semibold shrink-0 ${s.price === 0 ? 'text-tertiary' : ''}`}>
+                            {s.price === 0 ? 'Gratis' : fmtMoney(s.price)}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-on-surface-variant/60 shrink-0">No se cobra</span>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 );
               })}
               {lineErr && <p className="text-xs text-error">{lineErr}</p>}

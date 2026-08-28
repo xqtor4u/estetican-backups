@@ -9,14 +9,15 @@ use App\Models\OperatorWeeklySchedule;
 use App\Models\Pet;
 use App\Models\SpaBooking;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 class CheckAvailabilityTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -146,5 +147,63 @@ class CheckAvailabilityTest extends TestCase
 
         $response->assertOk();
         $response->assertJson(['available' => true, 'reason' => null]);
+    }
+
+    public function test_response_carries_the_operator_name_and_a_day_summary(): void
+    {
+        $operator = $this->operator('Daniela');
+        $day = now()->addWeek()->next(Carbon::MONDAY)->setTime(11, 0);
+
+        OperatorWeeklySchedule::create([
+            'operator_id' => $operator->id,
+            'day_of_week' => $day->dayOfWeek,
+            'start_time' => '09:00',
+            'end_time' => '17:00',
+        ]);
+
+        // Ya tiene una cita ese día (10:00–10:30) y un permiso por la tarde.
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
+        $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
+        SpaBooking::create([
+            'pet_id' => $pet->id, 'operator_id' => $operator->id,
+            'scheduled_at' => $day->copy()->setTime(10, 0), 'duration_minutes' => 30,
+            'status' => 'scheduled', 'total_estimated_price' => 0,
+        ]);
+        OperatorUnavailability::create([
+            'operator_id' => $operator->id,
+            'starts_at' => $day->copy()->setTime(15, 0),
+            'ends_at' => $day->copy()->setTime(16, 0),
+            'reason' => 'Capacitación',
+        ]);
+
+        $response = $this->actingAs($this->admin())->getJson('/agenda/check-availability?'.http_build_query([
+            'operator_id' => $operator->id,
+            'scheduled_at' => $day->format('Y-m-d H:i:s'),
+        ]));
+
+        $response->assertOk();
+        $response->assertJson([
+            'available' => true,
+            'operator_name' => 'Daniela',
+            'day_summary' => [
+                'window' => ['start' => '09:00', 'end' => '17:00'],
+            ],
+        ]);
+        $busy = collect($response->json('day_summary.busy'));
+        $this->assertTrue($busy->contains(fn ($b) => $b['start'] === '10:00' && $b['end'] === '10:30' && $b['label'] === 'Cita'));
+        $this->assertTrue($busy->contains(fn ($b) => $b['start'] === '15:00' && $b['label'] === 'Capacitación'));
+    }
+
+    public function test_day_summary_window_is_null_when_the_operator_has_no_schedule(): void
+    {
+        $operator = $this->operator();
+
+        $response = $this->actingAs($this->admin())->getJson('/agenda/check-availability?'.http_build_query([
+            'operator_id' => $operator->id,
+            'scheduled_at' => now()->addDay()->setTime(11, 0)->format('Y-m-d H:i:s'),
+        ]));
+
+        $response->assertOk();
+        $this->assertNull($response->json('day_summary.window'));
     }
 }

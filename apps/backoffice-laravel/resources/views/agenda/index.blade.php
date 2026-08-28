@@ -165,6 +165,11 @@
         </thead>
         <tbody>
             @forelse($bookings as $booking)
+                @php
+                    $rowActionable = ! $booking->alert_reason && in_array($booking->status, ['scheduled', 'work_order'], true);
+                    $lineState = fn ($l) => $l->cancelled_at ? 'cancelled' : ($l->not_performed_at ? 'not_performed' : ($l->completed_at ? 'completed' : ($l->started_at ? 'in_progress' : 'pending')));
+                    $lineTplUrl = $rowActionable ? route('agenda.services.update', ['booking' => $booking, 'line' => '__LINE__']) : null;
+                @endphp
                 <tr>
                     <td>
                         <div class="catalog-stat">{{ $booking->scheduled_at?->format($datetimeFormat) }}</div>
@@ -189,7 +194,27 @@
                     <td>
                         <div class="catalog-inline-tags">
                             @foreach($booking->services as $bookingService)
-                                <span class="catalog-inline-tag">{{ $bookingService->service?->name ?? 'Servicio' }}</span>
+                                @if($rowActionable)
+                                    <button type="button"
+                                        class="catalog-inline-tag border-0 agenda-service-trigger"
+                                        data-bs-toggle="modal" data-bs-target="#agendaQuickActions"
+                                        data-mode="service"
+                                        data-status="{{ $booking->status }}"
+                                        data-pet="{{ $booking->pet?->name }}"
+                                        data-folio="{{ $booking->order_folio }}"
+                                        data-detail-url="{{ route('agenda.show', $booking) }}"
+                                        data-line-url-tpl="{{ $lineTplUrl }}"
+                                        data-services="{{ collect([[
+                                            'id' => $bookingService->id,
+                                            'name' => $bookingService->service?->name ?? 'Servicio',
+                                            'state' => $lineState($bookingService),
+                                        ]])->toJson() }}"
+                                        title="Acciones de este servicio">
+                                        {{ $bookingService->service?->name ?? 'Servicio' }} <i class="bi bi-chevron-down" style="font-size: 0.6em;"></i>
+                                    </button>
+                                @else
+                                    <span class="catalog-inline-tag">{{ $bookingService->service?->name ?? 'Servicio' }}</span>
+                                @endif
                             @endforeach
                         </div>
                     </td>
@@ -197,18 +222,7 @@
                         @php
                             $alertReason = $booking->alert_reason;
                             $unpaidWhenCompleted = !$alertReason && $booking->status === 'completed' && $booking->unpaidBalance() > 0;
-                        @endphp
-                        <span @class([
-                            'catalog-status-badge',
-                            'agenda-alert-badge' => $alertReason,
-                            'agenda-status-badge--completed' => !$alertReason && $booking->status === 'completed',
-                            'agenda-status-badge--work-order' => !$alertReason && $booking->status === 'work_order',
-                            'agenda-status-badge--no-show' => !$alertReason && $booking->status === 'no_show',
-                            'agenda-status-badge--unfulfillable' => !$alertReason && $booking->status === 'unfulfillable',
-                            'catalog-status-badge--active' => !$alertReason && $booking->status === 'scheduled',
-                            'catalog-status-badge--inactive' => !$alertReason && $booking->status === 'cancelled',
-                        ])>
-                            {{ $alertReason ? match ($alertReason) {
+                            $statusLabel = $alertReason ? match ($alertReason) {
                                 'not_started' => 'No se ha iniciado',
                                 'overdue' => 'Sin cerrar',
                                 'future' => 'Fecha inválida',
@@ -220,11 +234,47 @@
                                 'no_show' => 'No se presentó',
                                 'unfulfillable' => 'No realizado',
                                 default => ucfirst(str_replace('_', ' ', $booking->status)),
-                            } }}
-                            @if($unpaidWhenCompleted)
-                                <span class="text-danger fw-bold" title="Completado sin registro de pago — saldo pendiente ${{ number_format($booking->unpaidBalance(), 2) }}">*</span>
-                            @endif
-                        </span>
+                            };
+                            $badgeClasses = [
+                                'catalog-status-badge',
+                                'agenda-alert-badge' => $alertReason,
+                                'agenda-status-badge--completed' => !$alertReason && $booking->status === 'completed',
+                                'agenda-status-badge--work-order' => !$alertReason && $booking->status === 'work_order',
+                                'agenda-status-badge--no-show' => !$alertReason && $booking->status === 'no_show',
+                                'agenda-status-badge--unfulfillable' => !$alertReason && $booking->status === 'unfulfillable',
+                                'catalog-status-badge--active' => !$alertReason && $booking->status === 'scheduled',
+                                'catalog-status-badge--inactive' => !$alertReason && $booking->status === 'cancelled',
+                            ];
+                        @endphp
+                        @if($rowActionable)
+                            <button type="button"
+                                @class([...$badgeClasses, 'agenda-status-trigger', 'border-0'])
+                                data-bs-toggle="modal" data-bs-target="#agendaQuickActions"
+                                data-mode="booking"
+                                data-status="{{ $booking->status }}"
+                                data-label="{{ $statusLabel }}"
+                                data-pet="{{ $booking->pet?->name }}"
+                                data-folio="{{ $booking->order_folio }}"
+                                data-detail-url="{{ route('agenda.show', $booking) }}"
+                                data-start-url="{{ route('agenda.start', $booking) }}"
+                                data-update-url="{{ route('agenda.update', $booking) }}"
+                                data-line-url-tpl="{{ $lineTplUrl }}"
+                                data-services="{{ $booking->services->map(fn ($l) => [
+                                    'id' => $l->id,
+                                    'name' => $l->service?->name ?? 'Servicio',
+                                    'state' => $lineState($l),
+                                ])->values()->toJson() }}"
+                                title="Acciones rápidas de la cita">
+                                {{ $statusLabel }} <i class="bi bi-chevron-down ms-1" style="font-size: 0.7em;"></i>
+                            </button>
+                        @else
+                            <span @class($badgeClasses)>
+                                {{ $statusLabel }}
+                                @if($unpaidWhenCompleted)
+                                    <span class="text-danger fw-bold" title="Completado sin registro de pago — saldo pendiente ${{ number_format($booking->unpaidBalance(), 2) }}">*</span>
+                                @endif
+                            </span>
+                        @endif
                     </td>
                     <td>
                         <div class="catalog-stat">{{ $booking->estimated_duration_minutes }} min</div>
@@ -239,9 +289,15 @@
                             // pagada, y nunca se pintaba en rojo.
                             $paid = $booking->totalPaid();
                             $balance = $booking->unpaidBalance();
+                            $balanceHint = match (true) {
+                                $paid > 0 && $balance <= 0                  => 'cobrado · $' . number_format($paid, 2),
+                                $paid > 0                                   => 'saldo · pagado $' . number_format($paid, 2),
+                                $booking->status === 'completed'            => 'por cobrar',
+                                default                                     => 'estimado',
+                            };
                         @endphp
-                        <div class="catalog-stat {{ $balance > 0 ? 'text-danger' : '' }}">${{ number_format($balance, 2) }}</div>
-                        <div class="catalog-stat__hint">{{ $paid > 0 ? 'saldo · pagado $' . number_format($paid, 2) : 'estimado' }}</div>
+                        <div class="catalog-stat {{ $balance > 0 ? 'text-danger' : ($paid > 0 ? 'text-success' : '') }}">${{ number_format($balance, 2) }}</div>
+                        <div class="catalog-stat__hint">{{ $balanceHint }}</div>
                     </td>
                     <td class="text-end">
                         <div class="catalog-actions-cluster justify-content-end">
@@ -448,6 +504,233 @@
                 dateField.value = btn.dataset.agendaNavDate;
             }
         });
+    });
+})();
+</script>
+
+{{-- Acciones rápidas al hacer click en el tag de estado de una cita Programada / En proceso --}}
+<div class="modal fade" id="agendaQuickActions" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="agendaQuickActionsTitle">Acciones de la cita</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-body-secondary small mb-3" id="agendaQuickActionsSubtitle"></p>
+                <div class="d-grid gap-2" id="agendaQuickActionsButtons"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.agenda-status-trigger { cursor: pointer; }
+.agenda-status-trigger:hover { filter: brightness(0.95); }
+button.agenda-service-trigger {
+    cursor: pointer;
+    font: inherit;
+    line-height: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+}
+button.agenda-service-trigger:hover { filter: brightness(0.95); text-decoration: underline; }
+</style>
+
+<script nonce="{{ csp_nonce() }}">
+(function () {
+    var modalEl = document.getElementById('agendaQuickActions');
+    if (!modalEl) return;
+    var titleEl = document.getElementById('agendaQuickActionsTitle');
+    var subtitleEl = document.getElementById('agendaQuickActionsSubtitle');
+    var buttonsEl = document.getElementById('agendaQuickActionsButtons');
+    var csrf = @json(csrf_token());
+    var OPERATORS = @json(($operators ?? collect())->map(fn ($o) => ['id' => $o->id, 'name' => $o->name])->values());
+
+    var STATE = {
+        pending:       { label: 'Pendiente',   badge: 'text-bg-secondary' },
+        in_progress:   { label: 'En proceso',  badge: 'text-bg-warning' },
+        completed:     { label: 'Completado',  badge: 'text-bg-success' },
+        not_performed: { label: 'No realizado', badge: 'text-bg-danger' },
+        cancelled:     { label: 'Cancelado',   badge: 'text-bg-dark' }
+    };
+
+    function el(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text != null) e.textContent = text;
+        return e;
+    }
+
+    function bookingForm(action, label, cssClass, hidden) {
+        var f = el('form', 'd-grid'); f.method = 'POST'; f.action = action;
+        var t = el('input'); t.type = 'hidden'; t.name = '_token'; t.value = csrf; f.appendChild(t);
+        (hidden || []).forEach(function (h) {
+            var i = el('input'); i.type = 'hidden'; i.name = h.name; i.value = h.value; f.appendChild(i);
+        });
+        var b = el('button', 'btn ' + cssClass, label); b.type = 'submit'; f.appendChild(b);
+        return f;
+    }
+
+    function linkButton(href, label, cssClass) {
+        var a = el('a', 'btn ' + cssClass, label); a.href = href; return a;
+    }
+
+    // Un botón de acción sobre una línea de servicio: PATCH agenda/{booking}/services/{line}.
+    function lineActionForm(url, fields, label, cssClass) {
+        var f = el('form', 'd-inline'); f.method = 'POST'; f.action = url;
+        [['_token', csrf], ['_method', 'PATCH']].concat(fields || []).forEach(function (p) {
+            var i = el('input'); i.type = 'hidden'; i.name = p[0]; i.value = p[1]; f.appendChild(i);
+        });
+        var b = el('button', 'btn btn-sm ' + cssClass, label); b.type = 'submit'; f.appendChild(b);
+        return f;
+    }
+
+    function reassignForm(url, label) {
+        var f = el('form', 'input-group input-group-sm mt-1'); f.method = 'POST'; f.action = url;
+        [['_token', csrf], ['_method', 'PATCH']].forEach(function (p) {
+            var i = el('input'); i.type = 'hidden'; i.name = p[0]; i.value = p[1]; f.appendChild(i);
+        });
+        var sel = el('select', 'form-select form-select-sm'); sel.name = 'operator_id';
+        var o0 = el('option', null, 'Operador…'); o0.value = ''; sel.appendChild(o0);
+        OPERATORS.forEach(function (op) {
+            var o = el('option', null, op.name); o.value = op.id; sel.appendChild(o);
+        });
+        f.appendChild(sel);
+        var b = el('button', 'btn btn-sm btn-outline-secondary', label || 'Reasignar'); b.type = 'submit'; f.appendChild(b);
+        return f;
+    }
+
+    function serviceLinePanel(tplUrl, services) {
+        var box = el('div', 'border rounded p-2 mb-2');
+        if (services.length > 1) {
+            box.appendChild(el('div', 'text-uppercase small text-body-secondary fw-semibold mb-2', 'Servicios de la cita'));
+        }
+
+        services.forEach(function (s) {
+            var url = tplUrl.replace('__LINE__', s.id);
+            var st = STATE[s.state] || STATE.pending;
+            var row = el('div', 'd-flex flex-column gap-1 py-2 border-top');
+
+            var head = el('div', 'd-flex justify-content-between align-items-center');
+            head.appendChild(el('span', 'small fw-semibold', s.name));
+            head.appendChild(el('span', 'badge ' + st.badge, st.label));
+            row.appendChild(head);
+
+            var actions = el('div', 'd-flex flex-wrap gap-1 align-items-center');
+            if (s.state === 'pending') {
+                actions.appendChild(lineActionForm(url, [['mark_started', '1']], 'Iniciar', 'btn-primary'));
+                actions.appendChild(lineActionForm(url, [['mark_not_performed', '1']], 'No se realizó', 'btn-link link-danger text-decoration-none'));
+            } else if (s.state === 'in_progress') {
+                actions.appendChild(lineActionForm(url, [['mark_completed', '1']], 'Completar', 'btn-success'));
+                actions.appendChild(lineActionForm(url, [['mark_not_performed', '1']], 'No se realizó', 'btn-link link-danger text-decoration-none'));
+            } else if (s.state === 'not_performed' || s.state === 'cancelled') {
+                actions.appendChild(lineActionForm(url, [['mark_reactivate', '1']], 'Reactivar', 'btn-outline-primary'));
+            } else if (s.state === 'completed') {
+                actions.appendChild(el('span', 'small text-success', '✓ Servicio terminado'));
+            }
+            row.appendChild(actions);
+
+            if (s.state !== 'not_performed' && s.state !== 'cancelled') {
+                row.appendChild(reassignForm(url));
+            }
+            box.appendChild(row);
+        });
+        return box;
+    }
+
+    function populate(t) {
+        if (!t) return;
+        var status = t.dataset.status;
+        var mode = t.dataset.mode || 'booking';
+        var pet = t.dataset.pet || 'la mascota';
+        var folio = t.dataset.folio ? ' · ' + t.dataset.folio : '';
+        var services = [];
+        try { services = JSON.parse(t.dataset.services || '[]'); } catch (e) { services = []; }
+        buttonsEl.innerHTML = '';
+
+        // Click en el tag de UN servicio concreto: solo las acciones de esa línea.
+        if (mode === 'service' && services.length && t.dataset.lineUrlTpl) {
+            titleEl.textContent = services[0].name + ' — ' + pet;
+            subtitleEl.textContent = '¿Qué quieres hacer con este servicio?';
+            buttonsEl.appendChild(serviceLinePanel(t.dataset.lineUrlTpl, services));
+            buttonsEl.appendChild(linkButton(t.dataset.detailUrl, 'Abrir detalle de la cita', 'btn-outline-dark'));
+            return;
+        }
+
+        if (status === 'work_order' || status === 'scheduled') {
+            titleEl.textContent = (status === 'work_order' ? 'En proceso — ' : 'Programada — ') + pet + folio;
+            subtitleEl.textContent = 'Actúa sobre cada servicio, o cierra la cita completa.';
+
+            if (services.length && t.dataset.lineUrlTpl) {
+                buttonsEl.appendChild(serviceLinePanel(t.dataset.lineUrlTpl, services));
+            }
+
+            if (status === 'scheduled') {
+                buttonsEl.appendChild(bookingForm(t.dataset.startUrl, 'Iniciar toda la cita', 'btn-primary fw-bold'));
+            } else {
+                buttonsEl.appendChild(bookingForm(t.dataset.updateUrl, 'Terminar y cobrar', 'btn-success fw-bold', [
+                    { name: '_method', value: 'PUT' }, { name: 'status', value: 'completed' }, { name: 'cobrar', value: '1' }
+                ]));
+                buttonsEl.appendChild(bookingForm(t.dataset.updateUrl, 'Solo terminar (cobrar después)', 'btn-outline-success', [
+                    { name: '_method', value: 'PUT' }, { name: 'status', value: 'completed' }
+                ]));
+            }
+            buttonsEl.appendChild(linkButton(t.dataset.detailUrl, 'Abrir detalle', 'btn-outline-dark'));
+            buttonsEl.appendChild(linkButton(t.dataset.detailUrl, 'Reprogramar o cancelar la cita', 'btn-outline-secondary'));
+        } else {
+            titleEl.textContent = t.dataset.label || 'Cita';
+            subtitleEl.textContent = '';
+            buttonsEl.appendChild(linkButton(t.dataset.detailUrl, 'Abrir detalle', 'btn-outline-dark'));
+        }
+    }
+
+    // Abrimos el modal explícitamente en vez de depender del data-api de Bootstrap
+    // (`data-bs-toggle`), que en este bundle de Vite no siempre se engancha.
+    var modalInstance = null;
+    function openModal(trigger) {
+        populate(trigger);
+        var BS = window.bootstrap;
+        if (BS && BS.Modal) {
+            modalInstance = modalInstance || new BS.Modal(modalEl);
+            modalInstance.show();
+            return;
+        }
+        // Último recurso sin Bootstrap JS: mostrar el modal a mano.
+        modalEl.classList.add('show');
+        modalEl.style.display = 'block';
+        modalEl.removeAttribute('aria-hidden');
+        document.body.classList.add('modal-open');
+        if (!document.querySelector('.modal-backdrop.agenda-fallback')) {
+            var bd = document.createElement('div');
+            bd.className = 'modal-backdrop fade show agenda-fallback';
+            bd.addEventListener('click', closeFallback);
+            document.body.appendChild(bd);
+        }
+    }
+    function closeFallback() {
+        modalEl.classList.remove('show');
+        modalEl.style.display = 'none';
+        modalEl.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
+        var bd = document.querySelector('.modal-backdrop.agenda-fallback');
+        if (bd) bd.remove();
+    }
+    modalEl.querySelectorAll('[data-bs-dismiss="modal"]').forEach(function (b) {
+        b.addEventListener('click', function () { if (!window.bootstrap || !window.bootstrap.Modal) closeFallback(); });
+    });
+
+    document.querySelectorAll('[data-bs-target="#agendaQuickActions"]').forEach(function (trigger) {
+        trigger.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openModal(trigger);
+        });
+    });
+
+    // Si el data-api de Bootstrap SÍ funciona, esto rellena el cuerpo antes de mostrarlo.
+    modalEl.addEventListener('show.bs.modal', function (ev) {
+        if (ev.relatedTarget) populate(ev.relatedTarget);
     });
 })();
 </script>

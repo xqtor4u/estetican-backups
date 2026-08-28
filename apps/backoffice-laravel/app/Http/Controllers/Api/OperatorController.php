@@ -29,11 +29,14 @@ class OperatorController extends Controller
             ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'profile_photo_path', 'specialty']);
 
         return response()->json($operators->map(fn ($o) => [
-            'id'           => $o->id,
-            'name'         => $o->full_name,
-            'role'         => $this->roleLabel($o),
+            'id' => $o->id,
+            'name' => $o->full_name,
+            'role' => $this->roleLabel($o),
             'role_acronym' => $o->activeRoles()->first()?->short_label,
-            'photo_url'    => $o->profile_photo_path
+            // IDs de los roles activos (sin los que ya tienen ends_at) — el agendado móvil
+            // los cruza con Service.operator_role_id para ofrecer solo operadores calificados.
+            'role_ids' => $o->activeRoles()->pluck('id')->values(),
+            'photo_url' => $o->profile_photo_path
                 ? Storage::disk('public')->url($o->profile_photo_path)
                 : null,
         ]));
@@ -69,27 +72,27 @@ class OperatorController extends Controller
             ->groupBy('operator_id');
 
         return response()->json($operators->map(function (Operator $o) use ($activeCheckins, $bookingsToday) {
-            $checkin  = $activeCheckins->get($o->id);
+            $checkin = $activeCheckins->get($o->id);
             $bookings = $bookingsToday->get($o->id, collect());
-            $current  = $bookings->firstWhere('status', 'work_order');
+            $current = $bookings->firstWhere('status', 'work_order');
 
             return [
-                'id'              => $o->id,
-                'name'            => $o->full_name,
-                'role'            => $this->roleLabel($o),
-                'photo_url'       => $o->profile_photo_path
+                'id' => $o->id,
+                'name' => $o->full_name,
+                'role' => $this->roleLabel($o),
+                'photo_url' => $o->profile_photo_path
                     ? Storage::disk('public')->url($o->profile_photo_path)
                     : null,
-                'checked_in'      => (bool) $checkin,
-                'checked_in_at'   => $checkin?->checked_in_at,
-                'branch'          => $checkin?->branch
+                'checked_in' => (bool) $checkin,
+                'checked_in_at' => $checkin?->checked_in_at,
+                'branch' => $checkin?->branch
                     ? ['id' => $checkin->branch->id, 'name' => $checkin->branch->name]
                     : null,
-                'pending_today'   => $bookings->whereIn('status', ['scheduled', 'work_order'])->count(),
+                'pending_today' => $bookings->whereIn('status', ['scheduled', 'work_order'])->count(),
                 'completed_today' => $bookings->where('status', 'completed')->count(),
-                'current_job'     => $current ? [
-                    'booking_id'   => $current->id,
-                    'pet_name'     => $current->pet?->name,
+                'current_job' => $current ? [
+                    'booking_id' => $current->id,
+                    'pet_name' => $current->pet?->name,
                     'service_name' => $current->services->first()?->service?->name,
                     'scheduled_at' => $current->scheduled_at,
                 ] : null,
@@ -100,6 +103,7 @@ class OperatorController extends Controller
     public function branches()
     {
         $branches = Branch::orderBy('name')->get(['id', 'name']);
+
         return response()->json($branches);
     }
 }

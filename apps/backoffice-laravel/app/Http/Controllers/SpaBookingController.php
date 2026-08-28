@@ -8,6 +8,7 @@ use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
+use App\Domain\Planning\Services\ServiceLineActionService;
 use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Mail\ServiceSummaryMail;
 use App\Models\Client;
@@ -15,6 +16,7 @@ use App\Models\Group;
 use App\Models\HotelReservation;
 use App\Models\Item;
 use App\Models\Operator;
+use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Pet;
 use App\Models\Quote;
@@ -32,6 +34,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
@@ -173,12 +176,15 @@ class SpaBookingController extends Controller
             $this->unavailabilityOperatorScope($request->user())
         );
 
+        // Para el pop-up de acciones por servicio (reasignar operador).
+        $operators = Operator::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+
         return view('agenda.index', compact(
             'page', 'bookings', 'timelineBookings', 'statuses', 'statusTouched', 'dateScope', 'calView',
             'selectedDate', 'selectedDateInput', 'operationalDateLabel', 'search',
             'totalEstimatedMinutes', 'scheduledCount', 'estimatedRevenue', 'petsWithAgenda',
             'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction', 'agendaOverviewCount', 'hotelModuleEnabled',
-            'blockedToday'
+            'blockedToday', 'operators'
         ));
     }
 
@@ -225,6 +231,8 @@ class SpaBookingController extends Controller
             'reason' => $reason,
             'overridable' => $outsideSchedule,
             'can_override' => $outsideSchedule && $this->canOverrideSchedule(),
+            'operator_name' => Operator::whereKey($operatorId)->value('name'),
+            'day_summary' => $this->operatorAvailabilityChecker->daySummaryFor($operatorId, $scheduledAt),
         ]);
     }
 
@@ -507,7 +515,11 @@ class SpaBookingController extends Controller
                 }
             }
 
-            return redirect()->route('agenda.show', $booking)->with('success', 'Sesión finalizada con éxito. Se ha generado el estado de cuenta y enviado el reporte al cliente.');
+            // `cobrar=1` viene del pop-up de acciones rápidas ("Terminar y cobrar") de la agenda —
+            // la ficha de destino abre directo el modal de liquidación.
+            $showParams = $request->boolean('cobrar') ? ['booking' => $booking, 'cobrar' => 1] : $booking;
+
+            return redirect()->route('agenda.show', $showParams)->with('success', 'Sesión finalizada con éxito. Se ha generado el estado de cuenta y enviado el reporte al cliente.');
         }
 
         // Mismo límite que el dominio (BookingService::rescheduleBooking): una cita ya
@@ -582,6 +594,53 @@ class SpaBookingController extends Controller
         }
 
         return redirect()->route('agenda.show', $booking)->with('success', 'Sesión actualizada correctamente.');
+    }
+
+    /**
+     * "Iniciar cita" — promueve una cita Programada directo a Orden de Trabajo, sin pasar
+     * por un presupuesto (paridad con la app móvil `MobCitaDet`). Abre el work_order:
+     * genera el folio de orden si falta y arranca todas las líneas de servicio pendientes.
+     */
+    public function start(Request $request, SpaBooking $booking): RedirectResponse
+    {
+        $this->ensureVisible($booking);
+
+        if ($booking->status !== 'scheduled') {
+            return redirect()->route('agenda.show', $booking)->with('error', 'Solo se puede iniciar una cita que está Programada.');
+        }
+
+        if ($booking->services()->count() === 0) {
+            return redirect()->route('agenda.show', $booking)->with('error', 'La cita no tiene servicios — agrega al menos uno antes de iniciarla.');
+        }
+
+        // `service_line_ids` (opcional): arranca solo esas líneas. Sin él, arranca todas las
+        // pendientes — cuando la cita tiene varios servicios, el pop-up de la agenda deja
+        // elegir cuál(es), en vez de forzar a que arranquen todos juntos (paridad con
+        // `SYNC-042` del móvil). Las líneas no elegidas quedan pendientes en la orden de trabajo.
+        $lineIds = array_values(array_filter((array) $request->input('service_line_ids', []), 'is_numeric'));
+
+        $pendingLines = $booking->services()->whereNull('started_at');
+        if ($lineIds !== []) {
+            $pendingLines->whereIn('id', $lineIds);
+        }
+
+        if ($lineIds !== [] && (clone $pendingLines)->count() === 0) {
+            return redirect()->route('agenda.show', $booking)->with('error', 'No seleccionaste ningún servicio para iniciar.');
+        }
+
+        $booking->update(['status' => 'work_order']);
+
+        if (! $booking->order_folio) {
+            try {
+                app(AccountingServiceInterface::class)->assignOrderFolio($booking);
+            } catch (\Throwable) {
+                // No interrumpir el cambio de estado si falla la asignación del folio.
+            }
+        }
+
+        $pendingLines->update(['started_at' => now()]);
+
+        return redirect()->route('agenda.show', $booking)->with('success', 'Cita iniciada — orden de trabajo abierta.');
     }
 
     public function cancel(Request $request, SpaBooking $booking): RedirectResponse
@@ -672,13 +731,19 @@ class SpaBookingController extends Controller
     {
         $validated = $request->validate([
             'scheduled_at' => 'required|date',
-            'operator_id' => 'required|exists:operators,id',
+            // El operador se elige por servicio; `operator_id` (el "responsable") es opcional —
+            // si no viene, se toma el del primer servicio que tenga uno asignado.
+            'operator_id' => 'nullable|exists:operators,id',
             'resource_id' => 'nullable|exists:resources,id',
             'notes' => 'nullable|string',
             'services' => 'required|array',
             'services.*' => 'exists:services,id',
             'service_prices' => 'nullable|array',
             'service_prices.*' => 'nullable|numeric|min:0',
+            'service_operators' => 'nullable|array',
+            'service_operators.*' => 'nullable|exists:operators,id',
+            'service_durations' => 'nullable|array',
+            'service_durations.*' => 'nullable|integer|min:5|max:480',
             'override_availability' => 'nullable|boolean',
         ]);
 
@@ -694,24 +759,60 @@ class SpaBookingController extends Controller
                 : ($service->suggested_price ?? $service->price ?? 0);
         }
 
+        // Cada servicio resuelve su propio operador; el "responsable" de la cita es el
+        // `operator_id` que mandó el formulario o, si no vino, el del primer servicio con
+        // uno asignado. Se valida la disponibilidad en secuencia — mismo criterio que el
+        // agendado móvil (Api\BookingController::store).
+        $svcOperators = $validated['service_operators'] ?? [];
+        $svcDurations = $validated['service_durations'] ?? [];
+
+        $globalOperatorId = (int) ($validated['operator_id']
+            ?? collect($validated['services'])
+                ->map(fn ($serviceId) => $svcOperators[$serviceId] ?? null)
+                ->first(fn ($op) => ! empty($op)));
+
+        if ($globalOperatorId === 0) {
+            return redirect()->back()->withInput()->with('error', 'Asigna un operador a al menos un servicio.');
+        }
+
+        $lineOperators = [];
+        $lines = [];
+        foreach ($servicesData as $service) {
+            $lineOperators[$service->id] = (int) ($svcOperators[$service->id] ?? $globalOperatorId);
+            $lines[] = [
+                'operator_id' => $lineOperators[$service->id],
+                'duration_minutes' => (int) ($svcDurations[$service->id] ?? $service->suggested_duration_minutes ?? $service->duration_minutes ?? 30),
+                'service_name' => $service->name,
+            ];
+        }
+        $durationMinutes = (int) array_sum(array_column($lines, 'duration_minutes'));
+
         $scheduledAt = Carbon::parse($validated['scheduled_at']);
-        $durationMinutes = (int) $servicesData->sum(fn ($s) => $s->suggested_duration_minutes ?? $s->duration_minutes ?? 0);
 
         if (! $this->businessHours->isWithin($scheduledAt)) {
             return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$this->businessHours->openingTime()}–{$this->businessHours->closingTime()}).");
         }
 
-        if ($this->operatorAvailabilityChecker->hasConflict((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
-            return redirect()->back()->withInput()->with('error', 'El operador seleccionado ya tiene una cita en ese horario.');
+        // Guard de calificación: el operador de cada línea debe tener el rol que exige su servicio.
+        if ($servicesData->contains(fn ($s) => $s->operator_role_id !== null)) {
+            $operatorsById = Operator::whereIn('id', array_values(array_unique($lineOperators)))->with('roles')->get()->keyBy('id');
+            foreach ($servicesData as $service) {
+                if ($service->operator_role_id === null) {
+                    continue;
+                }
+                $operator = $operatorsById->get($lineOperators[$service->id]);
+                if (! $operator || ! $operator->activeRoles()->contains('id', $service->operator_role_id)) {
+                    $operatorName = $operator?->full_name ?? 'El operador';
+
+                    return redirect()->back()->withInput()->with('error', "{$operatorName} no está calificado para {$service->name}.");
+                }
+            }
         }
 
         $overrideSchedule = ! empty($validated['override_availability']) && $this->canOverrideSchedule();
-        if (! $overrideSchedule && $this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
-            return redirect()->back()->withInput()->with('error', 'El operador seleccionado no labora en el horario indicado.');
-        }
 
-        if ($this->operatorAvailabilityChecker->hasTimeOff((int) $validated['operator_id'], $scheduledAt, $durationMinutes)) {
-            return redirect()->back()->withInput()->with('error', 'El operador seleccionado no está disponible en ese periodo (vacaciones/permiso).');
+        if ($error = $this->operatorAvailabilityChecker->validateSequentialAssignments($scheduledAt, $lines, $overrideSchedule)) {
+            return redirect()->back()->withInput()->with('error', $error);
         }
 
         $booking = $this->bookingService->scheduleSpaSession(
@@ -719,11 +820,18 @@ class SpaBookingController extends Controller
             $validated['scheduled_at'],
             $servicesWithPrices,
             $validated['notes'] ?? null,
-            (int) $validated['operator_id']
+            $globalOperatorId
         );
 
+        // Operador por línea + duración total real de la cita.
+        foreach ($booking->services as $line) {
+            if (isset($lineOperators[$line->service_id])) {
+                $line->forceFill(['operator_id' => $lineOperators[$line->service_id]])->save();
+            }
+        }
+        $booking->forceFill(['duration_minutes' => $durationMinutes])->save();
+
         if (! empty($validated['resource_id'])) {
-            $durationMinutes = (int) $servicesData->sum(fn ($s) => $s->suggested_duration_minutes ?? $s->duration_minutes ?? 0);
             $cleanupBuffer = (int) config('backoffice.resources.cleaning_buffer_minutes', 30);
 
             $this->resourceAllocationService->assignResourceToSource(
@@ -927,6 +1035,45 @@ class SpaBookingController extends Controller
         return redirect()->route('agenda.show', $booking)->with('success', 'Presupuesto aceptado. La sesión ahora es una Orden de Trabajo activa.');
     }
 
+    /**
+     * Acción sobre una línea de servicio desde la web (pop-up de la agenda / ficha): iniciar,
+     * completar, "realizada", "no se realizó", cancelar, reactivar, reasignar operador. Misma
+     * lógica y guardas que el endpoint móvil (`Api\BookingController::assignServiceProfessional`)
+     * vía `ServiceLineActionService`.
+     */
+    public function updateServiceLine(Request $request, SpaBooking $booking, SpaBookingService $line): RedirectResponse
+    {
+        $this->ensureVisible($booking);
+        abort_unless($line->spa_booking_id === $booking->id, 404);
+
+        if (in_array($booking->status, ['cancelled', 'no_show', 'completed'], true)) {
+            return redirect()->back()->with('error', 'La cita ya está cerrada — no se pueden cambiar sus servicios.');
+        }
+
+        $validated = $request->validate([
+            'operator_id' => 'sometimes|exists:operators,id',
+            'is_external' => 'sometimes|boolean',
+            'external_cost' => 'nullable|numeric|min:0',
+            'current_price' => 'sometimes|numeric|min:0',
+            'mark_started' => 'sometimes|boolean',
+            'mark_completed' => 'sometimes|boolean',
+            'mark_realizada' => 'sometimes|boolean',
+            'mark_not_performed' => 'sometimes|boolean',
+            'not_performed_reason' => 'nullable|string|max:255',
+            'mark_cancelled' => 'sometimes|boolean',
+            'cancellation_reason' => 'nullable|string|max:255',
+            'mark_reactivate' => 'sometimes|boolean',
+        ]);
+
+        $error = app(ServiceLineActionService::class)->apply($booking, $line, $validated);
+
+        if ($error !== null) {
+            return redirect()->back()->with('error', $error);
+        }
+
+        return redirect()->back()->with('success', 'Servicio actualizado.');
+    }
+
     public function assignProfessional(Request $request, SpaBooking $booking, SpaBookingService $item): RedirectResponse
     {
         $this->ensureVisible($booking);
@@ -948,7 +1095,7 @@ class SpaBookingController extends Controller
         return redirect()->back()->with('success', 'Profesional asignado correctamente.');
     }
 
-    public function registerPayment(Request $request, SpaBooking $booking, Quote $quote): RedirectResponse
+    public function registerPayment(Request $request, SpaBooking $booking, Quote $quote): RedirectResponse|JsonResponse
     {
         $this->ensureVisible($booking);
         abort_unless($quote->spa_booking_id === $booking->id, 404);
@@ -970,7 +1117,88 @@ class SpaBookingController extends Controller
                 'booking' => $booking,
             ]);
         } catch (RuntimeException $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+            }
+
             return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Pago registrado exitosamente.',
+                'receipt_url' => route('reports.invoice', $booking),
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Pago registrado exitosamente.');
+    }
+
+    /**
+     * Liquidación directa contra la cita, sin presupuesto de por medio — el camino que
+     * necesitan las citas que llegaron a `completed` por "Iniciar cita" + "Terminar y cobrar"
+     * (SYNC-052/053), que nunca tuvieron un Quote. Registra un Payment ligado al SpaBooking
+     * (misma forma que el cobro móvil, `Api\PaymentController::store`) + su recibo/asiento.
+     */
+    public function registerDirectPayment(Request $request, SpaBooking $booking): RedirectResponse|JsonResponse
+    {
+        $this->ensureVisible($booking);
+
+        if ($booking->status === 'cancelled') {
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'message' => 'No se puede cobrar una cita cancelada.'], 422);
+            }
+
+            return redirect()->back()->with('error', 'No se puede cobrar una cita cancelada.');
+        }
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'payment_method_code' => 'required|string|exists:payment_methods,code',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $paymentMethod = PaymentMethod::where('code', $validated['payment_method_code'])->firstOrFail();
+        $destination = $paymentMethod->type === 'cash' ? 'caja' : 'banco';
+
+        try {
+            DB::transaction(function () use ($request, $booking, $validated, $paymentMethod, $destination) {
+                $payment = Payment::create([
+                    'client_id' => $booking->pet->client_id,
+                    'payable_type' => SpaBooking::class,
+                    'payable_id' => $booking->id,
+                    'amount' => $validated['amount'],
+                    'payment_method' => $paymentMethod->name,
+                    'destination' => $destination,
+                    'category' => 'liquidacion',
+                    'notes' => $validated['notes'] ?? null,
+                    'created_by_user_id' => $request->user()->id,
+                ]);
+
+                app(AccountingServiceInterface::class)->recordBookingPayment(
+                    $booking,
+                    $payment,
+                    $paymentMethod,
+                    (float) $validated['amount'],
+                    null,
+                    $validated['notes'] ?? null
+                );
+            });
+        } catch (RuntimeException $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+            }
+
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Pago registrado exitosamente.',
+                'receipt_url' => route('reports.invoice', $booking),
+            ]);
         }
 
         return redirect()->back()->with('success', 'Pago registrado exitosamente.');

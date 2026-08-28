@@ -6,7 +6,9 @@ use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
+use App\Domain\Planning\Services\ServiceLineActionService;
 use App\Http\Controllers\Controller;
+use App\Models\Operator;
 use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
@@ -14,6 +16,7 @@ use App\Support\Geo\CoverageChecker;
 use App\Support\SystemSettings\BusinessHours;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class BookingController extends Controller
@@ -97,6 +100,12 @@ class BookingController extends Controller
                 'operator_name' => $s->operator?->name,
                 'is_external' => (bool) $s->is_external,
                 'external_cost' => $s->external_cost !== null ? (float) $s->external_cost : null,
+                'started_at' => $s->started_at?->format('Y-m-d H:i:s'),
+                'completed_at' => $s->completed_at?->format('Y-m-d H:i:s'),
+                'cancelled_at' => $s->cancelled_at?->format('Y-m-d H:i:s'),
+                'cancellation_reason' => $s->cancellation_reason,
+                'not_performed_at' => $s->not_performed_at?->format('Y-m-d H:i:s'),
+                'not_performed_reason' => $s->not_performed_reason,
             ])->values(),
             'operator' => $b->operator ? [
                 'id' => $b->operator->id,
@@ -125,12 +134,15 @@ class BookingController extends Controller
             'services' => 'nullable|array',
             'services.*.id' => 'required_with:services|integer|exists:services,id',
             'services.*.price' => 'nullable|numeric|min:0',
+            'services.*.operator_id' => 'nullable|exists:operators,id',
+            'services.*.duration_minutes' => 'nullable|integer|min:5|max:480',
             'notes' => 'nullable|string|max:1000',
             'override_availability' => 'nullable|boolean',
         ]);
 
         $scheduledAt = Carbon::parse($data['scheduled_at']);
         $durationMinutes = (int) ($data['duration_minutes'] ?? 30);
+        $overrideSchedule = ! empty($data['override_availability']) && $this->canOverrideSchedule();
 
         if (! $this->businessHours->isWithin($scheduledAt)) {
             return response()->json([
@@ -138,47 +150,105 @@ class BookingController extends Controller
             ], 422);
         }
 
-        if ($this->operatorAvailabilityChecker->hasConflict((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
-            return response()->json(['message' => 'El operador seleccionado ya tiene una cita en ese horario.'], 422);
-        }
-
-        $overrideSchedule = ! empty($data['override_availability']) && $this->canOverrideSchedule();
-        if (! $overrideSchedule && $this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
-            return response()->json(['message' => 'El operador seleccionado no labora en el horario indicado.'], 422);
-        }
-
-        if ($this->operatorAvailabilityChecker->hasTimeOff((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
-            return response()->json(['message' => 'El operador seleccionado no está disponible en ese periodo (vacaciones/permiso).'], 422);
-        }
-
         $serviceRows = collect($data['services'] ?? []);
         $serviceIds = $serviceRows->pluck('id')->all();
-        $catalogPrices = $serviceIds ? Service::whereIn('id', $serviceIds)->pluck('price', 'id') : collect();
+        $catalog = $serviceIds
+            ? Service::whereIn('id', $serviceIds)->get(['id', 'name', 'price', 'duration_minutes', 'operator_role_id'])->keyBy('id')
+            : collect();
+
+        if ($serviceRows->isEmpty()) {
+            // Sin servicios: no hay líneas que segmentar, se valida el operador de la cita
+            // contra toda la duración (mismo comportamiento que antes de este cambio).
+            if ($this->operatorAvailabilityChecker->hasConflict((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
+                return response()->json(['message' => 'El operador seleccionado ya tiene una cita en ese horario.'], 422);
+            }
+            if (! $overrideSchedule && $this->operatorAvailabilityChecker->isOutsideWorkingHours((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
+                return response()->json(['message' => 'El operador seleccionado no labora en el horario indicado.'], 422);
+            }
+            if ($this->operatorAvailabilityChecker->hasTimeOff((int) $data['operator_id'], $scheduledAt, $durationMinutes)) {
+                return response()->json(['message' => 'El operador seleccionado no está disponible en ese periodo (vacaciones/permiso).'], 422);
+            }
+        } else {
+            // Con servicios: cada línea resuelve su propio operador (el de la línea si viene,
+            // si no el de la cita) y se valida en secuencia — una sola línea (o todas con el
+            // mismo operador) da el mismo resultado que la validación de arriba.
+            $lines = $serviceRows->map(fn ($row) => [
+                // Duración de la línea: la que mandó el cliente (editable al agendar) o la del
+                // catálogo. Se usa para segmentar la validación por operador.
+                'duration_minutes' => (int) ($row['duration_minutes'] ?? ($catalog->get($row['id'])?->duration_minutes ?? 30)),
+                'operator_id' => (int) ($row['operator_id'] ?? $data['operator_id']),
+                'service_name' => $catalog->get($row['id'])?->name ?? 'servicio',
+            ])->all();
+
+            // Guard de calificación: cada operador debe tener el rol que exige su servicio
+            // (Service.operator_role_id; null = cualquiera). El agendado móvil ya filtra la
+            // lista ofrecida por línea, esto lo vuelve autoritativo por si el cliente trae
+            // un catálogo viejo en caché.
+            if ($catalog->contains(fn ($s) => $s->operator_role_id !== null)) {
+                $operatorIds = $serviceRows
+                    ->map(fn ($row) => (int) ($row['operator_id'] ?? $data['operator_id']))
+                    ->unique();
+                $operators = Operator::whereIn('id', $operatorIds)->with('roles')->get()->keyBy('id');
+
+                foreach ($serviceRows as $row) {
+                    $service = $catalog->get($row['id']);
+                    if (! $service || $service->operator_role_id === null) {
+                        continue;
+                    }
+                    $operatorId = (int) ($row['operator_id'] ?? $data['operator_id']);
+                    $operator = $operators->get($operatorId);
+                    if (! $operator || ! $operator->activeRoles()->contains('id', $service->operator_role_id)) {
+                        $operatorName = $operator?->full_name ?? 'El operador';
+
+                        return response()->json([
+                            'message' => "{$operatorName} no está calificado para {$service->name}.",
+                        ], 422);
+                    }
+                }
+            }
+
+            if ($error = $this->operatorAvailabilityChecker->validateSequentialAssignments($scheduledAt, $lines, $overrideSchedule)) {
+                return response()->json(['message' => $error], 422);
+            }
+        }
+
         // El precio sugerido del catálogo es editable por el usuario al agendar; si no manda
-        // uno explícito (o el campo es null), cae al precio del catálogo.
+        // uno explícito (o el campo es null), cae al precio del catálogo. El operador por línea
+        // cae al operador de la cita si no viene uno explícito.
         $resolvedPrices = $serviceRows->mapWithKeys(fn ($row) => [
-            $row['id'] => $row['price'] ?? ($catalogPrices[$row['id']] ?? 0),
+            $row['id'] => $row['price'] ?? ($catalog->get($row['id'])?->price ?? 0),
+        ]);
+        $resolvedOperators = $serviceRows->mapWithKeys(fn ($row) => [
+            $row['id'] => (int) ($row['operator_id'] ?? $data['operator_id']),
         ]);
         $estimatedTotal = $resolvedPrices->sum();
 
-        $booking = SpaBooking::create([
-            'pet_id' => $data['pet_id'],
-            'operator_id' => $data['operator_id'],
-            'created_by_user_id' => auth()->id(),
-            'scheduled_at' => $data['scheduled_at'],
-            'duration_minutes' => $data['duration_minutes'] ?? null,
-            'status' => 'scheduled',
-            'total_estimated_price' => $estimatedTotal,
-            'notes' => $data['notes'] ?? null,
-        ]);
-
-        foreach ($serviceIds as $svcId) {
-            SpaBookingService::create([
-                'spa_booking_id' => $booking->id,
-                'service_id' => $svcId,
-                'current_price' => $resolvedPrices[$svcId] ?? 0,
+        // La cita y sus líneas de servicio se crean juntas o no se crean: sin la
+        // transacción, un fallo a mitad del loop dejaba una cita sin (o con parte de)
+        // sus servicios, y ese estado parcial no lo corrige nada después.
+        $booking = DB::transaction(function () use ($data, $estimatedTotal, $serviceIds, $resolvedPrices, $resolvedOperators) {
+            $booking = SpaBooking::create([
+                'pet_id' => $data['pet_id'],
+                'operator_id' => $data['operator_id'],
+                'created_by_user_id' => auth()->id(),
+                'scheduled_at' => $data['scheduled_at'],
+                'duration_minutes' => $data['duration_minutes'] ?? null,
+                'status' => 'scheduled',
+                'total_estimated_price' => $estimatedTotal,
+                'notes' => $data['notes'] ?? null,
             ]);
-        }
+
+            foreach ($serviceIds as $svcId) {
+                SpaBookingService::create([
+                    'spa_booking_id' => $booking->id,
+                    'service_id' => $svcId,
+                    'current_price' => $resolvedPrices[$svcId] ?? 0,
+                    'operator_id' => $resolvedOperators[$svcId] ?? (int) $data['operator_id'],
+                ]);
+            }
+
+            return $booking;
+        });
 
         $coverageWarning = $this->coverageChecker->checkPet($booking->pet);
         $vaccinationWarning = $this->vaccinationChecker->check($booking->pet);
@@ -288,7 +358,7 @@ class BookingController extends Controller
                     'current_price' => $prices[$svcId] ?? 0,
                 ]);
             }
-            $booking->total_estimated_price = $booking->services()->sum('current_price');
+            $booking->total_estimated_price = $booking->services()->billable()->sum('current_price');
         }
 
         $booking->save();
@@ -300,6 +370,14 @@ class BookingController extends Controller
             } catch (\Throwable) {
                 // No interrumpir el cambio de estado si falla la asignación del folio
             }
+        }
+
+        // Este endpoint arranca la cita de un jalón (inicio instantáneo dentro de la ventana
+        // de gracia, o "Realizada") — a diferencia de assignServiceProfessional(), que permite
+        // arrancar líneas una por una, acá se marcan todas las que todavía no tuvieran
+        // started_at, para no dejar ninguna "pendiente" cuando la intención era arrancar todo.
+        if (($data['status'] ?? null) === 'work_order') {
+            $booking->services()->whereNull('started_at')->update(['started_at' => now()]);
         }
 
         if (($data['status'] ?? null) === 'completed') {
@@ -326,18 +404,20 @@ class BookingController extends Controller
             'is_external' => 'sometimes|boolean',
             'external_cost' => 'nullable|numeric|min:0',
             'current_price' => 'sometimes|numeric|min:0',
+            'mark_started' => 'sometimes|boolean',
+            'mark_completed' => 'sometimes|boolean',
+            'mark_realizada' => 'sometimes|boolean',
+            'mark_not_performed' => 'sometimes|boolean',
+            'not_performed_reason' => 'nullable|string|max:255',
+            'mark_cancelled' => 'sometimes|boolean',
+            'cancellation_reason' => 'nullable|string|max:255',
+            'mark_reactivate' => 'sometimes|boolean',
         ]);
 
-        $fillData = [];
-        foreach (['operator_id', 'is_external', 'external_cost', 'current_price'] as $field) {
-            if (array_key_exists($field, $validated)) {
-                $fillData[$field] = $validated[$field];
-            }
-        }
-        $line->update($fillData);
+        $error = app(ServiceLineActionService::class)->apply($booking, $line, $validated);
 
-        if (array_key_exists('current_price', $fillData)) {
-            $booking->update(['total_estimated_price' => $booking->services()->sum('current_price')]);
+        if ($error !== null) {
+            return response()->json(['message' => $error], 422);
         }
 
         return response()->json($this->serialize($booking->fresh()));

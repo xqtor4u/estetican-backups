@@ -69,20 +69,12 @@
                     <input type="hidden" name="return_view_mode" value="{{ $returnViewMode }}">
                 @endif
 
+                {{-- El operador se elige por servicio (más abajo). El "responsable" de la cita
+                     es el del primer servicio marcado — este hidden lo mantiene sincronizado el JS. --}}
+                <input type="hidden" id="operator_id" name="operator_id" value="{{ old('operator_id') }}">
+
                 <div class="row g-3 mb-4">
-                    <div class="col-lg-4 col-md-6">
-                        <label for="operator_id" class="form-label">Operador</label>
-                        <select id="operator_id" name="operator_id" class="form-select" required>
-                            <option value="">Selecciona un operador…</option>
-                            @foreach($operators as $operator)
-                                <option value="{{ $operator->id }}" @selected((string) old('operator_id') === (string) $operator->id)>
-                                    {{ $operator->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <div class="form-text">Debes elegir operador antes de poder fijar la hora — se usa para validar disponibilidad.</div>
-                    </div>
-                    <div class="col-lg-4 col-md-6">
+                    <div class="col-lg-6 col-md-6">
                         <label for="scheduled_at" class="form-label">Fecha y hora</label>
                         <div id="scheduled_at_wrapper" class="{{ old('operator_id') ? '' : 'is-locked' }}" style="position:relative;">
                             <input
@@ -97,7 +89,7 @@
                                 data-max-time="{{ $closingTime }}"
                             >
                         </div>
-                        <div class="form-text">Horario operativo: {{ $openingTime }}–{{ $closingTime }}.</div>
+                        <div id="scheduled_at_hint" class="form-text">Horario operativo: {{ $openingTime }}–{{ $closingTime }}.</div>
                         <div id="availability_warning" class="form-text text-danger d-none"></div>
                         <div id="override_availability_wrapper" class="form-check mt-1 d-none">
                             <input type="checkbox" class="form-check-input" id="override_availability_checkbox" name="override_availability" value="1">
@@ -120,6 +112,9 @@
                         <label for="notes" class="form-label">Notas operativas</label>
                         <textarea id="notes" name="notes" rows="3" class="form-control" placeholder="Indicaciones relevantes para recepción, grooming o preparación.">{{ old('notes') }}</textarea>
                         <div class="form-text">Se guardan junto al booking para que no dependan de notas dispersas del cliente o de la mascota.</div>
+                    </div>
+                    <div class="col-12">
+                        <div id="availability_panel" class="alert d-none mb-0 py-2 px-3 small"></div>
                     </div>
                 </div>
 
@@ -148,22 +143,49 @@
                                         <span class="catalog-type-pill">{{ strtoupper($service->type) }}</span>
                                     </div>
                                     <div class="d-flex flex-column gap-1 mb-3">
-                                        <span class="catalog-inline-tag text-truncate" title="{{ $service->suggested_duration_minutes }} min"><i class="bi bi-clock me-1"></i> {{ $service->suggested_duration_minutes }} min</span>
-                                        <span class="catalog-inline-tag text-truncate" title="{{ $service->operatorRole?->name ?? 'S/R' }}"><i class="bi bi-person me-1"></i> {{ $service->operatorRole?->name ?? 'S/R' }}</span>
+                                        <span class="catalog-inline-tag text-truncate" title="{{ $service->operatorRole ? 'Solo lo puede realizar un operador con el rol: '.$service->operatorRole->name : 'No exige un rol de operador — lo puede realizar cualquier operador activo' }}"><i class="bi bi-person me-1"></i> {{ $service->operatorRole?->name ?? 'Cualquier operador' }}</span>
                                     </div>
-                                    <div class="mt-auto border-top pt-2">
-                                        <div class="input-group input-group-sm service-price-group">
-                                            <span class="input-group-text">$</span>
+                                    <div class="mt-auto border-top pt-2 d-flex flex-column gap-2">
+                                        <div>
+                                            <label class="catalog-stat__hint text-muted d-block" style="font-size: 0.7rem;">Precio</label>
+                                            <div class="input-group input-group-sm service-price-group">
+                                                <span class="input-group-text">$</span>
+                                                <input
+                                                    type="number"
+                                                    name="service_prices[{{ $service->id }}]"
+                                                    class="form-control service-price-input"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value="{{ old('service_prices.'.$service->id, $defaultPrice) }}"
+                                                >
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="catalog-stat__hint text-muted d-block" style="font-size: 0.7rem;">Duración (min)</label>
                                             <input
                                                 type="number"
-                                                name="service_prices[{{ $service->id }}]"
-                                                class="form-control service-price-input"
-                                                step="0.01"
-                                                min="0"
-                                                value="{{ old('service_prices.'.$service->id, $defaultPrice) }}"
+                                                name="service_durations[{{ $service->id }}]"
+                                                class="form-control form-control-sm service-config-input"
+                                                step="5"
+                                                min="5"
+                                                max="480"
+                                                value="{{ old('service_durations.'.$service->id, $service->suggested_duration_minutes ?: 30) }}"
+                                                @disabled(! $checked)
                                             >
                                         </div>
-                                        <div class="catalog-stat__hint text-muted" style="font-size: 0.7rem;">precio editable</div>
+                                        <div>
+                                            <label class="catalog-stat__hint text-muted d-block" style="font-size: 0.7rem;">Operador</label>
+                                            <select
+                                                name="service_operators[{{ $service->id }}]"
+                                                class="form-select form-select-sm service-config-input service-operator-select"
+                                                @disabled(! $checked)
+                                            >
+                                                <option value="">Selecciona…</option>
+                                                @foreach($operators as $operator)
+                                                    <option value="{{ $operator->id }}" @selected((string) old('service_operators.'.$service->id) === (string) $operator->id)>{{ $operator->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             </label>
@@ -258,6 +280,33 @@
         opacity: .5;
         pointer-events: none;
     }
+    /* Barra de la agenda del día del operador en el panel de disponibilidad */
+    .agenda-daybar {
+        position: relative;
+        height: 22px;
+        border-radius: 4px;
+        background: repeating-linear-gradient(90deg, rgba(25,135,84,.10) 0 8px, rgba(25,135,84,.16) 8px 16px);
+        border: 1px solid rgba(0,0,0,.1);
+        overflow: hidden;
+    }
+    .agenda-slot--busy {
+        position: absolute;
+        top: 0; bottom: 0;
+        background: rgba(220,53,69,.55);
+        border-left: 1px solid rgba(220,53,69,.9);
+        border-right: 1px solid rgba(220,53,69,.9);
+    }
+    .agenda-slot-marker {
+        position: absolute;
+        top: -3px; bottom: -3px;
+        width: 2px;
+        background: #0d6efd;
+        box-shadow: 0 0 0 2px rgba(13,110,253,.25);
+    }
+    .agenda-daybar-scale {
+        font-size: .68rem;
+        opacity: .7;
+    }
 </style>
 @endpush
 
@@ -267,13 +316,96 @@
         var operatorSelect = document.getElementById('operator_id');
         var wrapper = document.getElementById('scheduled_at_wrapper');
         var scheduledAtInput = document.getElementById('scheduled_at');
+        var scheduledAtHint = document.getElementById('scheduled_at_hint');
         var warningEl = document.getElementById('availability_warning');
         var overrideWrapper = document.getElementById('override_availability_wrapper');
         var overrideCheckbox = document.getElementById('override_availability_checkbox');
         if (!operatorSelect || !wrapper) return;
 
+        var scheduleHintDefault = scheduledAtHint ? scheduledAtHint.textContent : '';
+
         function syncScheduledAtState() {
-            wrapper.classList.toggle('is-locked', !operatorSelect.value);
+            var locked = !operatorSelect.value;
+            wrapper.classList.toggle('is-locked', locked);
+            if (scheduledAtHint) {
+                scheduledAtHint.textContent = locked
+                    ? 'Elige un operador arriba para habilitar la fecha y hora.'
+                    : scheduleHintDefault;
+                scheduledAtHint.classList.toggle('text-warning', locked);
+            }
+        }
+
+        var availabilityPanel = document.getElementById('availability_panel');
+        var BIZ_OPEN = @json($openingTime);
+        var BIZ_CLOSE = @json($closingTime);
+
+        function esc(v) {
+            var d = document.createElement('div');
+            d.textContent = v == null ? '' : String(v);
+            return d.innerHTML;
+        }
+
+        function toMin(hhmm) {
+            var p = String(hhmm || '').split(':');
+            return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+        }
+
+        function dayTimeline(s, selectedHHMM) {
+            var startM, endM;
+            if (s.window && s.window.start && s.window.end) {
+                startM = toMin(s.window.start); endM = toMin(s.window.end);
+            } else {
+                startM = toMin(BIZ_OPEN); endM = toMin(BIZ_CLOSE);
+            }
+            if (endM <= startM) return '';
+            var total = endM - startM;
+            var pct = function (m) { return Math.max(0, Math.min(100, ((m - startM) / total) * 100)); };
+
+            var blocks = (s.busy || []).map(function (b) {
+                var l = pct(toMin(b.start)), r = pct(toMin(b.end));
+                if (r <= l) return '';
+                return '<div class="agenda-slot agenda-slot--busy" style="left:' + l + '%;width:' + (r - l) + '%" title="' + esc(b.start) + '–' + esc(b.end) + (b.label ? ' · ' + esc(b.label) : '') + '"></div>';
+            }).join('');
+
+            var marker = '';
+            if (selectedHHMM) {
+                var mp = pct(toMin(selectedHHMM));
+                marker = '<div class="agenda-slot-marker" style="left:' + mp + '%" title="Hora elegida: ' + esc(selectedHHMM) + '"></div>';
+            }
+
+            return '<div class="agenda-daybar mt-2">' + blocks + marker + '</div>' +
+                   '<div class="d-flex justify-content-between agenda-daybar-scale"><span>' + esc(startM === toMin(BIZ_OPEN) ? BIZ_OPEN : s.window.start) + '</span><span>' + esc(endM === toMin(BIZ_CLOSE) ? BIZ_CLOSE : s.window.end) + '</span></div>';
+        }
+
+        function renderAvailability(data, selectedHHMM) {
+            if (!availabilityPanel) return;
+            var s = data.day_summary || {};
+            var bits = [];
+
+            if (s.window === null || s.window === undefined) {
+                bits.push('Sin horario fijo capturado (puede a cualquier hora).');
+            } else if (s.window.start && s.window.end) {
+                bits.push('Labora ese día de <strong>' + esc(s.window.start) + '</strong> a <strong>' + esc(s.window.end) + '</strong>.');
+            } else {
+                bits.push('<strong>No labora ese día</strong> según su horario semanal.');
+            }
+
+            var busy = s.busy || [];
+            if (busy.length) {
+                bits.push('Ocupado: ' + busy.map(function (b) {
+                    return esc(b.start) + '–' + esc(b.end) + (b.label && b.label !== 'Cita' ? ' (' + esc(b.label) + ')' : '');
+                }).join(', ') + '.');
+            } else {
+                bits.push('Sin nada agendado ese día.');
+            }
+
+            var name = esc(data.operator_name || 'El operador');
+            var ok = data.available !== false;
+            availabilityPanel.className = 'mb-0 py-2 px-3 small alert ' + (ok ? 'alert-success' : 'alert-warning');
+            availabilityPanel.innerHTML =
+                '<strong>' + (ok ? '✓ ' : '⚠ ') + name + (ok ? ' está disponible en ese horario.' : ' — ' + esc(data.reason || 'revisa el horario.')) + '</strong><br>' +
+                bits.join(' ') +
+                dayTimeline(s, selectedHHMM);
         }
 
         function checkAvailability() {
@@ -281,6 +413,7 @@
             if (!operatorSelect.value || !scheduledAtInput.value) {
                 warningEl.classList.add('d-none');
                 overrideWrapper && overrideWrapper.classList.add('d-none');
+                availabilityPanel && availabilityPanel.classList.add('d-none');
                 return;
             }
             var params = new URLSearchParams({
@@ -297,15 +430,55 @@
                         overrideWrapper.classList.toggle('d-none', !showOverride);
                         if (!showOverride && overrideCheckbox) overrideCheckbox.checked = false;
                     }
+                    if (availabilityPanel) {
+                        availabilityPanel.classList.remove('d-none');
+                        renderAvailability(data, (scheduledAtInput.value || '').slice(11, 16));
+                    }
                 })
                 .catch(function () {
                     warningEl.classList.add('d-none');
                     overrideWrapper && overrideWrapper.classList.add('d-none');
+                    availabilityPanel && availabilityPanel.classList.add('d-none');
                 });
         }
 
-        operatorSelect.addEventListener('change', function () { syncScheduledAtState(); checkAvailability(); });
+        // El operador "responsable" de la cita = el del primer servicio marcado que tenga
+        // uno elegido. El JS lo mantiene en el hidden #operator_id (lo que valida el backend
+        // y usa el chequeo de disponibilidad).
+        function syncResponsibleOperator() {
+            var chosen = '';
+            document.querySelectorAll('.service-card-label').forEach(function (card) {
+                if (chosen) return;
+                var cb = card.querySelector('.service-card-input');
+                var sel = card.querySelector('.service-operator-select');
+                if (cb && cb.checked && sel && sel.value) chosen = sel.value;
+            });
+            if (operatorSelect.value !== chosen) {
+                operatorSelect.value = chosen;
+                syncScheduledAtState();
+                checkAvailability();
+            }
+        }
+
         scheduledAtInput && scheduledAtInput.addEventListener('change', checkAvailability);
+
+        // Duración y operador por servicio: solo se pueden editar cuando la tarjeta
+        // del servicio está marcada.
+        document.querySelectorAll('.service-card-input').forEach(function (cb) {
+            var card = cb.closest('.service-card-label');
+            if (!card) return;
+            var configs = card.querySelectorAll('.service-config-input');
+            function syncConfigState() {
+                configs.forEach(function (el) { el.disabled = !cb.checked; });
+            }
+            cb.addEventListener('change', function () { syncConfigState(); syncResponsibleOperator(); });
+            syncConfigState();
+        });
+        document.querySelectorAll('.service-operator-select').forEach(function (sel) {
+            sel.addEventListener('change', syncResponsibleOperator);
+        });
+
+        syncResponsibleOperator();
         syncScheduledAtState();
         checkAvailability();
     });

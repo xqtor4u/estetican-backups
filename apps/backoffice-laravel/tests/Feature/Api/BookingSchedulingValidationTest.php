@@ -2,13 +2,15 @@
 
 namespace Tests\Feature\Api;
 
-use App\Models\ApiToken;
 use App\Models\Client;
 use App\Models\Operator;
+use App\Models\OperatorRole;
 use App\Models\OperatorUnavailability;
 use App\Models\OperatorWeeklySchedule;
 use App\Models\Pet;
+use App\Models\Service;
 use App\Models\SpaBooking;
+use App\Models\SpaBookingService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesAdminUser;
@@ -16,8 +18,8 @@ use Tests\TestCase;
 
 class BookingSchedulingValidationTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function authHeader(): array
     {
@@ -220,5 +222,308 @@ class BookingSchedulingValidationTest extends TestCase
             'id' => $booking->id,
             'notes' => 'El animal llegó agitado, se calmó a los 10 min',
         ]);
+    }
+
+    private function service(string $name, int $durationMinutes, float $price = 100): Service
+    {
+        return Service::create([
+            'code' => 'SVC'.uniqid(),
+            'type' => 'spa',
+            'name' => $name,
+            'price' => $price,
+            'duration_minutes' => $durationMinutes,
+        ]);
+    }
+
+    public function test_accepts_a_booking_with_a_different_operator_per_service(): void
+    {
+        $pet = $this->pet();
+        $primary = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Juan', 'first_name' => 'Juan', 'is_active' => true]);
+        $second = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Maria', 'first_name' => 'Maria', 'is_active' => true]);
+        $bath = $this->service('Baño', 30);
+        $cut = $this->service('Corte', 20);
+        $scheduledAt = now()->addDay()->setTime(11, 0);
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $primary->id,
+            'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+            'duration_minutes' => 50,
+            'services' => [
+                ['id' => $bath->id],
+                ['id' => $cut->id, 'operator_id' => $second->id],
+            ],
+        ]);
+
+        $response->assertStatus(201);
+        $booking = SpaBooking::firstOrFail();
+        $this->assertDatabaseHas('spa_booking_services', [
+            'spa_booking_id' => $booking->id,
+            'service_id' => $bath->id,
+            'operator_id' => $primary->id,
+        ]);
+        $this->assertDatabaseHas('spa_booking_services', [
+            'spa_booking_id' => $booking->id,
+            'service_id' => $cut->id,
+            'operator_id' => $second->id,
+        ]);
+    }
+
+    public function test_service_lines_without_an_explicit_operator_default_to_the_booking_operator(): void
+    {
+        $pet = $this->pet();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $bath = $this->service('Baño', 30);
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $operator->id,
+            'scheduled_at' => now()->addDay()->setTime(11, 0)->format('Y-m-d H:i:s'),
+            'services' => [['id' => $bath->id]],
+        ]);
+
+        $response->assertStatus(201);
+        $booking = SpaBooking::firstOrFail();
+        $this->assertDatabaseHas('spa_booking_services', [
+            'spa_booking_id' => $booking->id,
+            'service_id' => $bath->id,
+            'operator_id' => $operator->id,
+        ]);
+    }
+
+    public function test_rejects_when_the_second_service_operator_has_a_conflict_in_its_own_segment(): void
+    {
+        $pet = $this->pet();
+        $primary = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Juan', 'first_name' => 'Juan', 'is_active' => true]);
+        $second = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Maria', 'first_name' => 'Maria', 'is_active' => true]);
+        $bath = $this->service('Baño', 30);
+        $cut = $this->service('Corte', 20);
+        $scheduledAt = now()->addDay()->setTime(11, 0);
+
+        // Maria ya tiene una cita justo en lo que sería su propio segmento (11:30-11:50, cuando
+        // el baño ya terminó y le tocaría empezar el corte).
+        SpaBooking::create([
+            'pet_id' => $pet->id,
+            'operator_id' => $second->id,
+            'scheduled_at' => $scheduledAt->copy()->addMinutes(30),
+            'duration_minutes' => 20,
+            'status' => 'scheduled',
+            'total_estimated_price' => 0,
+        ]);
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $primary->id,
+            'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+            'duration_minutes' => 50,
+            'services' => [
+                ['id' => $bath->id],
+                ['id' => $cut->id, 'operator_id' => $second->id],
+            ],
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment(['message' => 'El operador asignado a "Corte" ya tiene una cita en ese horario.']);
+        $this->assertDatabaseCount('spa_bookings', 1);
+    }
+
+    public function test_accepts_when_the_second_operator_is_only_busy_during_the_first_service_segment(): void
+    {
+        $pet = $this->pet();
+        $primary = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Juan', 'first_name' => 'Juan', 'is_active' => true]);
+        $second = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Maria', 'first_name' => 'Maria', 'is_active' => true]);
+        $bath = $this->service('Baño', 30);
+        $cut = $this->service('Corte', 20);
+        $scheduledAt = now()->addDay()->setTime(11, 0);
+
+        // Maria tiene una cita de 11:00 a 11:20 — termina antes de que empiece su propio
+        // segmento (11:30, cuando el baño de esta cita nueva ya terminó). No debería bloquear.
+        SpaBooking::create([
+            'pet_id' => $pet->id,
+            'operator_id' => $second->id,
+            'scheduled_at' => $scheduledAt->copy(),
+            'duration_minutes' => 20,
+            'status' => 'scheduled',
+            'total_estimated_price' => 0,
+        ]);
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $primary->id,
+            'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+            'duration_minutes' => 50,
+            'services' => [
+                ['id' => $bath->id],
+                ['id' => $cut->id, 'operator_id' => $second->id],
+            ],
+        ]);
+
+        $response->assertStatus(201);
+    }
+
+    public function test_transitioning_to_work_order_via_update_starts_every_pending_line(): void
+    {
+        $pet = $this->pet();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $bath = $this->service('Baño', 30);
+        $cut = $this->service('Corte', 20);
+        $booking = SpaBooking::create([
+            'pet_id' => $pet->id,
+            'operator_id' => $operator->id,
+            'scheduled_at' => now(),
+            'status' => 'scheduled',
+            'total_estimated_price' => 0,
+        ]);
+        $bathLine = $booking->services()->create(['service_id' => $bath->id, 'current_price' => 100]);
+        $cutLine = $booking->services()->create(['service_id' => $cut->id, 'current_price' => 100]);
+
+        $response = $this->withHeaders($this->authHeader())->patchJson("/api/bookings/{$booking->id}", [
+            'status' => 'work_order',
+        ]);
+
+        $response->assertOk();
+        $bathLine->refresh();
+        $cutLine->refresh();
+        $this->assertNotNull($bathLine->started_at, 'el inicio instantáneo/"Realizada" debe arrancar todas las líneas de un jalón');
+        $this->assertNotNull($cutLine->started_at);
+    }
+
+    /* ── Calificación operador↔servicio (SYNC-043) ─────────────────────────── */
+
+    private function serviceRequiringRole(OperatorRole $role, string $name = 'Consulta', int $durationMinutes = 30): Service
+    {
+        return Service::create([
+            'code' => 'SVC'.uniqid(),
+            'type' => 'spa',
+            'name' => $name,
+            'price' => 100,
+            'duration_minutes' => $durationMinutes,
+            'operator_role_id' => $role->id,
+        ]);
+    }
+
+    public function test_rejects_a_service_line_whose_operator_lacks_the_required_role(): void
+    {
+        $pet = $this->pet();
+        $role = OperatorRole::create(['code' => 'vet'.uniqid(), 'name' => 'Veterinario '.uniqid()]);
+        $vet = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Dra', 'first_name' => 'Dra', 'is_active' => true]);
+        $vet->roles()->attach($role->id, ['is_primary' => true, 'starts_at' => now()]);
+        $groomer = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Estil', 'first_name' => 'Estil', 'is_active' => true]);
+        $consulta = $this->serviceRequiringRole($role);
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $groomer->id,
+            'scheduled_at' => now()->addDay()->setTime(11, 0)->format('Y-m-d H:i:s'),
+            'services' => [['id' => $consulta->id, 'operator_id' => $groomer->id]],
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseCount('spa_bookings', 0);
+    }
+
+    public function test_accepts_a_service_line_when_the_operator_has_the_required_role(): void
+    {
+        $pet = $this->pet();
+        $role = OperatorRole::create(['code' => 'vet'.uniqid(), 'name' => 'Veterinario '.uniqid()]);
+        $vet = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Dra', 'first_name' => 'Dra', 'is_active' => true]);
+        $vet->roles()->attach($role->id, ['is_primary' => true, 'starts_at' => now()]);
+        $consulta = $this->serviceRequiringRole($role);
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $vet->id,
+            'scheduled_at' => now()->addDay()->setTime(11, 0)->format('Y-m-d H:i:s'),
+            'services' => [['id' => $consulta->id, 'operator_id' => $vet->id]],
+        ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('spa_booking_services', [
+            'service_id' => $consulta->id,
+            'operator_id' => $vet->id,
+        ]);
+    }
+
+    public function test_a_per_line_custom_duration_is_used_to_segment_the_availability_check(): void
+    {
+        $pet = $this->pet();
+        $a = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'A', 'first_name' => 'A', 'is_active' => true]);
+        $b = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'B', 'first_name' => 'B', 'is_active' => true]);
+        $bath = $this->service('Baño', 30);
+        $cut = $this->service('Corte', 20);
+        $start = now()->addDay()->setTime(11, 0);
+
+        // B ocupado 11:30–11:50: chocaría con su segmento si el baño durara los 30 min de
+        // catálogo, pero el usuario lo alarga a 60 → a B le toca recién a las 12:00, sin choque.
+        SpaBooking::create([
+            'pet_id' => $pet->id,
+            'operator_id' => $b->id,
+            'scheduled_at' => $start->copy()->addMinutes(30),
+            'duration_minutes' => 20,
+            'status' => 'scheduled',
+            'total_estimated_price' => 0,
+        ]);
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $a->id,
+            'scheduled_at' => $start->format('Y-m-d H:i:s'),
+            'duration_minutes' => 80,
+            'services' => [
+                ['id' => $bath->id, 'operator_id' => $a->id, 'duration_minutes' => 60],
+                ['id' => $cut->id, 'operator_id' => $b->id, 'duration_minutes' => 20],
+            ],
+        ]);
+
+        $response->assertStatus(201);
+    }
+
+    public function test_a_service_without_a_required_role_accepts_any_operator(): void
+    {
+        $pet = $this->pet();
+        $anyone = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Quien', 'first_name' => 'Quien', 'is_active' => true]);
+        $bath = $this->service('Baño', 30); // operator_role_id queda null
+
+        $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+            'pet_id' => $pet->id,
+            'operator_id' => $anyone->id,
+            'scheduled_at' => now()->addDay()->setTime(11, 0)->format('Y-m-d H:i:s'),
+            'services' => [['id' => $bath->id, 'operator_id' => $anyone->id]],
+        ]);
+
+        $response->assertStatus(201);
+    }
+
+    public function test_a_failure_creating_a_service_line_rolls_back_the_whole_booking(): void
+    {
+        $pet = $this->pet();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $bath = $this->service('Baño', 30);
+
+        // Fuerza que la creación de la línea de servicio falle a mitad del store().
+        // Se clona el dispatcher para no dejar el listener registrado en otros tests.
+        $originalDispatcher = SpaBookingService::getEventDispatcher();
+        $probe = clone $originalDispatcher;
+        $probe->listen('eloquent.creating: '.SpaBookingService::class, static function () {
+            throw new \RuntimeException('fallo simulado al crear la línea de servicio');
+        });
+        SpaBookingService::setEventDispatcher($probe);
+
+        try {
+            $response = $this->withHeaders($this->authHeader())->postJson('/api/bookings', [
+                'pet_id' => $pet->id,
+                'operator_id' => $operator->id,
+                'scheduled_at' => now()->addDay()->setTime(11, 0)->format('Y-m-d H:i:s'),
+                'duration_minutes' => 30,
+                'services' => [['id' => $bath->id]],
+            ]);
+        } finally {
+            SpaBookingService::setEventDispatcher($originalDispatcher);
+        }
+
+        $response->assertStatus(500);
+        // La transacción revierte la cita: no queda ni el encabezado ni líneas huérfanas.
+        $this->assertDatabaseCount('spa_bookings', 0);
+        $this->assertDatabaseCount('spa_booking_services', 0);
     }
 }

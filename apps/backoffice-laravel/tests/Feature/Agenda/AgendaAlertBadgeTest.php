@@ -4,8 +4,10 @@ namespace Tests\Feature\Agenda;
 
 use App\Models\Client;
 use App\Models\Pet;
+use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
@@ -17,15 +19,15 @@ use Tests\TestCase;
  */
 class AgendaAlertBadgeTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
         return $this->createAdminUser();
     }
 
-    private function booking(string $status, \Carbon\Carbon $scheduledAt, ?int $durationMinutes = 30): SpaBooking
+    private function booking(string $status, Carbon $scheduledAt, ?int $durationMinutes = 30): SpaBooking
     {
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz'.uniqid()]);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Mascota-'.uniqid()]);
@@ -107,5 +109,60 @@ class AgendaAlertBadgeTest extends TestCase
         $response->assertSee('agenda-status-badge--no-show', false);
         $response->assertSee('agenda-status-badge--unfulfillable', false);
         $response->assertSee('agenda-status-badge--work-order', false);
+    }
+
+    /**
+     * El tag de estado de una cita Programada / En proceso es un botón que abre el
+     * pop-up de acciones rápidas (Iniciar cita / Terminar y cobrar / ...). Las citas
+     * cerradas mantienen el <span> estático, sin acciones.
+     */
+    public function test_scheduled_and_work_order_status_tags_are_quick_action_triggers(): void
+    {
+        // `date_scope=all` para que el test no dependa de la hora de reloj (now()+3h cruza la
+        // medianoche cerca de las 21:00 y el filtro "hoy" dejaba fuera la cita programada).
+        $scheduled = $this->booking('scheduled', now()->addHours(3));
+        // work_order "en curso normal": empezó hace poco y sigue dentro de su ventana
+        // (un work_order en el futuro o vencido lleva alerta y NO ofrece acciones rápidas).
+        $workOrder = $this->booking('work_order', now()->subMinutes(10), durationMinutes: 30);
+        $completed = $this->booking('completed', now()->startOfDay()->setTime(8, 0));
+
+        $response = $this->actingAs($this->admin())->get(route('agenda.index', [
+            'status_touched' => 1,
+            'date_scope' => 'all',
+            'status' => ['scheduled', 'work_order', 'completed'],
+        ]));
+
+        $response->assertOk();
+        $response->assertSee('id="agendaQuickActions"', false);
+        $response->assertSee('agenda-status-trigger', false);
+        $response->assertSee(route('agenda.start', $scheduled), false);
+        $response->assertSee(route('agenda.start', $workOrder), false);
+        $response->assertDontSee(route('agenda.start', $completed), false);
+    }
+
+    public function test_each_service_pill_is_a_trigger_for_that_line_on_an_open_booking(): void
+    {
+        $wo = $this->booking('work_order', now()->subMinutes(10));
+        $bath = Service::create(['code' => 'B'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30, 'is_active' => true]);
+        $cut = Service::create(['code' => 'C'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30, 'is_active' => true]);
+        $lineA = $wo->services()->create(['service_id' => $bath->id, 'current_price' => 100]);
+        $lineB = $wo->services()->create(['service_id' => $cut->id, 'current_price' => 100]);
+
+        $completed = $this->booking('completed', now()->startOfDay()->setTime(8, 0));
+        $completed->services()->create(['service_id' => $bath->id, 'current_price' => 100]);
+
+        $response = $this->actingAs($this->admin())->get(route('agenda.index', [
+            'status_touched' => 1,
+            'date_scope' => 'all',
+            'status' => ['work_order', 'completed'],
+        ]));
+
+        $response->assertOk();
+        $response->assertSee('agenda-service-trigger', false);
+        $response->assertSee('data-mode="service"', false);
+        // La plantilla de URL por línea apunta al endpoint de acciones por servicio.
+        $response->assertSee(route('agenda.services.update', ['booking' => $wo, 'line' => '__LINE__']), false);
+        // Una cita cerrada NO vuelve sus servicios clicables.
+        $response->assertDontSee(route('agenda.services.update', ['booking' => $completed, 'line' => '__LINE__']), false);
     }
 }

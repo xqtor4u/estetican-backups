@@ -3,9 +3,9 @@
 // Last standard standardization refresh: 2026-04-21
 
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\Api\ClientWhatsAppController;
 use App\Http\Controllers\BookingMessageController;
 use App\Http\Controllers\BranchController;
-use App\Http\Controllers\Api\ClientWhatsAppController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPreferencesController;
 use App\Http\Controllers\Clinical\ClinicalAttachmentController;
@@ -65,7 +65,7 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('login', [LoginController::class, 'showLoginForm'])->name('login');
-Route::post('login', [LoginController::class, 'login']);
+Route::post('login', [LoginController::class, 'login'])->middleware('throttle:login');
 Route::post('logout', [LoginController::class, 'logout'])->name('logout');
 
 // Autogestión pública de preferencias de comunicación — sin login, acceso vía
@@ -194,10 +194,13 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::get('agenda/{booking}', [SpaBookingController::class, 'show'])->name('agenda.show')->middleware('permission:ver agenda');
     Route::get('agenda/{booking}/edit', [SpaBookingController::class, 'edit'])->name('agenda.edit')->middleware('permission:editar agenda');
     Route::put('agenda/{booking}', [SpaBookingController::class, 'update'])->name('agenda.update')->middleware('permission:editar agenda');
+    Route::post('agenda/{booking}/iniciar', [SpaBookingController::class, 'start'])->name('agenda.start')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/quotes', [SpaBookingController::class, 'storeQuote'])->name('agenda.quotes.store')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/quotes/{quote}/accept', [SpaBookingController::class, 'acceptQuote'])->name('agenda.quotes.accept')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/quotes/{quote}/payments', [SpaBookingController::class, 'registerPayment'])->name('agenda.quotes.register-payment')->middleware('permission:cobros.registrar');
+    Route::post('agenda/{booking}/payments', [SpaBookingController::class, 'registerDirectPayment'])->name('agenda.payments.store')->middleware('permission:cobros.registrar');
     Route::post('agenda/{booking}/items/{item}/assign', [SpaBookingController::class, 'assignProfessional'])->name('agenda.items.assign')->middleware('permission:editar agenda');
+    Route::patch('agenda/{booking}/services/{line}', [SpaBookingController::class, 'updateServiceLine'])->name('agenda.services.update')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/cancel', [SpaBookingController::class, 'cancel'])->name('agenda.cancel')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/no-show', [SpaBookingController::class, 'markNoShow'])->name('agenda.no-show')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/unfulfillable', [SpaBookingController::class, 'markUnfulfillable'])->name('agenda.unfulfillable')->middleware('permission:editar agenda');
