@@ -5,9 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <title>EstetiCAN</title>
+    <!-- Plus Jakarta Sans / JetBrains Mono siguen viniendo de Google Fonts (index.css) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet" />
+    <!-- Material Symbols Outlined autoalojada (public/fonts/), ver index.css — dejó de
+         depender de Google en runtime: si esa red bloquea fonts.googleapis.com/gstatic.com
+         (firewall, DNS, Brave Shields, etc.) los íconos mostraban su texto crudo
+         ("play_arrow", "task_alt"…) en vez del glifo tras el timeout de respaldo. -->
   </head>
   <body>
     <div id="root"></div>
