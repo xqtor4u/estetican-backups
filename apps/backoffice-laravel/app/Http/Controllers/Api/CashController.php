@@ -103,11 +103,31 @@ class CashController extends Controller
         // cuadrar con lo que se muestra arriba. Hallazgo real (16/08/2026): esta pantalla nunca
         // sumó cobros, a diferencia del cierre real del backoffice web — ver
         // CashSessionExpectedAmountServiceInterface para el detalle completo.
-        $periodStart   = $this->expectedAmountService->periodStart($cashSession);
-        $totalCobros   = $this->expectedAmountService->paymentsForPeriod($periodStart, null)
-            ->where('destination', 'caja')
-            ->sum('amount');
-        $totalEntradas = $totalEntradasManual + $totalCobros;
+        $periodStart    = $this->expectedAmountService->periodStart($cashSession);
+        $periodPayments = $this->expectedAmountService->paymentsForPeriod($periodStart, null);
+        $cobrosEfectivo = $periodPayments->where('destination', 'caja');
+        $totalCobros    = $cobrosEfectivo->sum('amount');
+        $totalEntradas  = $totalEntradasManual + $totalCobros;
+
+        // El total de arriba ya sumaba los cobros (fix del 16/08/2026), pero la lista de abajo
+        // seguía sin mostrarlos como renglones — el saldo cuadraba pero el operador no podía ver
+        // *qué* cobro lo componía. Hallazgo real (19/08/2026, encontrado armando datos de demo
+        // con fechas históricas): mismo criterio que ya usa `CashReportService::resolveMovementsItems()`
+        // para la vista por período — cobros de `Payment` con id con prefijo `p-` (no son
+        // `CashMovement` reales, nunca deben ofrecer Editar/Revertir, ver `EDITABLE_TYPES` del
+        // lado del móvil).
+        $cobroMovements = $cobrosEfectivo->map(fn ($p) => [
+            'id'                      => $p->id,
+            'type'                    => 'cobro_efectivo',
+            'direction'               => 'entrada',
+            'amount'                  => $p->amount,
+            'concept'                 => 'Cobro de servicio'.($p->client_name ? " — {$p->client_name}" : ''),
+            'notes'                   => null,
+            'account'                 => $p->payment_method,
+            'created_at'              => $p->created_at,
+            'is_reversed'             => false,
+            'reversal_of_movement_id' => null,
+        ])->values();
 
         return response()->json([
             'status'  => 'active',
@@ -126,7 +146,10 @@ class CashController extends Controller
                 'total_salidas'  => round($totalSalidas, 2),
                 'saldo_esperado' => round($cashSession->opening_amount + $totalEntradas - $totalSalidas, 2),
             ],
-            'movements' => $movements->map(fn ($m) => $this->serializeMovement($m))->values(),
+            'movements' => $movements->map(fn ($m) => $this->serializeMovement($m))
+                ->concat($cobroMovements)
+                ->sortByDesc('created_at')
+                ->values(),
         ]);
     }
 

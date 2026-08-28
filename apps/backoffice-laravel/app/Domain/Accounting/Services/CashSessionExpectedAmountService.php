@@ -35,6 +35,7 @@ class CashSessionExpectedAmountService implements CashSessionExpectedAmountServi
             ->when($until, fn ($q) => $q->where('created_at', '<=', $until))
             ->get()
             ->map(fn ($p) => (object) [
+                'id'             => 'p-'.$p->id,
                 'created_at'     => $p->created_at,
                 'client_name'    => $p->client?->full_name,
                 'destination'    => $p->destination,
@@ -45,10 +46,11 @@ class CashSessionExpectedAmountService implements CashSessionExpectedAmountServi
         // cash_ledgers (legacy)
         $cashRows = $applyRange(DB::table('cash_ledgers'), 'cash_ledgers.created_at')
             ->leftJoin('clients', 'cash_ledgers.client_id', '=', 'clients.id')
-            ->select('cash_ledgers.created_at', DB::raw("CONCAT_WS(' ', clients.first_name, clients.apellido_paterno, clients.apellido_materno) as client_name"),
+            ->select('cash_ledgers.id', 'cash_ledgers.created_at', DB::raw("CONCAT_WS(' ', clients.first_name, clients.apellido_paterno, clients.apellido_materno) as client_name"),
                      'cash_ledgers.amount', 'cash_ledgers.payment_method')
             ->get()
             ->map(fn ($r) => (object) [
+                'id'             => 'cl-'.$r->id,
                 'created_at'     => $r->created_at,
                 'client_name'    => $r->client_name,
                 'destination'    => 'caja',
@@ -59,11 +61,12 @@ class CashSessionExpectedAmountService implements CashSessionExpectedAmountServi
         // bank_ledgers (legacy)
         $bankRows = $applyRange(DB::table('bank_ledgers'), 'bank_ledgers.created_at')
             ->leftJoin('clients', 'bank_ledgers.client_id', '=', 'clients.id')
-            ->select('bank_ledgers.created_at', 'bank_ledgers.cleared_at',
+            ->select('bank_ledgers.id', 'bank_ledgers.created_at', 'bank_ledgers.cleared_at',
                      DB::raw("CONCAT_WS(' ', clients.first_name, clients.apellido_paterno, clients.apellido_materno) as client_name"),
                      'bank_ledgers.amount', 'bank_ledgers.payment_method')
             ->get()
             ->map(fn ($r) => (object) [
+                'id'             => 'bl-'.$r->id,
                 'created_at'     => $r->created_at,
                 'client_name'    => $r->client_name,
                 'destination'    => 'banco',

@@ -22,7 +22,7 @@ interface Totals {
   saldo_esperado: number;
 }
 interface Movement {
-  id: number;
+  id: number | string;
   type: string;
   direction: 'entrada' | 'salida';
   amount: number;
@@ -132,6 +132,12 @@ const TYPE_LABELS: Record<string, string> = {
     vienen de `Payment` o de las tablas legacy `cash_ledgers`/`bank_ledgers`) no lo son y nunca
     deben ofrecer Editar/Revertir: esos endpoints solo existen para `CashMovement`. */
 const EDITABLE_TYPES = new Set(Object.keys(TYPE_LABELS));
+/** Solo para mostrar texto — a diferencia de EDITABLE_TYPES, sí incluye los tipos de cobro. */
+const DISPLAY_LABELS: Record<string, string> = {
+  ...TYPE_LABELS,
+  cobro_efectivo: 'Cobro efectivo',
+  cobro_banco: 'Cobro banco/tarjeta',
+};
 
 /* ── Formulario — bottom sheet ───────────────────────────── */
 interface FormSheetProps {
@@ -1017,7 +1023,7 @@ export function MobCaja() {
                         )}
                       </div>
                       <p className="text-xs text-on-surface-variant">
-                        {TYPE_LABELS[m.type] ?? m.type}
+                        {DISPLAY_LABELS[m.type] ?? m.type}
                         {m.account ? ` · ${m.account}` : ''}
                       </p>
                       <p className="text-xs text-on-surface-variant">{fmtDateTime(m.created_at)}</p>
