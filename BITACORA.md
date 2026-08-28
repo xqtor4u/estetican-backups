@@ -1,6 +1,6 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
-## 📅 Sesión: 28/08/2026 — sincronización con `tst`: Fase 0 + Fase 2 (6 ports) + Fase 3a (`SYNC-030`) + Fase 3b (cluster de agenda, 11 SYNC)
+## 📅 Sesión: 28/08/2026 — sincronización con `tst`: Fase 0 + Fase 2 (6 ports) + Fase 3a + 3b + Fase 4 — arco SYNC completo
 
 ### ✅ Logros y Cambios
 
@@ -110,30 +110,50 @@ runs seriales limpios): **37 fallidos / 600 pasan → 37 fallidos / 659 pasan**,
 > Confirmado corriendo los sospechosos en aislado (20/20 verde) + un run serial limpio. **Regla:
 > nunca correr dos suites completas a la vez contra `testing`.**
 
+**Fase 4 — `SYNC-028` (Veterinaria Fase 1), commit `2c57184`, 12 archivos.** Sin migración. Los 3
+módulos (`store`/`clinical`/`hotel`) ya están **activos** en la BD real de producción, así que
+"Veterinaria" aparece de una en el menú de primer nivel al desplegar. `pet-tabs.blade.php` (nuevo,
+barra de 5 pestañas **exclusivamente de estética** Resumen/Agenda/Servicios/Historial/Cobros) +
+`pets/show.blade.php` reestructurado en `tab-pane`s (Servicios/Historial/Cobros = contenido nuevo
+de citas pasadas; Cobros reusa `SpaBooking::totalPaid()`/`unpaidBalance()`). `PetController::renderPetShow`
+gana `$pastBookings` + `$activeTab` (`?tab=`). `MainNavigation`: `VeterinariaNavigation::group()` sale
+de "Operaciones del negocio" y pasa a pestaña de primer nivel. **Farmacia sin depender de Tienda:**
+`EnsureStoreOrClinicalModuleEnabled` (middleware nuevo, alias `store_or_clinical.module`) — `items.*`
+(CRUD del catálogo, donde viven los medicamentos `department='Farmacia'`) pasa a exigir Tienda **O**
+Veterinaria; movimientos de inventario y sync de catálogo externo siguen exclusivos de Tienda.
+`clinical/pets/show.blade.php` intacto. Verificación: **20 tests** en verde (`PetTabsTest` 6,
+`ClinicalPharmacyItemsAccessTest` 4, `AdminNavigationReorgTest` 5, `ClinicalModuleToggleTest` 5);
+sweep `Pet|Clinical|Item|Navigation` = 11 fallos **todos confirmados preexistentes** (`comm -23`
+vacío contra el baseline). Pint limpio (10 archivos), Blade compila. `items.index` ahora con
+`store_or_clinical.module` + `permission:ver catalogo_articulos`. Sin mobile.
+
 Del lado de Zeus, cada `SYNC` movido a "Aplicados" en su propio commit (`ea9f9ec`, `ddc731e`, `ea331d8`,
-`84a763d`, `4489a6b`, `74f2a41`, `e54aa7c`, `2bb92c0`) — solo `PENDIENTES_SINCRONIZAR_ESTETICAN.md`, sin
-tocar los otros 2 archivos que ese repo tenía sin commitear de otra sesión.
+`84a763d`, `4489a6b`, `74f2a41`, `e54aa7c`, `2bb92c0`, `fa66957`) — solo `PENDIENTES_SINCRONIZAR_ESTETICAN.md`.
+**Con Fase 4 la sección "Pendientes" de ese documento quedó vacía — todo el arco `SYNC-024`..`SYNC-054`
+está portado a producción.**
 
 ### 🛑 Pendientes activos
-- **Fase 1 nunca se hizo:** ningún ítem de Fase 2/3a/3b tiene sign-off visual de Tomas en `tst`/`tstmov`.
-  Se portó a ciegas confiando en los tests + el diff + smoke de API + la comparación de suites. Revisar
-  en producción — en particular `SYNC-030` con un usuario restringido real, y todo el flujo nuevo de
-  agenda web (iniciar cita, pop-up de acciones, liquidar saldo sin presupuesto).
-- **Fase 4 — `SYNC-028` (Veterinaria Fase 1):** único ítem que queda en Pendientes de Zeus. Toca
-  `PetController` web (`renderPetShow`), `pets/show.blade.php` (reestructura en tabs), `pet-tabs.blade.php`
-  (nuevo), `MainNavigation`/`VeterinariaNavigation` (sube "Veterinaria" a primer nivel),
-  `EnsureStoreOrClinicalModuleEnabled` (middleware nuevo) + `bootstrap/app.php` + `routes/web.php`
-  (grupo `store_or_clinical.module` para `items.*` — Farmacia sin depender de Tienda). Sin migración.
-  Módulo apagado por default. Deploy propio.
-- **3 hilos sueltos** sin portar: refactor de imports de `CashController.php`, botón "Ver reportes de
-  caja" en `MobCaja.tsx`, y el hilo de branding móvil (`useBusinessName` + `/api/settings/branding` —
-  este último ya existía como orphan de `SYNC-034` en `tst`).
-- **3 hilos sueltos** anotados sin portar: refactor de imports de `CashController.php`, botón "Ver
-  reportes de caja" en `MobCaja.tsx`, paginación opt-in de `PetController::index()` (parte de `SYNC-049`).
-- **2 nits de Pint preexistentes** sin tocar: `CashController.php` (`class_attributes_separation`),
-  `PetController.php` (`no_unused_imports`, el `use Client` muerto), `CashSessionExpectedAmountService.php`
+- **Fase 1 nunca se hizo:** ningún ítem de Fase 2/3a/3b/4 tiene sign-off visual de Tomas en `tst`/`tstmov`.
+  Se portó confiando en los tests + el diff + smoke de API + comparación de suites baseline-vs-cambio.
+  **Revisar en producción con calma** — en particular: `SYNC-030` con un usuario restringido real; todo
+  el flujo nuevo de agenda web (iniciar cita, pop-up de acciones por servicio, liquidar saldo sin
+  presupuesto, modal de cobro en 2 fases); las 5 pestañas de la ficha de mascota; y que Farmacia
+  (`/items?search=Farmacia`) es accesible con Veterinaria activa.
+- **`throttle:login`** ahora activo en `POST /login` (5/min por credencial+IP, 30/min por IP) — si
+  alguna clínica detrás de un NAT reporta bloqueos de login, es esto (subir el tope por IP).
+- **Verificación por comparación de suites (metodología nueva de esta sesión):** baseline en un commit
+  vs. el cambio, ambos runs **seriales y aislados**, `comm -23` de los sets de fallos. Cero regresiones
+  en 3a, 3b y 4. La suite de producción arrastra **~37 fallos preexistentes** (`Operator*`,
+  `ServiceOperatorRoleLink`, `PetDependenciesCrud`, `PetCatalogRootViews`, `Resource*`, `SystemSettings*`,
+  toggles de módulos) — sin auditar, sigue pendiente una sesión dedicada.
+- **NUNCA correr dos `artisan test` completos a la vez contra la BD `testing`** — `RefreshDatabase`
+  re-migra por clase, se pisan y dan `QueryException` en masa (mordió en Fase 3b, ver recuadro arriba).
+- **Hilos sueltos sin portar** (menores, de otros linajes, no del arco de agenda): refactor de imports
+  de `CashController.php`; botón "Ver reportes de caja" en `MobCaja.tsx`; branding móvil
+  (`useBusinessName` + `/api/settings/branding`, orphan de `SYNC-034` en `tst`).
+- **Nits de Pint preexistentes** sin tocar: `CashController.php` (`class_attributes_separation`),
+  `PetController.php` Api (`no_unused_imports`, `use Client` muerto), `CashSessionExpectedAmountService.php`
   (`method_argument_space`).
-- Deuda de tests preexistente (~11 en `PetDependenciesCrudTest`, y la deuda global de la suite) — sin auditar.
 
 ---
 
