@@ -1,6 +1,6 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
-## 📅 Sesión: 28/08/2026 — sincronización con `tst`: Fase 0 + Fase 2 (6 ports) + Fase 3a (`SYNC-030` operador restringido)
+## 📅 Sesión: 28/08/2026 — sincronización con `tst`: Fase 0 + Fase 2 (6 ports) + Fase 3a (`SYNC-030`) + Fase 3b (cluster de agenda, 11 SYNC)
 
 ### ✅ Logros y Cambios
 
@@ -79,21 +79,55 @@ limpio; Pint limpio; bundle móvil `index--kBTvWb0.js` md5 idéntico host/conten
 la API real** con usuario restringido desechable (agenda solo lo suyo, clients/pets/operators 403,
 booking ajena 404, `/api/me` flags en false).
 
+**Fase 3b — cluster de agenda completo (11 SYNC), commit `e8f24ff`, 36 archivos + 3 migraciones.**
+`SYNC-039/040/042/043/044/049/050/051/052/053/054` portados **en bloque** desde el HEAD de `tst`
+(ahí estaban integrados y probados juntos). Como `SYNC-030` ya estaba en prod (Fase 3a), el resto
+del delta de cada archivo compartido era exactamente este cluster → se copiaron los archivos a su
+estado de `tst`, salvo 2 quirúrgicos: `GlobalAgenda.tsx` (solo `SYNC-039` `pendingStart`, sin el
+hilo de branding `useBusinessName`) y `routes/web.php` (solo `throttle:login` + `agenda.start`/
+`agenda.payments.store`/`agenda.services.update`, sin el restructure `store_or_clinical.module` de
+`SYNC-028`). **3 migraciones** de `spa_booking_services` corridas contra la BD real (`started_at`,
+`completed_at`, `cancelled_at`/`cancellation_reason` + `not_performed_at`/`not_performed_reason`;
+backup previo `estetican_pre-sync3b-agenda-cluster_20260828_1645.sql.gz`). Dominio nuevo
+`ServiceLineActionService` (extraído de `Api\BookingController::assignServiceProfessional`, ahora
+compartido web+API). Contenido: web agenda gana operador/duración por servicio al agendar
+(`50/51`), "Iniciar cita" sin presupuesto + pop-up de acciones rápidas + acciones por línea de
+servicio (`52/53`), liquidación directa sin presupuesto con modal de 2 fases (`54`); móvil gana
+líneas de servicio de a una con operador filtrado por calificación + `ServicePickerSheet` (`40/43`),
+acordeón de servicios + checklist "qué se cobra" (`42/44`), confirmación antes de "Iniciar" desde
+la tarjeta (`39`); API hardening (`49`): `throttle:login`, `DB::transaction` en
+`Api\BookingController::store`, paginación opt-in retrocompatible en `Api\ClientController`/
+`Api\PetController`. **Verificación por comparación de suites** (baseline `5beadec` vs con Fase 3b,
+runs seriales limpios): **37 fallidos / 600 pasan → 37 fallidos / 659 pasan**, **cero regresiones**
+(sets de fallos idénticos, +59 tests del cluster). 6 tests nuevos + 5 modificados. Pint limpio
+(30 `.php`); `tsc` solo los 2 preexistentes de `MobCajaMovimientos.tsx`; bundle móvil
+`index-CySTzaRy.js` md5 idéntico host/`estetican_mob`. Las 3 rutas web nuevas llevan `permission:`
+(auditoría de seguridad #3 OK).
+
+> **Trampa de la sesión (Fase 3b):** dejé varios `artisan test` corriendo en paralelo contra la
+> misma BD `testing` mientras esperaba resultados — cada uno re-migra en el arranque de cada clase,
+> así que se pisaron y un run dio "98 fallidos / 61 regresiones" falsas (mass `QueryException`).
+> Confirmado corriendo los sospechosos en aislado (20/20 verde) + un run serial limpio. **Regla:
+> nunca correr dos suites completas a la vez contra `testing`.**
+
 Del lado de Zeus, cada `SYNC` movido a "Aplicados" en su propio commit (`ea9f9ec`, `ddc731e`, `ea331d8`,
-`84a763d`, `4489a6b`, `74f2a41`, `e54aa7c`) — solo `PENDIENTES_SINCRONIZAR_ESTETICAN.md`, sin tocar los
-otros 2 archivos que ese repo tenía sin commitear de otra sesión.
+`84a763d`, `4489a6b`, `74f2a41`, `e54aa7c`, `2bb92c0`) — solo `PENDIENTES_SINCRONIZAR_ESTETICAN.md`, sin
+tocar los otros 2 archivos que ese repo tenía sin commitear de otra sesión.
 
 ### 🛑 Pendientes activos
-- **Fase 1 nunca se hizo:** ningún ítem de Fase 2/3a tiene sign-off visual de Tomas en `tst`/`tstmov`.
-  Se portó a ciegas confiando en los tests + el diff + smoke de API. Revisar en producción — en
-  particular `SYNC-030` con un usuario restringido real, y que la agenda web (`app.estetican.org`) de un
-  admin sigue viéndose completa.
-- **Fase 3b (resto del bloque de agenda):** `SYNC-039, 040, 042, 043, 044, 049, 050, 051, 052, 053, 054`
-  — comparten controllers/vistas, **3 migraciones** (`spa_booking_services`: `started_at`, `completed_at`,
-  `cancelled_at`/`not_performed_at`+razones). Va desde el HEAD de `tst` (ahí están todos integrados y
-  probados juntos, 663 tests). Orden lógico interno: web creación (050/051) → móvil agenda/servicios
-  (039/040/043/042/044) → web ejecución/cobro (052/053/054) → hardening API (049). **Fase 4:** `SYNC-028`
-  (veterinaria).
+- **Fase 1 nunca se hizo:** ningún ítem de Fase 2/3a/3b tiene sign-off visual de Tomas en `tst`/`tstmov`.
+  Se portó a ciegas confiando en los tests + el diff + smoke de API + la comparación de suites. Revisar
+  en producción — en particular `SYNC-030` con un usuario restringido real, y todo el flujo nuevo de
+  agenda web (iniciar cita, pop-up de acciones, liquidar saldo sin presupuesto).
+- **Fase 4 — `SYNC-028` (Veterinaria Fase 1):** único ítem que queda en Pendientes de Zeus. Toca
+  `PetController` web (`renderPetShow`), `pets/show.blade.php` (reestructura en tabs), `pet-tabs.blade.php`
+  (nuevo), `MainNavigation`/`VeterinariaNavigation` (sube "Veterinaria" a primer nivel),
+  `EnsureStoreOrClinicalModuleEnabled` (middleware nuevo) + `bootstrap/app.php` + `routes/web.php`
+  (grupo `store_or_clinical.module` para `items.*` — Farmacia sin depender de Tienda). Sin migración.
+  Módulo apagado por default. Deploy propio.
+- **3 hilos sueltos** sin portar: refactor de imports de `CashController.php`, botón "Ver reportes de
+  caja" en `MobCaja.tsx`, y el hilo de branding móvil (`useBusinessName` + `/api/settings/branding` —
+  este último ya existía como orphan de `SYNC-034` en `tst`).
 - **3 hilos sueltos** anotados sin portar: refactor de imports de `CashController.php`, botón "Ver
   reportes de caja" en `MobCaja.tsx`, paginación opt-in de `PetController::index()` (parte de `SYNC-049`).
 - **2 nits de Pint preexistentes** sin tocar: `CashController.php` (`class_attributes_separation`),
