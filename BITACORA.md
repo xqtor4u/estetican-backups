@@ -132,6 +132,35 @@ Del lado de Zeus, cada `SYNC` movido a "Aplicados" en su propio commit (`ea9f9ec
 **Con Fase 4 la sección "Pendientes" de ese documento quedó vacía — todo el arco `SYNC-024`..`SYNC-054`
 está portado a producción.**
 
+### 🚀 Deploy en la OPi (28/08/2026, tras Fase 4)
+
+Todo el trabajo se hizo **directo en `/opt/www/estetican`** (es producción), así que el código ya estaba
+vivo por bind-mount — el deploy fue la higiene de caché del checklist de `docs/OPI_PRODUCCION.md`:
+
+- **Vistas Blade compiladas borradas** (43 → 0).
+- `php artisan optimize:clear` — config · cache · compiled · events · routes · views. (No había cache de
+  rutas/config activa de antes, solo `packages.php`/`services.php` de package-discovery.)
+- `php artisan permission:cache-reset` — por el permiso `agenda.ver_todas` sembrado en Fase 3a.
+- **Migraciones ya aplicadas** durante el trabajo: batch 63 (`google_calendar_notify_email`), batch 64
+  (`started_at` / `completed_at` / `line_void_state` en `spa_booking_services`).
+- **Compilación proactiva de TODAS las vistas** (`view:cache` → OK, sin errores de sintaxis en
+  `pets/show`, `agenda/*`, `_billing_summary`, `pet-tabs`, `user/*`) y luego `view:clear` (prod compila
+  lazy).
+
+**Verificación post-deploy:** `https://app.estetican.org/login` → 200 end-to-end; `/dashboard` `/agenda`
+`/pets` → 302 a login (no 500); rutas nuevas (`agenda.start`/`agenda.payments.store`/`agenda.services.update`)
+y middlewares (`store_or_clinical.module`, `throttle:login`) registrados; `estetican_app` Up.
+
+**Assets web: no se reconstruyeron** — en toda la sesión no se tocó `resources/css`/`resources/js`/
+`vite.config.js`/`package.json`; el `manifest.json` de producción resuelve a archivos existentes
+(`app-RSxTnaPX.css`/`app-CnfUKLJ7.js`). El hash distinto vs `tst` es solo por builds independientes.
+Bundle móvil `index-CySTzaRy.js` servido por `estetican_mob` (bind-mount, sin acción).
+
+**Hallazgo no relacionado:** el `laravel.log` de producción tiene errores recurrentes del cron
+`calendario:sincronizar-google` — `GoogleCalendar: fallo al compartir el calendario` para
+`martinezgtomas@gmail.com` (cada 5 min). Es **previo** a este trabajo (SYNC-047 solo agregó el flag de
+aviso, no tocó `shareCalendarWithEmail`). Vale revisar que ese email sea válido/aceptado.
+
 ### 🛑 Pendientes activos
 - **Fase 1 nunca se hizo:** ningún ítem de Fase 2/3a/3b/4 tiene sign-off visual de Tomas en `tst`/`tstmov`.
   Se portó confiando en los tests + el diff + smoke de API + comparación de suites baseline-vs-cambio.
