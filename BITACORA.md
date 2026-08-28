@@ -1,5 +1,82 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 28/08/2026 — sincronización con `tst`: commit del fix de ayer + Fase 2 (6 ports aislados desde Zeus-Estetican)
+
+### ✅ Logros y Cambios
+
+Sesión de **porteo deliberado** desde el sandbox `tst` de Zeus-Estetican (la promoción a producción
+que menciona la regla de alcance de `CLAUDE.md`, pedida explícitamente por Tomas). Se planeó todo
+el arco (`docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus tenía 18 ítems `SYNC-0xx`
+pendientes) y se acordó un orden jerárquico: **Fase 0** (higiene), **Fase 1** (verificación visual
+de Tomas en `tst`, pendiente), **Fase 2** (6 ítems aislados, un deploy cada uno), **Fase 3** (el
+bloque grande e interconectado de agenda), **Fase 4** (veterinaria). Esta sesión cubrió Fase 0 + Fase 2.
+
+**Respaldo de protección** al arrancar: `backups/estetican-completo_pre-sync-tstapp-tstmov_20260828_1509.tar.gz`
+(45 MB, árbol completo) + `backups/estetican_pre-sync-tstapp-tstmov_20260828_1509.sql.gz` (BD, 88 tablas).
+Anotados en `backups/LISTA_RESPALDOS.md`.
+
+**Fase 0 — commit `83b49c8`:** el fix de la emergencia `SYNC-002` del 27/08 (más BITACORA/BACKLOG
+del 25 y 27, NOTAS_TECNICAS, PENDIENTES_SINCRONIZAR_TENANTS) que había quedado sin commitear.
+Pint limpio, 42 tests `--filter=User` en verde. Pusheado. `SYNC-048` movido a "Aplicados" en el
+doc de Zeus (commit `07051ad` allá — arrastró también las entradas `SYNC-053`/`054` que estaban
+sin commitear en ese archivo, anotado en el mensaje).
+
+**Fase 2 — 6 ports, un deploy cada uno, todos pusheados a `origin/main`:**
+
+| Commit | `SYNC` | Qué | Migración |
+|---|---|---|---|
+| `6790b1a` | 035 | Quitar "Administrar usuarios" duplicado del menú del avatar (queda solo en RH) | — |
+| `9684f60` | 033 | Reporte "Cierres de turno" no repite la sucursal si ya está filtrada (web + PDF + móvil) | — |
+| `c63dd28` | 032 | Caja móvil "Turno actual" muestra los cobros como renglones, no solo en el saldo | — |
+| `dca276c` | 041 | Autoalojar la fuente de íconos móvil (Material Symbols woff2, 3.96 MB) — ya no depende de Google en runtime | — |
+| `420833d` | 045+046 | Peso (kg) de mascota capturable/visible + banner de mascota en `MobPetJobs` y `MobCitaNueva` | — |
+| `e65e2d8` | 047 | Switch "avisar por correo cuando se actualiza el calendario" en USEEDI | ✔️ `users.google_calendar_notify_email` |
+
+Método en cada uno: **diff prod vs `tst` archivo por archivo** antes de tocar nada. Donde el archivo
+de `tst` solo tenía el cambio del `SYNC` en cuestión → copia byte-idéntica. Donde `tst` había
+divergido por otros `SYNC` no portados aún → **edición quirúrgica** de solo los hunks del ítem.
+
+### 📁 Archivos y verificación por ítem
+- **035:** `components/main-navigation.blade.php` byte-idéntico a `tst`. `view:cache` compila.
+- **033:** `finances/cash-reports/cierres.blade.php`, `cash/cierres-pdf.blade.php`, `MobCajaCierres.tsx`
+  byte-idénticos. 24 tests `CashRemainingReports`/`CashReportController` en verde. Bundle móvil reconstruido.
+- **032:** quirúrgico en `Api/CashController::session()` y `CashSessionExpectedAmountService::paymentsForPeriod()`
+  (el `CashController.php` de `tst` trae además un refactor cosmético de imports ajeno). Test nuevo
+  `CashSessionMovementsIncludePaymentsTest`. 52 tests `Cash*` en verde.
+- **041:** `public/fonts/material-symbols-outlined.woff2` versionado; `src/index.css`/`index.html`
+  byte-idénticos; `nginx.conf` quirúrgico (solo `location /fonts/`, se **mantuvo** `Host app.estetican.org`
+  — `tst` tiene `tstapp`). `estetican_mob` **reiniciado** (NT-052). Font `200` con `Cache-Control …immutable`
+  verificado directo al contenedor y vía `https://mov.estetican.org`. `index.html` servido sin el `<link>` a Google.
+- **045+046:** `Api/PetController` quirúrgico (peso; **sin** la paginación opt-in del `index()`, que es
+  `SYNC-049`); `MobPetJobs.tsx`/`PetDetail.tsx` byte-idénticos; banner de `MobCitaNueva.tsx` quirúrgico
+  (resto es territorio `SYNC-040/043`). Round-trip por `tinker` (`recordManualWeight` → `pet_weights` →
+  `show()`; idempotente). Sin migración (`pet_weights` ya existía). 11 fallos `--filter=Pet` preexistentes
+  idénticos con y sin el cambio (verificado con `git stash`).
+- **047:** migración corrida contra la BD real (backup previo `estetican_pre-sync047-gcal-notify_20260828_1614.sql.gz`).
+  Quirúrgico en `User.php`/`UserController.php`/`user/edit.blade.php` (esos 3 traen también `SYNC-030`
+  en `tst`, no portado). `SincronizarGoogleCalendarCommand.php` + `GoogleCalendarUpdatedMail.php` + su
+  vista + 2 tests: byte-idénticos. 18 tests `GoogleCalendar` en verde, 45 `--filter=User`. Pint limpio.
+
+Del lado de Zeus, cada `SYNC` movido a "Aplicados" en su propio commit (`ea9f9ec`, `ddc731e`, `ea331d8`,
+`84a763d`, `4489a6b`, `74f2a41`) — solo `PENDIENTES_SINCRONIZAR_ESTETICAN.md`, sin tocar los otros 2
+archivos que ese repo tenía sin commitear de otra sesión.
+
+### 🛑 Pendientes activos
+- **Fase 1 nunca se hizo:** ningún ítem de Fase 2 tiene sign-off visual de Tomas en `tst`/`tstmov`.
+  Se portó a ciegas confiando en los tests + el diff. Revisar en producción.
+- **Fase 3 (bloque grande de agenda):** `SYNC-030, 039, 040, 042, 043, 044, 049, 050, 051, 052, 053, 054`
+  — comparten controllers/vistas, 3 migraciones más. Arranca por **3a: `SYNC-030` solo** (operador
+  restringido — el ítem más delicado, 404 vs 403, scope por binding implícito), deploy aislado para
+  poder diagnosticar; luego **3b: el resto**. **Fase 4:** `SYNC-028` (veterinaria).
+- **3 hilos sueltos** anotados sin portar: refactor de imports de `CashController.php`, botón "Ver
+  reportes de caja" en `MobCaja.tsx`, paginación opt-in de `PetController::index()` (parte de `SYNC-049`).
+- **2 nits de Pint preexistentes** sin tocar: `CashController.php` (`class_attributes_separation`),
+  `PetController.php` (`no_unused_imports`, el `use Client` muerto), `CashSessionExpectedAmountService.php`
+  (`method_argument_space`).
+- Deuda de tests preexistente (~11 en `PetDependenciesCrudTest`, y la deuda global de la suite) — sin auditar.
+
+---
+
 ## 📅 Cierre de sesión: 27/08/2026 — emergencia: 500 al guardar en USEEDI un usuario vinculado a un operador (`SYNC-002` / `NT-062`)
 
 ### ✅ Logros y Cambios
