@@ -36,6 +36,17 @@ class BookingController extends Controller
         return (bool) ($user?->can('agenda.forzar_horario') || $user?->is_super_admin);
     }
 
+    /**
+     * 404 (no 403 — no confirmar existencia de una cita ajena, mismo criterio que la
+     * auditoría IDOR de agosto) si el usuario no tiene `agenda.ver_todas`/no es super admin
+     * y la cita no es suya. El binding implícito de ruta ya resolvió `$booking` sin scope,
+     * así que se revalida acá antes de leer/tocar nada.
+     */
+    private function ensureVisible(SpaBooking $booking): void
+    {
+        abort_unless(SpaBooking::visibleTo(auth()->user())->whereKey($booking->id)->exists(), 404);
+    }
+
     /** Serializa una cita al formato que usa la app móvil */
     private function serialize(SpaBooking $b): array
     {
@@ -99,6 +110,8 @@ class BookingController extends Controller
 
     public function show(SpaBooking $booking)
     {
+        $this->ensureVisible($booking);
+
         return response()->json($this->serialize($booking));
     }
 
@@ -183,6 +196,8 @@ class BookingController extends Controller
 
     public function update(Request $request, SpaBooking $booking)
     {
+        $this->ensureVisible($booking);
+
         // No permite editar citas ya completadas o canceladas, salvo que el único
         // campo que venga en el request sea `notes` — corregir/completar una nota
         // sobre un servicio ya cerrado no reabre nada operativo (horario, servicios,
@@ -303,6 +318,7 @@ class BookingController extends Controller
      */
     public function assignServiceProfessional(Request $request, SpaBooking $booking, SpaBookingService $line)
     {
+        $this->ensureVisible($booking);
         abort_unless($line->spa_booking_id === $booking->id, 404);
 
         $validated = $request->validate([

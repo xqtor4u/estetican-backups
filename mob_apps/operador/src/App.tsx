@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './AuthContext';
+import { AuthProvider, useAuth, type AuthUser } from './AuthContext';
 import { AppLockProvider, useAppLock } from './AppLockContext';
 import { LockScreen } from './LockScreen';
 import { LoginScreen } from './LoginScreen';
@@ -36,12 +36,15 @@ import { CheckinWidget } from './CheckinWidget';
 /* ═══════════════════════════════════════════════════════════
    FUENTE ÚNICA DEL MENÚ — agregar secciones aquí
    ═══════════════════════════════════════════════════════════ */
+/** Claves booleanas de `AuthUser` que un ítem de menú puede exigir para mostrarse. */
+type MenuVisibilityFlag = 'can_view_caja' | 'can_view_all_agenda' | 'can_view_clients' | 'can_view_pets' | 'can_view_operators';
+
 interface MenuItem {
   to: string;
   icon: string;
   label: string;
-  /** Oculta el ítem si el usuario no tiene `caja.ver` (`AuthUser.can_view_caja`). */
-  requiresCajaView?: boolean;
+  /** Oculta el ítem si `AuthUser[requiresFlag]` es falso — generaliza el `caja.ver` original. */
+  requiresFlag?: MenuVisibilityFlag;
 }
 interface MenuSection {
   title: string;
@@ -52,15 +55,15 @@ export const MENU_SECTIONS: MenuSection[] = [
     title: 'Principal',
     items: [
       { to: '/agenda',               icon: 'calendar_month', label: 'Agenda' },
-      { to: '/mascotas',             icon: 'pets',           label: 'Mascotas' },
-      { to: '/clientes/seleccionar', icon: 'person_search',  label: 'Clientes' },
-      { to: '/groomer',              icon: 'content_cut',    label: 'Operador' },
+      { to: '/mascotas',             icon: 'pets',           label: 'Mascotas', requiresFlag: 'can_view_pets' },
+      { to: '/clientes/seleccionar', icon: 'person_search',  label: 'Clientes', requiresFlag: 'can_view_clients' },
+      { to: '/groomer',              icon: 'content_cut',    label: 'Operador', requiresFlag: 'can_view_operators' },
     ],
   },
   {
     title: 'Finanzas',
     items: [
-      { to: '/finanzas', icon: 'account_balance_wallet', label: 'Finanzas', requiresCajaView: true },
+      { to: '/finanzas', icon: 'account_balance_wallet', label: 'Finanzas', requiresFlag: 'can_view_caja' },
     ],
   },
   {
@@ -70,6 +73,11 @@ export const MENU_SECTIONS: MenuSection[] = [
     ],
   },
 ];
+
+/** Un usuario sin sesión (`user` null) ve todo — el `AuthGuard` ya bloqueó antes de llegar acá. */
+function visibleMenuItems(items: MenuItem[], user: AuthUser | null): MenuItem[] {
+  return items.filter(item => !item.requiresFlag || !user || user[item.requiresFlag]);
+}
 
 const NAV_TABS = MENU_SECTIONS[0].items;
 
@@ -97,7 +105,7 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
       )}
 
       <div
@@ -140,10 +148,10 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 
         <div className="px-4 pb-4 flex flex-col gap-5">
           {MENU_SECTIONS.map(section => {
-            // El único ítem que hoy exige permiso es "Caja" (`caja.ver`) — sin este filtro,
-            // el menú lo mostraba a cualquier usuario logueado sin importar sus permisos
-            // granulares, y quien no tuviera `caja.ver` entraba a una pantalla rota.
-            const items = section.items.filter(item => !item.requiresCajaView || user?.can_view_caja);
+            // Sin este filtro, el menú mostraba cada ítem a cualquier usuario logueado sin
+            // importar sus permisos granulares, y quien no tuviera el permiso correspondiente
+            // entraba a una pantalla rota (o, peor, veía datos que no le tocan).
+            const items = visibleMenuItems(section.items, user);
             if (items.length === 0) return null;
             return (
             <div key={section.title}>
@@ -226,13 +234,18 @@ function MenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
    ═══════════════════════════════════════════════════════════ */
 function BottomNav() {
   const { pathname } = useLocation();
+  const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const active = (path: string) => pathname.startsWith(path);
+  // NAV_TABS es estático (MENU_SECTIONS[0].items) — a diferencia del drawer, esta barra nunca
+  // filtraba por permiso, así que un operador restringido veía "Mascotas"/"Clientes"/"Operador"
+  // acá aunque el drawer ya los escondiera.
+  const visibleTabs = visibleMenuItems(NAV_TABS, user);
 
   return (
     <>
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-outline-variant flex justify-around items-center h-16 px-2">
-        {NAV_TABS.map(({ to, icon, label }) => (
+        {visibleTabs.map(({ to, icon, label }) => (
           <NavLink
             key={to}
             to={to}

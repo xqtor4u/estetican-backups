@@ -107,14 +107,19 @@ export function GlobalAgenda() {
   // si el botón rápido "Iniciar" de la tarjeta aplica, o si hay que ir al detalle porque
   // está fuera de la ventana y hace falta el diálogo de confirmación completo).
   useEffect(() => {
-    fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
+    // Sin `can_view_all_agenda` no tiene sentido pedir /api/operators (además, el usuario
+    // restringido no tiene `ver operadores` — la API respondería 403) ni mostrar el
+    // selector de operador: el backend ya solo le devuelve sus propias citas.
+    if (user?.can_view_all_agenda) {
+      fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
+    }
     fetch('/api/branches').then(r => r.json()).then(setBranches).catch(() => {});
     fetch('/api/agenda/vencidas').then(r => r.ok ? r.json() : []).then(setVencidas).catch(() => {});
     fetch('/api/settings/booking')
       .then(r => r.json())
       .then((d: { grace_minutes?: number }) => { if (d.grace_minutes != null) setGraceMinutes(d.grace_minutes); })
       .catch(() => {});
-  }, []);
+  }, [user?.can_view_all_agenda]);
 
   // Carga de agenda al cambiar fecha o vista (día/semana/mes)
   const loadAgenda = useCallback((date: Date, view: CalView) => {

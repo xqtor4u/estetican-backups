@@ -40,12 +40,18 @@ class AgendaController extends Controller
 
         $anchor = Carbon::parse($request->query('date', now()->toDateString()));
         $operatorId = $request->query('operator_id');
+        $user = $request->user();
+        $canViewAll = $user->is_super_admin || $user->can('agenda.ver_todas');
 
         [$rangeStart, $rangeEnd] = $this->resolveRange($view, $anchor);
 
         $bookings = SpaBooking::whereBetween('scheduled_at', [$rangeStart, $rangeEnd])
             ->whereNotIn('status', ['cancelled'])
-            ->when($operatorId, fn ($q) => $q->where('operator_id', $operatorId))
+            ->visibleTo($user)
+            // El filtro opcional por operador arbitrario solo tiene sentido para quien puede
+            // ver la agenda de todos — un usuario restringido ya viene acotado por visibleTo(),
+            // cualquier operator_id que mande se ignora en vez de ampliar su propio alcance.
+            ->when($canViewAll && $operatorId, fn ($q) => $q->where('operator_id', $operatorId))
             ->with([
                 'pet:id,name,species,breed,profile_photo_path,client_id',
                 'pet.client:id,first_name,apellido_paterno,apellido_materno',
@@ -131,8 +137,19 @@ class AgendaController extends Controller
             $view = 'day';
         }
 
-        $anchor = Carbon::parse($request->query('date', now()->toDateString()));
+        $user = $request->user();
+        $canViewAll = $user->is_super_admin || $user->can('agenda.ver_todas');
+
         $operatorId = $request->query('operator_id') ? (int) $request->query('operator_id') : null;
+
+        if (! $canViewAll) {
+            if (! $user->operator_id) {
+                return response()->json([]);
+            }
+            $operatorId = $user->operator_id;
+        }
+
+        $anchor = Carbon::parse($request->query('date', now()->toDateString()));
 
         [$rangeStart, $rangeEnd] = $this->resolveRange($view, $anchor);
 
@@ -160,12 +177,13 @@ class AgendaController extends Controller
      * cobrar del todo — el staff volverá a cobrar después — pero el pasivo
      * no debe perderse de vista).
      */
-    public function vencidas()
+    public function vencidas(Request $request)
     {
         $now = now();
         $graceMinutes = (int) (app(SystemSettings::class)->all()['booking_grace_minutes'] ?? 15);
 
-        $bookings = SpaBooking::where(function ($q) use ($now, $graceMinutes) {
+        $bookings = SpaBooking::visibleTo($request->user())
+            ->where(function ($q) use ($now, $graceMinutes) {
                 $q->where(function ($q1) use ($now) {
                     $q1->whereIn('status', ['scheduled', 'work_order'])
                         ->where('scheduled_at', '<', $now->copy()->startOfDay());

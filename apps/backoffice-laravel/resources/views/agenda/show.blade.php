@@ -21,9 +21,11 @@
         <a href="{{ route('agenda.index') }}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left me-1"></i> Volver a agenda
         </a>
-        <a href="{{ route('pets.show', $pet) }}" class="btn btn-outline-dark">
-            <i class="bi bi-paw me-1"></i> Perfil de mascota
-        </a>
+        @can('ver mascotas')
+            <a href="{{ route('pets.show', $pet) }}" class="btn btn-outline-dark">
+                <i class="bi bi-paw me-1"></i> Perfil de mascota
+            </a>
+        @endcan
     </x-slot:actions>
 </x-page-header>
 

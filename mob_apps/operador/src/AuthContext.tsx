@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { fetchWithTimeout } from './lib/fetchWithTimeout';
 
-interface AuthUser {
+export interface AuthUser {
   id: number;
   name: string;
   first_name: string | null;
@@ -19,6 +19,10 @@ interface AuthUser {
   can_create_caja_movement: boolean;
   can_edit_caja_movement: boolean;
   can_revert_caja_movement: boolean;
+  can_view_all_agenda: boolean;
+  can_view_clients: boolean;
+  can_view_pets: boolean;
+  can_view_operators: boolean;
   operator_id: number | null;
   operator_role: string | null;
   photo_url: string | null;

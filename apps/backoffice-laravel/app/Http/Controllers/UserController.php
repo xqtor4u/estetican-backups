@@ -41,6 +41,15 @@ class UserController extends Controller
         'caja.movimientos.revertir' => 'Revertir movimientos',
     ];
 
+    /**
+     * Permiso granular de Agenda, fuera del patrón CRUD básico (mismo criterio que
+     * CAJA_PERMISSIONS). Sin `agenda.ver_todas`, un usuario con `ver agenda` queda acotado a
+     * sus propias citas (operador vinculado) — ver `SpaBooking::scopeVisibleTo()`.
+     */
+    private const AGENDA_PERMISSIONS = [
+        'agenda.ver_todas' => 'Ver agenda de todos los operadores (no solo la propia)',
+    ];
+
     protected UserPhotoImageManager $imageManager;
 
     public function __construct(UserPhotoImageManager $imageManager)
@@ -95,8 +104,9 @@ class UserController extends Controller
 
         $branches = Branch::orderBy('name')->get(['id', 'name']);
         $cajaPermissions = self::CAJA_PERMISSIONS;
+        $agendaPermissions = self::AGENDA_PERMISSIONS;
 
-        return view('user.create', compact('operatorRoles', 'modules', 'actions', 'branches', 'cajaPermissions'));
+        return view('user.create', compact('operatorRoles', 'modules', 'actions', 'branches', 'cajaPermissions', 'agendaPermissions'));
     }
 
     // Guardar nuevo usuario (Fusión 14-Abr)
@@ -194,8 +204,9 @@ class UserController extends Controller
         $canManageOwnAvailability = $user->hasPermissionTo('crear disponibilidad_propia');
         $branches = Branch::orderBy('name')->get(['id', 'name']);
         $cajaPermissions = self::CAJA_PERMISSIONS;
+        $agendaPermissions = self::AGENDA_PERMISSIONS;
 
-        return view('user.edit', compact('user', 'operatorRoles', 'modules', 'actions', 'userPermissions', 'canManageOwnAvailability', 'branches', 'cajaPermissions'));
+        return view('user.edit', compact('user', 'operatorRoles', 'modules', 'actions', 'userPermissions', 'canManageOwnAvailability', 'branches', 'cajaPermissions', 'agendaPermissions'));
     }
 
     // Actualizar usuario (Fusión 14-Abr)

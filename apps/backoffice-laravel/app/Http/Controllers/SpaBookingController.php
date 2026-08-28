@@ -122,7 +122,11 @@ class SpaBookingController extends Controller
         $bookings = $bookingsQuery->paginate(15)->appends($request->query())->through(fn ($b) => $this->decorateBooking($b));
 
         // 2. Fetch Unifed Timeline (SPA + Hotel)
-        $spaForTimeline = SpaBooking::whereDate('scheduled_at', $selectedDate)
+        // Query aparte de $bookingsQuery de arriba (no pasa por applyBookingFilters) —
+        // necesita su propio ->visibleTo(), si no un operador restringido vería la agenda
+        // completa en esta vista aunque la tabla paginada ya estuviera acotada.
+        $spaForTimeline = SpaBooking::visibleTo($request->user())
+            ->whereDate('scheduled_at', $selectedDate)
             ->whereIn('status', ['scheduled', 'work_order'])
             ->with(['pet.client', 'services.service'])
             ->get()
@@ -165,7 +169,8 @@ class SpaBookingController extends Controller
 
         $blockedToday = $this->operatorAvailabilityChecker->unavailabilityWindows(
             $selectedDate->copy()->startOfDay(),
-            $selectedDate->copy()->endOfDay()
+            $selectedDate->copy()->endOfDay(),
+            $this->unavailabilityOperatorScope($request->user())
         );
 
         return view('agenda.index', compact(
@@ -225,6 +230,10 @@ class SpaBookingController extends Controller
 
     private function applyBookingFilters($query, array $statuses, string $search): void
     {
+        // Único punto usado tanto por la vista de tabla (index) como por la de
+        // calendario semana/mes (buildCalendarRange) — acota acá para no repetirlo.
+        $query->visibleTo(auth()->user());
+
         if ($statuses !== []) {
             $query->whereIn('status', $statuses);
         }
@@ -340,7 +349,7 @@ class SpaBookingController extends Controller
             $itemsByDate[$key] = collect($items);
         }
 
-        $blockedWindows = $this->operatorAvailabilityChecker->unavailabilityWindows($rangeStart, $rangeEnd);
+        $blockedWindows = $this->operatorAvailabilityChecker->unavailabilityWindows($rangeStart, $rangeEnd, $this->unavailabilityOperatorScope(auth()->user()));
         $blockedByDate = [];
         foreach ($blockedWindows as $w) {
             $cursor = $w->starts_at->copy()->startOfDay()->max($rangeStart->copy()->startOfDay());
@@ -380,8 +389,36 @@ class SpaBookingController extends Controller
         return [$calendarDays, $stats];
     }
 
+    /**
+     * `operator_id` a forzar en `unavailabilityWindows()` para un usuario sin
+     * `agenda.ver_todas`: el suyo, o un id que nunca existe (-1) si no tiene operador
+     * vinculado — sin esto vería los bloqueos de disponibilidad de todos los operadores en
+     * la vista de agenda, aunque las citas mismas ya estén acotadas.
+     */
+    private function unavailabilityOperatorScope($user): ?int
+    {
+        if ($user->is_super_admin || $user->can('agenda.ver_todas')) {
+            return null;
+        }
+
+        return $user->operator_id ?: -1;
+    }
+
+    /**
+     * 404 (no 403 — no confirmar existencia de una cita ajena, mismo criterio que la
+     * auditoría IDOR de agosto) si el usuario no tiene `agenda.ver_todas`/no es super admin
+     * y la cita no es suya. El binding implícito de ruta ya resolvió `$booking` sin scope,
+     * así que se revalida acá antes de leer/tocar nada. Reusa el mismo scope que
+     * `Api\BookingController`/`applyBookingFilters()`.
+     */
+    private function ensureVisible(SpaBooking $booking): void
+    {
+        abort_unless(SpaBooking::visibleTo(auth()->user())->whereKey($booking->id)->exists(), 404);
+    }
+
     public function show(SpaBooking $booking): View
     {
+        $this->ensureVisible($booking);
         $booking = $this->loadBookingContext($booking);
         $booking = $this->decorateBooking($booking);
         $page = AgendaPage::show($booking);
@@ -434,6 +471,7 @@ class SpaBookingController extends Controller
 
     public function edit(SpaBooking $booking): View
     {
+        $this->ensureVisible($booking);
         $page = AgendaPage::edit($booking);
         $booking->load(['services', 'pet.client', 'resourceAllocations']);
 
@@ -451,6 +489,8 @@ class SpaBookingController extends Controller
 
     public function update(Request $request, SpaBooking $booking): RedirectResponse
     {
+        $this->ensureVisible($booking);
+
         // Handle simple status updates (e.g. from Work Order)
         if ($request->has('status') && $request->input('status') === 'completed') {
             $booking->update(['status' => 'completed']);
@@ -546,6 +586,7 @@ class SpaBookingController extends Controller
 
     public function cancel(Request $request, SpaBooking $booking): RedirectResponse
     {
+        $this->ensureVisible($booking);
         $validated = $request->validate([
             'cancellation_reason' => 'required|string|max:500',
         ]);
@@ -557,6 +598,7 @@ class SpaBookingController extends Controller
 
     public function markNoShow(Request $request, SpaBooking $booking): RedirectResponse
     {
+        $this->ensureVisible($booking);
         $validated = $request->validate(['reason' => 'nullable|string|max:500']);
 
         $this->bookingService->markNoShow($booking->id, $validated['reason'] ?? null);
@@ -566,6 +608,7 @@ class SpaBookingController extends Controller
 
     public function markUnfulfillable(Request $request, SpaBooking $booking): RedirectResponse
     {
+        $this->ensureVisible($booking);
         $validated = $request->validate(['reason' => 'nullable|string|max:500']);
 
         $ok = $this->bookingService->markUnfulfillable($booking->id, $validated['reason'] ?? null);
@@ -834,6 +877,7 @@ class SpaBookingController extends Controller
 
     public function storeQuote(Request $request, SpaBooking $booking): RedirectResponse
     {
+        $this->ensureVisible($booking);
         $validated = $request->validate([
             'version_label' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
@@ -859,6 +903,7 @@ class SpaBookingController extends Controller
 
     public function acceptQuote(Request $request, SpaBooking $booking, Quote $quote): RedirectResponse
     {
+        $this->ensureVisible($booking);
         abort_unless($quote->spa_booking_id === $booking->id, 404);
 
         $validated = $request->validate([
@@ -884,6 +929,7 @@ class SpaBookingController extends Controller
 
     public function assignProfessional(Request $request, SpaBooking $booking, SpaBookingService $item): RedirectResponse
     {
+        $this->ensureVisible($booking);
         abort_unless($item->spa_booking_id === $booking->id, 404);
 
         $validated = $request->validate([
@@ -904,6 +950,7 @@ class SpaBookingController extends Controller
 
     public function registerPayment(Request $request, SpaBooking $booking, Quote $quote): RedirectResponse
     {
+        $this->ensureVisible($booking);
         abort_unless($quote->spa_booking_id === $booking->id, 404);
 
         $validated = $request->validate([

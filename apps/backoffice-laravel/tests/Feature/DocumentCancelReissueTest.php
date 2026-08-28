@@ -56,7 +56,11 @@ class DocumentCancelReissueTest extends TestCase
         ]);
         // Ve la agenda pero deliberadamente NO tiene asientos.aprobar — es justo
         // lo que este archivo prueba (sección de recibos oculta sin ese permiso).
+        // `agenda.ver_todas` sí se le da: sin operador vinculado, el scope nuevo de
+        // SpaBooking::visibleTo() lo dejaría sin ver ninguna cita — variable ajena a lo
+        // que este test verifica.
         $user->givePermissionTo(Permission::findOrCreate('ver agenda', 'web'));
+        $user->givePermissionTo(Permission::findOrCreate('agenda.ver_todas', 'web'));
 
         return $user;
     }

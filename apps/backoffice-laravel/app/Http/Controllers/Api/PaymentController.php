@@ -17,8 +17,16 @@ use RuntimeException;
 
 class PaymentController extends Controller
 {
+    /** Mismo criterio que `BookingController::ensureVisible()` — 404, no confirmar existencia. */
+    private function ensureVisible(SpaBooking $booking): void
+    {
+        abort_unless(SpaBooking::visibleTo(auth()->user())->whereKey($booking->id)->exists(), 404);
+    }
+
     public function index(SpaBooking $booking)
     {
+        $this->ensureVisible($booking);
+
         $morph = SpaBooking::class;
 
         $payments = Payment::where('payable_type', $morph)
@@ -58,6 +66,8 @@ class PaymentController extends Controller
 
     public function store(Request $request, SpaBooking $booking)
     {
+        $this->ensureVisible($booking);
+
         if ($booking->status === 'cancelled') {
             return response()->json(['message' => 'No se puede cobrar una cita cancelada.'], 422);
         }

@@ -242,6 +242,23 @@
 
                     <hr class="my-4">
 
+                    <h5 class="h6 mb-3 text-uppercase letter-space">Agenda — visibilidad</h5>
+                    <div class="row g-2 mb-2">
+                        @foreach($agendaPermissions as $permName => $permLabel)
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="perm_{{ str_replace('.', '_', $permName) }}"
+                                           name="permissions[]" value="{{ $permName }}"
+                                           @checked(in_array($permName, $userPermissions))>
+                                    <label class="form-check-label small" for="perm_{{ str_replace('.', '_', $permName) }}">{{ $permLabel }}</label>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <small class="text-muted d-block mb-4">Sin este permiso, "Ver agenda" queda acotado a las citas propias del operador vinculado a este usuario.</small>
+
+                    <hr class="my-4">
+
                     <h5 class="h6 mb-3 text-uppercase letter-space">Matriz de Permisos (CRUD)</h5>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover align-middle">

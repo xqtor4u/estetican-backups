@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -91,6 +92,36 @@ class SpaBooking extends Model
     public function processNotes(): HasMany
     {
         return $this->hasMany(BookingProcessNote::class)->orderBy('created_at');
+    }
+
+    /**
+     * Acota a las citas que le corresponden a $user: si tiene `agenda.ver_todas` (o es
+     * super-admin) no filtra nada. Si no, solo las citas donde es el operador asignado
+     * directamente (`operator_id`) o donde aparece como operador de un ítem del presupuesto
+     * aceptado — un operador puede quedar asignado por cualquiera de los dos caminos (ver
+     * `Api\AgendaController::index()`, misma unión). Sin operador vinculado (`operator_id`
+     * nulo en `users`), fuerza vacío en vez de filtrar por `NULL` (que matchearía citas sin
+     * operador asignado, no las del usuario).
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if ($user->is_super_admin || $user->can('agenda.ver_todas')) {
+            return $query;
+        }
+
+        $operatorId = $user->operator_id;
+
+        if (! $operatorId) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where(function (Builder $q) use ($operatorId) {
+            $q->where('operator_id', $operatorId)
+                ->orWhereHas('quotes', function (Builder $quoteQuery) use ($operatorId) {
+                    $quoteQuery->where('status', 'accepted')
+                        ->whereHas('items', fn (Builder $itemQuery) => $itemQuery->where('operator_id', $operatorId));
+                });
+        });
     }
 
     /**
