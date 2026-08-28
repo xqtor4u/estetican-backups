@@ -22,16 +22,16 @@ interface JobBooking {
   total:       number;
 }
 interface JobRow {
-  key:         string;
-  id:          number;
-  model_type:  string;
-  fecha_iso:   string;
-  fecha_short: string;
-  status:      string;
-  has_folio:   boolean;
-  folio_label: string;
-  descripcion: string;
-  total:       number;
+  key:          string;
+  id:           number;
+  model_type:   string;
+  fecha_iso:    string;
+  fecha_short:  string;
+  status:       string;
+  status_label: string;
+  folio:        string | null;
+  descripcion:  string;
+  total:        number;
 }
 
 type StatusFilter = 'pendientes' | 'completadas' | 'no_show' | 'canceladas' | 'todas';
@@ -67,6 +67,7 @@ const TYPE_ICON: Record<string, string> = {
   hotel: 'hotel',
   vet:   'medical_services',
 };
+const SIZE_LABEL: Record<string, string> = { small: 'Pequeño', medium: 'Mediano', large: 'Grande', giant: 'Gigante' };
 
 function shortDate(ymd: string): string {
   const [y, mo, d] = ymd.split('-');
@@ -80,7 +81,7 @@ export function MobPetJobs() {
   const crumbs = getNavCrumbs();
   const { showBreadcrumbs } = getUserPrefs();
 
-  const [petName,        setPetName]        = useState('');
+  const [pet,            setPet]            = useState<{ name: string; species: string | null; breed: string | null; size: string | null; weight_kg: number | string | null; photo: string | null } | null>(null);
   const [bookings,       setBookings]       = useState<JobBooking[]>([]);
   const [workOrderTypes, setWorkOrderTypes] = useState<WorkOrderType[]>([]);
   const [loading,        setLoading]        = useState(true);
@@ -92,12 +93,12 @@ export function MobPetJobs() {
   useEffect(() => {
     if (!id) return;
     Promise.all([
-      fetch(`/api/pets/${id}`).then(r => r.ok ? r.json() : { name: '' }),
+      fetch(`/api/pets/${id}`).then(r => r.ok ? r.json() : {}) as Promise<Record<string, any>>,
       fetch(`/api/pets/${id}/bookings`).then(r => r.ok ? r.json() : []),
       fetch('/api/work-order-types').then(r => r.ok ? r.json() : []),
     ])
-      .then(([pet, bkgs, types]) => {
-        setPetName(pet.name ?? '');
+      .then(([p, bkgs, types]) => {
+        setPet({ name: p.name ?? '', species: p.species ?? null, breed: p.breed ?? null, size: p.size ?? null, weight_kg: p.weight_kg ?? null, photo: p.photo ?? null });
         setBookings(bkgs);
         setWorkOrderTypes(types);
       })
@@ -108,16 +109,16 @@ export function MobPetJobs() {
   /* Filas de la tabla */
   const jobRows = useMemo<JobRow[]>(() =>
     bookings.map(b => ({
-      key:         String(b.model_type) + '-' + String(b.id),
-      id:          b.id,
-      model_type:  b.model_type,
-      fecha_iso:   b.fecha_iso,
-      fecha_short: shortDate(b.fecha),
-      status:      b.status,
-      has_folio:   !!b.order_folio,
-      folio_label: b.order_folio ?? (STATUS_LABEL[b.status] ?? b.status),
-      descripcion: b.descripcion,
-      total:       b.total,
+      key:          String(b.model_type) + '-' + String(b.id),
+      id:           b.id,
+      model_type:   b.model_type,
+      fecha_iso:    b.fecha_iso,
+      fecha_short:  shortDate(b.fecha),
+      status:       b.status,
+      status_label: STATUS_LABEL[b.status] ?? b.status,
+      folio:        b.order_folio,
+      descripcion:  b.descripcion,
+      total:        b.total,
     })),
   [bookings]);
 
@@ -136,7 +137,7 @@ export function MobPetJobs() {
     switch (statusFilter) {
       case 'pendientes':  return rows.filter(r => PENDING_STATUSES.includes(r.status));
       case 'completadas': return rows.filter(r => COMPLETED_STATUSES.includes(r.status));
-      case 'no_show':     return rows.filter(r => r.status === 'no_show');
+      case 'no_show':     return rows.filter(r => r.status === 'no_show' || r.status === 'unfulfillable');
       case 'canceladas':  return rows.filter(r => CANCELLED_STATUSES.includes(r.status));
       default:            return rows;
     }
@@ -149,7 +150,7 @@ export function MobPetJobs() {
 
   function handleRowTap(row: JobRow) {
     if (row.model_type === 'spa') {
-      setNavCrumbs([{ label: petName || 'Mascota', to: `/mascotas/${id}` }]);
+      setNavCrumbs([{ label: pet?.name || 'Mascota', to: `/mascotas/${id}` }]);
       navigate(`/citas/${row.id}`);
     }
     // otros modelos: vista de detalle pendiente
@@ -168,7 +169,7 @@ export function MobPetJobs() {
       <ScreenHeader
         title="Trabajos"
         screenTag="MobPetJobs"
-        subtitle={petName || undefined}
+        subtitle={pet?.name || undefined}
         onBack={() => navigate(`/mascotas/${id}`)}
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
@@ -179,6 +180,31 @@ export function MobPetJobs() {
           </span>
         }
       />
+
+      {/* ── Banner de mascota — para que el listado siempre diga de qué mascota es ── */}
+      {pet && (
+        <div className="bg-surface border-b border-outline-variant px-4 py-3 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
+            {pet.photo
+              ? <img src={pet.photo} className="w-full h-full object-cover" alt={pet.name} />
+              : <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
+            }
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-on-surface truncate">{pet.name || 'Mascota'}</p>
+            {(pet.species || pet.breed || pet.size || pet.weight_kg != null) && (
+              <p className="text-xs text-on-surface-variant truncate">
+                {[
+                  pet.species,
+                  pet.breed,
+                  pet.size ? (SIZE_LABEL[pet.size] ?? pet.size) : null,
+                  pet.weight_kg != null ? `${Number(pet.weight_kg)} kg` : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Filtros de tipo (solo si hay >1 tipo configurado) ── */}
       {showTypeFilter && (
@@ -217,7 +243,7 @@ export function MobPetJobs() {
                   : 'bg-primary text-on-primary border-primary'
                 : 'bg-surface-container text-on-surface-variant border-outline-variant'
             }`}>
-            {{ pendientes: 'Pendientes', completadas: 'Completadas', no_show: 'No se presentó', canceladas: 'Canceladas', todas: 'Todas' }[f]}
+            {{ pendientes: 'Pendientes', completadas: 'Completadas', no_show: 'No realizadas', canceladas: 'Canceladas', todas: 'Todas' }[f]}
           </button>
         ))}
       </div>
@@ -256,8 +282,8 @@ export function MobPetJobs() {
                 <th className="px-3 py-2.5 text-left w-[76px]">
                   <SortBtn label="Fecha" col="fecha_iso" sortKey={sortKey} direction={direction} onToggle={toggle} />
                 </th>
-                <th className="px-2 py-2.5 text-left w-[108px]">
-                  <SortBtn label="Ref" col="folio_label" sortKey={sortKey} direction={direction} onToggle={toggle} />
+                <th className="px-2 py-2.5 text-left w-[116px]">
+                  <SortBtn label="Estado" col="status_label" sortKey={sortKey} direction={direction} onToggle={toggle} />
                 </th>
                 <th className="px-2 py-2.5 text-left">
                   <SortBtn label="Descripción" col="descripcion" sortKey={sortKey} direction={direction} onToggle={toggle} />
@@ -288,15 +314,16 @@ export function MobPetJobs() {
                       )}
                     </td>
 
-                    {/* Referencia / Folio */}
-                    <td className="px-2 py-2.5 w-[108px]">
+                    {/* Estado (siempre visible) + folio de OT si existe */}
+                    <td className="px-2 py-2.5 w-[116px]">
                       <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md inline-block max-w-full truncate ${
-                        row.has_folio
-                          ? 'font-mono text-primary bg-primary/10'
-                          : (STATUS_BG[row.status] ?? 'text-on-surface-variant bg-surface-container')
+                        STATUS_BG[row.status] ?? 'text-on-surface-variant bg-surface-container'
                       }`}>
-                        {row.folio_label}
+                        {row.status_label}
                       </span>
+                      {row.folio && (
+                        <p className="text-[10px] font-mono text-on-surface-variant/70 mt-0.5 truncate">{row.folio}</p>
+                      )}
                     </td>
 
                     {/* Descripción */}

@@ -20,6 +20,7 @@ interface Pet {
   breed: string | null;
   sex: string | null;
   size: string | null;
+  weight_kg: number | string | null;
   coat_color: string | null;
   birth_date: string | null;
   age: string | null;
@@ -35,7 +36,7 @@ interface Pet {
 }
 
 type EditState = {
-  name: string; species: string; breed: string; sex: string; size: string;
+  name: string; species: string; breed: string; sex: string; size: string; weight_kg: string;
   coat_color: string; birth_date: string; death_date: string;
   microchip: string; tattoo: string; is_sterilized: boolean;
   flagged_for_deletion: boolean; notes: string;
@@ -112,7 +113,7 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
       const saved = sessionStorage.getItem(STORAGE_KEY);
       if (saved) return JSON.parse(saved);
     } catch {}
-    return { name: '', species: 'Perro', breed: '', sex: '', size: '',
+    return { name: '', species: 'Perro', breed: '', sex: '', size: '', weight_kg: '',
              coat_color: '', birth_date: '', microchip: '', tattoo: '',
              is_sterilized: false, notes: '' };
   });
@@ -168,6 +169,7 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
     if (form.breed)     body.append('breed', form.breed);
     if (form.sex)       body.append('sex', form.sex);
     if (form.size)      body.append('size', form.size);
+    if (form.weight_kg) body.append('weight_kg', form.weight_kg);
     if (form.coat_color)  body.append('coat_color', form.coat_color);
     if (form.birth_date)  body.append('birth_date', form.birth_date);
     if (form.microchip)   body.append('microchip_code', form.microchip);
@@ -272,6 +274,11 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
           <Field label="Tamaño">
             <SelectInput value={form.size} onChange={set('size')} opts={SIZE_OPTS} />
           </Field>
+          <Field label="Peso (kg)">
+            <input type="number" inputMode="decimal" step="0.1" min="0" value={form.weight_kg}
+              onChange={e => set('weight_kg')(e.target.value)} placeholder="Ej. 12.5"
+              className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary" />
+          </Field>
           <div className="col-span-2">
             <Field label="Color de pelaje">
               <TextInput value={form.coat_color} onChange={set('coat_color')} />
@@ -319,7 +326,9 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
 function petToEdits(pet: Pet): EditState {
   return {
     name: pet.name, species: pet.species ?? '', breed: pet.breed ?? '',
-    sex: pet.sex ?? '', size: pet.size ?? '', coat_color: pet.coat_color ?? '',
+    sex: pet.sex ?? '', size: pet.size ?? '',
+    weight_kg: pet.weight_kg != null ? String(pet.weight_kg) : '',
+    coat_color: pet.coat_color ?? '',
     birth_date: '', death_date: '', microchip: pet.microchip ?? '',
     tattoo: pet.tattoo ?? '', is_sterilized: pet.is_sterilized,
     flagged_for_deletion: pet.flagged_for_deletion, notes: pet.notes ?? '',
@@ -391,6 +400,7 @@ export function PetDetail() {
       name: edits.name, species: edits.species || null, breed: edits.breed || null,
       sex: edits.sex || null, size: edits.size || null, coat_color: edits.coat_color || null,
       microchip_code: edits.microchip || null, tattoo_code: edits.tattoo || null,
+      ...(edits.weight_kg.trim() ? { weight_kg: Number(edits.weight_kg) } : {}),
       is_sterilized: edits.is_sterilized, flagged_for_deletion: edits.flagged_for_deletion,
       notes: edits.notes || null,
     };
@@ -528,6 +538,7 @@ export function PetDetail() {
             <div className="flex flex-wrap gap-2">
               {pet.sex && <Chip icon={pet.sex === 'male' ? 'male' : 'female'} label={SEX_LABEL[pet.sex] ?? pet.sex} />}
               {pet.size && <Chip icon="straighten" label={SIZE_LABEL[pet.size] ?? pet.size} />}
+              {pet.weight_kg != null && <Chip icon="monitor_weight" label={`${Number(pet.weight_kg)} kg`} />}
               {pet.coat_color && <Chip icon="palette" label={pet.coat_color} />}
               <Chip icon={pet.is_sterilized ? 'check_circle' : 'cancel'} label={pet.is_sterilized ? 'Esterilizado' : 'Sin esterilizar'} highlight={pet.is_sterilized} />
               <button
@@ -674,6 +685,11 @@ export function PetDetail() {
               <Field label="Raza"><TextInput value={edits.breed} onChange={set('breed')} /></Field>
               <Field label="Sexo"><SelectInput value={edits.sex} onChange={set('sex')} opts={SEX_OPTS} /></Field>
               <Field label="Tamaño"><SelectInput value={edits.size} onChange={set('size')} opts={SIZE_OPTS} /></Field>
+              <Field label="Peso (kg)">
+                <input type="number" inputMode="decimal" step="0.1" min="0" value={edits.weight_kg}
+                  onChange={e => set('weight_kg')(e.target.value)} placeholder="Ej. 12.5"
+                  className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary" />
+              </Field>
               <div className="col-span-2"><Field label="Color de pelaje"><TextInput value={edits.coat_color} onChange={set('coat_color')} /></Field></div>
               <Field label="Fecha de nacimiento"><DateInput value={edits.birth_date} onChange={set('birth_date')} /></Field>
               <Field label="Fecha de defunción"><DateInput value={edits.death_date} onChange={set('death_date')} /></Field>

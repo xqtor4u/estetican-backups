@@ -6,7 +6,10 @@ import { useAuth } from '../AuthContext';
 import { ScreenHeader } from '../ScreenHeader';
 
 /* ── Tipos ────────────────────────────────────────────────── */
-interface PetMin   { id: number; name: string; species: string | null; photo: string | null }
+interface PetMin   { id: number; name: string; species: string | null; breed: string | null; size: string | null; weight_kg: number | string | null; photo: string | null }
+
+/** Etiqueta legible para el tamaño (`pets.size`) — incluye valores legado en español. */
+const SIZE_LABEL: Record<string, string> = { small: 'Pequeño', medium: 'Mediano', large: 'Grande', giant: 'Gigante' };
 interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null }
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null }
 interface OccBooking { time: string; end_time: string | null; duration_minutes: number | null }
@@ -129,7 +132,7 @@ export function MobCitaNueva() {
     if (!id) return;
     fetch(`/api/pets/${id}`)
       .then(r => r.json())
-      .then((d: any) => setPet({ id: d.id, name: d.name, species: d.species, photo: d.photo }))
+      .then((d: any) => setPet({ id: d.id, name: d.name, species: d.species ?? null, breed: d.breed ?? null, size: d.size ?? null, weight_kg: d.weight_kg ?? null, photo: d.photo ?? null }))
       .catch(() => {});
     fetch('/api/services').then(r => r.json()).then(setServices).catch(() => {});
     fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
@@ -438,7 +441,16 @@ export function MobCitaNueva() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-on-surface truncate">{pet.name}</p>
-            {pet.species && <p className="text-xs text-on-surface-variant">{pet.species}</p>}
+            {(pet.species || pet.breed || pet.size || pet.weight_kg != null) && (
+              <p className="text-xs text-on-surface-variant truncate">
+                {[
+                  pet.species,
+                  pet.breed,
+                  pet.size ? (SIZE_LABEL[pet.size] ?? pet.size) : null,
+                  pet.weight_kg != null ? `${Number(pet.weight_kg)} kg` : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
+            )}
           </div>
         </div>
       )}

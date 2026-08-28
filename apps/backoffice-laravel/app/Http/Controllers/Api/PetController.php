@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Pet;
+use App\Models\PetWeight;
 use App\Support\PetPhotoImageManager;
 use App\Support\Search\TokenSearch;
 use Illuminate\Http\Request;
@@ -34,6 +35,25 @@ class PetController extends Controller
         return Storage::disk('public')->url($newPhotoPath);
     }
 
+    /** Registra un peso manual si viene y difiere del último medido — el histórico vive en pet_weights. */
+    private function recordManualWeight(Pet $pet, ?float $kg): void
+    {
+        if ($kg === null) {
+            return;
+        }
+        $last = $pet->weights()->latest('measured_at')->value('weight_kg');
+        if ($last !== null && abs((float) $last - $kg) < 0.001) {
+            return;
+        }
+        PetWeight::create([
+            'pet_id' => $pet->id,
+            'weight_kg' => $kg,
+            'measured_at' => now(),
+            'source' => 'manual',
+            'recorded_by_operator_id' => auth()->user()?->operator_id,
+        ]);
+    }
+
     public function show(Pet $pet)
     {
         $pet->load('client', 'medicalAlerts', 'spaBookings');
@@ -45,6 +65,7 @@ class PetController extends Controller
             'breed'        => $pet->breed,
             'sex'          => $pet->sex,
             'size'         => $pet->size,
+            'weight_kg'    => $pet->weights()->latest('measured_at')->value('weight_kg'),
             'coat_color'   => $pet->coat_color,
             'birth_date'   => $pet->birth_date?->format('d/m/Y'),
             'age'          => $pet->age_description,
@@ -88,6 +109,7 @@ class PetController extends Controller
             'breed'          => 'nullable|string|max:255',
             'sex'            => 'nullable|in:male,female',
             'size'           => 'nullable|in:small,medium,large,giant',
+            'weight_kg'      => 'nullable|numeric|min:0.1|max:200',
             'coat_color'     => 'nullable|string|max:255',
             'birth_date'     => 'nullable|date',
             'microchip_code' => 'nullable|string|max:255',
@@ -96,7 +118,11 @@ class PetController extends Controller
             'notes'          => 'nullable|string',
         ]);
 
+        $weight = $data['weight_kg'] ?? null;
+        unset($data['weight_kg']);
+
         $pet = Pet::create($data);
+        $this->recordManualWeight($pet, $weight !== null ? (float) $weight : null);
 
         // Foto de perfil (si se envió)
         if ($request->hasFile('photo')) {
@@ -132,6 +158,7 @@ class PetController extends Controller
             'breed'                => 'sometimes|nullable|string|max:255',
             'sex'                  => 'sometimes|nullable|in:male,female',
             'size'                 => 'sometimes|nullable|in:small,medium,large,giant',
+            'weight_kg'            => 'sometimes|nullable|numeric|min:0.1|max:200',
             'coat_color'           => 'sometimes|nullable|string|max:255',
             'birth_date'           => 'sometimes|nullable|date',
             'death_date'           => 'sometimes|nullable|date',
@@ -143,7 +170,14 @@ class PetController extends Controller
             'notes'                => 'sometimes|nullable|string',
         ]);
 
+        $weightProvided = array_key_exists('weight_kg', $data);
+        $weight = $data['weight_kg'] ?? null;
+        unset($data['weight_kg']);
+
         $pet->update($data);
+        if ($weightProvided && $weight !== null) {
+            $this->recordManualWeight($pet, (float) $weight);
+        }
 
         return response()->json(['ok' => true]);
     }
