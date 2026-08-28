@@ -1,6 +1,6 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
-## 📅 Sesión: 28/08/2026 — sincronización con `tst`: commit del fix de ayer + Fase 2 (6 ports aislados desde Zeus-Estetican)
+## 📅 Sesión: 28/08/2026 — sincronización con `tst`: Fase 0 + Fase 2 (6 ports) + Fase 3a (`SYNC-030` operador restringido)
 
 ### ✅ Logros y Cambios
 
@@ -57,17 +57,43 @@ divergido por otros `SYNC` no portados aún → **edición quirúrgica** de solo
   en `tst`, no portado). `SincronizarGoogleCalendarCommand.php` + `GoogleCalendarUpdatedMail.php` + su
   vista + 2 tests: byte-idénticos. 18 tests `GoogleCalendar` en verde, 45 `--filter=User`. Pint limpio.
 
+**Fase 3a — `SYNC-030` (operador restringido), commit `b781f3a`, 21 archivos.** Portado **aislado**
+antes del resto del bloque de agenda, para poder diagnosticarlo solo si algo se rompe en producción.
+Nuevo permiso granular `agenda.ver_todas`: sin él (y sin ser super-admin), un usuario con `ver agenda`
+queda acotado a sus propias citas. Regla central en `SpaBooking::scopeVisibleTo(User)`, reusada en
+`Api\AgendaController` (index/vencidas/unavailabilities), `Api\BookingController`/`Api\PaymentController`/
+`Api\BookingProcessNoteController`/`SpaBookingController` web (guard `ensureVisible()` → **404**, no 403).
+`User::toApiArray()` +4 flags (`can_view_all_agenda/_clients/_pets/_operators`). `UserController` +
+`user/{create,edit}.blade.php` ganan sección "Agenda — visibilidad". `agenda/{index,show}.blade.php`:
+botones "Mascota"/"Cliente" envueltos en `@can` (antes eran botones muertos → 403). Móvil:
+`AuthContext.tsx` (+4 flags), `App.tsx` (`requiresCajaView` → `requiresFlag` genérico, `BottomNav` ahora
+filtra), `GlobalAgenda.tsx` (no pide `/api/operators` ni muestra el selector sin `can_view_all_agenda`).
+Permiso `agenda.ver_todas` (#74) **sembrado en la BD real** y otorgado al rol `admin`. **Sin migración,
+sin rutas nuevas** (solo agrega guards de scope a rutas ya gateadas por `permission:`). Aplicado
+**quirúrgico** en `Api\BookingController`/`SpaBookingController`/`agenda/index.blade.php`/`GlobalAgenda.tsx`
+(traen además SYNC-040/042/043/044/049/050/051/052/053/054 en `tst`). Verificación: 23 tests nuevos
+(`AgendaOperatorScopingTest` 13, `SpaBookingControllerWebScopingTest` 6, `RestrictedOperatorClientPetAccessTest`
+4) + trait `CreatesRestrictedOperatorUser`; 268 tests `Api|Agenda|SpaBooking|Payment|Quote|Navigation`, 239
+`Agenda|Booking|User`; 12 fallos preexistentes (`Operator*`, `ServiceOperatorRoleLink`) confirmados en HEAD
+limpio; Pint limpio; bundle móvil `index--kBTvWb0.js` md5 idéntico host/contenedor; **smoke end-to-end contra
+la API real** con usuario restringido desechable (agenda solo lo suyo, clients/pets/operators 403,
+booking ajena 404, `/api/me` flags en false).
+
 Del lado de Zeus, cada `SYNC` movido a "Aplicados" en su propio commit (`ea9f9ec`, `ddc731e`, `ea331d8`,
-`84a763d`, `4489a6b`, `74f2a41`) — solo `PENDIENTES_SINCRONIZAR_ESTETICAN.md`, sin tocar los otros 2
-archivos que ese repo tenía sin commitear de otra sesión.
+`84a763d`, `4489a6b`, `74f2a41`, `e54aa7c`) — solo `PENDIENTES_SINCRONIZAR_ESTETICAN.md`, sin tocar los
+otros 2 archivos que ese repo tenía sin commitear de otra sesión.
 
 ### 🛑 Pendientes activos
-- **Fase 1 nunca se hizo:** ningún ítem de Fase 2 tiene sign-off visual de Tomas en `tst`/`tstmov`.
-  Se portó a ciegas confiando en los tests + el diff. Revisar en producción.
-- **Fase 3 (bloque grande de agenda):** `SYNC-030, 039, 040, 042, 043, 044, 049, 050, 051, 052, 053, 054`
-  — comparten controllers/vistas, 3 migraciones más. Arranca por **3a: `SYNC-030` solo** (operador
-  restringido — el ítem más delicado, 404 vs 403, scope por binding implícito), deploy aislado para
-  poder diagnosticar; luego **3b: el resto**. **Fase 4:** `SYNC-028` (veterinaria).
+- **Fase 1 nunca se hizo:** ningún ítem de Fase 2/3a tiene sign-off visual de Tomas en `tst`/`tstmov`.
+  Se portó a ciegas confiando en los tests + el diff + smoke de API. Revisar en producción — en
+  particular `SYNC-030` con un usuario restringido real, y que la agenda web (`app.estetican.org`) de un
+  admin sigue viéndose completa.
+- **Fase 3b (resto del bloque de agenda):** `SYNC-039, 040, 042, 043, 044, 049, 050, 051, 052, 053, 054`
+  — comparten controllers/vistas, **3 migraciones** (`spa_booking_services`: `started_at`, `completed_at`,
+  `cancelled_at`/`not_performed_at`+razones). Va desde el HEAD de `tst` (ahí están todos integrados y
+  probados juntos, 663 tests). Orden lógico interno: web creación (050/051) → móvil agenda/servicios
+  (039/040/043/042/044) → web ejecución/cobro (052/053/054) → hardening API (049). **Fase 4:** `SYNC-028`
+  (veterinaria).
 - **3 hilos sueltos** anotados sin portar: refactor de imports de `CashController.php`, botón "Ver
   reportes de caja" en `MobCaja.tsx`, paginación opt-in de `PetController::index()` (parte de `SYNC-049`).
 - **2 nits de Pint preexistentes** sin tocar: `CashController.php` (`class_attributes_separation`),
