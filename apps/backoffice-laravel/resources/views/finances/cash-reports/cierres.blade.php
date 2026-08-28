@@ -29,12 +29,15 @@
         </div>
     </div></div>
 
+    @php($showBranchColumn = $branchName === 'Todas las sucursales')
+
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
             <table class="table table-sm mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Sucursal</th><th>Cerrado por</th><th>Fecha</th>
+                        @if($showBranchColumn)<th>Sucursal</th>@endif
+                        <th>Cerrado por</th><th>Fecha</th>
                         <th class="text-end">Fondo inicial</th><th class="text-end">Esperado</th>
                         <th class="text-end">Real contado</th><th class="text-end">Diferencia</th>
                     </tr>
@@ -42,7 +45,7 @@
                 <tbody>
                     @forelse($items as $item)
                         <tr>
-                            <td>{{ $item['branchName'] }}</td>
+                            @if($showBranchColumn)<td>{{ $item['branchName'] }}</td>@endif
                             <td>{{ $item['closedBy'] }}</td>
                             <td>{{ $item['closedAt'] }}</td>
                             <td class="text-end">${{ number_format($item['openingAmount'], 2) }}</td>
@@ -53,7 +56,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay cierres para este período.</td></tr>
+                        <tr><td colspan="{{ $showBranchColumn ? 7 : 6 }}" class="text-center text-body-secondary py-4">No hay cierres para este período.</td></tr>
                     @endforelse
                 </tbody>
             </table>

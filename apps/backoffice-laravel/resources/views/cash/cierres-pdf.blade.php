@@ -8,6 +8,7 @@
     // El signo va antes del "$", nunca "$-5.00" — number_format() ya incluye el "-" para
     // negativos, así que hay que separar signo y valor absoluto en vez de concatenar directo.
     $fmtSigned = fn ($n) => ($n >= 0 ? '+' : '-') . '$' . number_format(abs($n), 2);
+    $showBranchColumn = $branchName === 'Todas las sucursales';
 @endphp
 <table class="info-table">
     <tr>
@@ -27,7 +28,7 @@
     <thead>
         <tr>
             <th>Cerrado</th>
-            <th>Sucursal</th>
+            @if($showBranchColumn)<th>Sucursal</th>@endif
             <th>Cerrado por</th>
             <th>Fondo inicial</th>
             <th>Esperado</th>
@@ -39,7 +40,7 @@
         @forelse($items as $item)
             <tr>
                 <td>{{ $item['closedAt'] }}</td>
-                <td>{{ $item['branchName'] }}</td>
+                @if($showBranchColumn)<td>{{ $item['branchName'] }}</td>@endif
                 <td>{{ $item['closedBy'] }}</td>
                 <td>${{ number_format($item['openingAmount'], 2) }}</td>
                 <td>${{ number_format($item['expectedAmount'], 2) }}</td>
@@ -47,7 +48,7 @@
                 <td>{{ $fmtSigned($item['difference']) }}</td>
             </tr>
         @empty
-            <tr><td colspan="7" class="muted">Sin cierres de turno para este período.</td></tr>
+            <tr><td colspan="{{ $showBranchColumn ? 7 : 6 }}" class="muted">Sin cierres de turno para este período.</td></tr>
         @endforelse
     </tbody>
 </table>

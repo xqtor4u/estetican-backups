@@ -197,10 +197,20 @@ export function MobCajaCierres() {
                   <div key={i}
                     className={`px-4 py-3 ${i < result.items.length - 1 ? 'border-b border-outline-variant' : ''}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-on-surface">{item.branchName}</p>
+                      {/* Sucursal repetida en cada renglón solo tiene sentido viendo "todas las
+                          sucursales" a la vez — con una sola seleccionada (o un operador normal,
+                          que nunca ve más de la suya) es ruido puro, ya está en el filtro de
+                          arriba. Hallazgo real (19/08/2026), reportado por Tomas armando demo. */}
+                      {!branchId && result.canSelectBranch ? (
+                        <p className="text-sm font-medium text-on-surface">{item.branchName}</p>
+                      ) : (
+                        <p className="text-sm font-medium text-on-surface">{item.closedBy}</p>
+                      )}
                       <p className={`text-sm font-bold ${item.difference >= 0 ? 'text-primary' : 'text-error'}`}>{fmtSigned(item.difference)}</p>
                     </div>
-                    <p className="text-xs text-on-surface-variant">{item.closedAt} · {item.closedBy}</p>
+                    <p className="text-xs text-on-surface-variant">
+                      {item.closedAt}{(!branchId && result.canSelectBranch) ? ` · ${item.closedBy}` : ''}
+                    </p>
                     <p className="text-[11px] text-on-surface-variant mt-0.5">
                       Inicial {fmtMoney(item.openingAmount)} · Esperado {fmtMoney(item.expectedAmount)} · Contado {fmtMoney(item.closingAmount)}
                     </p>
