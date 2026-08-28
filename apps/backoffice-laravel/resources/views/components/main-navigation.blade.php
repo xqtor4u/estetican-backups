@@ -73,9 +73,6 @@
                     <span class="app-mobile-nav-label">Cuenta</span>
                     <div class="app-mobile-nav-grid mb-2">
                         <a href="{{ route('user.settings') }}" class="app-mobile-link">Configuración</a>
-                        @if(auth()->user()->is_super_admin)
-                            <a href="{{ route('users.index') }}" class="app-mobile-link">Administrar usuarios</a>
-                        @endif
                         <form method="POST" action="{{ route('screen-lock.lock') }}" class="d-inline">
                             @csrf
                             <input type="hidden" name="redirect_url" value="{{ request()->getRequestUri() }}">
@@ -155,9 +152,6 @@
                         </a>
                         <div class="dropdown-menu dropdown-menu-end">
                             <a href="{{ route('user.settings') }}" class="dropdown-item">Configuración</a>
-                            @if(auth()->user()->is_super_admin)
-                                <a href="{{ route('users.index') }}" class="dropdown-item">Administrar usuarios</a>
-                            @endif
                             <form method="POST" action="{{ route('screen-lock.lock') }}" class="d-inline">
                                 @csrf
                                 <input type="hidden" name="redirect_url" value="{{ request()->getRequestUri() }}">
