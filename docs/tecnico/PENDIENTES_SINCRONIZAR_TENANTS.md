@@ -25,6 +25,40 @@ _(vacío — no hay emergencias sin portar)_
 
 ## Aplicados
 
+### SYNC-002 — 500 al guardar en USEEDI un usuario ya vinculado a un operador (`operators.operator_role_id` eliminada)
+
+**Encontrado:** 27/08/2026, reportado por el usuario (visto primero en `tst`) — "al cambiar los
+permisos del CRUD de un admin, el servidor marca 500 al aplicar". La correlación con los
+permisos es casual: el 500 salta en *cualquier* guardado de ese usuario.
+
+**Causa:** `UserController::syncOperatorRecord()` armaba `$data` con
+`'operator_role_id' => $user->operator_role_id` y hacía `Operator::where('id', ...)->update($data)`.
+La migración `2026_07_31_000000_consolidate_operator_role_fields` eliminó
+`operators.operator_role_id` (el rol del operador vive ahora en `operator_role_assignments`). El
+`->update()` de query builder no filtra por `$fillable` → manda la columna inexistente a SQL →
+`SQLSTATE[42S22] Unknown column 'operator_role_id'` → 500, y el guardado del usuario falla en
+silencio. Un operador *nuevo* (sin `operator_id`) no truena porque ahí es
+`Operator::create($data)` y mass-assignment descarta la clave; solo truena el camino `->update()`
+(usuario ya vinculado). `users.operator_role_id` sigue existiendo y el selector "Tipo de
+Operador" de USEEDI la guarda bien vía `fill()` — el bug era solo propagarla a `operators`.
+
+**Fix aplicado en EstetiCAN real:**
+- `apps/backoffice-laravel/app/Http/Controllers/UserController.php` — eliminada la línea
+  `'operator_role_id' => $user->operator_role_id,` del array `$data` de `syncOperatorRecord()`
+  (con comentario del porqué). Una línea.
+- `apps/backoffice-laravel/tests/Feature/UserOperatorSyncTest.php` — regresión nueva (2 casos):
+  `operators` ya no tiene la columna; `PUT users.update` de un usuario con `is_operator=true` +
+  `operator_id` vinculado redirige (no 500), persiste `users.operator_role_id` y actualiza el
+  registro de operador.
+
+**Verificado:** Pint limpio; 42 tests `--filter=User` en verde (incluidos los 2 nuevos). Sin
+migración, sin otras dependencias.
+
+**Portado a `tenants/tst` (27/08/2026):** se arregló ahí primero — `SYNC-048` de
+`docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` de Zeus-Estetican (misma línea, mismo test,
+48 tests `--filter=User` en verde). El `syncOperatorRecord()` de ambos repos era idéntico, sin
+divergencia propia del tenant.
+
 ### SYNC-001 — Agenda: barra de "Ventana" (Hoy/Mañana/Próximas/Todas) y el filtro de Estado eran dos paneles desconectados
 
 **Encontrado:** 13/08/2026, reportado directo por el usuario en producción — al marcar

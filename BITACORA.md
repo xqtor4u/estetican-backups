@@ -1,5 +1,72 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Cierre de sesión: 27/08/2026 — emergencia: 500 al guardar en USEEDI un usuario vinculado a un operador (`SYNC-002` / `NT-062`)
+
+### ✅ Logros y Cambios
+
+Sesión que arrancó del lado de Zeus-Estetican (una mejora de Google Calendar en el sandbox `tst`)
+y derivó a una **emergencia real de producción** cuando Tomas reportó un 500 en USEEDI al guardar
+un usuario administrador.
+
+**Emergencia — 500 en `PUT /usuarios/{id}`.** `UserController::syncOperatorRecord()` armaba el
+array `$data` con `'operator_role_id' => $user->operator_role_id` y lo escribía con
+`Operator::where('id', ...)->update($data)`. La columna `operators.operator_role_id` fue eliminada
+por la migración `2026_07_31_000000_consolidate_operator_role_fields` (el rol del operador vive
+ahora en `operator_role_assignments`). El `->update()` del query builder **no filtra por
+`$fillable`**, así que mandaba la columna inexistente a SQL → `SQLSTATE[42S22] Unknown column
+'operator_role_id'` → 500, y el guardado del usuario fallaba en silencio. Solo se disparaba con
+usuarios **ya vinculados** a un operador (`operator_id` puesto) — el alta de operador nuevo usa
+`Operator::create()`, que sí descarta la clave por mass-assignment. Latente desde el 31/07/2026.
+
+La correlación que reportó Tomas ("al cambiar los permisos del CRUD") era casual:
+`syncOperatorRecord()` corre en todo guardado, antes de `syncPermissions()`.
+
+**Fix:** eliminada esa línea del `$data` (con comentario del porqué). `users.operator_role_id`
+sigue existiendo y el selector "Tipo de Operador" de USEEDI la guarda bien — lo único que sobraba
+era propagarla al registro `operators`.
+
+### 📁 Archivos tocados
+- `apps/backoffice-laravel/app/Http/Controllers/UserController.php` — `syncOperatorRecord()`, una línea menos.
+- `apps/backoffice-laravel/tests/Feature/UserOperatorSyncTest.php` — **nuevo**, regresión (2 casos): `operators` ya no tiene la columna; `PUT users.update` de un usuario operador-vinculado redirige (no 500), persiste `users.operator_role_id` y actualiza el registro de operador.
+- `docs/tecnico/PENDIENTES_SINCRONIZAR_TENANTS.md` — `SYNC-002` en Aplicados (ya portado a `tst`, allá es `SYNC-048`).
+- `docs/tecnico/NOTAS_TECNICAS.md` — `NT-062` (causa raíz: `EloquentBuilder::update($array)` no respeta `$fillable`, a diferencia de `create()`/`fill()`).
+
+### ✅ Verificación
+Pint limpio; 42 tests `--filter=User` en verde (incluidos los 2 nuevos). Sin migración, sin rutas
+nuevas (no aplica la auditoría de seguridad #3 de `CLAUDE.md`).
+
+### 🛑 Pendientes activos
+- **Sin commitear:** el fix + test + los 2 docs de hoy. Más lo ya pendiente de antes (esta
+  `BITACORA.md` y `BACKLOG.md` con la entrada BL-028 del 25/08 sin commitear; y los 3 commits de
+  WhatsApp del 20-21/08 — `1c56e70`/`10e1581`/`1842b52` — que sí están pusheados pero nunca
+  tuvieron entrada de bitácora).
+- El bug se arregló **primero en `tst`** (Zeus-Estetican, `SYNC-048`); acá se aplicó como emergencia.
+- Deuda de tests preexistente sin auditar — sigue igual.
+
+---
+
+## 📅 Cierre de sesión: 25/08/2026 — BL-028 re-verificado: regla ufw huérfana de SSH corregida
+
+### ✅ Logros y Cambios
+
+Re-verificación puntual de BL-028 (pedida desde una sesión de Zeus-Estetican, que comparte el mismo
+servidor físico). `ufw status numbered` confirmó que las 9 reglas seguían iguales a la verificación
+del 31/07/2026, con un hallazgo nuevo: la regla de SSH puntual para `192.168.90.90` era la única sin
+atar a interfaz (`22/tcp ALLOW IN 192.168.90.90`, sin `on enP4p65s0`) — todas las demás sí especificaban
+`on enP4p65s0` (LAN). Confirmado con el usuario que esa IP llega por la LAN vía una VLAN, así que
+corregirla no cortaba el acceso. Corregida:
+
+```
+sudo ufw delete <n>
+sudo ufw allow in on enP4p65s0 from 192.168.90.90 to any port 22 proto tcp
+```
+
+Verificado con `ufw status numbered` post-cambio: la regla quedó `22/tcp on enP4p65s0 ALLOW IN
+192.168.90.90`, igual que el resto — ya no hay ninguna regla sin restricción de interfaz. No se tocó
+código, solo configuración de firewall del servidor. Ver `BACKLOG.md` BL-028.
+
+---
+
 ## 📅 Cierre de sesión: 20/08/2026 — `SYNC-034` portado desde Zeus-Estetican: teléfonos con tipo/orden/extensión + código de país configurable (app y móvil)
 
 ### ✅ Logros y Cambios

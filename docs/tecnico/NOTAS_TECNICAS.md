@@ -1573,3 +1573,45 @@ htmlFor>` — el label-abre-picker es un comportamiento que algunos navegadores 
 opcional/inconsistente, no una garantía de la especificación HTML. Antes de escribir este patrón
 de nuevo, buscar `showPicker` en el proyecto — ya existe un ejemplo resuelto con el porqué
 documentado en el propio código.
+
+---
+
+## NT-062 — 500 al guardar un usuario vinculado a un operador: `syncOperatorRecord()` seguía escribiendo `operators.operator_role_id`, columna eliminada en la consolidación de roles
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 27/08/2026 |
+| **Severidad** | P1 — 500 en `PUT /usuarios/{id}` (USEEDI) para cualquier usuario ya vinculado a un operador; el guardado falla en silencio. Latente desde la migración `2026_07_31_000000_consolidate_operator_role_fields` |
+| **Componente** | `apps/backoffice-laravel/app/Http/Controllers/UserController.php` — `syncOperatorRecord()` |
+
+**Síntoma:** el usuario reportó "al cambiar los permisos del CRUD (que llegan vacíos) de un
+admin, el servidor marca 500 al aplicar". La correlación con los permisos era **casual** —
+`syncOperatorRecord()` corre en todo guardado, antes de `syncPermissions()`, así que el 500
+salta se toque o no la matriz.
+
+**Causa raíz:** `syncOperatorRecord()` arma un array `$data` con
+`'operator_role_id' => $user->operator_role_id` y lo escribe con
+`Operator::where('id', $user->operator_id)->update($data)`. La migración de consolidación de
+roles (31/07/2026) **eliminó `operators.operator_role_id`** — el rol del operador vive ahora en
+`operator_role_assignments` (se maneja desde la pantalla de operador). El `->update()` del query
+builder **no filtra por `$fillable`**, así que manda la columna inexistente a SQL →
+`SQLSTATE[42S22]: Unknown column 'operator_role_id' in 'field list'` → 500.
+
+**Por qué estuvo latente casi un mes:** el otro camino de la misma función,
+`Operator::create($data)` (operador *nuevo*, sin `operator_id`), sí es mass-assignment de
+Eloquent y descarta la clave desconocida en silencio — no truena. Solo el camino `->update()`
+(usuario **ya vinculado** a un operador) llega a SQL con la columna. En producción casi nadie
+edita usuarios-operador ya existentes desde USEEDI (los datos operativos se tocan desde la
+pantalla de operador), así que nunca se disparó hasta que alguien lo hizo.
+
+**Fix:** quitar la línea `'operator_role_id' => $user->operator_role_id,` del array `$data`.
+`users.operator_role_id` sigue existiendo y el selector "Tipo de Operador" de USEEDI la guarda
+bien vía `fill($validated)` — lo único que sobraba era propagarla al registro `operators`.
+Regresión en `tests/Feature/UserOperatorSyncTest.php`. Portado también a `tenants/tst` de
+Zeus-Estetican (`SYNC-048` / este repo `SYNC-002` en `PENDIENTES_SINCRONIZAR_TENANTS.md`).
+
+**Lección:** `EloquentBuilder::update($array)` **no** respeta `$fillable`/`$guarded` — a
+diferencia de `create()`/`fill()`. Un array construido a mano que se pasa a `->update()` manda
+todas sus claves a SQL tal cual. Cuando una migración elimina una columna, hay que buscar
+también los `->update([...])` / `->insert([...])` con arrays literales que todavía la nombren,
+no solo los modelos y los formularios.

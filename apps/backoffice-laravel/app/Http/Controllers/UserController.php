@@ -288,7 +288,11 @@ class UserController extends Controller
             'first_name' => $user->first_name ?: $user->name,
             'apellido_paterno' => $user->apellido_paterno,
             'apellido_materno' => $user->apellido_materno,
-            'operator_role_id' => $user->operator_role_id,
+            // El rol del operador dejó de vivir en `operators.operator_role_id` desde la
+            // migración 2026_07_31_000000_consolidate_operator_role_fields (ahora está en
+            // `operator_role_assignments`, se maneja desde la pantalla de operador). Escribir
+            // esa columna aquí tiraba un 500 (columna inexistente) al guardar un usuario ya
+            // vinculado a un operador. `users.operator_role_id` sigue guardándose aparte.
             'ine_number' => $user->ine_number,
             'imss_number' => $user->imss_number,
             'address' => $user->address,
