@@ -161,6 +161,14 @@
                                 <option value="all" {{ old('google_calendar_visibility', $user->google_calendar_visibility) === 'all' ? 'selected' : '' }}>Todos los calendarios de operadores</option>
                             </select>
                         </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input type="hidden" name="google_calendar_notify_email" value="0">
+                                <input class="form-check-input" type="checkbox" id="google_calendar_notify_email" name="google_calendar_notify_email" value="1" @checked(old('google_calendar_notify_email', $user->google_calendar_notify_email))>
+                                <label class="form-check-label" for="google_calendar_notify_email">Avisar por correo cuando se actualice el calendario</label>
+                            </div>
+                            <p class="text-muted small mb-0">Un correo por cada sincronización que haya tenido cambios en las citas que este usuario ve (nuevas, movidas o canceladas). Se envía al email personal de Google; si no hay, al email de acceso.</p>
+                        </div>
                     </div>
                 </div>
             </div>

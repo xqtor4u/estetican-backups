@@ -3,6 +3,7 @@
 namespace Tests\Feature\GoogleCalendar;
 
 use App\Domain\GoogleCalendar\Contracts\GoogleCalendarSyncServiceInterface;
+use App\Mail\GoogleCalendarUpdatedMail;
 use App\Models\Client;
 use App\Models\Operator;
 use App\Models\Pet;
@@ -10,6 +11,7 @@ use App\Models\SpaBooking;
 use App\Models\User;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class SincronizarGoogleCalendarCommandTest extends TestCase
@@ -174,5 +176,124 @@ class SincronizarGoogleCalendarCommandTest extends TestCase
         });
 
         $this->artisan('calendario:sincronizar-google')->assertSuccessful();
+    }
+
+    private function mockServicePassthrough(): void
+    {
+        $this->mock(GoogleCalendarSyncServiceInterface::class, function ($mock) {
+            $mock->shouldReceive('ensureCalendarForOperator')->andReturn('cal-1');
+            $mock->shouldReceive('shareCalendarWithEmail')->andReturn(true);
+            $mock->shouldReceive('upsertBookingEvent');
+            $mock->shouldReceive('deleteBookingEvent');
+        });
+    }
+
+    public function test_notifies_watcher_with_all_visibility_when_a_booking_changed(): void
+    {
+        Mail::fake();
+        $this->enableSync();
+        $operator = $this->sharedOperator();
+        $this->bookingFor($operator); // google_synced_at nulo => cambio "nueva"
+
+        $this->viewer([
+            'google_personal_email' => 'jefe@example.com',
+            'google_calendar_visibility' => 'all',
+            'google_calendar_notify_email' => true,
+        ]);
+
+        $this->mockServicePassthrough();
+
+        $this->artisan('calendario:sincronizar-google')->assertSuccessful();
+
+        Mail::assertSent(GoogleCalendarUpdatedMail::class, function ($mail) {
+            return $mail->hasTo('jefe@example.com')
+                && count($mail->changes) === 1
+                && $mail->changes[0]['type'] === 'nueva'
+                && $mail->changes[0]['pet'] === 'Luka';
+        });
+    }
+
+    public function test_watcher_notification_falls_back_to_login_email_when_no_personal_email(): void
+    {
+        Mail::fake();
+        $this->enableSync();
+        $operator = $this->sharedOperator();
+        $this->bookingFor($operator);
+
+        $this->viewer([
+            'email' => 'login-only@example.com',
+            'google_calendar_visibility' => 'all',
+            'google_calendar_notify_email' => true,
+        ]);
+
+        $this->mockServicePassthrough();
+
+        $this->artisan('calendario:sincronizar-google')->assertSuccessful();
+
+        Mail::assertSent(GoogleCalendarUpdatedMail::class, fn ($mail) => $mail->hasTo('login-only@example.com'));
+    }
+
+    public function test_personal_visibility_watcher_not_notified_for_other_operators_changes(): void
+    {
+        Mail::fake();
+        $this->enableSync();
+        $operatorA = $this->sharedOperator();
+        $operatorB = $this->sharedOperator();
+        $this->bookingFor($operatorB); // el cambio es de otro operador
+
+        $this->viewer([
+            'operator_id' => $operatorA->id,
+            'google_personal_email' => 'op-a@example.com',
+            'google_calendar_visibility' => 'personal',
+            'google_calendar_notify_email' => true,
+        ]);
+
+        $this->mockServicePassthrough();
+
+        $this->artisan('calendario:sincronizar-google')->assertSuccessful();
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_no_watcher_notification_when_flag_is_off(): void
+    {
+        Mail::fake();
+        $this->enableSync();
+        $operator = $this->sharedOperator();
+        $this->bookingFor($operator);
+
+        $this->viewer([
+            'google_personal_email' => 'jefe@example.com',
+            'google_calendar_visibility' => 'all',
+            'google_calendar_notify_email' => false,
+        ]);
+
+        $this->mockServicePassthrough();
+
+        $this->artisan('calendario:sincronizar-google')->assertSuccessful();
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_dry_run_does_not_notify_watchers(): void
+    {
+        Mail::fake();
+        $this->enableSync();
+        $operator = $this->sharedOperator();
+        $this->bookingFor($operator);
+
+        $this->viewer([
+            'google_personal_email' => 'jefe@example.com',
+            'google_calendar_visibility' => 'all',
+            'google_calendar_notify_email' => true,
+        ]);
+
+        $this->mock(GoogleCalendarSyncServiceInterface::class, function ($mock) {
+            $mock->shouldNotReceive('upsertBookingEvent');
+        });
+
+        $this->artisan('calendario:sincronizar-google --dry-run')->assertSuccessful();
+
+        Mail::assertNothingSent();
     }
 }

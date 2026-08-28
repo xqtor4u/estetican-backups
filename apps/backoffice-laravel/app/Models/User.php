@@ -43,6 +43,7 @@ use Spatie\Permission\Traits\HasRoles;
     'screen_lock_idle_minutes',
     'google_personal_email',
     'google_calendar_visibility',
+    'google_calendar_notify_email',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -76,6 +77,7 @@ class User extends Authenticatable
             'is_operator' => 'boolean',
             'hire_date' => 'date',
             'screen_lock_idle_minutes' => 'integer',
+            'google_calendar_notify_email' => 'boolean',
         ];
     }
 

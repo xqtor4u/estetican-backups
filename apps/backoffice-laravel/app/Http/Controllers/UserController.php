@@ -228,6 +228,7 @@ class UserController extends Controller
             'profile_photo' => 'nullable|image|max:5120',
             'google_personal_email' => 'nullable|email|max:255',
             'google_calendar_visibility' => ['nullable', Rule::in(['personal', 'all'])],
+            'google_calendar_notify_email' => 'nullable|boolean',
         ], [
             'required' => 'El campo :attribute es obligatorio.',
             'email' => 'El :attribute debe ser un correo válido.',

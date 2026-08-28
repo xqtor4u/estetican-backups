@@ -3,11 +3,13 @@
 namespace App\Console\Commands;
 
 use App\Domain\GoogleCalendar\Contracts\GoogleCalendarSyncServiceInterface;
+use App\Mail\GoogleCalendarUpdatedMail;
 use App\Models\Operator;
 use App\Models\SpaBooking;
 use App\Models\User;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Mail;
 
 class SincronizarGoogleCalendarCommand extends Command
 {
@@ -64,15 +66,22 @@ class SincronizarGoogleCalendarCommand extends Command
                 $q->whereNull('google_synced_at')
                     ->orWhereColumn('updated_at', '>', 'google_synced_at');
             })
+            ->with(['pet', 'operator', 'services.service'])
             ->get();
 
         $toDelete = SpaBooking::whereIn('operator_id', $operatorIds)
             ->whereIn('status', ['cancelled', 'no_show'])
             ->whereNotNull('google_event_id')
+            ->with(['pet', 'operator', 'services.service'])
             ->get();
 
         $synced = 0;
         $deleted = 0;
+
+        // operator_id => [ ['type' => nueva|actualizada|cancelada, 'booking' => SpaBooking], ... ]
+        // Alimenta el aviso por correo (una vez por corrida con cambios) de los usuarios
+        // con google_calendar_notify_email activado.
+        $changesByOperator = [];
 
         foreach ($toUpsert as $booking) {
             if ($isDry) {
@@ -82,7 +91,12 @@ class SincronizarGoogleCalendarCommand extends Command
                 continue;
             }
 
+            $wasNew = $booking->google_synced_at === null;
             $this->sync->upsertBookingEvent($booking);
+            $changesByOperator[$booking->operator_id][] = [
+                'type' => $wasNew ? 'nueva' : 'actualizada',
+                'booking' => $booking,
+            ];
             $synced++;
         }
 
@@ -95,7 +109,12 @@ class SincronizarGoogleCalendarCommand extends Command
             }
 
             $this->sync->deleteBookingEvent($booking);
+            $changesByOperator[$booking->operator_id][] = ['type' => 'cancelada', 'booking' => $booking];
             $deleted++;
+        }
+
+        if (! $isDry && $changesByOperator !== []) {
+            $this->notifyWatchers($changesByOperator);
         }
 
         $prefix = $isDry ? '[dry-run] ' : '';
@@ -138,5 +157,79 @@ class SincronizarGoogleCalendarCommand extends Command
                 $this->sync->shareCalendarWithEmail($calendarId, $viewer->google_personal_email);
             }
         }
+    }
+
+    /**
+     * Manda un correo "tu calendario se actualizó" a los usuarios que activaron
+     * `google_calendar_notify_email`, con los cambios que a ellos les corresponden:
+     * visibilidad 'all' ve todos; 'personal' solo los de su operador vinculado. Mismo
+     * criterio de alcance que syncViewers(). Se manda al email personal de Google del
+     * usuario, o al de acceso si no cargó uno.
+     *
+     * @param  array<int, array<int, array{type: string, booking: SpaBooking}>>  $changesByOperator
+     */
+    private function notifyWatchers(array $changesByOperator): void
+    {
+        $recipients = User::where('google_calendar_notify_email', true)
+            ->with('operator')
+            ->get();
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        // ApplySystemSettings (que empuja el SMTP configurado en SystemSettings a config())
+        // solo corre en requests HTTP — este comando vive en el cron, así que hay que
+        // aplicar esos overrides a mano antes de enviar.
+        $overrides = $this->settings->configOverrides();
+        if ($overrides !== []) {
+            config($overrides);
+        }
+
+        $businessName = $this->settings->all()['brand_business_name'] ?? 'EstetiCAN';
+        $appUrl = (string) config('app.url');
+
+        foreach ($recipients as $user) {
+            $email = $user->google_personal_email ?: $user->email;
+
+            if (! $email) {
+                continue;
+            }
+
+            $relevant = $user->google_calendar_visibility === 'all'
+                ? collect($changesByOperator)->flatten(1)
+                : collect($changesByOperator[$user->operator?->id] ?? []);
+
+            if ($relevant->isEmpty()) {
+                continue;
+            }
+
+            $rows = $relevant->map(fn ($c) => $this->summarizeChange($c['type'], $c['booking']))->values()->all();
+
+            Mail::to($email)->send(new GoogleCalendarUpdatedMail(
+                recipientName: $user->first_name ?: $user->name,
+                changes: $rows,
+                businessName: $businessName,
+                appUrl: $appUrl,
+            ));
+
+            $this->line("aviso de cambios de calendario enviado a {$email} (".count($rows).' cambios)');
+        }
+    }
+
+    /**
+     * @return array{type: string, pet: string, services: string, operator: string, when: string}
+     */
+    private function summarizeChange(string $type, SpaBooking $booking): array
+    {
+        $services = $booking->services->pluck('service.name')->filter()->implode(', ');
+
+        return [
+            'type' => $type,
+            'pet' => $booking->pet->name ?? 'Mascota',
+            'services' => $services !== '' ? $services : '—',
+            'operator' => $booking->operator?->full_name ?? '—',
+            'when' => $booking->scheduled_at?->format('d/m/Y H:i') ?? '—',
+        ];
     }
 }
