@@ -197,9 +197,12 @@ re-verificado en vivo con otro throwaway (`var OPERATORS = []`, sin nombres de c
   alguna clínica detrás de un NAT reporta bloqueos de login, es esto (subir el tope por IP).
 - **Verificación por comparación de suites (metodología nueva de esta sesión):** baseline en un commit
   vs. el cambio, ambos runs **seriales y aislados**, `comm -23` de los sets de fallos. Cero regresiones
-  en 3a, 3b y 4. La suite de producción arrastra **~37 fallos preexistentes** (`Operator*`,
-  `ServiceOperatorRoleLink`, `PetDependenciesCrud`, `PetCatalogRootViews`, `Resource*`, `SystemSettings*`,
-  toggles de módulos) — sin auditar, sigue pendiente una sesión dedicada.
+  en 3a, 3b, 4 y el fix de operadores. **Run final de cierre (HEAD `637bbca`): 37 fallidos / 672 pasan
+  (1937 aserciones)** vs. baseline `5beadec` **37 / 600** — mismos 36 grupos de fallo, `comm -23` vacío
+  en ambos sentidos, **+72 tests nuevos**. La suite de producción arrastra esos **37 fallos preexistentes**
+  (`Operator*`, `ServiceOperatorRoleLink`, `PetDependenciesCrud`, `PetCatalogRootViews`, `Resource*`,
+  `SystemSettings*`, toggles de módulos, `ClientAddressHarmonization`) — sin auditar, sigue pendiente una
+  sesión dedicada.
 - **NUNCA correr dos `artisan test` completos a la vez contra la BD `testing`** — `RefreshDatabase`
   re-migra por clase, se pisan y dan `QueryException` en masa (mordió en Fase 3b, ver recuadro arriba).
 - **Hilos sueltos sin portar** (menores, de otros linajes, no del arco de agenda): refactor de imports
