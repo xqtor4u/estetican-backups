@@ -2,6 +2,33 @@
 
 ## 📅 Sesión: 28/08/2026 — sincronización con `tst`: Fase 0 + Fase 2 (6 ports) + Fase 3a + 3b + Fase 4 — arco SYNC completo · + manual de pruebas `tstmov` y arreglo de 3 hallazgos (H1/H5/H7)
 
+### ▶️ Próxima sesión — empezar por aquí
+
+Estado al cerrar: **`main` = `origin/main` en `9b55b9d`, working tree limpio.** Todo el arco
+`SYNC-024..054` + los arreglos H1/H5/H7 están en producción y verificados por API/tests. Lo que
+falta **no es código** — es verificación humana y limpieza:
+
+1. **Fase 1 — pasada visual de Tomas en `tstmov`**, flujo a flujo, con
+   `zeus-estetican/docs/tecnico/MANUAL_PRUEBAS_TSTMOV.html` (abrir desde `file://`). Foco en lo
+   que la API no puede probar: acordeón que expande, chips que cambian de color, checkbox que
+   tacha, diálogos que abren, PDF de cierres. Login de sandbox: `chatgpt` (admin) y `prueba_restr`
+   (restringido, ya creado en `tst`). Al terminar `tstmov`, hacer el manual equivalente para
+   `tstapp`.
+2. **Auditar los 37 fallos preexistentes de la suite** (`Operator*`, `ServiceOperatorRoleLink`,
+   `PetDependenciesCrud`, `PetCatalogRootViews`, `Resource*`, `SystemSettings*`, toggles de
+   módulos, `ClientAddressHarmonization`). Vienen de antes de este arco (baseline `5beadec` ya los
+   tenía); sesión dedicada, no bloquean nada.
+3. **Cron `calendario:sincronizar-google` en producción** — `laravel.log` tiene
+   `GoogleCalendar: fallo al compartir el calendario` para `martinezgtomas@gmail.com` cada 5 min.
+   Es **previo** a este trabajo (SYNC-047 no tocó `shareCalendarWithEmail`). Verificar que ese
+   correo sea válido/aceptado.
+4. **Zeus (`/opt/www/zeus-estetican`, `master` local sin remoto):** otra sesión dejó sin
+   commitear `BITACORA.md` (iteraciones de `SYNC-051..054` en la entrada del 27/08) y
+   `docs/tecnico/MANUAL_PRUEBAS_TSTAPP.md`. No los toqué. Que quien los escribió los cierre.
+5. **`SYNC-003` (en `PENDIENTES_SINCRONIZAR_TENANTS.md`, "Pendientes"):** el fix del directorio de
+   operadores (`3cb9f00`) falta portar a `tenants/tst` — el `SpaBookingController.php` de `tst`
+   tiene el mismo `$operators` sin gatear. Portar el gate + el test cuando se toque ese archivo.
+
 ### ✅ Logros y Cambios
 
 Sesión de **porteo deliberado** desde el sandbox `tst` de Zeus-Estetican (la promoción a producción
