@@ -66,4 +66,33 @@ class LoginThrottleTest extends TestCase
         $this->post('/login', ['email' => 'dos', 'password' => 'clave-dos'])
             ->assertRedirect(route('home'));
     }
+
+    /** El login de la app móvil (`POST /api/login`, campo `username`) también está limitado (H7). */
+    public function test_the_api_login_is_also_throttled(): void
+    {
+        $this->user('operador_movil', 'clave-movil');
+
+        for ($i = 1; $i <= 5; $i++) {
+            $this->postJson('/api/login', ['username' => 'operador_movil', 'password' => 'mal'])
+                ->assertStatus(401);
+        }
+
+        $this->postJson('/api/login', ['username' => 'operador_movil', 'password' => 'mal'])
+            ->assertStatus(429);
+    }
+
+    public function test_api_login_per_credential_bucket_is_separate_from_web(): void
+    {
+        $this->user('movil_a', 'x');
+        $this->user('movil_b', 'clave-b');
+
+        for ($i = 1; $i <= 5; $i++) {
+            $this->postJson('/api/login', ['username' => 'movil_a', 'password' => 'mal'])->assertStatus(401);
+        }
+
+        // `movil_b` no fue castigado por los fallos de `movil_a`.
+        $this->postJson('/api/login', ['username' => 'movil_b', 'password' => 'clave-b'])
+            ->assertOk()
+            ->assertJsonStructure(['token']);
+    }
 }

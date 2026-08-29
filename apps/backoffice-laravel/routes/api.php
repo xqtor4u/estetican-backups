@@ -26,7 +26,7 @@ use App\Models\Pet;
 use App\Models\SpaBooking;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 // Público — widget de chat con IA del sitio WordPress, sin conexión a CRM/clientes.
 // El CORS de estas rutas se maneja en middleware global (HandleAssistantCors,

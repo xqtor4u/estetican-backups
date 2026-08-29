@@ -95,7 +95,10 @@ class AppServiceProvider extends ServiceProvider
         // muchos usuarios desde una IP sin castigar a una clínica entera detrás de
         // un solo NAT en una mañana con dedos torpes.
         RateLimiter::for('login', function (Request $request) {
-            $credential = Str::lower((string) $request->input('email'));
+            // Web (`POST /login`) manda `email` (acepta correo o nombre); la API móvil
+            // (`POST /api/login`) manda `username`. Se toma el que venga para que el
+            // bucket por credencial funcione en ambas puertas.
+            $credential = Str::lower((string) ($request->input('email') ?: $request->input('username')));
 
             return [
                 Limit::perMinute(5)->by($credential.'|'.$request->ip()),
