@@ -161,6 +161,31 @@ Bundle móvil `index-CySTzaRy.js` servido por `estetican_mob` (bind-mount, sin a
 `martinezgtomas@gmail.com` (cada 5 min). Es **previo** a este trabajo (SYNC-047 solo agregó el flag de
 aviso, no tocó `shareCalendarWithEmail`). Vale revisar que ese email sea válido/aceptado.
 
+### 🧪 Prueba en producción con un usuario restringido real (28/08/2026)
+
+Se creó un usuario throwaway vinculado al operador **real** #1 (Jose Mendez Pérez, 5 citas), con **solo**
+`ver agenda`, y se probó contra `estetican_app` en vivo (API con Bearer token + sesión web con login
+real). Borrado al terminar; operador #1 y sus citas intactos.
+
+**Resultado — `SYNC-030` funciona correcto en producción real:**
+- API: `/api/me` con los 4 flags en `false`; `/api/clients|pets|operators` → **403**; `/api/bookings/{propia}`
+  → 200, `/api/bookings/{ajena}` → **404** (no 403); `payments`/`process-notes`/`PATCH services` de cita
+  ajena → 404; `/api/agenda?view=month` (agosto) → **1 cita** de las **30** reales del mes; `visibleTo()`
+  directo = exactamente las 5 de op#1.
+- Web (sesión): `/dashboard` → 403 (sin `ver dashboard`), `/agenda` → 200 sin error, `/pets|clients|operators`
+  → 403, `/agenda/{propia}` → 200, `/agenda/{ajena}` → **404**; el HTML de `/agenda` **no** tiene los
+  botones "Mascota"/"Cliente"/"Perfil de mascota" (los `@can` de SYNC-030).
+
+**Un hallazgo — fix aplicado (commit `3cb9f00`):** el HTML de `/agenda` embebía en su JS
+`var OPERATORS = [{id,name}...]` con **todos** los operadores activos — lo agregó `SYNC-052` (pop-up de
+reasignar operador) sin scopear. Un restringido veía los nombres de sus compañeros en el fuente, aunque
+`/api/operators` sí lo bloquea. Severidad baja (solo id+name, el plan de SYNC-030 marca eso como no
+sensible) pero inconsistente. Ahora `SpaBookingController::index()` solo pasa `$operators` si
+`is_super_admin || can('agenda.ver_todas')`, si no `collect()` vacía. Test nuevo en
+`SpaBookingControllerWebScopingTest` (el restringido ve `var OPERATORS = []`; con `agenda.ver_todas` sí
+recibe el directorio). 7 tests del archivo en verde. Deploy: `optimize:clear` + vistas borradas;
+re-verificado en vivo con otro throwaway (`var OPERATORS = []`, sin nombres de colegas).
+
 ### 🛑 Pendientes activos
 - **Fase 1 nunca se hizo:** ningún ítem de Fase 2/3a/3b/4 tiene sign-off visual de Tomas en `tst`/`tstmov`.
   Se portó confiando en los tests + el diff + smoke de API + comparación de suites baseline-vs-cambio.
