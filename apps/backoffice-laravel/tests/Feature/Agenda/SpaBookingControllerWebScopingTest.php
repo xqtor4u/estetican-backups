@@ -130,4 +130,25 @@ class SpaBookingControllerWebScopingTest extends TestCase
         $response->assertOk();
         $response->assertDontSee('Perfil de mascota');
     }
+
+    public function test_restricted_operator_index_does_not_embed_the_full_operator_directory(): void
+    {
+        $mine = $this->operator('Mine Operator');
+        $this->booking($mine);
+        $other = $this->operator('Otro Colega Zzz');
+
+        $restricted = $this->createOperatorUser(['ver agenda'], $mine);
+        $this->actingAs($restricted)
+            ->get(route('agenda.index', ['date_scope' => 'custom', 'date' => '2026-09-01']))
+            ->assertOk()
+            ->assertDontSee('Otro Colega Zzz')      // el pop-up de reasignar operador no le llega
+            ->assertSee('var OPERATORS = []', false);
+
+        // Con `agenda.ver_todas` sí recibe el directorio (para poder reasignar).
+        $full = $this->createOperatorUser(['ver agenda', 'agenda.ver_todas'], $mine);
+        $this->actingAs($full)
+            ->get(route('agenda.index', ['date_scope' => 'custom', 'date' => '2026-09-01']))
+            ->assertOk()
+            ->assertSee('Otro Colega Zzz');
+    }
 }

@@ -176,8 +176,12 @@ class SpaBookingController extends Controller
             $this->unavailabilityOperatorScope($request->user())
         );
 
-        // Para el pop-up de acciones por servicio (reasignar operador).
-        $operators = Operator::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        // Para el pop-up de acciones por servicio (reasignar operador). Solo para quien puede
+        // ver la agenda de todos — un operador restringido no reasigna citas (la acción exige
+        // `editar agenda`) y no debe recibir el directorio de compañeros embebido en la página.
+        $operators = ($request->user()->is_super_admin || $request->user()->can('agenda.ver_todas'))
+            ? Operator::where('is_active', true)->orderBy('name')->get(['id', 'name'])
+            : collect();
 
         return view('agenda.index', compact(
             'page', 'bookings', 'timelineBookings', 'statuses', 'statusTouched', 'dateScope', 'calView',
