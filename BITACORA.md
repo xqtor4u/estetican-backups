@@ -1,6 +1,6 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
-## 📅 Sesión: 28/08/2026 — sincronización con `tst`: Fase 0 + Fase 2 (6 ports) + Fase 3a + 3b + Fase 4 — arco SYNC completo
+## 📅 Sesión: 28/08/2026 — sincronización con `tst`: Fase 0 + Fase 2 (6 ports) + Fase 3a + 3b + Fase 4 — arco SYNC completo · + manual de pruebas `tstmov` y arreglo de 3 hallazgos (H1/H5/H7)
 
 ### ✅ Logros y Cambios
 
@@ -186,15 +186,73 @@ sensible) pero inconsistente. Ahora `SpaBookingController::index()` solo pasa `$
 recibe el directorio). 7 tests del archivo en verde. Deploy: `optimize:clear` + vistas borradas;
 re-verificado en vivo con otro throwaway (`var OPERATORS = []`, sin nombres de colegas).
 
+### 📋 Manual de pruebas para `tstmov` + análisis del reporte de vuelta (28/08/2026)
+
+Tomas pidió un **manual de pruebas profundo** para hacer la pasada visual pendiente (Fase 1) sobre
+`tstmov` — navegación, validación y operabilidad, flujo a flujo. Se escribió del lado de Zeus (es
+material de sandbox, no de producción):
+
+- `zeus-estetican/docs/tecnico/MANUAL_PRUEBAS_TSTMOV.md` — 13 secciones (§0–§13), ~90 pruebas
+  numeradas; cubre regresión, operador restringido (`SYNC-030`), acciones por línea, cobro en 2 fases,
+  caja/cierres, peso de mascota, trabajos, íconos, promover/revertir un restringido.
+- `zeus-estetican/docs/tecnico/MANUAL_PRUEBAS_TSTMOV.html` — checklist interactivo autocontenido
+  (localStorage, exportar notas, CSS de impresión). No se publicó como Artifact — el clasificador lo
+  bloquea por traer credenciales de sandbox; se dejó como archivo del repo (abre desde `file://`).
+- Admin de sandbox: `chatgpt` (documentado, como en `MANUAL_PRUEBAS_TSTAPP.md`). Usuario restringido
+  `prueba_restr` **pre-creado directo en la BD de `tst`** (id 21, solo `ver agenda`, vinculado al
+  operador #2) para que el tester entre **directo en `tstmov`** sin pasar por `tstapp`.
+- `zeus-estetican/docs/tecnico/260828 ANALISIS_Y_PLAN_TSTMOV.md` — análisis de los dos reportes de
+  vuelta del tester (`260828 REPORTE_PRUEBAS_TSTMOV*.md`) + plan de arreglo.
+
+**Lectura del reporte:** el `_FINAL` declara "✅ SISTEMA FUNCIONAL EN TODAS LAS ÁREAS" — **sobredimensionado**.
+Verificado de verdad (confianza alta): §2 regresión, §3.1–3.5 operador restringido, íconos (`SYNC-041`),
+diálogo de cobro en 2 fases (`SYNC-054`), cobro como renglón en caja (`SYNC-032`), iniciar/terminar
+**una** línea. El resto marcado ✅ eran "la interfaz está presente" o datos pre-sembrados. Se abrieron
+7 hallazgos (H1–H7).
+
+**Hallazgos y resolución:**
+
+| # | Qué | Resolución |
+|---|---|---|
+| **H1** | El ítem "Artículos" del menú móvil no estaba gateado para un restringido (botón muerto: abre y `/api/items` da 403) | **Arreglado — commit `5fe1168`** (prod) + portado a `tst`. `User::toApiArray()` +`can_view_articulos` (`ver catalogo_articulos` \|\| super-admin); `AuthContext.tsx`/`App.tsx` +flag y `requiresFlag: 'can_view_articulos'` en el ítem. 2 tests nuevos en `RestrictedOperatorClientPetAccessTest`. |
+| **H2** | Una cita con 2 servicios "quedó con 1" | **Descartado (guion R1, API).** Citas #99/#100 creadas por API → 2 líneas cada una; imprecisión del tester. |
+| **H3** | El `<select>` de operador por línea no filtró por calificación de rol | **Descartado (guion R1).** `R1-C` → **422** al asignar un operador no calificado; la guarda `validateSequentialAssignments` funciona. |
+| **H4** | §4.1 "NO arranca vacía" (cita nueva) | **Descartado (código).** `MobCitaNueva.tsx` `lines = []` y el `useEffect` de preselección fue eliminado por `SYNC-043`; el tester comentó sobre el selector de fecha (que sí debe estar siempre). |
+| **H5** | "chatgpt OpenAI" aparece como operador asignable | **Arreglado en `tst` (dato).** Operador #6 → `is_active=false` (0 citas, 0 líneas). `/api/operators` de `tstmov` ahora devuelve solo los 2 reales. Solo `tst`, no versionado. |
+| **H6** | §7.2 ubicación del folio de OT en "Trabajos" | **Descartado (código).** `MobPetJobs.tsx` pone el chip de estado siempre visible y el folio (mono) debajo; la API separa `status` de `order_folio`. |
+| **H7** | El login **de la app móvil** (`POST /api/login`, campo `username`) **no** tenía rate limit — el `throttle:login` solo estaba en `POST /login` web, y el limiter `login` se llaveaba solo por `email` | **Arreglado — commit `e95d7c0`** (prod) + portado a `tst`. `->middleware('throttle:login')` en `POST /api/login` (`routes/api.php`); el limiter lee `email ?: username`. 2 tests nuevos en `LoginThrottleTest`. Verificado en `tstmov`: 6º intento fallido → **429**. Ver **NT-063**. |
+
+**Guion R1 (API) — H2/H3/H4 descartados.** Citas de prueba #99/#100 creadas y borradas; `R1-C` → 422; sin residuos.
+
+**Bloques B1–B8 (verificación API/código sobre `tstmov` real):**
+- **B1** — `PATCH /api/bookings/{b}/services/{line}`: iniciar una línea deja las otras `pending` y promueve
+  `scheduled → work_order`; "No se realizó"/"Cancelar" bajan el total ($750→$300); "Reactivar" lo sube
+  ($300→$750); "Completar" cierra la línea. (Ojo: la ruta liga `booking_service_id`, no el `service_id`.)
+- **B3** — `POST /api/bookings/{b}/payments` con `payment_method_code: "EFECT"` (no `"efectivo"`): cobro
+  directo sin presupuesto registra el pago, `paid`, "Efectivo".
+- **B4** — peso de mascota (`SYNC-046`): alta con `weight_kg=12.5` → devuelve `12.50`; `PATCH` a `13.4`
+  persiste; `0`/`-5`/`999`/`"abc"` → **422**; `0.1`/`200`/`12.34` → **200**. Round-trip completo.
+- **B5/B6** — contratos de datos OK (`/api/pets/{id}/bookings` separa folio de estado; `/api/cash/reports/cierres`
+  sin `branch_id` → "Todas las sucursales" + `canSelectBranch`).
+- **B7** — rate limit web: 6º `POST /login` con clave mala → **429**.
+- **B8** — dar `agenda.ver_todas` a `prueba_restr` → `/api/me` `can_view_all_agenda: true`, `/api/agenda`
+  (mes) → 37 citas (vs. 1); `/api/operators` **sigue 403** (permiso aparte). Permiso revertido.
+
+Lo puramente visual (acordeón, chips que cambian de color, checkbox tachado, el diálogo "¿Iniciar esta
+cita?", el PDF de cierres) queda para la pasada de Tomas — la lógica y los datos detrás ya están confirmados.
+
 ### 🛑 Pendientes activos
-- **Fase 1 nunca se hizo:** ningún ítem de Fase 2/3a/3b/4 tiene sign-off visual de Tomas en `tst`/`tstmov`.
-  Se portó confiando en los tests + el diff + smoke de API + comparación de suites baseline-vs-cambio.
+- **Fase 1 (pasada visual) sigue pendiente:** existe el `MANUAL_PRUEBAS_TSTMOV.md`/`.html` de Zeus y
+  ya hubo una vuelta del tester (analizada arriba) + verificación API/código de B1–B8, pero **falta el
+  sign-off visual de Tomas** flujo a flujo en `tstmov` (acordeón/chips/checkbox/diálogos/PDF). Después,
+  el manual equivalente para `tstapp`.
   **Revisar en producción con calma** — en particular: `SYNC-030` con un usuario restringido real; todo
   el flujo nuevo de agenda web (iniciar cita, pop-up de acciones por servicio, liquidar saldo sin
   presupuesto, modal de cobro en 2 fases); las 5 pestañas de la ficha de mascota; y que Farmacia
   (`/items?search=Farmacia`) es accesible con Veterinaria activa.
-- **`throttle:login`** ahora activo en `POST /login` (5/min por credencial+IP, 30/min por IP) — si
-  alguna clínica detrás de un NAT reporta bloqueos de login, es esto (subir el tope por IP).
+- **`throttle:login`** ahora activo en `POST /login` **y `POST /api/login`** (H7) — 5/min por
+  credencial+IP, 30/min por IP; el limiter lee `email ?: username`. Si alguna clínica detrás de un NAT
+  reporta bloqueos de login, es esto (subir el tope por IP). Ver **NT-063**.
 - **Verificación por comparación de suites (metodología nueva de esta sesión):** baseline en un commit
   vs. el cambio, ambos runs **seriales y aislados**, `comm -23` de los sets de fallos. Cero regresiones
   en 3a, 3b, 4 y el fix de operadores. **Run final de cierre (HEAD `637bbca`): 37 fallidos / 672 pasan

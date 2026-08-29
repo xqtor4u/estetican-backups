@@ -60,6 +60,7 @@ Usuarios del backoffice. También representan operadores cuando `is_operator = t
 | `screen_lock_idle_minutes` | unsignedSmallInteger nullable | BL-072 — minutos de inactividad antes de auto-bloquear pantalla, editable por el propio usuario en `user/settings`. `null` = usar `config('backoffice.security.screen_lock_idle_minutes')` (default 15) |
 | `google_personal_email` | string nullable | Sincronización con Google Calendar (10/08/2026) — email personal donde este usuario ve calendarios de operador, distinto de `email` (login). Editable en `user/edit.blade.php`, gateado por `role:admin\|super-admin` |
 | `google_calendar_visibility` | string default `'personal'` | `personal` = solo el calendario del operador vinculado (`operator_id`), si tiene uno con calendario ya creado; `all` = todos los calendarios de operador que existan hoy. Ver `App\Console\Commands\SincronizarGoogleCalendarCommand::syncViewers()` |
+| `google_calendar_notify_email` | boolean default `false`, después de `google_calendar_visibility` | `SYNC-047` (28/08/2026, portado desde `tst`) — si el usuario quiere recibir el correo de aviso de Google Calendar al compartírsele un calendario. Editable en `user/edit.blade.php`, validado en `UserController::update()` (`nullable|boolean`), en `$fillable` + cast `boolean` |
 | `remember_token` | string nullable | |
 | `email_verified_at` | timestamp nullable | |
 | `timestamps` | | `created_at`, `updated_at` |
@@ -589,6 +590,12 @@ Servicios incluidos en una cita (sincronizados desde el quote aceptado).
 | `operator_id` | FK → `operators` nullable, nullOnDelete | BL-075 (31/07/2026) — profesional asignado a esta línea específica, vía modal "Asignar Profesional" en `_work_order.blade.php`. Independiente del `operator_id` a nivel de cita completa (`spa_bookings.operator_id`) |
 | `is_external` | boolean, default false | BL-075 — servicio prestado por un proveedor externo (no nómina, ej. veterinario externo) |
 | `external_cost` | decimal(10,2) nullable | BL-075 — costo que cobra el proveedor externo, solo aplica si `is_external=true`. Independiente de `current_price` (lo que se le cobra al cliente); editable en cualquier momento antes de cerrar la cita. Si se corrige después de capturado, la UI sugiere (no aplica sola) un ajuste proporcional de `current_price` manteniendo el margen original: `precio_sugerido = current_price × (costo_nuevo / costo_original)` |
+| `started_at` | timestamp nullable | `SYNC-042` (28/08/2026, portado desde `tst`) — ciclo de vida por línea de servicio. Marca "en proceso" (botón "Iniciar" del acordeón de la OT). Al iniciar la primera línea la cita pasa `scheduled → work_order` |
+| `completed_at` | timestamp nullable | `SYNC-042` — línea terminada ("Completar") |
+| `cancelled_at` | timestamp nullable | `SYNC-044` — línea cancelada. `scopeBillable()` la excluye del total (`services()->billable()->sum('current_price')`) |
+| `cancellation_reason` | string nullable | `SYNC-044` — motivo de la cancelación |
+| `not_performed_at` | timestamp nullable | `SYNC-044` — "No se realizó" (distinto de cancelada). También excluida de `scopeBillable()`; "Reactivar" limpia `not_performed_at`/`cancelled_at` y la vuelve a sumar |
+| `not_performed_reason` | string nullable | `SYNC-044` — motivo de "no se realizó" |
 | `timestamps` | | |
 
 ### `spa_booking_items`

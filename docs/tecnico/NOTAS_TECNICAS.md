@@ -1615,3 +1615,42 @@ diferencia de `create()`/`fill()`. Un array construido a mano que se pasa a `->u
 todas sus claves a SQL tal cual. Cuando una migración elimina una columna, hay que buscar
 también los `->update([...])` / `->insert([...])` con arrays literales que todavía la nombren,
 no solo los modelos y los formularios.
+
+---
+
+## NT-063 — El rate limit del login no cubría la app móvil: `throttle:login` solo en `POST /login` web y el limiter llaveado solo por `email`
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 28/08/2026 |
+| **Severidad** | P2 (hueco de seguridad) — `POST /api/login` (login de la app móvil) admitía fuerza bruta sin límite: ni middleware de throttle, ni bucket por credencial que lo alcanzara. Encontrado como **H7** revisando el reporte de pruebas de `tstmov` |
+| **Componente** | `apps/backoffice-laravel/routes/api.php` · `app/Providers/AppServiceProvider.php` (`RateLimiter::for('login')`) |
+
+**Síntoma:** un tester notó que el 6º intento fallido de login **web** (`POST /login`) daba 429,
+pero el mismo abuso contra `POST /api/login` (la puerta que usa la app móvil) no se frenaba nunca.
+
+**Causa raíz — dos capas, ambas cortas:**
+1. El middleware `throttle:login` solo estaba aplicado a `Route::post('login', ...)` en
+   `routes/web.php`. La ruta `POST /api/login` (`AuthController::login`) se registró sin ningún
+   middleware de throttle.
+2. Aunque se le hubiera puesto `throttle:login`, el limiter con nombre `login` construía la clave
+   por credencial leyendo **solo** `$request->input('email')`. El formulario web manda `email`
+   (acepta correo o nombre de usuario); la app móvil manda **`username`**. Así que el bucket por
+   `(credencial + IP)` habría quedado con la parte de credencial vacía para todos los intentos de
+   la API — todos cayendo en el mismo bucket global por IP, comportamiento distinto al de la web.
+
+**Fix (commit `e95d7c0`, portado también a `tenants/tst`):**
+- `routes/api.php` — `Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');`
+- `AppServiceProvider::boot()` — el limiter lee la credencial de cualquiera de los dos campos:
+  `$credential = Str::lower((string) ($request->input('email') ?: $request->input('username')));`
+  Así el bucket por `(credencial + IP)` funciona igual desde la web y desde el móvil.
+- `tests/Feature/Auth/LoginThrottleTest.php` — 2 casos nuevos: el 6º `POST /api/login` fallido
+  (campo `username`) → 429; el bucket por credencial de la API es independiente del de la web.
+
+**Verificado:** en `tstmov` real, 6º intento fallido de `/api/login` → HTTP 429. Suite de
+`LoginThrottleTest` en verde. Sin migración.
+
+**Lección:** cuando hay dos puertas para la misma acción (login web vs. login API), el rate limit
+tiene que cubrir **las dos rutas** y el limiter tiene que leer **todos los nombres de campo** que
+cada puerta usa para la misma credencial. Un `RateLimiter::for()` que hardcodea un solo
+`$request->input('campo')` es un limiter que solo protege a una de las puertas.

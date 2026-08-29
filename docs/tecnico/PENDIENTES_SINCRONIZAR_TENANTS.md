@@ -46,6 +46,44 @@ toque ese archivo.
 
 ## Aplicados
 
+### SYNC-005 — `POST /api/login` (login de la app móvil) no tenía rate limit — H7
+
+**Encontrado:** 28/08/2026, revisando el reporte de pruebas de `tstmov` (hallazgo **H7** del
+`260828 ANALISIS_Y_PLAN_TSTMOV.md` de Zeus). El `throttle:login` solo estaba en `POST /login`
+web, y el limiter con nombre `login` construía la clave por credencial leyendo solo
+`$request->input('email')` — la app móvil manda `username`. Fuerza bruta sin límite contra la
+puerta del móvil.
+
+**Fix aplicado en EstetiCAN real (commit `e95d7c0`):**
+- `routes/api.php` — `->middleware('throttle:login')` en `POST /api/login`.
+- `AppServiceProvider::boot()` — el limiter lee `email ?: username`.
+- `tests/Feature/Auth/LoginThrottleTest.php` — 2 casos nuevos. Ver **NT-063**.
+
+**Verificado:** en `tstmov` real, 6º intento fallido de `/api/login` → HTTP 429.
+
+**Portado a `tenants/tst` (28/08/2026):** mismos cambios en `routes/api.php` y
+`AppServiceProvider.php` del tenant. El `tst_mob` no se tocó (es cambio de backend). No versionado
+(`tenants/` en `.gitignore`) — si `tst` se reprovisiona, re-portar.
+
+### SYNC-004 — El ítem "Artículos" del menú de la app móvil no está gateado por permiso — H1
+
+**Encontrado:** 28/08/2026, reporte de pruebas de `tstmov` (hallazgo **H1**). Un operador
+restringido (sin `ver catalogo_articulos`) veía el botón "Artículos" en el menú móvil; al tocarlo,
+`/api/items` devuelve 403 — botón muerto. Todos los demás ítems ya se gatean con `requiresFlag` +
+`can_view_*` desde `SYNC-030`; "Artículos" se quedó fuera.
+
+**Fix aplicado en EstetiCAN real (commit `5fe1168`):**
+- `app/Models/User.php` — `toApiArray()` +`'can_view_articulos' => $this->can('ver catalogo_articulos') || $this->is_super_admin`.
+- `mob_apps/operador/src/AuthContext.tsx` — `can_view_articulos` en `AuthUser`.
+- `mob_apps/operador/src/App.tsx` — `'can_view_articulos'` en la unión `MenuVisibilityFlag` y
+  `requiresFlag: 'can_view_articulos'` en el ítem "Artículos".
+- `tests/Feature/Api/RestrictedOperatorClientPetAccessTest.php` — 2 casos nuevos (`/api/items` →
+  403 y `/api/me` `can_view_articulos: false`; con `ver catalogo_articulos` → `true`).
+
+**Portado a `tenants/tst` (28/08/2026):** mismos 3 archivos (`User.php`, `AuthContext.tsx`,
+`App.tsx`). Imagen `tst_mob` **reconstruida** (`docker compose -f compose.prod.yaml up -d --build mob`)
+— el bundle de `tst` trae el `dist/` horneado. No versionado (`tenants/` en `.gitignore`).
+
 ### SYNC-002 — 500 al guardar en USEEDI un usuario ya vinculado a un operador (`operators.operator_role_id` eliminada)
 
 **Encontrado:** 27/08/2026, reportado por el usuario (visto primero en `tst`) — "al cambiar los
