@@ -19,7 +19,28 @@
 
 ## Pendientes
 
-_(vacío — no hay emergencias sin portar)_
+### SYNC-003 — `/agenda` (web) embebe el directorio completo de operadores para un usuario restringido
+
+**Encontrado:** 28/08/2026, probando `SYNC-030` (operador restringido) en producción real con un
+usuario de prueba. `SpaBookingController::index()` pasaba `$operators` (id + nombre de **todos**
+los operadores activos) a `agenda/index.blade.php` sin scope — lo agregó `SYNC-052` (Zeus,
+Fase 3b) para el pop-up de "reasignar operador". Un usuario con solo `ver agenda` (sin
+`agenda.ver_todas`) recibía la lista de compañeros embebida en el JS de la página
+(`var OPERATORS = [...]`), aunque `/api/operators` sí le devuelve 403 y la acción de reasignar
+exige `editar agenda`.
+
+**Severidad:** baja (solo id + nombre; el plan de `SYNC-030` marca ese dato como no sensible)
+pero **inconsistente** entre web y API.
+
+**Fix aplicado en EstetiCAN real (commit `3cb9f00`):** en `SpaBookingController::index()`,
+`$operators` solo se pasa si `is_super_admin || can('agenda.ver_todas')`; si no, `collect()`
+vacía (el `<select>` del pop-up queda vacío — igual no puede reasignar).
+`tests/Feature/Agenda/SpaBookingControllerWebScopingTest.php` — caso nuevo (`var OPERATORS = []`
+para el restringido; directorio completo con `agenda.ver_todas`).
+
+**Pendiente de portar a `tenants/tst`:** el `SpaBookingController.php` de `tst` (post-`SYNC-052`)
+tiene el mismo `$operators` sin gatear — mismo bug latente. Portar el gate + el test cuando se
+toque ese archivo.
 
 ---
 
