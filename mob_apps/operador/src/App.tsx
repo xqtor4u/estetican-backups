@@ -37,7 +37,7 @@ import { CheckinWidget } from './CheckinWidget';
    FUENTE ÚNICA DEL MENÚ — agregar secciones aquí
    ═══════════════════════════════════════════════════════════ */
 /** Claves booleanas de `AuthUser` que un ítem de menú puede exigir para mostrarse. */
-type MenuVisibilityFlag = 'can_view_caja' | 'can_view_all_agenda' | 'can_view_clients' | 'can_view_pets' | 'can_view_operators';
+type MenuVisibilityFlag = 'can_view_caja' | 'can_view_all_agenda' | 'can_view_clients' | 'can_view_pets' | 'can_view_operators' | 'can_view_articulos';
 
 interface MenuItem {
   to: string;
@@ -69,7 +69,7 @@ export const MENU_SECTIONS: MenuSection[] = [
   {
     title: 'Catálogo',
     items: [
-      { to: '/articulos', icon: 'inventory_2', label: 'Artículos' },
+      { to: '/articulos', icon: 'inventory_2', label: 'Artículos', requiresFlag: 'can_view_articulos' },
     ],
   },
 ];

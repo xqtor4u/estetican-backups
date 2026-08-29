@@ -44,6 +44,28 @@ class RestrictedOperatorClientPetAccessTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_restricted_operator_cannot_list_items_and_me_flags_it(): void
+    {
+        $user = $this->createOperatorUser(['ver agenda']);
+        $headers = $this->operatorAuthHeader($user);
+
+        $this->withHeaders($headers)->getJson('/api/items')->assertForbidden();
+
+        // El flag que apaga el ítem "Artículos" del menú móvil (H1 — evitar el botón muerto).
+        $this->withHeaders($headers)->getJson('/api/me')
+            ->assertOk()
+            ->assertJson(['can_view_articulos' => false]);
+    }
+
+    public function test_a_user_granted_ver_catalogo_articulos_gets_the_flag_true(): void
+    {
+        $user = $this->createOperatorUser(['ver agenda', 'ver catalogo_articulos']);
+
+        $this->withHeaders($this->operatorAuthHeader($user))->getJson('/api/me')
+            ->assertOk()
+            ->assertJson(['can_view_articulos' => true]);
+    }
+
     public function test_a_user_explicitly_granted_ver_clientes_can_list_clients(): void
     {
         $user = $this->createOperatorUser(['ver agenda', 'ver clientes']);

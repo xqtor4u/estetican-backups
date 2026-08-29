@@ -204,6 +204,7 @@ class User extends Authenticatable
             'can_view_clients' => $this->can('ver clientes') || $this->is_super_admin,
             'can_view_pets' => $this->can('ver mascotas') || $this->is_super_admin,
             'can_view_operators' => $this->can('ver operadores') || $this->is_super_admin,
+            'can_view_articulos' => $this->can('ver catalogo_articulos') || $this->is_super_admin,
             'operator_id' => $this->operator_id,
             'operator_role' => $this->operatorRole?->name,
             'photo_url' => $this->profile_photo_url,

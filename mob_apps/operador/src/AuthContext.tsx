@@ -23,6 +23,7 @@ export interface AuthUser {
   can_view_clients: boolean;
   can_view_pets: boolean;
   can_view_operators: boolean;
+  can_view_articulos: boolean;
   operator_id: number | null;
   operator_role: string | null;
   photo_url: string | null;
