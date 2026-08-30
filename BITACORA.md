@@ -5,9 +5,9 @@
 ### ▶️ Próxima sesión — empezar por aquí
 
 **Estado exacto al cerrar (29/08/2026):**
-- `/opt/www/estetican` — `main` = `origin/main` en **`66be4b4`**, **working tree limpio**, todo
-  pusheado. Commits de la sesión: `66e77ca` (código del arco), `552c92a` (bitácora — resumen),
-  `66be4b4` (cierre — MODELO_BD + NT-064 + estado exacto).
+- `/opt/www/estetican` — `main` = `origin/main`, **working tree limpio**, todo pusheado.
+  Commits de la sesión: `66e77ca` (código del arco), `552c92a` (bitácora — resumen del arco),
+  `31d6d5c` (cierre — MODELO_BD + NT-064), + esta línea de ajuste de hash encima.
 - `/opt/www/zeus-estetican` — `master` (local, sin remoto) en **`2c5f472`**: `SYNC-055..072`
   movido a "Aplicados" en `PENDIENTES_SINCRONIZAR_ESTETICAN.md`, "Pendientes" quedó **vacío**.
 - BD real: migración `2026_08_29_000001` **aplicada** (`spa_booking_services` +
