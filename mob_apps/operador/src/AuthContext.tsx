@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { fetchWithTimeout } from './lib/fetchWithTimeout';
+import { clearNavCrumbs, clearSiblingNav, clearAgendaViewState } from './navState';
 
 export interface AuthUser {
   id: number;
@@ -140,6 +141,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthToken(null);
     setToken(null);
     setUser(null);
+    // Los singletons de navegación (migas, lista de hermanos ‹ ›, estado de la agenda) NO se
+    // limpian solos — sin esto, el siguiente usuario que entra hereda, p. ej., la lista de
+    // citas ‹ › del usuario anterior y al navegar cae en una cita que no puede ver.
+    clearNavCrumbs();
+    clearSiblingNav();
+    clearAgendaViewState();
   }, []);
 
   return (

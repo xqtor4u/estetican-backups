@@ -7,7 +7,7 @@ import type { SyntheticEvent } from 'react';
  * en las listas de esta app). Suprime el `click` que sigue al `touchend`/`mouseup` cuando sí
  * se disparó el long-press, para no navegar/activar el `onClick` del elemento padre.
  */
-export function createLongPressHandlers(onLongPress: () => void, delayMs = 500) {
+export function createLongPressHandlers(onLongPress: () => void, delayMs = 500, onShortPress?: () => void) {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let triggered = false;
 
@@ -36,7 +36,9 @@ export function createLongPressHandlers(onLongPress: () => void, delayMs = 500) 
         e.preventDefault();
         e.stopPropagation();
         triggered = false;
+        return;
       }
+      onShortPress?.();
     },
   };
 }

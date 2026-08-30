@@ -150,14 +150,24 @@ export function MobCobro() {
           fetch('/api/payment-methods'),
           fetch(`/api/bookings/${id}/process-notes`),
         ]);
-        if (!bRes.ok) { setLoadErr('No se pudo cargar la cita.'); return; }
+        if (!bRes.ok) {
+          setLoadErr(bRes.status === 403 ? 'No tienes permiso para cobrar esta cita.' : 'No se pudo cargar la cita.');
+          return;
+        }
 
-        const [b, p, m, n]: [
-          BookingSummary,
-          { payments: ExistingPayment[]; paid: number },
-          PaymentMethodOption[],
-          ProcessNote[]
-        ] = await Promise.all([bRes.json(), pRes.json(), mRes.json(), nRes.ok ? nRes.json() : Promise.resolve([])]);
+        // pRes/mRes pueden dar 403 a un operador sin permiso de cobro — evitar que un body de
+        // error termine en el estado y reviente el render.
+        const [b, pRaw, mRaw, nRaw]: [BookingSummary, unknown, unknown, unknown] = await Promise.all([
+          bRes.json(),
+          pRes.ok ? pRes.json().catch(() => ({ payments: [], paid: 0 })) : Promise.resolve({ payments: [], paid: 0 }),
+          mRes.ok ? mRes.json().catch(() => []) : Promise.resolve([]),
+          nRes.ok ? nRes.json().catch(() => []) : Promise.resolve([]),
+        ]);
+        const p = (pRaw && typeof pRaw === 'object' && Array.isArray((pRaw as any).payments))
+          ? pRaw as { payments: ExistingPayment[]; paid: number }
+          : { payments: [], paid: 0 };
+        const m: PaymentMethodOption[] = Array.isArray(mRaw) ? mRaw : [];
+        const n: ProcessNote[] = Array.isArray(nRaw) ? nRaw : [];
 
         setBooking(b);
         setExisting(p.payments);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getNavCrumbs, setNavCrumbs } from '../navState';
+import { getNavCrumbs, setNavCrumbs, setSiblingNav } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
 
@@ -23,14 +23,19 @@ export function ClientSearch() {
   const [query, setQuery] = useState('');
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [denied, setDenied] = useState(false);
 
   const fetchClients = useCallback(async (search: string) => {
     setLoading(true);
     try {
       const url = search ? `/api/clients?search=${encodeURIComponent(search)}` : '/api/clients';
-      const data = await fetch(url).then(r => r.json());
-      setClients(data);
+      const res = await fetch(url);
+      if (res.status === 403) { setDenied(true); setClients([]); return; }
+      setDenied(false);
+      const data = await res.json().catch(() => []);
+      setClients(Array.isArray(data) ? data : []);
+    } catch {
+      setClients([]);
     } finally {
       setLoading(false);
     }
@@ -47,6 +52,8 @@ export function ClientSearch() {
     } else {
       const nc = [{ label: 'Clientes', to: '/clientes/seleccionar' }];
       setNavCrumbs(nc);
+      // Lista de resultados → ‹ › + arrastre entre clientes en el detalle.
+      setSiblingNav('cliente', clients.map(c => c.id), cid => `/clientes/${cid}`);
       navigate(`/clientes/${client.id}`, { state: { _crumbs: nc } });
     }
   };
@@ -148,7 +155,14 @@ export function ClientSearch() {
           </div>
         )}
 
-        {!loading && clients.length === 0 && (
+        {!loading && denied && (
+          <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-2 text-center">
+            <span className="material-symbols-outlined text-5xl">lock</span>
+            <p className="text-sm">No tienes acceso a esta sección.</p>
+          </div>
+        )}
+
+        {!loading && !denied && clients.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-3">
             <span className="material-symbols-outlined text-5xl">search_off</span>
             <p className="text-sm">{query ? `Sin resultados para "${query}"` : 'No hay clientes registrados'}</p>

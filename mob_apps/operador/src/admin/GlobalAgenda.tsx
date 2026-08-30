@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { clearNavCrumbs, setCitaPresetDate, setCitaPresetOperator, setNavCrumbs } from '../navState';
+import {
+  clearNavCrumbs, setCitaPresetDate, setCitaPresetOperator, setNavCrumbs,
+  getAgendaViewState, setAgendaViewState, setSiblingNav, clearSiblingNav,
+} from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import {
   CalView, toDateStr, addDays, fmtDate, shiftAnchor, rangeLabel, weekDays, monthGridDays, groupByDateMap, expandDateRange,
-  agendaAlertKind, AGENDA_ALERT_LABEL,
+  agendaAlertKind, AGENDA_ALERT_LABEL, startOfWeekMonday,
 } from './agendaViews';
 import { WeekGrid, MonthGrid } from './AgendaCalendarGrid';
 import { WhatsAppMessageSheet } from '../WhatsAppMessageSheet';
@@ -75,27 +78,32 @@ export function GlobalAgenda() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [today]        = useState(() => new Date());
   const [searchParams] = useSearchParams();
   const dateInputRef = useRef<HTMLInputElement>(null);
-  // Si llegamos con ?date=YYYY-MM-DD (ej. al volver de crear una cita), arrancar en ese
-  // día en vez de HOY — para que el operador pueda comprobar de un vistazo que la cita
-  // quedó agendada donde correspondía, sin tener que navegar manualmente hasta ahí.
+  const [today]        = useState(() => new Date());
+  // Prioridad al arrancar: (1) ?date= explícito en la URL (volver de crear una cita),
+  // (2) estado de vista guardado al salir al detalle de una cita (fecha/vista/filtro —
+  // así "regresar" vuelve a donde estabas, no a HOY), (3) HOY.
+  const _savedView = getAgendaViewState();
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const dateParam = searchParams.get('date');
     if (dateParam) {
       const [y, m, d] = dateParam.split('-').map(Number);
       if (y && m && d) return new Date(y, m - 1, d);
     }
+    if (_savedView) {
+      const [y, m, d] = _savedView.dateStr.split('-').map(Number);
+      if (y && m && d) return new Date(y, m - 1, d);
+    }
     return new Date();
   });
-  const [calView,      setCalView]      = useState<CalView>('day');
+  const [calView,      setCalView]      = useState<CalView>(_savedView?.calView ?? 'day');
   const [operators,    setOperators]    = useState<Operator[]>([]);
   const [branches,     setBranches]     = useState<Branch[]>([]);
   const [bookings,     setBookings]     = useState<Booking[]>([]);
   const [blocked,      setBlocked]      = useState<Unavailability[]>([]);
   const [loadingAg,    setLoadingAg]    = useState(true);
-  const [filterOp,     setFilterOp]     = useState<number | null>(null);
+  const [filterOp,     setFilterOp]     = useState<number | null>(_savedView?.filterOp ?? null);
   const [vencidas,          setVencidas]          = useState<Vencida[]>([]);
   const [showVencidasModal, setShowVencidasModal]  = useState(false);
   const [showAddMenu,       setShowAddMenu]        = useState(false);
@@ -141,6 +149,12 @@ export function GlobalAgenda() {
 
   useEffect(() => { loadAgenda(selectedDate, calView); }, [selectedDate, calView, loadAgenda]);
 
+  // Persistir la posición de la Agenda (fecha/vista/filtro) para que "regresar" desde el
+  // detalle de una cita vuelva exactamente acá, en vez de reiniciar en HOY / vista Día.
+  useEffect(() => {
+    setAgendaViewState({ dateStr: toDateStr(selectedDate), calView, filterOp });
+  }, [selectedDate, calView, filterOp]);
+
   // Filtro de operador
   const visibleBookings = filterOp == null
     ? bookings
@@ -155,6 +169,17 @@ export function GlobalAgenda() {
   const isToday    = isSameDay(selectedDate, today);
   const isTomorrow = isSameDay(selectedDate, addDays(today, 1));
 
+  // Abre el detalle de una cita dejando registrada la lista ordenada de citas "hermanas"
+  // (mismas que se ven ahora en la Agenda) para que el detalle ofrezca ‹ Cita #N ›.
+  const openCita = (bookingId: number) => {
+    const siblings = [...visibleBookings]
+      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+      .map(b => b.id);
+    setSiblingNav('cita', siblings, id => `/citas/${id}`);
+    setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
+    navigate(`/citas/${bookingId}`);
+  };
+
 
   const renderBookingCard = (b: Booking) => {
     const alert = agendaAlertKind(b, new Date());
@@ -162,7 +187,7 @@ export function GlobalAgenda() {
     <div
       key={b.id}
       className="bg-surface border border-outline-variant rounded-2xl overflow-hidden shadow-sm active:scale-[0.99] transition-transform cursor-pointer"
-      onClick={() => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate(`/citas/${b.id}`); }}
+      onClick={() => openCita(b.id)}
     >
       {/* Franja de estado */}
       <div className={`h-1 w-full ${
@@ -323,31 +348,42 @@ export function GlobalAgenda() {
         subtitle={branches.length === 1 ? branches[0].name : undefined}
         noCrumbs
         rightAction={
+          // Gateado igual que el drawer / barra inferior (SYNC-030): un operador que solo
+          // tiene "ver agenda" no debe ver atajos a Mascotas / Clientes / Nueva cita en el
+          // encabezado — antes estos tres botones se mostraban a cualquier usuario logueado.
+          (user?.can_view_pets || user?.can_view_clients) ? (
           <div className="flex items-center gap-1">
-            <button onClick={() => { clearNavCrumbs(); navigate('/mascotas'); }} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
-              <span className="material-symbols-outlined text-on-surface-variant text-xl">pets</span>
-            </button>
-            <button onClick={() => { clearNavCrumbs(); navigate('/clientes/seleccionar'); }} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
-              <span className="material-symbols-outlined text-on-surface-variant text-xl">person_search</span>
-            </button>
-            <button
-              onClick={() => {
-                // La hoja inferior solo tiene sentido cuando hay más de una opción real
-                // ("Bloquear mi horario" es exclusivo de operadores con perfil) — para
-                // el resto de los usuarios, mostrar un menú de un solo botón es un tap
-                // de más sin ninguna decisión real que tomar.
-                if (user?.operator_role) {
-                  setShowAddMenu(true);
-                } else {
-                  startNewCita();
-                }
-              }}
-              className="flex items-center gap-1 bg-primary text-on-primary px-3 py-1.5 rounded-full text-xs font-semibold active:scale-95 transition-transform ml-1"
-            >
-              <span className="material-symbols-outlined text-base">add</span>
-              Cita
-            </button>
+            {user?.can_view_pets && (
+              <button onClick={() => { clearNavCrumbs(); navigate('/mascotas'); }} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+                <span className="material-symbols-outlined text-on-surface-variant text-xl">pets</span>
+              </button>
+            )}
+            {user?.can_view_clients && (
+              <button onClick={() => { clearNavCrumbs(); navigate('/clientes/seleccionar'); }} className="p-2 rounded-full hover:bg-surface-container-high transition-colors">
+                <span className="material-symbols-outlined text-on-surface-variant text-xl">person_search</span>
+              </button>
+            )}
+            {user?.can_view_pets && (
+              <button
+                onClick={() => {
+                  // La hoja inferior solo tiene sentido cuando hay más de una opción real
+                  // ("Bloquear mi horario" es exclusivo de operadores con perfil) — para
+                  // el resto de los usuarios, mostrar un menú de un solo botón es un tap
+                  // de más sin ninguna decisión real que tomar.
+                  if (user?.operator_role) {
+                    setShowAddMenu(true);
+                  } else {
+                    startNewCita();
+                  }
+                }}
+                className="flex items-center gap-1 bg-primary text-on-primary px-3 py-1.5 rounded-full text-xs font-semibold active:scale-95 transition-transform ml-1"
+              >
+                <span className="material-symbols-outlined text-base">add</span>
+                Cita
+              </button>
+            )}
           </div>
+          ) : undefined
         }
       />
 
@@ -405,6 +441,16 @@ export function GlobalAgenda() {
                 {v === 'day' ? 'Día' : v === 'week' ? 'Semana' : 'Mes'}
               </button>
             ))}
+            {/* "Hoy" siempre disponible — con la tira de días siguiendo a la fecha navegada,
+                hace falta un atajo fijo para volver al día de hoy sin contar toques de flecha. */}
+            <button
+              onClick={() => setSelectedDate(new Date())}
+              disabled={isToday}
+              className="min-h-11 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold transition-colors bg-surface-container text-on-surface-variant border border-outline-variant disabled:opacity-40"
+            >
+              <span className="material-symbols-outlined text-sm">today</span>
+              Hoy
+            </button>
           </div>
 
           {vencidas.length > 0 && (
@@ -418,7 +464,9 @@ export function GlobalAgenda() {
           )}
         </div>
 
-        {/* Selector de fecha (vista Día) */}
+        {/* Selector de fecha (vista Día) — ventana de 5 días centrada en la fecha elegida
+            (se recorre con las flechas ‹ ›) + acceso al calendario. Debajo, la lista de todas
+            las sesiones de ese día. */}
         {calView === 'day' && (
           <div className="bg-surface border-b border-outline-variant px-4 py-2 flex items-center gap-2 overflow-x-auto hide-scrollbar">
             <button
@@ -428,9 +476,14 @@ export function GlobalAgenda() {
               <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_left</span>
             </button>
 
-            {[-1, 0, 1, 2].map(offset => {
-              const d = addDays(today, offset);
-              const sel = isSameDay(d, selectedDate);
+            {[-2, -1, 0, 1, 2].map(offset => {
+              const d = addDays(selectedDate, offset);
+              const sel = offset === 0;
+              const label = isSameDay(d, today)
+                ? 'Hoy'
+                : isSameDay(d, addDays(today, 1))
+                  ? 'Mañana'
+                  : fmtDate(d).split(' ')[0];
               return (
                 <button
                   key={offset}
@@ -439,12 +492,8 @@ export function GlobalAgenda() {
                     sel ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface border border-outline-variant'
                   }`}
                 >
-                  <span className="text-[10px] uppercase tracking-wide opacity-70">
-                    {offset === 0 ? 'Hoy' : offset === 1 ? 'Mañana' : fmtDate(d).split(' ')[0]}
-                  </span>
-                  <span className="text-sm font-bold leading-tight">
-                    {d.getDate()}
-                  </span>
+                  <span className="text-[10px] uppercase tracking-wide opacity-70">{label}</span>
+                  <span className="text-sm font-bold leading-tight">{d.getDate()}</span>
                 </button>
               );
             })}
@@ -460,9 +509,6 @@ export function GlobalAgenda() {
             <button
               type="button"
               onClick={() => {
-                // En Chrome de escritorio, enfocar el input (ej. vía label) no abre el
-                // calendario nativo — solo showPicker() lo hace explícitamente, mismo
-                // patrón ya usado en MobCitaNueva.tsx para este problema.
                 const el = dateInputRef.current;
                 if (el && typeof el.showPicker === 'function') el.showPicker();
                 else el?.focus();
@@ -588,22 +634,24 @@ export function GlobalAgenda() {
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
               <span className="material-symbols-outlined text-5xl text-on-surface-variant/30" style={{ fontVariationSettings: "'FILL' 1" }}>event_busy</span>
               <p className="text-sm text-on-surface-variant">Sin citas para este día</p>
-              <button
-                onClick={startNewCita}
-                className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-transform"
-              >
-                <span className="material-symbols-outlined text-base">add</span>
-                Nueva cita
-              </button>
+              {user?.can_view_pets && (
+                <button
+                  onClick={startNewCita}
+                  className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold active:scale-95 transition-transform"
+                >
+                  <span className="material-symbols-outlined text-base">add</span>
+                  Nueva cita
+                </button>
+              )}
             </div>
           ) : calView === 'day' ? (
             visibleBookings.map(renderBookingCard)
           ) : calView === 'week' ? (
             <WeekGrid
-              days={weekDays(selectedDate)}
+              days={[...weekDays(selectedDate), addDays(startOfWeekMonday(selectedDate), 7)]}
               bookingsByDate={groupByDateMap(visibleBookings)}
               today={today}
-              onSelectBooking={id => { setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]); navigate(`/citas/${id}`); }}
+              onSelectBooking={openCita}
               onSelectDay={date => { setSelectedDate(date); setCalView('day'); }}
               blockedDates={blockedDates}
             />
@@ -648,6 +696,7 @@ export function GlobalAgenda() {
               key={v.id}
               onClick={() => {
                 setShowVencidasModal(false);
+                clearSiblingNav(); // la lista de vencidas no es un "día" navegable con ‹ ›
                 setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
                 navigate(`/citas/${v.id}`);
               }}

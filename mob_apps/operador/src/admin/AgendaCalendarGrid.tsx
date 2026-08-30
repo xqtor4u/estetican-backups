@@ -42,12 +42,14 @@ interface WeekGridProps {
   blockedDates?: Set<string>;
 }
 
-/** Grid semanal estilo Google Calendar: 7 columnas (lun-dom) con scroll horizontal, cada una con sus citas del día. */
+/** Grid semanal: **2 filas de 4** (8 celdas) — lunes a domingo de la semana + el lunes
+ *  siguiente. Sin scroll horizontal; cada celda muestra apiladas las sesiones de ese día.
+ *  El caller pasa los 8 `days`. */
 export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelectDay, blockedDates }: WeekGridProps) {
   const todayStr = toDateStr(today);
   const now = new Date();
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory hide-scrollbar">
+    <div className="grid grid-cols-4 gap-1.5">
       {days.map(d => {
         const ds = toDateStr(d);
         const items = bookingsByDate.get(ds) ?? [];
@@ -56,13 +58,13 @@ export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelec
         return (
           <div
             key={ds}
-            className={`shrink-0 w-[124px] snap-start rounded-2xl border flex flex-col ${
+            className={`min-w-0 rounded-xl border flex flex-col ${
               isToday ? 'border-primary bg-primary/5' : 'border-outline-variant bg-surface'
             }`}
           >
             <button
               onClick={() => onSelectDay(d)}
-              className={`px-2 py-1.5 flex items-center justify-between border-b shrink-0 ${
+              className={`px-2 py-1.5 flex items-center justify-between border-b ${
                 isToday ? 'border-primary/30' : 'border-outline-variant'
               }`}
             >
@@ -82,21 +84,22 @@ export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelec
                 {d.getDate()}
               </span>
             </button>
-            <div className="flex flex-col gap-1 p-1.5 min-h-[72px]">
+            <div className="flex flex-col gap-1 p-1 min-h-[64px]">
               {items.length === 0 ? (
-                <button onClick={() => onSelectDay(d)} className="flex-1 min-h-[48px]" />
+                <button onClick={() => onSelectDay(d)} className="flex-1 min-h-[44px]" />
               ) : (
                 items.map(b => (
                   <button
                     key={b.id}
                     onClick={() => onSelectBooking(b.id)}
-                    className="text-left rounded-lg bg-surface-container px-1.5 py-1 active:scale-[0.97] transition-transform"
+                    title={`${b.time} · ${b.pet.name}`}
+                    className="text-left rounded-lg bg-surface-container px-1.5 py-1 active:scale-[0.97] transition-transform min-w-0"
                   >
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1 min-w-0">
                       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClasses(b, now)}`} />
-                      <span className="text-[10px] font-mono text-on-surface-variant">{b.time}</span>
+                      <span className="text-[10px] font-mono text-on-surface-variant truncate">{b.time}</span>
                     </span>
-                    <span className="block text-[11px] font-semibold text-on-surface truncate">{b.pet.name}</span>
+                    <span className="block text-[11px] font-semibold text-on-surface truncate leading-tight">{b.pet.name}</span>
                   </button>
                 ))
               )}

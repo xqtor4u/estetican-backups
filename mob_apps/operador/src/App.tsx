@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { RootErrorBoundary } from './RootErrorBoundary';
 import { AuthProvider, useAuth, type AuthUser } from './AuthContext';
 import { AppLockProvider, useAppLock } from './AppLockContext';
 import { LockScreen } from './LockScreen';
@@ -345,12 +346,20 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Resetea el error boundary al cambiar de ruta — así un crash en una pantalla no deja
+ *  atrapada a toda la app; navegar a otro lado (o "Volver") la recupera. */
+function BoundaryByRoute({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  return <RootErrorBoundary key={pathname}>{children}</RootErrorBoundary>;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <AppLockProvider>
       <Router>
         <AuthGuard>
+          <BoundaryByRoute>
           <Routes>
             <Route path="/" element={<Navigate to="/agenda" replace />} />
             <Route path="/agenda"               element={<AdminLayout><GlobalAgenda /></AdminLayout>} />
@@ -386,6 +395,7 @@ export default function App() {
                 pantalla en blanco sin ningún mensaje. */}
             <Route path="*" element={<Navigate to="/agenda" replace />} />
           </Routes>
+          </BoundaryByRoute>
         </AuthGuard>
       </Router>
       </AppLockProvider>

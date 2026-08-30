@@ -92,6 +92,22 @@ class ServiceLineActionService
             $booking->update(['total_estimated_price' => $booking->services()->billable()->sum('current_price')]);
         }
 
+        // Cancelar / no realizar / reactivar una línea cambia el "fin más lejano" de la cita
+        // — se recalcula la duración a nivel cita para que la agenda no muestre tiempo
+        // ocupado que ya se liberó (ni al revés). Solo cuenta líneas activas.
+        if (array_key_exists('cancelled_at', $fill) || array_key_exists('not_performed_at', $fill)) {
+            $active = $booking->services()
+                ->whereNull('cancelled_at')
+                ->whereNull('not_performed_at')
+                ->with('service:id,duration_minutes')
+                ->get();
+            if ($active->isNotEmpty()) {
+                $span = $active->map(fn ($s) => (int) ($s->scheduled_offset_minutes ?? 0)
+                    + (int) ($s->duration_minutes ?? $s->service?->duration_minutes ?? 30))->max();
+                $booking->update(['duration_minutes' => (int) $span]);
+            }
+        }
+
         // Arrancar una línea promueve toda la cita a "En proceso" si aún no lo estaba.
         if (array_key_exists('started_at', $fill) && $booking->status === 'scheduled') {
             $booking->update(['status' => 'work_order']);

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { getNavCrumbs, setNavCrumbs } from '../navState';
+import { getNavCrumbs, setNavCrumbs, setSiblingNav } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
+import { useSiblingNav } from '../hooks/useSiblingNav';
 import { usePhoneFormat, phoneDigitsHint, type PhoneFormat } from '../lib/usePhoneFormat';
 import { WhatsAppMessageSheet } from '../WhatsAppMessageSheet';
 
@@ -306,18 +307,30 @@ export function ClientDetail() {
   const [edits, setEdits] = useState<EditState | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [waSheetPhone, setWaSheetPhone] = useState<string | null>(null);
+  const [denied, setDenied] = useState(false);
   const phoneFormat = usePhoneFormat();
+
+  /* ‹ › + arrastre lateral al cliente anterior/siguiente (patrón común de detalle) */
+  const sib = useSiblingNav(id, 'cliente');
 
   const set = (key: keyof EditState) => (val: string) =>
     setEdits(d => d ? { ...d, [key]: val } : d);
 
   useEffect(() => {
     if (isNew) return;
-    fetch(`/api/clients/${id}`).then(r => r.json()).then((data: Client) => {
-      setClient(data);
-      setEdits(clientToEdits(data));
-      setLoading(false);
-    });
+    fetch(`/api/clients/${id}`)
+      .then(async r => {
+        if (r.status === 403) { setDenied(true); setLoading(false); return null; }
+        if (!r.ok) { setLoading(false); return null; }
+        return r.json() as Promise<Client>;
+      })
+      .then((data) => {
+        if (!data || typeof data !== 'object' || !('id' in data)) return;
+        setClient(data as Client);
+        setEdits(clientToEdits(data as Client));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [id, isNew]);
 
   const cancelEdit = () => { setEditing(false); setPhoneError(null); if (client) setEdits(clientToEdits(client)); };
@@ -361,6 +374,16 @@ export function ClientDetail() {
     </div>
   );
 
+  if (denied) return (
+    <div className="bg-background text-on-background min-h-screen flex flex-col">
+      <ScreenHeader title="Cliente" screenTag="MobCliDet" onBack={() => navigate(-1)} />
+      <div className="flex-1 flex flex-col items-center justify-center gap-2 px-8 text-center text-on-surface-variant">
+        <span className="material-symbols-outlined text-5xl">lock</span>
+        <p className="text-sm">No tienes acceso a la ficha de clientes.</p>
+      </div>
+    </div>
+  );
+
   if (isNew) return <NewClientForm navigate={navigate} returnTo={returnTo} />;
 
   if (!client || !edits) return null;
@@ -371,12 +394,15 @@ export function ClientDetail() {
 
   /* ── Render principal ─────────────────────────────────── */
   return (
-    <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
+    <>
+    <div className="bg-background text-on-background min-h-screen flex flex-col pb-20" {...(editing ? {} : sib.swipeHandlers)}>
 
       <ScreenHeader
         title={editing ? `${edits.first_name} ${edits.apellido_paterno} ${edits.apellido_materno}`.replace(/\s+/g, ' ').trim() || client.full_name : client.full_name}
         screenTag="MobCliDet"
         onBack={() => navigate(-1)}
+        onTitlePrev={editing ? undefined : sib.onPrev}
+        onTitleNext={editing ? undefined : sib.onNext}
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
         noCrumbs={editing}
@@ -468,7 +494,7 @@ export function ClientDetail() {
                   Mascotas ({client.pets.length})
                 </p>
                 {client.pets.map(pet => (
-                  <button key={pet.id} onClick={() => { const nc = [...crumbs, { label: client.full_name, to: `/clientes/${client.id}` }]; setNavCrumbs(nc); navigate(`/mascotas/${pet.id}`, { state: { _crumbs: nc } }); }}
+                  <button key={pet.id} onClick={() => { const nc = [...crumbs, { label: client.full_name, to: `/clientes/${client.id}` }]; setNavCrumbs(nc); setSiblingNav('mascota', client.pets.map(p => p.id), pid => `/mascotas/${pid}`); navigate(`/mascotas/${pet.id}`, { state: { _crumbs: nc } }); }}
                     className="bg-surface border border-outline-variant rounded-2xl px-4 py-3 flex items-center gap-3 w-full text-left active:bg-surface-container transition-colors">
                     <div className="w-10 h-10 rounded-full bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
                       {pet.photo
@@ -612,10 +638,10 @@ export function ClientDetail() {
         )}
 
       </div>
-
+    </div>
     {waSheetPhone && (
       <WhatsAppMessageSheet clientId={client.id} phone={waSheetPhone} onClose={() => setWaSheetPhone(null)} />
     )}
-    </div>
+    </>
   );
 }

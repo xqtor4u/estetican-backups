@@ -51,12 +51,18 @@ class AgendaController extends Controller
             // El filtro opcional por operador arbitrario solo tiene sentido para quien puede
             // ver la agenda de todos — un usuario restringido ya viene acotado por visibleTo(),
             // cualquier operator_id que mande se ignora en vez de ampliar su propio alcance.
-            ->when($canViewAll && $operatorId, fn ($q) => $q->where('operator_id', $operatorId))
+            // Incluye las citas donde el operador NO es el responsable pero sí hace una línea
+            // de servicio (SYNC-068) — si no, su tiempo comprometido no aparece ocupado.
+            ->when($canViewAll && $operatorId, fn ($q) => $q->where(fn ($qq) => $qq
+                ->where('operator_id', $operatorId)
+                ->orWhereHas('services', fn ($s) => $s->where('operator_id', $operatorId)
+                    ->whereNull('cancelled_at')->whereNull('not_performed_at'))
+            ))
             ->with([
                 'pet:id,name,species,breed,profile_photo_path,client_id',
                 'pet.client:id,first_name,apellido_paterno,apellido_materno',
                 'pet.client.phones',
-                'services.service:id,name,type',
+                'services.service:id,name,type,duration_minutes',
                 'operator:id,first_name,apellido_paterno,apellido_materno,profile_photo_path',
                 'quotes' => fn ($q) => $q->where('status', 'accepted')
                     ->with(['items.operator:id,first_name,apellido_paterno,apellido_materno,profile_photo_path']),
@@ -64,7 +70,7 @@ class AgendaController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
-        return response()->json($bookings->map(function (SpaBooking $b) {
+        return response()->json($bookings->map(function (SpaBooking $b) use ($operatorId) {
             // Operadores del presupuesto aceptado, más el operador asignado directamente
             // a la cita (spa_bookings.operator_id) por si aún no hay presupuesto aceptado —
             // sin esta unión, una cita recién creada desaparece del filtro por operador.
@@ -95,6 +101,31 @@ class AgendaController extends Controller
                 ? $b->scheduled_at->copy()->addMinutes($b->duration_minutes)->format('H:i')
                 : null;
 
+            // Ventanas de tiempo REALES que ocupa el operador consultado en esta cita
+            // (`?operator_id=`): sus líneas de servicio activas, cada una en su propio tramo
+            // [scheduled_at + offset, + duración de línea). Si el operador es el responsable
+            // y la cita no tiene líneas, es toda la cita. Lo usa el selector de horarios al
+            // agendar (móvil) para no pisar tiempo ya comprometido por otro servicio.
+            $busy = [];
+            if ($operatorId) {
+                $opLines = $b->services->filter(fn ($s) => (int) $s->operator_id === (int) $operatorId
+                    && $s->cancelled_at === null && $s->not_performed_at === null);
+                foreach ($opLines as $s) {
+                    $lineStart = $b->scheduled_at->copy()->addMinutes((int) ($s->scheduled_offset_minutes ?? 0));
+                    $lineDur = (int) ($s->duration_minutes ?? $s->service?->duration_minutes ?? 30);
+                    $busy[] = [
+                        'start' => $lineStart->format('H:i'),
+                        'end' => $lineStart->copy()->addMinutes($lineDur)->format('H:i'),
+                    ];
+                }
+                if ($opLines->isEmpty() && (int) $b->operator_id === (int) $operatorId && $b->services->isEmpty()) {
+                    $busy[] = [
+                        'start' => $b->scheduled_at->format('H:i'),
+                        'end' => $endTime ?? $b->scheduled_at->copy()->addMinutes((int) ($b->duration_minutes ?? 30))->format('H:i'),
+                    ];
+                }
+            }
+
             return [
                 'id' => $b->id,
                 'scheduled_at' => $b->scheduled_at,
@@ -102,6 +133,7 @@ class AgendaController extends Controller
                 'time' => $b->scheduled_at->format('H:i'),
                 'end_time' => $endTime,
                 'duration_minutes' => $b->duration_minutes,
+                'busy' => $busy,
                 'status' => $b->status,
                 'notes' => $b->notes,
                 'total' => $b->total_estimated_price,

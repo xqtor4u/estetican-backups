@@ -89,24 +89,33 @@ class BookingController extends Controller
                 'id' => $b->pet->client->id,
                 'name' => trim($b->pet->client->first_name.' '.$b->pet->client->last_name),
             ] : null,
-            'services' => $b->services->map(fn ($s) => [
-                'id' => $s->service?->id,
-                'booking_service_id' => $s->id,
-                'name' => $s->service?->name ?? '—',
-                'type' => $s->service?->type,
-                'price' => (float) ($s->current_price ?? $s->service?->price ?? 0),
-                'duration_minutes' => $s->service?->duration_minutes,
-                'operator_id' => $s->operator_id,
-                'operator_name' => $s->operator?->name,
-                'is_external' => (bool) $s->is_external,
-                'external_cost' => $s->external_cost !== null ? (float) $s->external_cost : null,
-                'started_at' => $s->started_at?->format('Y-m-d H:i:s'),
-                'completed_at' => $s->completed_at?->format('Y-m-d H:i:s'),
-                'cancelled_at' => $s->cancelled_at?->format('Y-m-d H:i:s'),
-                'cancellation_reason' => $s->cancellation_reason,
-                'not_performed_at' => $s->not_performed_at?->format('Y-m-d H:i:s'),
-                'not_performed_reason' => $s->not_performed_reason,
-            ])->values(),
+            'services' => $b->services->map(function ($s) use ($b) {
+                $lineDuration = $s->duration_minutes ?? $s->service?->duration_minutes;
+                $lineOffset = (int) ($s->scheduled_offset_minutes ?? 0);
+
+                return [
+                    'id' => $s->service?->id,
+                    'booking_service_id' => $s->id,
+                    'name' => $s->service?->name ?? '—',
+                    'type' => $s->service?->type,
+                    'price' => (float) ($s->current_price ?? $s->service?->price ?? 0),
+                    'duration_minutes' => $lineDuration,
+                    // Minutos desde el inicio de la cita + la hora concreta a la que arranca
+                    // esta línea (para el agendado con huecos, SYNC-068).
+                    'offset_minutes' => $lineOffset,
+                    'start_time' => $b->scheduled_at->copy()->addMinutes($lineOffset)->format('H:i'),
+                    'operator_id' => $s->operator_id,
+                    'operator_name' => $s->operator?->name,
+                    'is_external' => (bool) $s->is_external,
+                    'external_cost' => $s->external_cost !== null ? (float) $s->external_cost : null,
+                    'started_at' => $s->started_at?->format('Y-m-d H:i:s'),
+                    'completed_at' => $s->completed_at?->format('Y-m-d H:i:s'),
+                    'cancelled_at' => $s->cancelled_at?->format('Y-m-d H:i:s'),
+                    'cancellation_reason' => $s->cancellation_reason,
+                    'not_performed_at' => $s->not_performed_at?->format('Y-m-d H:i:s'),
+                    'not_performed_reason' => $s->not_performed_reason,
+                ];
+            })->values(),
             'operator' => $b->operator ? [
                 'id' => $b->operator->id,
                 'name' => $b->operator->full_name,
@@ -136,6 +145,9 @@ class BookingController extends Controller
             'services.*.price' => 'nullable|numeric|min:0',
             'services.*.operator_id' => 'nullable|exists:operators,id',
             'services.*.duration_minutes' => 'nullable|integer|min:5|max:480',
+            // Minutos desde el inicio de la cita en que arranca esta línea (huecos entre
+            // servicios, SYNC-068). null/ausente = pegado al fin de la línea anterior.
+            'services.*.offset_minutes' => 'nullable|integer|min:0|max:960',
             'notes' => 'nullable|string|max:1000',
             'override_availability' => 'nullable|boolean',
         ]);
@@ -156,6 +168,25 @@ class BookingController extends Controller
             ? Service::whereIn('id', $serviceIds)->get(['id', 'name', 'price', 'duration_minutes', 'operator_role_id'])->keyBy('id')
             : collect();
 
+        // Duración y offset (minutos desde el inicio de la cita) resueltos por línea, en el
+        // orden en que vienen. Si una línea no manda `offset_minutes`, arranca pegada al fin
+        // de la anterior (cursor). La duración de la cita pasa de "suma" a "fin más lejano".
+        $cursorOffset = 0;
+        $resolvedDurations = [];
+        $resolvedOffsets = [];
+        foreach ($serviceRows as $row) {
+            $dur = (int) ($row['duration_minutes'] ?? ($catalog->get($row['id'])?->duration_minutes ?? 30));
+            $off = isset($row['offset_minutes']) && $row['offset_minutes'] !== null
+                ? (int) $row['offset_minutes']
+                : $cursorOffset;
+            $resolvedDurations[$row['id']] = $dur;
+            $resolvedOffsets[$row['id']] = $off;
+            $cursorOffset = $off + $dur;
+        }
+        $computedDuration = $serviceRows->isNotEmpty()
+            ? collect($resolvedOffsets)->map(fn ($off, $id) => $off + ($resolvedDurations[$id] ?? 0))->max()
+            : $durationMinutes;
+
         if ($serviceRows->isEmpty()) {
             // Sin servicios: no hay líneas que segmentar, se valida el operador de la cita
             // contra toda la duración (mismo comportamiento que antes de este cambio).
@@ -175,7 +206,8 @@ class BookingController extends Controller
             $lines = $serviceRows->map(fn ($row) => [
                 // Duración de la línea: la que mandó el cliente (editable al agendar) o la del
                 // catálogo. Se usa para segmentar la validación por operador.
-                'duration_minutes' => (int) ($row['duration_minutes'] ?? ($catalog->get($row['id'])?->duration_minutes ?? 30)),
+                'duration_minutes' => $resolvedDurations[$row['id']] ?? 30,
+                'offset_minutes' => $resolvedOffsets[$row['id']] ?? 0,
                 'operator_id' => (int) ($row['operator_id'] ?? $data['operator_id']),
                 'service_name' => $catalog->get($row['id'])?->name ?? 'servicio',
             ])->all();
@@ -207,6 +239,27 @@ class BookingController extends Controller
                 }
             }
 
+            // Traslape entre dos líneas de ESTA misma cita con el mismo operador — el
+            // checker de arriba solo mira la agenda ya guardada, no las líneas entre sí.
+            $indexed = array_values($lines);
+            foreach ($indexed as $i => $a) {
+                for ($j = $i + 1; $j < count($indexed); $j++) {
+                    $b = $indexed[$j];
+                    if ((int) $a['operator_id'] !== (int) $b['operator_id']) {
+                        continue;
+                    }
+                    $aStart = (int) $a['offset_minutes'];
+                    $aEnd = $aStart + (int) $a['duration_minutes'];
+                    $bStart = (int) $b['offset_minutes'];
+                    $bEnd = $bStart + (int) $b['duration_minutes'];
+                    if ($aStart < $bEnd && $aEnd > $bStart) {
+                        return response()->json([
+                            'message' => "\"{$a['service_name']}\" y \"{$b['service_name']}\" se traslapan y tienen el mismo operador — dale a uno otro horario u otro operador.",
+                        ], 422);
+                    }
+                }
+            }
+
             if ($error = $this->operatorAvailabilityChecker->validateSequentialAssignments($scheduledAt, $lines, $overrideSchedule)) {
                 return response()->json(['message' => $error], 422);
             }
@@ -226,13 +279,15 @@ class BookingController extends Controller
         // La cita y sus líneas de servicio se crean juntas o no se crean: sin la
         // transacción, un fallo a mitad del loop dejaba una cita sin (o con parte de)
         // sus servicios, y ese estado parcial no lo corrige nada después.
-        $booking = DB::transaction(function () use ($data, $estimatedTotal, $serviceIds, $resolvedPrices, $resolvedOperators) {
+        $booking = DB::transaction(function () use ($data, $estimatedTotal, $serviceIds, $resolvedPrices, $resolvedOperators, $resolvedOffsets, $resolvedDurations, $computedDuration) {
             $booking = SpaBooking::create([
                 'pet_id' => $data['pet_id'],
                 'operator_id' => $data['operator_id'],
                 'created_by_user_id' => auth()->id(),
                 'scheduled_at' => $data['scheduled_at'],
-                'duration_minutes' => $data['duration_minutes'] ?? null,
+                // Con servicios: fin más lejano (offset + duración) — antes era la suma, que
+                // ignora los huecos. Sin servicios: lo que mandó el cliente.
+                'duration_minutes' => $serviceIds ? $computedDuration : ($data['duration_minutes'] ?? null),
                 'status' => 'scheduled',
                 'total_estimated_price' => $estimatedTotal,
                 'notes' => $data['notes'] ?? null,
@@ -244,6 +299,8 @@ class BookingController extends Controller
                     'service_id' => $svcId,
                     'current_price' => $resolvedPrices[$svcId] ?? 0,
                     'operator_id' => $resolvedOperators[$svcId] ?? (int) $data['operator_id'],
+                    'scheduled_offset_minutes' => $resolvedOffsets[$svcId] ?? 0,
+                    'duration_minutes' => $resolvedDurations[$svcId] ?? null,
                 ]);
             }
 
@@ -359,6 +416,16 @@ class BookingController extends Controller
                 ]);
             }
             $booking->total_estimated_price = $booking->services()->billable()->sum('current_price');
+        }
+
+        // Si la cita tiene líneas, su duración es el "fin más lejano" (offset + duración de
+        // línea) — así un edit no aplasta los huecos entre servicios (SYNC-068).
+        $lines = $booking->services()->with('service:id,duration_minutes')->get();
+        if ($lines->isNotEmpty()) {
+            $booking->duration_minutes = (int) $lines
+                ->map(fn ($s) => (int) ($s->scheduled_offset_minutes ?? 0)
+                    + (int) ($s->duration_minutes ?? $s->service?->duration_minutes ?? 30))
+                ->max();
         }
 
         $booking->save();

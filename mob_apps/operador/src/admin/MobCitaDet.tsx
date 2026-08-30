@@ -4,6 +4,7 @@ import { useSortable, SortBtn } from '../hooks/useSortable';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
+import { useSiblingNav, setSiblingNav } from '../hooks/useSiblingNav';
 import { useAuth } from '../AuthContext';
 
 /** Debe coincidir exactamente con el mensaje de OperatorAvailabilityChecker::isOutsideWorkingHours en el backend. */
@@ -30,6 +31,8 @@ interface BookingDetail {
     type: string | null;
     price: number;
     duration_minutes: number | null;
+    offset_minutes: number;
+    start_time: string;
     operator_id: number | null;
     operator_name: string | null;
     is_external: boolean;
@@ -193,6 +196,11 @@ export function MobCitaDet() {
   /* Modo edición */
   const [editing,   setEditing]   = useState(false);
 
+  /* Navegación ‹ Cita #N › + arrastre lateral entre citas del mismo día (patrón común de las
+     pantallas de detalle — ver useSiblingNav). La lista llega de la Agenda; si se entró por
+     deep-link, el efecto de abajo la rellena con la agenda del día de la cita. */
+  const sib = useSiblingNav(id, 'cita');
+
   /* Campos editables */
   const [selDate,    setSelDate]    = useState<Date>(new Date());
   const [selSlot,    setSelSlot]    = useState<string>('');
@@ -224,7 +232,6 @@ export function MobCitaDet() {
   const [startingLineId, setStartingLineId] = useState<number | null>(null); // booking_service_id de la línea que se está iniciando sola, desde "Servicio / Operador"
   const [completingLineId, setCompletingLineId] = useState<number | null>(null); // ídem, para "Terminar"
   const [lineActionId, setLineActionId] = useState<number | null>(null); // línea con un PATCH en curso (no realizó / cancelar / reactivar)
-  const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set()); // acordeón "Servicio / Operador"
   const [voidPanel, setVoidPanel] = useState<{ lineId: number; kind: 'not_performed' | 'cancelled' } | null>(null);
   const [voidReason, setVoidReason] = useState('');
 
@@ -313,6 +320,12 @@ export function MobCitaDet() {
     if (!id) return;
 
     const load = async () => {
+      // Transición limpia al navegar entre citas hermanas (‹ ›): sin esto se quedaba la
+      // cita anterior en pantalla mientras carga, y si la nueva fallaba (p. ej. una cita
+      // ajena heredada de otro usuario) el render mezclaba datos viejos con el error.
+      setLoading(true);
+      setLoadErr(null);
+      setBooking(null);
       try {
         const [bRes, svcsRes, opsRes, settingsRes] = await Promise.all([
           fetch(`/api/bookings/${id}`),
@@ -323,29 +336,29 @@ export function MobCitaDet() {
 
         if (!bRes.ok) {
           const err = await bRes.json().catch(() => ({}));
-          setLoadErr(err.message ?? `Error ${bRes.status}`);
+          setLoadErr(bRes.status === 404
+            ? 'Esta cita no existe o no tienes acceso a ella.'
+            : (err.message ?? `Error ${bRes.status}`));
           return;
         }
 
-        const [b, svcs, ops, settingsData]: [BookingDetail, ServiceCat[], OperatorCat[], { grace_minutes: number }] = await Promise.all([
+        // `/api/services` y `/api/operators` responden 403 a un operador restringido (sin
+        // "ver mascotas/operadores"); antes se hacía `.json()` a ciegas y el body de error
+        // ({message:…}) terminaba en `setOperators`/`setCatalog` → `operators.map` reventaba y
+        // la pantalla quedaba en negro. Ahora: si no es 200 o no es arreglo, queda vacío.
+        const [b, svcsRaw, opsRaw, settingsData]: [BookingDetail, unknown, unknown, { grace_minutes: number }] = await Promise.all([
           bRes.json(),
-          svcsRes.json(),
-          opsRes.json(),
-          settingsRes.ok ? settingsRes.json() : Promise.resolve({ grace_minutes: 15 }),
+          svcsRes.ok ? svcsRes.json().catch(() => []) : Promise.resolve([]),
+          opsRes.ok ? opsRes.json().catch(() => []) : Promise.resolve([]),
+          settingsRes.ok ? settingsRes.json().catch(() => ({ grace_minutes: 15 })) : Promise.resolve({ grace_minutes: 15 }),
         ]);
+        const svcs: ServiceCat[]  = Array.isArray(svcsRaw) ? svcsRaw : [];
+        const ops:  OperatorCat[] = Array.isArray(opsRaw)  ? opsRaw  : [];
         if (settingsData?.grace_minutes != null) setGraceMinutes(settingsData.grace_minutes);
 
         setBooking(b);
         setCatalog(svcs);
         setOperators(ops);
-        // Acordeón "Servicio / Operador": arrancar expandidas las líneas que todavía tienen
-        // algo que hacer (no completadas, no excluidas) — así las acciones por línea se ven
-        // sin tener que tocar. Las completadas/excluidas arrancan colapsadas.
-        setExpandedLines(new Set(
-          b.services
-            .filter(l => !l.cancelled_at && !l.not_performed_at && !l.completed_at)
-            .map(l => l.booking_service_id)
-        ));
 
         const dt = parseDateLocal(b.scheduled_at);
         setSelDate(new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()));
@@ -363,6 +376,24 @@ export function MobCitaDet() {
 
     load();
   }, [id]);
+
+  /* ── Fallback de hermanas: si no llegó lista de la Agenda (deep-link), se pide la agenda
+     del día de la cita — el día contiene por definición a esta cita. ── */
+  useEffect(() => {
+    if (!booking || sib.hasNav) return;
+    const dateStr = booking.scheduled_at.slice(0, 10); // "YYYY-MM-DD HH:MM:SS" → "YYYY-MM-DD"
+    fetch(`/api/agenda?date=${dateStr}`)
+      .then(r => (r.ok ? r.json() : []))
+      .then((rows: unknown) => {
+        if (!Array.isArray(rows)) return;
+        const ids = (rows as { id: number; time: string }[])
+          .slice()
+          .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+          .map(r => r.id);
+        if (ids.length) setSiblingNav('cita', ids, x => `/citas/${x}`);
+      })
+      .catch(() => {});
+  }, [booking?.id, booking?.scheduled_at, sib.hasNav]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Carga pagos ──────────────────────────────────────── */
   useEffect(() => {
@@ -406,15 +437,7 @@ export function MobCitaDet() {
   };
 
   /* ── Asignar profesional / costo externo a una línea de servicio ── */
-  const toggleLineExpanded = (bookingServiceId: number) =>
-    setExpandedLines(prev => {
-      const next = new Set(prev);
-      if (next.has(bookingServiceId)) next.delete(bookingServiceId); else next.add(bookingServiceId);
-      return next;
-    });
-
   const openAssign = (line: BookingServiceLine) => {
-    setExpandedLines(prev => new Set(prev).add(line.booking_service_id));
     setAssigningLine(line);
     setAssignOperator(line.operator_id ?? '');
     setAssignExternal(line.is_external);
@@ -763,7 +786,7 @@ export function MobCitaDet() {
   const editable = !['completed', 'cancelled'].includes(booking.status);
 
   return (
-    <div className="bg-background text-on-background min-h-screen flex flex-col pb-28">
+    <div className="bg-background text-on-background min-h-screen flex flex-col pb-28" {...(editing ? {} : sib.swipeHandlers)}>
 
       <ScreenHeader
         title={`Cita #${booking.id}`}
@@ -771,6 +794,8 @@ export function MobCitaDet() {
         subtitle={booking.pet.name}
         backIcon={editing ? 'close' : 'arrow_back'}
         onBack={() => editing ? setEditing(false) : navigate(-1)}
+        onTitlePrev={editing ? undefined : sib.onPrev}
+        onTitleNext={editing ? undefined : sib.onNext}
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
         noCrumbs={editing}
@@ -795,68 +820,104 @@ export function MobCitaDet() {
 
       <div className="flex flex-col gap-5 px-4 pt-4">
 
-        {/* ── Info rápida: estado + hora ────────────────── */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${STATUS_COLOR[booking.status] ?? ''}`}>
-            {STATUS_LABEL[booking.status] ?? booking.status}
-          </span>
-          {booking.status === 'work_order' && (
-            <button onClick={() => { setNoteErr(null); setShowNoteModal(true); }}
-              className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full border bg-tertiary/10 text-tertiary border-tertiary/30 active:scale-95 transition-transform">
-              <span className="material-symbols-outlined text-sm">edit_note</span>
-              Nota{processNotes.length > 0 ? ` (${processNotes.length})` : ''}
-            </button>
-          )}
-          {booking.order_folio && (
-            <span className="font-mono text-xs font-bold text-on-surface-variant bg-surface-container px-2.5 py-1 rounded-lg border border-outline-variant">
-              {booking.order_folio}
+        {/* ── Info rápida: estado · fecha · hora (todo junto, sin tarjeta aparte) ── */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${STATUS_COLOR[booking.status] ?? ''}`}>
+              {STATUS_LABEL[booking.status] ?? booking.status}
             </span>
-          )}
-          <span className="flex items-center gap-1.5 font-mono text-sm font-semibold text-on-surface">
-            <span className="material-symbols-outlined text-base text-on-surface-variant">schedule</span>
-            {booking.time}{booking.end_time ? ` → ${booking.end_time}` : ''}
-            {booking.duration_minutes
-              ? <span className="text-xs font-normal text-on-surface-variant ml-1">({minutesToHHMM(booking.duration_minutes)})</span>
-              : null}
-          </span>
-          {booking.total > 0 && (
-            <span className="ml-auto text-sm font-bold text-on-surface">${booking.total.toFixed(0)}</span>
-          )}
+            {booking.status === 'work_order' && (
+              <button onClick={() => { setNoteErr(null); setShowNoteModal(true); }}
+                className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full border bg-tertiary/10 text-tertiary border-tertiary/30 active:scale-95 transition-transform">
+                <span className="material-symbols-outlined text-sm">edit_note</span>
+                Nota{processNotes.length > 0 ? ` (${processNotes.length})` : ''}
+              </button>
+            )}
+            {booking.order_folio && (
+              <span className="font-mono text-xs font-bold text-on-surface-variant bg-surface-container px-2.5 py-1 rounded-lg border border-outline-variant">
+                {booking.order_folio}
+              </span>
+            )}
+            {booking.total > 0 && (
+              <span className="ml-auto text-sm font-bold text-on-surface">${booking.total.toFixed(0)}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-on-surface">
+            <span className="flex items-center gap-1.5 text-sm font-semibold capitalize">
+              <span className="material-symbols-outlined text-base text-on-surface-variant">event</span>
+              {fmtLong(parseDateLocal(booking.scheduled_at))}
+            </span>
+            <span className="flex items-center gap-1.5 font-mono text-sm font-semibold">
+              <span className="material-symbols-outlined text-base text-on-surface-variant">schedule</span>
+              {booking.time}{booking.end_time ? ` → ${booking.end_time}` : ''}
+              {booking.duration_minutes
+                ? <span className="text-xs font-normal font-sans text-on-surface-variant ml-1">({minutesToHHMM(booking.duration_minutes)})</span>
+                : null}
+            </span>
+          </div>
         </div>
 
         {/* ── Mascota y cliente ─────────────────────────── */}
-        <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
-          <button onClick={() => { const nc = [{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]; setNavCrumbs(nc); navigate(`/mascotas/${booking.pet.id}`, { state: { _crumbs: nc } }); }}
-            className="w-full flex items-center gap-3 px-4 py-3 active:bg-surface-container transition-colors">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
-              {booking.pet.photo
-                ? <img src={booking.pet.photo} className="w-full h-full object-cover" alt={booking.pet.name} />
-                : <span className="material-symbols-outlined text-primary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>}
-            </div>
-            <div className="flex-1 min-w-0 text-left">
-              <p className="font-semibold text-on-surface">{booking.pet.name}</p>
-              {booking.pet.breed && <p className="text-xs text-on-surface-variant truncate">{booking.pet.breed}</p>}
-            </div>
-            <span className="material-symbols-outlined text-on-surface-variant">chevron_right</span>
-          </button>
-
-          {booking.client && (
-            <button onClick={() => { const nc = [{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]; setNavCrumbs(nc); navigate(`/clientes/${booking.client!.id}`, { state: { _crumbs: nc } }); }}
-              className="w-full flex items-center gap-3 px-4 py-3 border-t border-outline-variant active:bg-surface-container transition-colors">
-              <span className="material-symbols-outlined text-on-surface-variant text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-sm font-medium text-on-surface truncate">{booking.client.name}</p>
+        {/* Solo son enlaces si el usuario puede ver mascotas / clientes — un operador
+            restringido (solo "ver agenda") vería la ficha rota / sin acceso al tocarlos. */}
+        {(() => {
+          const canPet = !!user?.can_view_pets;
+          const canClient = !!user?.can_view_clients;
+          const petInner = (
+            <>
+              <div className="w-12 h-12 rounded-xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
+                {booking.pet.photo
+                  ? <img src={booking.pet.photo} className="w-full h-full object-cover" alt={booking.pet.name} />
+                  : <span className="material-symbols-outlined text-primary text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>}
               </div>
-              <span className="material-symbols-outlined text-on-surface-variant">chevron_right</span>
-            </button>
-          )}
-        </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="font-semibold text-on-surface">{booking.pet.name}</p>
+                {booking.pet.breed && <p className="text-xs text-on-surface-variant truncate">{booking.pet.breed}</p>}
+              </div>
+              {canPet && <span className="material-symbols-outlined text-on-surface-variant">chevron_right</span>}
+            </>
+          );
+          return (
+            <div className="bg-surface border border-outline-variant rounded-2xl overflow-hidden">
+              {canPet ? (
+                <button onClick={() => { const nc = [{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]; setNavCrumbs(nc); navigate(`/mascotas/${booking.pet.id}`, { state: { _crumbs: nc } }); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 active:bg-surface-container transition-colors">
+                  {petInner}
+                </button>
+              ) : (
+                <div className="w-full flex items-center gap-3 px-4 py-3">{petInner}</div>
+              )}
 
-        {/* ── Cambio de estado (solo vista) ────────────── */}
+              {booking.client && (
+                canClient ? (
+                  <button onClick={() => { const nc = [{ label: `Cita #${booking.id}`, to: `/citas/${booking.id}` }]; setNavCrumbs(nc); navigate(`/clientes/${booking.client!.id}`, { state: { _crumbs: nc } }); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 border-t border-outline-variant active:bg-surface-container transition-colors">
+                    <span className="material-symbols-outlined text-on-surface-variant text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-medium text-on-surface truncate">{booking.client.name}</p>
+                    </div>
+                    <span className="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+                  </button>
+                ) : (
+                  <div className="w-full flex items-center gap-3 px-4 py-3 border-t border-outline-variant">
+                    <span className="material-symbols-outlined text-on-surface-variant text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-medium text-on-surface truncate">{booking.client.name}</p>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── Acciones de TODA la cita (las de cada servicio viven en "Servicios", abajo) ── */}
         {!editing && editable && acciones.length > 0 && (
           <section>
-            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Acciones</p>
-            <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">
+              Acciones <span className="font-normal normal-case text-on-surface-variant/60">· toda la cita</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
               {acciones.map(action => (
                 <button
                   key={action.value}
@@ -903,17 +964,16 @@ export function MobCitaDet() {
                       setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 50);
                     }
                   }}
-                  className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border font-semibold text-sm transition-colors active:scale-[0.99] disabled:opacity-50 ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border font-semibold text-xs transition-colors active:scale-95 disabled:opacity-50 ${
                     action.danger
                       ? 'bg-error/8 border-error/30 text-error'
                       : 'bg-primary/8 border-primary/30 text-primary'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    {action.icon}
+                  <span className={`material-symbols-outlined text-base ${saving ? 'animate-spin' : ''}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {saving ? 'progress_activity' : action.icon}
                   </span>
                   {action.label}
-                  {saving && <span className="ml-auto material-symbols-outlined animate-spin text-base">progress_activity</span>}
                 </button>
               ))}
             </div>
@@ -1340,26 +1400,14 @@ export function MobCitaDet() {
         {/* ── Vista (no edición) ───────────────────────── */}
         {!editing && (
           <>
-            {/* Fecha y hora */}
-            <div className="bg-surface border border-outline-variant rounded-2xl px-4 py-3">
-              <p className="text-xs text-on-surface-variant mb-1">Fecha y hora</p>
-              <p className="text-sm font-semibold text-on-surface">
-                {fmtLong(parseDateLocal(booking.scheduled_at))}
-              </p>
-              <p className="text-sm font-mono text-on-surface">
-                {booking.time}{booking.end_time ? ` → ${booking.end_time}` : ''}
-                {booking.duration_minutes
-                  ? <span className="text-xs font-sans text-on-surface-variant ml-2">({minutesToHHMM(booking.duration_minutes)})</span>
-                  : null}
-              </p>
-            </div>
+            {/* (La fecha y hora ya están arriba, en el bloque de estado — no se repite acá.) */}
 
             {/* ── Profesional por servicio (agendada o "En proceso" — antes solo aparecía en
                 "En proceso", pero desde que SYNC-040 asigna operador por servicio ya desde que
                 se agenda la cita, tiene sentido mostrarlo también con la cita solo agendada) ── */}
             {(booking.status === 'scheduled' || booking.status === 'work_order') && booking.services.length > 0 && (
               <section>
-                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Servicio / Operador</p>
+                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Servicios</p>
                 {(() => {
                   const excluded = booking.services.filter(l => l.cancelled_at || l.not_performed_at).length;
                   return excluded > 0 ? (
@@ -1373,8 +1421,9 @@ export function MobCitaDet() {
                   {booking.services.map(line => {
                     const st = lineStateOf(line);
                     const voided = st === 'cancelled' || st === 'not_performed';
-                    const expanded = expandedLines.has(line.booking_service_id);
                     const busy = lineActionId === line.booking_service_id;
+                    const assigning = assigningLine?.booking_service_id === line.booking_service_id;
+                    const chip = 'text-xs font-semibold px-3 py-1.5 rounded-xl disabled:opacity-50 active:scale-95 transition-transform';
                     const stateChip =
                       st === 'completed'     ? { label: 'Completado',    cls: 'bg-tertiary/10 text-tertiary' } :
                       st === 'in_progress'   ? { label: 'En proceso',    cls: 'bg-secondary/10 text-secondary' } :
@@ -1382,180 +1431,172 @@ export function MobCitaDet() {
                       st === 'cancelled'     ? { label: 'Cancelada',     cls: 'bg-error/10 text-error' } :
                                                { label: 'Pendiente',     cls: 'bg-surface-container text-on-surface-variant' };
                     return (
-                    <div key={line.booking_service_id} className={`bg-surface border rounded-2xl overflow-hidden ${voided ? 'border-error/30 opacity-70' : 'border-outline-variant'}`}>
-                      {/* Renglón-resumen — tap para expandir/colapsar (div, no button: adentro
-                          hay <p>/<div>, anidado inválido dentro de <button> y el tap se rompe
-                          en navegadores viejos — mismo motivo por el que el resto de esta
-                          pantalla usa <div onClick> para filas clickeables). */}
-                      <div role="button" tabIndex={0}
-                        onClick={() => toggleLineExpanded(line.booking_service_id)}
-                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLineExpanded(line.booking_service_id); } }}
-                        className="w-full px-4 py-3 flex items-center gap-2 text-left cursor-pointer active:bg-surface-container-high transition-colors">
+                    <div key={line.booking_service_id} className={`bg-surface border rounded-2xl px-4 py-3 flex flex-col gap-2.5 ${voided ? 'border-error/30 opacity-70' : 'border-outline-variant'}`}>
+                      {/* Encabezado: nombre + meta (hora · duración · precio · operador · externo) + chip de estado */}
+                      <div className="flex items-start gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-semibold truncate ${voided ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{line.name}</p>
+                          <p className={`text-sm font-semibold ${voided ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{line.name}</p>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            {booking.services.length > 1 && line.start_time && (
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant">
+                                <span className="font-mono">{line.start_time}</span>
+                                {line.duration_minutes ? ` · ${minutesToHHMM(line.duration_minutes)}` : ''}
+                              </span>
+                            )}
                             <span className="text-xs font-semibold text-on-surface-variant">${line.price.toFixed(2)}</span>
                             {line.operator_name ? (
                               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{line.operator_name}</span>
                             ) : (
                               <span className="text-xs text-on-surface-variant">Sin asignar</span>
                             )}
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stateChip.cls}`}>{stateChip.label}</span>
+                            {line.is_external && (
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-error/10 text-error border border-error/30">
+                                Externo{line.external_cost !== null ? ` — $${line.external_cost.toFixed(2)}` : ''}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <span className="material-symbols-outlined text-on-surface-variant shrink-0">{expanded ? 'expand_less' : 'expand_more'}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${stateChip.cls}`}>{stateChip.label}</span>
                       </div>
 
-                      {expanded && (
-                        <div className="border-t border-outline-variant px-4 py-3 flex flex-col gap-3">
-                          {line.is_external && (
-                            <span className="self-start text-xs font-semibold px-2 py-0.5 rounded-full bg-error/10 text-error border border-error/30">
-                              Externo{line.external_cost !== null ? ` — $${line.external_cost.toFixed(2)}` : ''}
-                            </span>
-                          )}
+                      {voided && (line.cancellation_reason || line.not_performed_reason) && (
+                        <p className="text-xs text-on-surface-variant">Motivo: {line.cancellation_reason || line.not_performed_reason}</p>
+                      )}
 
-                          {voided ? (
-                            <>
-                              {(line.cancellation_reason || line.not_performed_reason) && (
-                                <p className="text-xs text-on-surface-variant">Motivo: {line.cancellation_reason || line.not_performed_reason}</p>
-                              )}
-                              <button type="button" onClick={() => reactivateLine(line.booking_service_id)} disabled={busy}
-                                className="self-start text-xs font-semibold px-3 py-1.5 rounded-xl border border-primary text-primary disabled:opacity-50">
-                                {busy ? 'Reactivando…' : 'Reactivar'}
+                      {/* Acciones de este servicio */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {voided ? (
+                          <button type="button" onClick={() => reactivateLine(line.booking_service_id)} disabled={busy}
+                            className={`${chip} border border-primary text-primary`}>
+                            {busy ? 'Reactivando…' : 'Reactivar'}
+                          </button>
+                        ) : st === 'completed' ? (
+                          <span className="text-xs text-on-surface-variant">Servicio completado.</span>
+                        ) : (
+                          <>
+                            {st === 'in_progress' ? (
+                              <button type="button" onClick={() => completeSingleLine(line.booking_service_id)}
+                                disabled={completingLineId === line.booking_service_id}
+                                className={`${chip} bg-tertiary/10 text-tertiary`}>
+                                {completingLineId === line.booking_service_id ? 'Terminando…' : 'Terminar'}
                               </button>
-                            </>
-                          ) : st === 'completed' ? (
-                            <p className="text-xs text-on-surface-variant">Servicio completado.</p>
-                          ) : (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {st === 'in_progress' ? (
-                                <button type="button" onClick={() => completeSingleLine(line.booking_service_id)}
-                                  disabled={completingLineId === line.booking_service_id}
-                                  className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-tertiary/10 text-tertiary disabled:opacity-50">
-                                  {completingLineId === line.booking_service_id ? 'Terminando…' : 'Terminar'}
+                            ) : (
+                              <>
+                                <button type="button" onClick={() => startSingleLine(line.booking_service_id)}
+                                  disabled={startingLineId === line.booking_service_id}
+                                  className={`${chip} bg-primary/10 text-primary`}>
+                                  {startingLineId === line.booking_service_id ? 'Iniciando…' : 'Iniciar'}
                                 </button>
-                              ) : (
-                                <>
-                                  <button type="button" onClick={() => startSingleLine(line.booking_service_id)}
-                                    disabled={startingLineId === line.booking_service_id}
-                                    className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-primary/10 text-primary disabled:opacity-50">
-                                    {startingLineId === line.booking_service_id ? 'Iniciando…' : 'Iniciar'}
-                                  </button>
-                                  <button type="button" onClick={() => realizadaSingleLine(line.booking_service_id)}
-                                    disabled={busy}
-                                    className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-tertiary/10 text-tertiary disabled:opacity-50">
-                                    Realizada
-                                  </button>
-                                </>
-                              )}
-                              <button type="button" onClick={() => { setVoidPanel({ lineId: line.booking_service_id, kind: 'not_performed' }); setVoidReason(''); }}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-error text-error">
-                                No se realizó
-                              </button>
-                              <button type="button" onClick={() => { setVoidPanel({ lineId: line.booking_service_id, kind: 'cancelled' }); setVoidReason(''); }}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-error text-error">
-                                Cancelar
-                              </button>
-                            </div>
-                          )}
-
-                          {/* Sub-panel de motivo (No se realizó / Cancelar) */}
-                          {voidPanel?.lineId === line.booking_service_id && (
-                            <div className="bg-error/8 border border-error/30 rounded-2xl px-3 py-3 flex flex-col gap-2">
-                              <p className="text-xs font-semibold text-error">
-                                {voidPanel.kind === 'not_performed' ? 'Marcar como no realizado' : 'Cancelar este servicio'}
-                              </p>
-                              <textarea value={voidReason} onChange={e => setVoidReason(e.target.value)} rows={2}
-                                placeholder="Motivo (opcional)"
-                                className="w-full bg-background border border-error/30 rounded-xl px-3 py-2 text-sm outline-none resize-none focus:border-error" />
-                              <div className="flex gap-2">
-                                <button onClick={() => { setVoidPanel(null); setVoidReason(''); }}
-                                  className="flex-1 py-2 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
-                                  Cerrar
+                                <button type="button" onClick={() => realizadaSingleLine(line.booking_service_id)} disabled={busy}
+                                  className={`${chip} bg-tertiary/10 text-tertiary`}>
+                                  Realizada
                                 </button>
-                                <button onClick={confirmVoidLine} disabled={busy}
-                                  className="flex-1 py-2 rounded-xl text-sm font-semibold bg-error text-on-error disabled:opacity-50">
-                                  Confirmar
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Asignar / Reasignar operador · precio · costo externo */}
-                          {!voided && st !== 'completed' && (
-                            <button onClick={() => (assigningLine?.booking_service_id === line.booking_service_id ? closeAssign() : openAssign(line))}
-                              className={`self-start text-xs font-semibold px-3 py-1.5 rounded-xl border ${
-                                line.operator_name ? 'border-secondary text-secondary' : 'bg-amber-500 border-amber-500 text-white'
-                              }`}>
-                              {assigningLine?.booking_service_id === line.booking_service_id ? 'Cerrar' : line.operator_name ? 'Reasignar operador / precio' : 'Asignar operador'}
+                              </>
+                            )}
+                            <button type="button" onClick={() => { setVoidPanel({ lineId: line.booking_service_id, kind: 'not_performed' }); setVoidReason(''); }}
+                              className={`${chip} border border-error text-error`}>
+                              No se realizó
                             </button>
-                          )}
+                            <button type="button" onClick={() => { setVoidPanel({ lineId: line.booking_service_id, kind: 'cancelled' }); setVoidReason(''); }}
+                              className={`${chip} border border-error text-error`}>
+                              Cancelar
+                            </button>
+                          </>
+                        )}
+                        {!voided && st !== 'completed' && (
+                          <button type="button" onClick={() => (assigning ? closeAssign() : openAssign(line))}
+                            className={`${chip} ${line.operator_name ? 'border border-secondary text-secondary' : 'bg-amber-500 border border-amber-500 text-white'}`}>
+                            {assigning ? 'Cerrar' : line.operator_name ? 'Reasignar operador / precio' : 'Asignar operador'}
+                          </button>
+                        )}
+                      </div>
 
-                          {assigningLine?.booking_service_id === line.booking_service_id && (
-                            <div className="bg-secondary/8 border border-secondary/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
-                              <div>
-                                <label className="text-xs text-on-surface-variant mb-1 block">Especialista / Operador</label>
-                                <select
-                                  value={assignOperator}
-                                  onChange={e => setAssignOperator(e.target.value ? Number(e.target.value) : '')}
-                                  className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary"
-                                >
-                                  <option value="">Selecciona un profesional…</option>
-                                  {operators.map(op => (
-                                    <option key={op.id} value={op.id}>{op.name}{op.role ? ` (${op.role})` : ''}</option>
-                                  ))}
-                                </select>
-                              </div>
+                      {/* Sub-panel de motivo (No se realizó / Cancelar) de ESTE servicio */}
+                      {voidPanel?.lineId === line.booking_service_id && (
+                        <div className="bg-error/8 border border-error/30 rounded-2xl px-3 py-3 flex flex-col gap-2">
+                          <p className="text-xs font-semibold text-error">
+                            {voidPanel.kind === 'not_performed' ? 'Marcar como no realizado' : 'Cancelar este servicio'}
+                          </p>
+                          <textarea value={voidReason} onChange={e => setVoidReason(e.target.value)} rows={2}
+                            placeholder="Motivo (opcional)"
+                            className="w-full bg-background border border-error/30 rounded-xl px-3 py-2 text-sm outline-none resize-none focus:border-error" />
+                          <div className="flex gap-2">
+                            <button onClick={() => { setVoidPanel(null); setVoidReason(''); }}
+                              className="flex-1 py-2 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                              Cerrar
+                            </button>
+                            <button onClick={confirmVoidLine} disabled={lineActionId === voidPanel.lineId}
+                              className="flex-1 py-2 rounded-xl text-sm font-semibold bg-error text-on-error disabled:opacity-50">
+                              Confirmar
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
-                              <label className="flex items-center gap-2 text-sm text-on-surface">
-                                <input type="checkbox" checked={assignExternal} onChange={e => setAssignExternal(e.target.checked)}
-                                  className="w-4 h-4 accent-secondary" />
-                                Es servicio externo (ej. cremación, anestesia externa)
-                              </label>
+                      {/* Formulario de reasignar operador · precio · costo externo */}
+                      {assigning && (
+                        <div className="bg-secondary/8 border border-secondary/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
+                          <div>
+                            <label className="text-xs text-on-surface-variant mb-1 block">Especialista / Operador</label>
+                            <select
+                              value={assignOperator}
+                              onChange={e => setAssignOperator(e.target.value ? Number(e.target.value) : '')}
+                              className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary"
+                            >
+                              <option value="">Selecciona un profesional…</option>
+                              {operators.map(op => (
+                                <option key={op.id} value={op.id}>{op.name}{op.role ? ` (${op.role})` : ''}</option>
+                              ))}
+                            </select>
+                          </div>
 
-                              {assignExternal && (
-                                <div>
-                                  <label className="text-xs text-on-surface-variant mb-1 block">Costo del proveedor externo</label>
-                                  <input type="number" inputMode="decimal" step="0.01" min="0" value={assignCost}
-                                    onChange={e => setAssignCost(e.target.value)}
-                                    className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
-                                  <p className="text-[11px] text-on-surface-variant mt-1">Lo que cobra el proveedor externo — distinto del precio de venta al cliente.</p>
-                                </div>
-                              )}
+                          <label className="flex items-center gap-2 text-sm text-on-surface">
+                            <input type="checkbox" checked={assignExternal} onChange={e => setAssignExternal(e.target.checked)}
+                              className="w-4 h-4 accent-secondary" />
+                            Es servicio externo (ej. cremación, anestesia externa)
+                          </label>
 
-                              <div>
-                                <div className="flex items-center justify-between mb-1">
-                                  <label className="text-xs text-on-surface-variant">Precio de venta al cliente</label>
-                                  {assignSuggestedPrice && (
-                                    <button type="button" onClick={() => setAssignPrice(assignSuggestedPrice)}
-                                      className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary">
-                                      Sugerido: ${assignSuggestedPrice} (usar)
-                                    </button>
-                                  )}
-                                </div>
-                                <input type="number" inputMode="decimal" step="0.01" min="0" value={assignPrice}
-                                  onChange={e => setAssignPrice(e.target.value)}
-                                  className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
-                                {assignSuggestedPrice && (
-                                  <p className="text-[11px] text-on-surface-variant mt-1">
-                                    El costo externo cambió respecto al capturado antes — el precio sugerido mantiene la misma proporción, pero es editable, no se aplica solo.
-                                  </p>
-                                )}
-                              </div>
-
-                              {assignErr && <p className="text-xs text-error">{assignErr}</p>}
-                              <div className="flex gap-2">
-                                <button onClick={closeAssign}
-                                  className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
-                                  Cancelar
-                                </button>
-                                <button onClick={saveAssign} disabled={savingAssign || !assignOperator}
-                                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-secondary text-on-secondary disabled:opacity-50">
-                                  {savingAssign ? 'Guardando…' : 'Confirmar asignación'}
-                                </button>
-                              </div>
+                          {assignExternal && (
+                            <div>
+                              <label className="text-xs text-on-surface-variant mb-1 block">Costo del proveedor externo</label>
+                              <input type="number" inputMode="decimal" step="0.01" min="0" value={assignCost}
+                                onChange={e => setAssignCost(e.target.value)}
+                                className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
+                              <p className="text-[11px] text-on-surface-variant mt-1">Lo que cobra el proveedor externo — distinto del precio de venta al cliente.</p>
                             </div>
                           )}
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs text-on-surface-variant">Precio de venta al cliente</label>
+                              {assignSuggestedPrice && (
+                                <button type="button" onClick={() => setAssignPrice(assignSuggestedPrice)}
+                                  className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary">
+                                  Sugerido: ${assignSuggestedPrice} (usar)
+                                </button>
+                              )}
+                            </div>
+                            <input type="number" inputMode="decimal" step="0.01" min="0" value={assignPrice}
+                              onChange={e => setAssignPrice(e.target.value)}
+                              className="w-full bg-background border border-outline-variant rounded-xl px-3 py-2 text-sm outline-none focus:border-secondary" />
+                            {assignSuggestedPrice && (
+                              <p className="text-[11px] text-on-surface-variant mt-1">
+                                El costo externo cambió respecto al capturado antes — el precio sugerido mantiene la misma proporción, pero es editable, no se aplica solo.
+                              </p>
+                            )}
+                          </div>
+
+                          {assignErr && <p className="text-xs text-error">{assignErr}</p>}
+                          <div className="flex gap-2">
+                            <button onClick={closeAssign}
+                              className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                              Cancelar
+                            </button>
+                            <button onClick={saveAssign} disabled={savingAssign || !assignOperator}
+                              className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-secondary text-on-secondary disabled:opacity-50">
+                              {savingAssign ? 'Guardando…' : 'Confirmar asignación'}
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

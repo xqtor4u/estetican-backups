@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { getUserPrefs } from '../hooks/useUserPrefs';
 import { ScreenHeader } from '../ScreenHeader';
+import { useSiblingNav } from '../hooks/useSiblingNav';
 import { PhotoEditorModal } from '../PhotoEditorModal';
 import { PhotoSourceSheet } from '../PhotoSourceSheet';
 import { usePhotoPicker } from '../hooks/usePhotoPicker';
@@ -348,6 +349,7 @@ export function PetDetail() {
 
   const [pet, setPet] = useState<Pet | null>(null);
   const [loading, setLoading] = useState(!isNew);
+  const [denied, setDenied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [edits, setEdits] = useState<EditState | null>(null);
@@ -357,6 +359,10 @@ export function PetDetail() {
   const [watermarkEnabled, setWatermarkEnabled] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [showPhotoMenu, setShowPhotoMenu] = useState(false);
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+
+  /* ‹ › + arrastre lateral a la mascota anterior/siguiente (patrón común de detalle) */
+  const sib = useSiblingNav(id, 'mascota');
 
   const set = (key: keyof EditState) => (val: string | boolean) =>
     setEdits(d => d ? { ...d, [key]: val } : d);
@@ -384,11 +390,19 @@ export function PetDetail() {
 
   useEffect(() => {
     if (isNew) return;
-    fetch(`/api/pets/${id}`).then(r => r.json()).then((data: Pet) => {
-      setPet(data);
-      setEdits(petToEdits(data));
-      setLoading(false);
-    });
+    fetch(`/api/pets/${id}`)
+      .then(async r => {
+        if (r.status === 403) { setDenied(true); setLoading(false); return null; }
+        if (!r.ok) { setLoading(false); return null; }
+        return r.json() as Promise<Pet>;
+      })
+      .then((data) => {
+        if (!data || typeof data !== 'object' || !('id' in data)) return;
+        setPet(data as Pet);
+        setEdits(petToEdits(data as Pet));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [id, isNew]);
 
   const cancelEdit = () => { setEditing(false); if (pet) setEdits(petToEdits(pet)); };
@@ -423,6 +437,16 @@ export function PetDetail() {
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <span className="material-symbols-outlined text-4xl text-on-surface-variant animate-spin">progress_activity</span>
+    </div>
+  );
+
+  if (denied) return (
+    <div className="bg-background text-on-background min-h-screen flex flex-col">
+      <ScreenHeader title="Mascota" screenTag="MobPetDet" onBack={() => navigate(-1)} />
+      <div className="flex-1 flex flex-col items-center justify-center gap-2 px-8 text-center text-on-surface-variant">
+        <span className="material-symbols-outlined text-5xl">lock</span>
+        <p className="text-sm">No tienes acceso a la ficha de mascotas.</p>
+      </div>
     </div>
   );
 
@@ -463,12 +487,14 @@ export function PetDetail() {
 
   /* ── Render principal ─────────────────────────────────── */
   return (
-    <div className="bg-background text-on-background min-h-screen flex flex-col pb-20">
+    <div className="bg-background text-on-background min-h-screen flex flex-col pb-20" {...(editing ? {} : sib.swipeHandlers)}>
 
       <ScreenHeader
         title={editing ? edits.name || pet.name : pet.name}
         screenTag="MobPetDet"
         onBack={() => navigate(-1)}
+        onTitlePrev={editing ? undefined : sib.onPrev}
+        onTitleNext={editing ? undefined : sib.onNext}
         crumbs={crumbs}
         showBreadcrumbs={showBreadcrumbs}
         noCrumbs={editing}
@@ -513,14 +539,23 @@ export function PetDetail() {
             {/* Foto + nombre */}
             <div className="flex items-center gap-4">
               <div
-                {...createLongPressHandlers(() => setShowPhotoMenu(true))}
-                className="w-24 h-24 rounded-2xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0 shadow select-none relative"
+                {...createLongPressHandlers(
+                  () => setShowPhotoMenu(true),
+                  500,
+                  () => { if (pet.photo) setShowPhotoViewer(true); },
+                )}
+                className="w-24 h-24 rounded-2xl bg-primary/10 overflow-hidden flex items-center justify-center shrink-0 shadow select-none relative cursor-pointer"
                 style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
               >
                 {pet.photo
                   ? <img src={pet.photo} alt={pet.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
                   : <span className="material-symbols-outlined text-5xl text-primary pointer-events-none" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>
                 }
+                {pet.photo && !photoUploading && (
+                  <span className="absolute bottom-1 right-1 bg-black/50 rounded-full p-0.5 flex items-center justify-center pointer-events-none">
+                    <span className="material-symbols-outlined text-white text-sm">zoom_in</span>
+                  </span>
+                )}
                 {photoUploading && (
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                     <span className="material-symbols-outlined text-white text-xl animate-spin">progress_activity</span>
@@ -735,6 +770,46 @@ export function PetDetail() {
           onPickGallery={() => { setShowPhotoMenu(false); openPhotoGallery(); }}
           onClose={() => setShowPhotoMenu(false)}
         />
+      )}
+
+      {/* Visor de foto ampliada con "marca de agua" (datos de la mascota superpuestos) */}
+      {showPhotoViewer && pet.photo && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setShowPhotoViewer(false)}
+        >
+          <button
+            onClick={() => setShowPhotoViewer(false)}
+            aria-label="Cerrar"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center active:scale-95 transition-transform"
+          >
+            <span className="material-symbols-outlined text-white">close</span>
+          </button>
+
+          <div className="relative max-w-full max-h-full" onClick={e => e.stopPropagation()}>
+            <img
+              src={pet.photo}
+              alt={pet.name}
+              className="max-w-full max-h-[85vh] object-contain rounded-lg select-none"
+              draggable={false}
+            />
+            {/* Marca de agua: nombre + especie · raza · tamaño · peso sobre un degradado */}
+            <div className="absolute inset-x-0 bottom-0 rounded-b-lg bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-3">
+              <p className="text-white text-lg font-bold leading-tight drop-shadow">{pet.name}</p>
+              <p className="text-white/85 text-xs mt-0.5 drop-shadow">
+                {[
+                  pet.species,
+                  pet.breed,
+                  pet.size ? (SIZE_LABEL[pet.size] ?? pet.size) : null,
+                  pet.weight_kg != null ? `${Number(pet.weight_kg)} kg` : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
+              {pet.owner?.name && (
+                <p className="text-white/70 text-[11px] mt-0.5 drop-shadow">Dueño: {pet.owner.name}</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {editingPhotoFile && (

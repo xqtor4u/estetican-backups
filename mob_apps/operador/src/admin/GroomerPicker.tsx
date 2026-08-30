@@ -15,11 +15,16 @@ export function GroomerPicker() {
   const navigate = useNavigate();
   const [operators, setOperators] = useState<Operator[]>([]);
   const [loading, setLoading] = useState(true);
+  const [denied, setDenied] = useState(false);
   const [parentCrumbs] = useState(() => getNavCrumbs());
 
   useEffect(() => {
     fetch('/api/operators')
-      .then(r => r.json())
+      .then(async r => {
+        if (r.status === 403) { setDenied(true); return []; }
+        const d = await r.json().catch(() => []);
+        return Array.isArray(d) ? d : [];
+      })
       .then(data => { setOperators(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
@@ -47,7 +52,14 @@ export function GroomerPicker() {
           </div>
         )}
 
-        {!loading && operators.length === 0 && (
+        {!loading && denied && (
+          <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-2 text-center">
+            <span className="material-symbols-outlined text-5xl">lock</span>
+            <p className="text-sm">No tienes acceso a esta sección.</p>
+          </div>
+        )}
+
+        {!loading && !denied && operators.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-2">
             <span className="material-symbols-outlined text-5xl">person_off</span>
             <p className="text-sm">No hay operadores activos</p>

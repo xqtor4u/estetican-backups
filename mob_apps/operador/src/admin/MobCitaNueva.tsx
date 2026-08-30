@@ -13,11 +13,28 @@ interface PetMin   { id: number; name: string; species: string | null; breed: st
 const SIZE_LABEL: Record<string, string> = { small: 'Pequeño', medium: 'Mediano', large: 'Grande', giant: 'Gigante' };
 interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null; operator_role_id: number | null }
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null; role_ids: number[] }
-interface OccBooking { time: string; end_time: string | null; duration_minutes: number | null }
+interface OccBooking {
+  time: string;
+  end_time: string | null;
+  duration_minutes: number | null;
+  /** Ventanas reales que ocupa el operador consultado (líneas de servicio activas). Si viene,
+   *  se usa en vez de time+duration — así un operador que solo hace UN servicio de una cita
+   *  ajena bloquea solo ese tramo (SYNC-068). */
+  busy?: { start: string; end: string }[];
+}
 
 /** Una línea de la cita: un servicio con su operador propio (obligatorio), precio y duración
  *  editables (ambos arrancan del catálogo). */
-interface BookingLine { serviceId: number; price: number; operatorId: number | null; durationMinutes: number }
+interface BookingLine {
+  serviceId: number;
+  price: number;
+  operatorId: number | null;
+  durationMinutes: number;
+  /** Hora de inicio de esta línea, en minutos desde medianoche. `null` = automática:
+   *  pegada al fin de la línea anterior (o, para la 1ª, sin colocar todavía). El usuario
+   *  la fija tocando un horario en la cuadrícula con esa línea "activa". */
+  startMin: number | null;
+}
 
 /* ── Constantes de horario ───────────────────────────────── */
 const STEP = 30; // minutos por slot
@@ -32,6 +49,12 @@ function hhmmToMinutes(hhmm: string): number {
   return h * 60 + (m || 0);
 }
 
+/** minutos desde medianoche → "HH:MM" */
+function minutesToClock(mins: number): string {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 function buildSlots(startMin: number, endMin: number): string[] {
   const slots: string[] = [];
   let mins = startMin;
@@ -42,6 +65,11 @@ function buildSlots(startMin: number, endMin: number): string[] {
     mins += STEP;
   }
   return slots;
+}
+
+/** ¿El intervalo [aStart, aEnd) se solapa con [bStart, bEnd)? (medio-abierto: tocar el borde no cuenta) */
+function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return aStart < bEnd && aEnd > bStart;
 }
 
 /* ── Helpers de fecha ────────────────────────────────────── */
@@ -101,15 +129,21 @@ export function MobCitaNueva() {
     }
     return new Date(today.getFullYear(), today.getMonth(), today.getDate());
   });
-  const [occupied,     setOccupied]     = useState<Set<string>>(new Set());
-  const [blockedSlots, setBlockedSlots] = useState<Set<string>>(new Set());
+  // Rangos reales (minutos desde medianoche) de las citas del operador y de sus bloqueos.
+  // Antes se guardaba un Set de etiquetas "HH:MM": una cita que empieza fuera de la rejilla
+  // (09:20, 09:40…) nunca coincidía con las etiquetas del grid y quedaba invisible → riesgo
+  // de traslape (lo atajaba el backend al guardar, con un 422 tardío).
+  const [occupiedRanges, setOccupiedRanges] = useState<{ start: number; end: number }[]>([]);
+  const [blockedRanges,  setBlockedRanges]  = useState<{ start: number; end: number }[]>([]);
   const [loadSlots, setLoadSlots] = useState(false);
   const [businessHours, setBusinessHours] = useState({ start: DEFAULT_OPEN_MIN, end: DEFAULT_CLOSE_MIN });
-  const [selSlot,      setSelSlot]      = useState<string | null>(null);
-  // Líneas de la cita, en orden de agregado. La primera manda: su operador es el "responsable"
-  // de la cita (operator_id a nivel booking) y contra su agenda se muestra la disponibilidad.
-  // El backend valida cada operador contra su propio tramo de tiempo al guardar (SYNC-040).
+  // Líneas de la cita, en orden de agregado. La 1ª es el ancla: su hora de inicio es la de la
+  // cita (`scheduled_at`), su operador el "responsable". Cada línea 2ª+ se coloca en su propio
+  // horario tocando la cuadrícula; el backend valida cada operador contra su tramo (SYNC-040).
   const [lines,        setLines]        = useState<BookingLine[]>([]);
+  // Índice de la línea que la cuadrícula está colocando ahora (su operador manda la
+  // disponibilidad mostrada; tocar un horario fija esa línea).
+  const [timingIdx,    setTimingIdx]    = useState(0);
   const [pickerOpen,   setPickerOpen]   = useState(false);
   // Operador preferido para autocompletar líneas nuevas: el que viene del filtro de Agenda /
   // GroomerAgenda si lo hay, si no el usuario logueado cuando es operador. Solo se usa si está
@@ -158,56 +192,116 @@ export function MobCitaNueva() {
   /* Carga citas ocupadas al cambiar fecha u operador — requiere operador elegido */
   const loadOccupied = useCallback((date: Date, operatorId: number | null) => {
     if (!operatorId) {
-      setOccupied(new Set());
-      setBlockedSlots(new Set());
+      setOccupiedRanges([]);
+      setBlockedRanges([]);
       setLoadSlots(false);
       return;
     }
     setLoadSlots(true);
-    setSelSlot(null);
     fetch(`/api/agenda?date=${localDateStr(date)}&operator_id=${operatorId}`)
-      .then(r => r.json())
-      .then((bookings: OccBooking[]) => {
-        const occ = new Set<string>();
-        bookings.forEach(b => {
-          const startMin = hhmmToMinutes(b.time.slice(0, 5));
-          const durMin = b.duration_minutes ?? STEP;
-          const endMin = b.end_time ? hhmmToMinutes(b.end_time.slice(0, 5)) : startMin + durMin;
-          buildSlots(startMin, Math.max(endMin, startMin + STEP)).forEach(s => occ.add(s));
+      .then(r => (r.ok ? r.json() : []))
+      .then((bookings: unknown) => {
+        const rows = Array.isArray(bookings) ? bookings as OccBooking[] : [];
+        const ranges: { start: number; end: number }[] = [];
+        rows.forEach(b => {
+          if (Array.isArray(b.busy) && b.busy.length) {
+            // Ventanas reales del operador (una por línea de servicio activa).
+            b.busy.forEach(w => {
+              const s = hhmmToMinutes(w.start);
+              const e = hhmmToMinutes(w.end);
+              ranges.push({ start: s, end: Math.max(e, s + 1) });
+            });
+          } else {
+            const startMin = hhmmToMinutes(b.time.slice(0, 5));
+            const durMin = b.duration_minutes ?? STEP;
+            const endMin = b.end_time ? hhmmToMinutes(b.end_time.slice(0, 5)) : startMin + durMin;
+            ranges.push({ start: startMin, end: Math.max(endMin, startMin + 1) });
+          }
         });
-        setOccupied(occ);
+        setOccupiedRanges(ranges);
       })
-      .catch(() => setOccupied(new Set()))
+      .catch(() => setOccupiedRanges([]))
       .finally(() => setLoadSlots(false));
 
     const dayStr = localDateStr(date);
     fetch(`/api/agenda/unavailabilities?date=${dayStr}&operator_id=${operatorId}`)
       .then(r => r.ok ? r.json() : [])
-      .then((windows: { starts_at: string; ends_at: string }[]) => {
-        const blocked = new Set<string>();
-        windows.forEach(w => {
+      .then((windows: unknown) => {
+        const rows = Array.isArray(windows) ? windows as { starts_at: string; ends_at: string }[] : [];
+        setBlockedRanges(rows.map(w => {
           const startDay = w.starts_at.slice(0, 10);
           const endDay = w.ends_at.slice(0, 10);
           const startMin = startDay < dayStr ? 0 : hhmmToMinutes(w.starts_at.slice(11, 16));
           const endMin = endDay > dayStr ? 24 * 60 : hhmmToMinutes(w.ends_at.slice(11, 16));
-          buildSlots(startMin, Math.max(endMin, startMin + STEP)).forEach(s => blocked.add(s));
-        });
-        setBlockedSlots(blocked);
+          return { start: startMin, end: Math.max(endMin, startMin + 1) };
+        }));
       })
-      .catch(() => setBlockedSlots(new Set()));
+      .catch(() => setBlockedRanges([]));
   }, []);
 
-  /* La primera línea manda: su operador es el "responsable" de la cita (operator_id a nivel
-     booking) y contra su agenda se muestra la disponibilidad de horarios. */
+  /* La 1ª línea es el ancla de la cita: su operador es el "responsable" y su hora de inicio
+     es `scheduled_at`. */
   const primaryOperator = lines[0]?.operatorId ?? null;
 
-  useEffect(() => { loadOccupied(selDate, primaryOperator); }, [selDate, primaryOperator, loadOccupied]);
+  const LINE_DUR_STEP = 5;
+  const LINE_DUR_MIN  = 5;
+  const LINE_DUR_MAX  = 480;
 
-  /* Duración total de la cita = suma de la duración (editable) de cada línea */
+  /* Hora de inicio resuelta (minutos desde medianoche) de cada línea: la que fijó el usuario,
+     o (auto) pegada al fin de la línea anterior en la lista. */
+  const resolvedStarts = useMemo(() => {
+    const out: number[] = [];
+    let cursor = businessHours.start;
+    lines.forEach(l => {
+      const s = l.startMin ?? cursor;
+      out.push(s);
+      cursor = s + (l.durationMinutes || STEP);
+    });
+    return out;
+  }, [lines, businessHours.start]);
+
+  const line0Placed  = lines[0]?.startMin != null;
+  // Inicio de la cita = el arranque más temprano de cualquier línea (cada servicio se coloca
+  // libre en la cuadrícula). El "responsable" sigue siendo el operador de la 1ª línea.
+  const citaStartMin = lines.length ? Math.min(...resolvedStarts) : businessHours.start;
+  const armedIdx     = lines.length ? Math.min(Math.max(0, timingIdx), lines.length - 1) : 0;
+  const armedLine    = lines[armedIdx] ?? null;
+  const armedStart   = resolvedStarts[armedIdx] ?? businessHours.start;
+  const armedDur     = armedLine?.durationMinutes ?? STEP;
+  const armedOperator = armedLine?.operatorId ?? null;
+  const armedName    = armedLine ? (services.find(s => s.id === armedLine.serviceId)?.name ?? 'servicio') : '';
+  /* Mostrar el span de la línea activa en el grid: siempre para las 2ª+ (su auto-hora ya es
+     una propuesta real); para la 1ª solo cuando el usuario la colocó. */
+  const showArmedSpan = armedIdx > 0 || line0Placed;
+
+  /* Rangos de las OTRAS líneas de esta cita — se pintan tentativamente en la cuadrícula. */
+  const otherLineRanges = useMemo(() =>
+    lines.map((l, i) => ({
+      i,
+      start: resolvedStarts[i] ?? businessHours.start,
+      end: (resolvedStarts[i] ?? businessHours.start) + (l.durationMinutes || STEP),
+      operatorId: l.operatorId,
+      name: services.find(s => s.id === l.serviceId)?.name ?? 'servicio',
+    })).filter(r => r.i !== armedIdx),
+    [lines, resolvedStarts, armedIdx, services, businessHours.start]
+  );
+
+  useEffect(() => { loadOccupied(selDate, armedOperator); }, [selDate, armedOperator, loadOccupied]);
+
+  /* Tiempo de trabajo total (suma de duraciones, sin huecos) — solo para mostrar. */
   const totalDuration = useMemo(() =>
     lines.reduce((acc, l) => acc + (l.durationMinutes || 0), 0),
     [lines]
   );
+
+  /* Span de toda la cita = fin más lejano de cualquier línea − inicio de la cita. */
+  const effectiveDuration = useMemo(() => {
+    if (lines.length === 0) return STEP;
+    const maxEnd = Math.max(...lines.map((l, i) => (resolvedStarts[i] ?? businessHours.start) + (l.durationMinutes || STEP)));
+    return Math.max(STEP, maxEnd - citaStartMin);
+  }, [lines, resolvedStarts, citaStartMin, businessHours.start]);
+
+  const endTime = lines.length && line0Placed ? minutesToClock(citaStartMin + effectiveDuration) : null;
 
   /* Al cambiar las líneas, limpiar el error de servicios si ya están completas */
   useEffect(() => {
@@ -216,19 +310,10 @@ export function MobCitaNueva() {
     }
   }, [lines]);
 
-  /* Al seleccionar horario, limpiar error de slot */
+  /* Al colocar el 1er servicio, limpiar el error de horario */
   useEffect(() => {
-    if (selSlot) setFieldErrors(prev => { const n = { ...prev }; delete n.slot; return n; });
-  }, [selSlot]);
-
-  /* Al cambiar el operador responsable, el horario ya elegido puede dejar de ser válido */
-  useEffect(() => {
-    setSelSlot(null);
-  }, [primaryOperator]);
-
-  /* Duración efectiva de la cita (mínimo un slot) */
-  const effectiveDuration = totalDuration > 0 ? totalDuration : STEP;
-  const slotsNeeded = Math.max(1, Math.ceil(effectiveDuration / STEP));
+    if (line0Placed) setFieldErrors(prev => { const n = { ...prev }; delete n.slot; return n; });
+  }, [line0Placed]);
 
   /* Precio total — suma del precio (editable) de cada línea */
   const totalPrice = useMemo(() =>
@@ -242,24 +327,25 @@ export function MobCitaNueva() {
     [services, lines]
   );
 
-  const LINE_DUR_STEP = 5;
-  const LINE_DUR_MIN  = 5;
-  const LINE_DUR_MAX  = 480;
-
-  /* Índice del slot seleccionado */
-  const selSlotIdx = selSlot ? ALL_SLOTS.indexOf(selSlot) : -1;
-  const isInRange  = (slot: string) => {
-    const idx = ALL_SLOTS.indexOf(slot);
-    return selSlotIdx >= 0 && idx >= selSlotIdx && idx < selSlotIdx + slotsNeeded;
+  /* ¿Colocar la línea ACTIVA arrancando en `slotMin` la haría chocar? (cierre del negocio,
+     agenda de su operador, u otra línea de esta misma cita con el mismo operador). */
+  const slotWouldConflict = (slotMin: number) => {
+    const e = slotMin + armedDur;
+    if (e > businessHours.end) return true;
+    if (occupiedRanges.some(r => overlaps(slotMin, e, r.start, r.end))) return true;
+    if (blockedRanges.some(r => overlaps(slotMin, e, r.start, r.end))) return true;
+    if (otherLineRanges.some(r => r.operatorId != null && r.operatorId === armedOperator && overlaps(slotMin, e, r.start, r.end))) return true;
+    return false;
   };
 
-  /* Un slot es inválido si alguno de los slots que ocuparía está taken u ocupado por otra cita */
-  const isSlotInvalid = (slot: string) => {
-    const idx = ALL_SLOTS.indexOf(slot);
-    for (let i = 0; i < slotsNeeded; i++) {
-      const s = ALL_SLOTS[idx + i];
-      if (!s || occupied.has(s) || blockedSlots.has(s)) return true;
-    }
+  /* ¿La línea `idx` (tal como está colocada) es inválida? Para la activa se chequea todo;
+     para el resto solo el cierre del negocio (su agenda no está cargada — la valida el
+     backend al guardar). */
+  const isLineInvalid = (idx: number) => {
+    const s = resolvedStarts[idx] ?? businessHours.start;
+    const e = s + (lines[idx]?.durationMinutes || STEP);
+    if (e > businessHours.end) return true;
+    if (idx === armedIdx) return slotWouldConflict(s);
     return false;
   };
 
@@ -290,13 +376,20 @@ export function MobCitaNueva() {
         price: svc?.price ?? 0,
         operatorId: defaultOperatorFor(svc),
         durationMinutes: svc?.duration_minutes ?? STEP,
+        startMin: null,
       }];
     });
     setPickerOpen(false);
   };
 
-  const removeLine = (svcId: number) =>
+  const removeLine = (svcId: number) => {
     setLines(prev => prev.filter(l => l.serviceId !== svcId));
+    setTimingIdx(0);
+  };
+
+  /** Fija la hora de inicio (minutos desde medianoche) de una línea al tocar la cuadrícula. */
+  const setLineStart = (idx: number, startMin: number) =>
+    setLines(prev => prev.map((l, i) => (i === idx ? { ...l, startMin } : l)));
 
   const setLinePrice = (svcId: number, price: number) =>
     setLines(prev => prev.map(l => (l.serviceId === svcId ? { ...l, price } : l)));
@@ -311,12 +404,10 @@ export function MobCitaNueva() {
         : l
     )));
 
-  /* ── Hora de fin estimada ──────────────────────────────── */
-  const endTime = selSlot ? slotAddMins(selSlot, effectiveDuration) : null;
-
   /* ── Guardar ───────────────────────────────────────────── */
   const linesComplete = lines.length > 0 && lines.every(l => l.operatorId != null);
-  const canSave = linesComplete && selSlot !== null && !isSlotInvalid(selSlot) && pet !== null;
+  const canSave = linesComplete && line0Placed && pet !== null
+    && !lines.some((_, i) => isLineInvalid(i));
 
   const save = async (overrideAvailability = false) => {
     if (saving) return;
@@ -325,8 +416,11 @@ export function MobCitaNueva() {
     const errs: Record<string, string> = {};
     if (lines.length === 0)                       errs.services = 'Agrega al menos un servicio para continuar';
     else if (lines.some(l => l.operatorId == null)) errs.services = 'Cada servicio necesita un operador asignado';
-    if (!selSlot)                                 errs.slot     = 'Selecciona un horario';
-    else if (isSlotInvalid(selSlot))             errs.slot     = 'Este horario tiene conflicto con otra cita';
+    if (!line0Placed)                            errs.slot     = 'Toca un horario para el primer servicio';
+    else if (citaStartMin + effectiveDuration > businessHours.end)
+                                                 errs.slot     = 'La cita se pasa del horario de cierre';
+    else if (lines.some((_, i) => isLineInvalid(i)))
+                                                 errs.slot     = 'Algún servicio se traslapa con otra cita o un bloqueo del operador';
 
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
@@ -342,12 +436,13 @@ export function MobCitaNueva() {
     setSaveErr(null);
     setOfferOverride(false);
 
-    const scheduled_at = `${localDateStr(selDate)} ${selSlot!}:00`;
-    const servicesPayload = lines.map(l => ({
+    const scheduled_at = `${localDateStr(selDate)} ${minutesToClock(citaStartMin)}:00`;
+    const servicesPayload = lines.map((l, idx) => ({
       id:               l.serviceId,
       price:            l.price,
       operator_id:      l.operatorId,
       duration_minutes: l.durationMinutes,
+      offset_minutes:   Math.max(0, (resolvedStarts[idx] ?? citaStartMin) - citaStartMin),
     }));
 
     try {
@@ -404,7 +499,7 @@ export function MobCitaNueva() {
         <div>
           <p className="text-xl font-bold text-on-surface">¡Cita agendada!</p>
           <p className="text-sm text-on-surface-variant mt-1">
-            {fmtLong(selDate)} a las {selSlot}
+            {fmtLong(selDate)} a las {minutesToClock(citaStartMin)}
             {endTime && ` — ${endTime}`}
           </p>
           {pet && <p className="text-sm text-on-surface-variant">{pet.name}</p>}
@@ -533,7 +628,8 @@ export function MobCitaNueva() {
             </p>
             {lines.length > 0 && (
               <span className="text-xs text-on-surface-variant bg-surface-container border border-outline-variant px-2 py-0.5 rounded-full">
-                {minutesToHHMM(totalDuration)} · ${totalPrice.toFixed(0)}
+                {minutesToHHMM(effectiveDuration)}
+                {effectiveDuration !== totalDuration ? ` (trabajo ${minutesToHHMM(totalDuration)})` : ''} · ${totalPrice.toFixed(0)}
               </span>
             )}
           </div>
@@ -638,6 +734,33 @@ export function MobCitaNueva() {
                         </select>
                       )}
                     </div>
+
+                    {/* Hora de inicio de la línea — se fija tocando la cuadrícula de abajo.
+                        Tocar acá "activa" esta línea para que el grid coloque su horario. */}
+                    <div className="px-4 pb-3 flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => { setTimingIdx(idx); slotSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                        className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                          armedIdx === idx
+                            ? 'bg-primary text-on-primary border-primary'
+                            : 'bg-surface text-on-surface border-outline-variant active:bg-surface-container-high'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">schedule</span>
+                        Empieza{' '}
+                        <span className="font-mono">
+                          {idx === 0 && !line0Placed ? 'elegir…' : minutesToClock(resolvedStarts[idx] ?? businessHours.start)}
+                        </span>
+                        {line.startMin == null && !(idx === 0 && !line0Placed) && (
+                          <span className="opacity-70 font-normal">(auto)</span>
+                        )}
+                        <span className="material-symbols-outlined text-sm">edit_calendar</span>
+                      </button>
+                      {idx === 0 && (
+                        <span className="text-[10px] uppercase tracking-wide text-on-surface-variant/70">inicio de la cita</span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -662,16 +785,23 @@ export function MobCitaNueva() {
 
         {/* ── 3. Horario ───────────────────────────────── */}
         <section ref={slotSectionRef}>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
             <p className={`text-xs font-semibold uppercase tracking-wide ${fieldErrors.slot ? 'text-error' : 'text-on-surface-variant'}`}>
-              Horario — {fmtLong(selDate)} {fieldErrors.slot ? '· requerido' : ''}
+              Horario{lines.length > 1 ? ` · ${armedName}` : ''} {fieldErrors.slot ? '· requerido' : ''}
             </p>
-            {selSlot && endTime && (
-              <span className="text-xs text-primary font-semibold">
-                {selSlot} → {endTime}
+            {line0Placed && endTime && (
+              <span className="text-xs text-primary font-semibold bg-primary/10 border border-primary/30 rounded-full px-2 py-0.5">
+                Ocupa {minutesToClock(citaStartMin)}–{endTime}
               </span>
             )}
           </div>
+
+          {lines.length > 1 && (
+            <p className="text-[11px] text-on-surface-variant mb-2">
+              Tocá un horario para <span className="font-semibold text-on-surface">{armedName}</span>.
+              Cambiá de servicio con el botón «Empieza» de cada uno.
+            </p>
+          )}
 
           {fieldErrors.slot && (
             <p className="text-xs text-error flex items-center gap-1 mb-2">
@@ -679,10 +809,10 @@ export function MobCitaNueva() {
               {fieldErrors.slot}
             </p>
           )}
-          {primaryOperator === null ? (
+          {armedOperator === null ? (
             <div className="flex items-center gap-2 py-6 text-on-surface-variant text-sm bg-surface-container border border-outline-variant rounded-2xl px-4">
               <span className="material-symbols-outlined text-xl">person_off</span>
-              Agrega un servicio y elige su operador para ver la disponibilidad.
+              Elige el operador de {armedName || 'este servicio'} para ver su disponibilidad.
             </div>
           ) : loadSlots ? (
             <div className="flex items-center gap-2 py-6 text-on-surface-variant text-sm">
@@ -691,55 +821,99 @@ export function MobCitaNueva() {
             </div>
           ) : (
             <>
-              {/* Leyenda */}
-              <div className="flex items-center gap-4 mb-3 text-[11px] text-on-surface-variant">
+              {/* Leyenda — cada muestra usa EXACTAMENTE las mismas clases que el slot que
+                  representa abajo, para que el color del recuadro coincida con lo que se ve. */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-3 text-[11px] text-on-surface-variant">
                 <span className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded bg-primary inline-block" />
                   Seleccionado
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded bg-primary/30 inline-block" />
+                  <span className="w-3 h-3 rounded bg-primary/25 border border-primary/30 inline-block" />
                   Duración
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded bg-error/20 inline-block" />
+                  <span className="w-3 h-3 rounded bg-amber-500/25 border border-amber-500/60 inline-block" />
+                  Bloque usado a medias
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded bg-error-container border border-error/20 inline-block" />
                   Ocupado
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded bg-on-surface-variant/20 inline-block" />
+                  <span className="w-3 h-3 rounded bg-surface-container-high border border-outline-variant inline-block" />
                   Bloqueado
+                </span>
+                {lines.length > 1 && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-violet-500/25 border border-dashed border-violet-500/70 inline-block" />
+                    Otro servicio de esta cita
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded bg-surface-container border border-dashed border-amber-500/60 inline-block" />
+                  No cabe la duración
                 </span>
               </div>
 
               <div className="grid grid-cols-4 gap-2">
                 {ALL_SLOTS.map(slot => {
-                  const occ     = occupied.has(slot);
-                  const blocked = !occ && blockedSlots.has(slot);
-                  const isSel = selSlot === slot;
-                  const inRng = isInRange(slot) && !isSel;
-                  const inv   = !occ && !blocked && selSlot === null && isSlotInvalid(slot) && slotsNeeded > 1;
+                  const slotMin = hhmmToMinutes(slot);
+                  const slotEnd = slotMin + STEP;
+                  // "full" = una cita/bloqueo cubre el bloque de 30 min completo;
+                  // "part" = lo toca pero no lo llena.
+                  const occFull = occupiedRanges.some(r => r.start <= slotMin && r.end >= slotEnd);
+                  const occPart = !occFull && occupiedRanges.some(r => overlaps(slotMin, slotEnd, r.start, r.end));
+                  const blkFull = !occFull && !occPart && blockedRanges.some(r => r.start <= slotMin && r.end >= slotEnd);
+                  const blkPart = !occFull && !occPart && !blkFull && blockedRanges.some(r => overlaps(slotMin, slotEnd, r.start, r.end));
+                  // Otra línea de ESTA cita ya usa este bloque. Si es del mismo operador que la
+                  // línea activa → no se puede (choque real); si es de otro operador → solo
+                  // aviso visual (violeta), sí se puede agendar en paralelo.
+                  const otherHere = otherLineRanges.filter(r => overlaps(slotMin, slotEnd, r.start, r.end));
+                  const otherSameOp = otherHere.some(r => r.operatorId != null && r.operatorId === armedOperator);
+                  const otherOtherOp = !otherSameOp && otherHere.length > 0;
+                  const occ = occFull || occPart;
+                  const blocked = blkFull || blkPart;
+                  const isSel = showArmedSpan && slotMin === armedStart;
+                  const inSpan = showArmedSpan && slotMin >= armedStart && slotMin < armedStart + armedDur && !isSel;
+                  const durTail = inSpan && (armedStart + armedDur) > slotMin && (armedStart + armedDur) < slotEnd;
+                  const durConflict = !occ && !blocked && !otherSameOp && !isSel && !inSpan && slotWouldConflict(slotMin);
+                  const hardBlocked = occFull || blkFull || otherSameOp;
 
                   return (
                     <button
                       key={slot}
-                      disabled={occ || blocked}
-                      title={blocked ? 'Operador no disponible (vacaciones/permiso)' : undefined}
-                      onClick={() => {
-                        if (isSlotInvalid(slot)) {
-                          // Slot válido para empezar pero su rango se choca → mostrar igualmente, el usuario elige
-                        }
-                        setSelSlot(isSel ? null : slot);
-                      }}
+                      disabled={hardBlocked}
+                      title={
+                        otherSameOp ? `Ya lo usa "${otherHere.find(r => r.operatorId === armedOperator)?.name}" (mismo operador)`
+                        : occPart ? 'Otra cita termina/empieza a mitad de este bloque — no se puede agendar acá'
+                        : blocked ? 'Operador no disponible (vacaciones/permiso)'
+                        : otherOtherOp ? `Otro servicio de esta cita (${otherHere[0].name}) ocupa este rango`
+                        : durTail ? 'El servicio solo usa parte de este bloque'
+                        : durConflict ? 'El servicio no cabe acá (se traslapa o pasa del cierre)'
+                        : undefined
+                      }
+                      onClick={() => setLineStart(armedIdx, slotMin)}
                       className={`py-2.5 rounded-xl text-sm font-mono font-semibold transition-all ${
-                        occ
+                        occFull
                           ? 'bg-error-container text-on-error-container border border-error/20 cursor-not-allowed line-through'
-                          : blocked
+                          : blkFull
                             ? 'bg-surface-container-high text-on-surface-variant border border-outline-variant cursor-not-allowed line-through'
-                            : isSel
-                              ? 'bg-primary text-on-primary shadow-md scale-105'
-                              : inRng
-                                ? 'bg-primary/25 text-primary border border-primary/30'
-                                : 'bg-surface-container text-on-surface border border-outline-variant active:scale-95 hover:border-primary/40'
+                            : otherSameOp
+                              ? 'bg-error-container/70 text-on-error-container border border-error/20 cursor-not-allowed line-through'
+                              : (occPart || blkPart)
+                                ? 'bg-amber-500/25 text-on-surface border border-amber-500/60 cursor-not-allowed'
+                                : isSel
+                                  ? 'bg-primary text-on-primary shadow-md scale-105'
+                                  : durTail
+                                    ? 'bg-amber-500/25 text-on-surface border border-amber-500/60'
+                                    : inSpan
+                                      ? 'bg-primary/25 text-primary border border-primary/30'
+                                      : otherOtherOp
+                                        ? 'bg-violet-500/20 text-on-surface border border-dashed border-violet-500/70'
+                                        : durConflict
+                                          ? 'bg-surface-container text-on-surface-variant border border-dashed border-amber-500/60'
+                                          : 'bg-surface-container text-on-surface border border-outline-variant active:scale-95 hover:border-primary/40'
                       }`}
                     >
                       {slot}
@@ -748,10 +922,10 @@ export function MobCitaNueva() {
                 })}
               </div>
 
-              {selSlot && isSlotInvalid(selSlot) && (
+              {showArmedSpan && slotWouldConflict(armedStart) && (
                 <p className="text-xs text-error mt-2 flex items-center gap-1">
                   <span className="material-symbols-outlined text-sm">warning</span>
-                  Este horario se traslapa con una cita existente para la duración seleccionada
+                  {armedName} se traslapa con otra cita / bloqueo, o se pasa del cierre.
                 </p>
               )}
             </>
@@ -771,31 +945,31 @@ export function MobCitaNueva() {
         </section>
 
         {/* ── Resumen ───────────────────────────────────── */}
-        {selSlot && (
+        {line0Placed && (
           <div className={`border rounded-2xl px-4 py-3 flex items-start gap-3 ${
-            isSlotInvalid(selSlot)
+            !canSave
               ? 'bg-error/8 border-error/30'
               : 'bg-primary/8 border-primary/20'
           }`}>
             <span
-              className={`material-symbols-outlined text-xl mt-0.5 shrink-0 ${isSlotInvalid(selSlot) ? 'text-error' : 'text-primary'}`}
+              className={`material-symbols-outlined text-xl mt-0.5 shrink-0 ${!canSave ? 'text-error' : 'text-primary'}`}
               style={{ fontVariationSettings: "'FILL' 1" }}
             >
-              {isSlotInvalid(selSlot) ? 'warning' : 'event_available'}
+              {!canSave ? 'warning' : 'event_available'}
             </span>
             <div>
               <p className="text-sm font-semibold text-on-surface">
-                {fmtLong(selDate)} · {selSlot}{endTime ? ` → ${endTime}` : ''}
+                {fmtLong(selDate)} · {minutesToClock(citaStartMin)}{endTime ? ` → ${endTime}` : ''}
               </p>
               {lines.length > 0 && (
                 <div className="text-xs text-on-surface-variant mt-0.5 flex flex-col gap-0.5">
-                  {lines.map(l => {
+                  {lines.map((l, i) => {
                     const svc = services.find(s => s.id === l.serviceId);
                     const op = operators.find(o => o.id === l.operatorId);
                     return (
                       <span key={l.serviceId} className="flex items-center gap-1">
-                        <span className="material-symbols-outlined text-xs">person</span>
-                        {svc?.name ?? '—'}{op ? ` · ${op.name}` : ' · sin operador'}
+                        <span className="font-mono">{minutesToClock(resolvedStarts[i] ?? citaStartMin)}</span>
+                        · {svc?.name ?? '—'}{op ? ` · ${op.name}` : ' · sin operador'}
                       </span>
                     );
                   })}
@@ -872,15 +1046,15 @@ export function MobCitaNueva() {
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
               Guardando cita…
             </>
-          ) : selSlot && isSlotInvalid(selSlot) ? (
+          ) : line0Placed && !canSave ? (
             <>
               <span className="material-symbols-outlined">warning</span>
-              Horario con conflicto
+              Revisa los horarios
             </>
           ) : canSave ? (
             <>
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>event_available</span>
-              Agendar {selSlot}{endTime ? ` → ${endTime}` : ''}
+              Agendar {minutesToClock(citaStartMin)}{endTime ? ` → ${endTime}` : ''}
             </>
           ) : (
             <>

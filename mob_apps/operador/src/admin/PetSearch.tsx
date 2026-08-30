@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { peekCitaPresetDate, setNavCrumbs } from '../navState';
+import { peekCitaPresetDate, setNavCrumbs, setSiblingNav } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import { PhotoEditorModal } from '../PhotoEditorModal';
 import { PhotoSourceSheet } from '../PhotoSourceSheet';
@@ -44,6 +44,7 @@ export function PetSearch() {
   const [view, setView] = useState<'table' | 'cards'>('cards');
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
+  const [denied, setDenied] = useState(false);
 
   /* ── Cambiar foto desde la lista (long-press) ──────────── */
   const [menuPetId, setMenuPetId] = useState<number | null>(null);
@@ -83,8 +84,12 @@ export function PetSearch() {
     try {
       const url = search ? `/api/pets?search=${encodeURIComponent(search)}` : '/api/pets';
       const res = await fetch(url);
-      const data = await res.json();
-      setPets(data);
+      if (res.status === 403) { setDenied(true); setPets([]); return; }
+      setDenied(false);
+      const data = await res.json().catch(() => []);
+      setPets(Array.isArray(data) ? data : []);
+    } catch {
+      setPets([]);
     } finally {
       setLoading(false);
     }
@@ -115,6 +120,8 @@ export function PetSearch() {
     }
     const nc = [{ label: 'Mascotas', to: '/mascotas' }];
     setNavCrumbs(nc);
+    // Deja la lista de resultados para que el detalle ofrezca ‹ › + arrastre entre mascotas.
+    setSiblingNav('mascota', filtered.map(p => p.id), pid => `/mascotas/${pid}`);
     navigate(`/mascotas/${id}`, { state: { _crumbs: nc } });
   };
 
@@ -251,7 +258,14 @@ export function PetSearch() {
           </div>
         )}
 
-        {!loading && filtered.length === 0 && (
+        {!loading && denied && (
+          <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-2 text-center">
+            <span className="material-symbols-outlined text-5xl">lock</span>
+            <p className="text-sm">No tienes acceso a esta sección.</p>
+          </div>
+        )}
+
+        {!loading && !denied && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-2">
             <span className="material-symbols-outlined text-5xl">search_off</span>
             <p className="text-sm">{query ? `Sin resultados para "${query}"` : 'No hay mascotas registradas'}</p>

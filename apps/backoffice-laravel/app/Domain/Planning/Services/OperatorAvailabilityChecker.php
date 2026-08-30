@@ -5,6 +5,7 @@ namespace App\Domain\Planning\Services;
 use App\Models\OperatorUnavailability;
 use App\Models\OperatorWeeklySchedule;
 use App\Models\SpaBooking;
+use App\Models\SpaBookingService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -12,14 +13,42 @@ class OperatorAvailabilityChecker
 {
     /**
      * Alcance intencional: solo SpaBooking. `operator_id` no existe en HotelReservation.
+     *
+     * Mira dos cosas para que no queden "zombies" en la agenda cuando un operador hace un
+     * solo servicio dentro de una cita ajena (SYNC-068):
+     *  (a) cada LÍNEA de servicio asignada a este operador ocupa
+     *      [scheduled_at + offset, + offset + duración_de_línea) — se ignoran las líneas
+     *      canceladas / no realizadas;
+     *  (b) las citas SIN líneas de servicio (solo encabezado): el operador responsable
+     *      ocupa [scheduled_at, + duration_minutes).
      */
     public function hasConflict(int $operatorId, Carbon $start, int $durationMinutes, ?int $excludeBookingId = null): bool
     {
         $end = $start->copy()->addMinutes(max($durationMinutes, 0));
 
+        $lineConflict = SpaBookingService::query()
+            ->join('spa_bookings', 'spa_bookings.id', '=', 'spa_booking_services.spa_booking_id')
+            ->leftJoin('services', 'services.id', '=', 'spa_booking_services.service_id')
+            ->where('spa_booking_services.operator_id', $operatorId)
+            ->whereNull('spa_booking_services.cancelled_at')
+            ->whereNull('spa_booking_services.not_performed_at')
+            ->whereNotIn('spa_bookings.status', ['cancelled', 'no_show'])
+            ->when($excludeBookingId, fn ($q) => $q->where('spa_bookings.id', '!=', $excludeBookingId))
+            ->whereRaw('DATE_ADD(spa_bookings.scheduled_at, INTERVAL spa_booking_services.scheduled_offset_minutes MINUTE) < ?', [$end])
+            ->whereRaw(
+                'DATE_ADD(spa_bookings.scheduled_at, INTERVAL (spa_booking_services.scheduled_offset_minutes + COALESCE(spa_booking_services.duration_minutes, services.duration_minutes, 0)) MINUTE) > ?',
+                [$start]
+            )
+            ->exists();
+
+        if ($lineConflict) {
+            return true;
+        }
+
         return SpaBooking::where('operator_id', $operatorId)
             ->when($excludeBookingId, fn ($q) => $q->where('id', '!=', $excludeBookingId))
             ->whereNotIn('status', ['cancelled', 'no_show'])
+            ->whereDoesntHave('services')
             ->where('scheduled_at', '<', $end)
             ->whereRaw('DATE_ADD(scheduled_at, INTERVAL COALESCE(duration_minutes, 0) MINUTE) > ?', [$start])
             ->exists();
@@ -135,6 +164,9 @@ class OperatorAvailabilityChecker
      */
     public function validateSequentialAssignments(Carbon $start, array $lines, bool $overrideSchedule, ?int $excludeBookingId = null): ?string
     {
+        // `cursor` = fin de la línea anterior (comportamiento pegado / back-to-back).
+        // Si una línea trae `offset_minutes` explícito (agendado con huecos entre
+        // servicios, SYNC-068), su inicio es `start + offset`; si no, arranca en `cursor`.
         $cursor = $start->copy();
 
         foreach ($lines as $line) {
@@ -142,19 +174,23 @@ class OperatorAvailabilityChecker
             $durationMinutes = (int) $line['duration_minutes'];
             $serviceName = $line['service_name'];
 
-            if ($this->hasConflict($operatorId, $cursor, $durationMinutes, $excludeBookingId)) {
+            $lineStart = isset($line['offset_minutes']) && $line['offset_minutes'] !== null
+                ? $start->copy()->addMinutes(max(0, (int) $line['offset_minutes']))
+                : $cursor->copy();
+
+            if ($this->hasConflict($operatorId, $lineStart, $durationMinutes, $excludeBookingId)) {
                 return "El operador asignado a \"{$serviceName}\" ya tiene una cita en ese horario.";
             }
 
-            if (! $overrideSchedule && $this->isOutsideWorkingHours($operatorId, $cursor, $durationMinutes)) {
+            if (! $overrideSchedule && $this->isOutsideWorkingHours($operatorId, $lineStart, $durationMinutes)) {
                 return "El operador asignado a \"{$serviceName}\" no labora en el horario indicado.";
             }
 
-            if ($this->hasTimeOff($operatorId, $cursor, $durationMinutes)) {
+            if ($this->hasTimeOff($operatorId, $lineStart, $durationMinutes)) {
                 return "El operador asignado a \"{$serviceName}\" no está disponible en ese periodo (vacaciones/permiso).";
             }
 
-            $cursor->addMinutes(max($durationMinutes, 0));
+            $cursor = $lineStart->copy()->addMinutes(max($durationMinutes, 0));
         }
 
         return null;
