@@ -1,5 +1,118 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 29/08/2026 — porteo del arco `SYNC-055`..`SYNC-072` desde `tst` (agendado móvil con huecos + navegación ‹ › en plantilla de detalle + operador restringido)
+
+### ▶️ Próxima sesión — empezar por aquí
+
+Estado al cerrar: **`main` = `origin/main` en `66e77ca`, working tree limpio.** El arco
+`SYNC-055`..`SYNC-072` está en producción y verificado por migración + tests + build. Lo que
+falta **no es código**:
+
+1. **Pasada visual de Tomas en la app real** (`mov.estetican.org`): agendar una cita con 2
+   servicios y un hueco entre ellos (la cuadrícula por línea de `MobCitaNueva`); abrir una
+   cita del día y usar las flechas ‹ › del encabezado + el arrastre lateral; probar con un
+   operador de permisos reducidos si se quiere (la tarjeta de mascota/cliente en la cita ya no
+   debe ser un botón muerto, y navegar entre citas no debe dar pantalla en negro — pero hace
+   falta **cerrar sesión y volver a entrar una vez** para limpiar la lista ‹ › heredada).
+2. **Sigue pendiente de sesiones anteriores** (no tocado hoy): auditar los ~37 fallos
+   preexistentes de la suite; el cron `calendario:sincronizar-google` con `laravel.log`
+   quejándose cada 5 min; `SYNC-003` (gate del directorio de operadores) falta portar de prod
+   *hacia* `tenants/tst`.
+3. **Follow-ups del arco** (anotados en el plan §6, van en `tst` primero): `MobCitaDet` en
+   modo edición aún ignora duración/offset en su cuadrícula; la agenda visual día/semana/mes
+   pinta una cita compartida como un bloque único, no un tramo por operador; editar los huecos
+   desde `MobCitaDet`; flag de permiso de cobro/editar-agenda en `/api/me` para gatear
+   "Cobrar"/"Iniciar" en la tarjeta de la Agenda.
+
+### 📝 Resumen de esta sesión
+
+**Porteo deliberado** del arco `SYNC-055`..`SYNC-072` desde el sandbox `tst` de Zeus-Estetican
+(promoción a producción, como el arco `SYNC-024..054` del 28/08), siguiendo
+`zeus-estetican/docs/tecnico/260829 PLAN_PORTEO_SYNC_055-072.md` — orden del §7.
+
+**Contenido del arco:** agendado móvil con huecos entre servicios / hora de inicio por línea
+(Fase 2 de `SYNC-040`); navegación ‹ › + arrastre lateral generalizados a un patrón de
+plantilla de pantallas de detalle (`useSiblingNav`/`useSwipe`); endurecimiento del operador
+restringido (atajos del encabezado gateados, cargas resilientes a 403, error boundary de app).
+
+**1 — Backup de protección:** `backups/estetican_pre-sync055-072_20260829_2321.sql.gz` (99 KB,
+88 tablas, `gzip -t` OK). Fila agregada a `backups/LISTA_RESPALDOS.md`.
+
+**2 — Migración:** `2026_08_29_000001_add_scheduled_offset_to_spa_booking_services.php`
+(byte-idéntica a `tst`) corrida con `migrate --force` — `spa_booking_services` gana
+`scheduled_offset_minutes` (unsigned smallint, default 0) y `duration_minutes` (nullable),
+justo después de `operator_id`. Aditiva, retrocompatible.
+
+**3 — Backend (5 archivos), diff por diff → todos resultaron copia byte-idéntica a `tst`
+(los diffs prod↔`tst` eran 100% del arco, sin hunks ajenos):**
+`app/Models/SpaBookingService.php` (`#[Fillable]` +2 columnas),
+`app/Domain/Planning/Services/OperatorAvailabilityChecker.php` (`hasConflict` reescrito: mira
+compromisos por línea de servicio del operador — activas, cada una en `[scheduled_at+offset,
++duración)` — + citas sin líneas contra el responsable; `validateSequentialAssignments` respeta
+`offset_minutes` por línea),
+`app/Domain/Planning/Services/ServiceLineActionService.php` (al cancelar/no-realizar/reactivar
+una línea recalcula `spa_bookings.duration_minutes` = fin más lejano de las activas),
+`app/Http/Controllers/Api/BookingController.php` (`store` acepta `services.*.offset_minutes`
+0..960; duración de la cita = `max(offset+dur)` en vez de la suma; guard 422 de traslape entre
+líneas del mismo operador; `update` recalcula desde las líneas; `serialize` expone
+`offset_minutes`/`start_time`/`duration_minutes` real por línea),
+`app/Http/Controllers/Api/AgendaController.php` (`?operator_id=` también matchea citas donde el
+operador solo hace una línea; cada cita devuelve `busy:[{start,end}]`).
+Pint limpio (6 archivos). Sin cambios en `routes/` — **no hay rutas nuevas que auditar** (regla
+de seguridad #3 de CLAUDE.md: N/A esta sesión).
+
+**4 — Tests:** `BookingSchedulingValidationTest` ganó los 4 casos nuevos del arco (offset
+persiste/extiende; offset evita choque; compromiso por línea bloquea y un cancel lo libera;
+cancelar la cita libera ambas líneas) — aplicado **aditivo** (los otros test files que difieren
+con `tst` — `BookingServiceAssignmentTest`, `AgendaOperatorScopingTest`,
+`SpaBookingControllerWebScopingTest` — son solo reordenamiento de traits / estilo de import, y
+`SpaBookingControllerWebScopingTest` de prod está **adelante** de `tst` con el test de `SYNC-003`
+— NO se tocaron). Sweep `Availability|Agenda|Booking|SpaBooking|Scheduling`: **278 pasan, 0
+fallan** (277 en `tst`, +1 por el test de `SYNC-003`). `BookingSchedulingValidationTest` solo:
+34 pasan.
+
+**5 — App móvil, reconciliación:**
+- **3 nuevos** copiados tal cual: `hooks/useSiblingNav.ts`, `hooks/useSwipe.ts`,
+  `RootErrorBoundary.tsx`.
+- **12 archivos** con diff prod↔`tst` 100% del arco → copia byte-idéntica: `App.tsx`,
+  `AuthContext.tsx`, `ScreenHeader.tsx`, `navState.ts`, `hooks/useLongPress.ts`,
+  `admin/AgendaCalendarGrid.tsx`, `admin/MobCobro.tsx`, `admin/GroomerPicker.tsx`,
+  `admin/PetDetail.tsx`, `admin/ClientDetail.tsx`, `admin/PetSearch.tsx`,
+  `admin/ClientSearch.tsx`, `admin/MobCitaNueva.tsx`, `admin/MobCitaDet.tsx`.
+- **`admin/GlobalAgenda.tsx` — reconciliación quirúrgica:** copiado de `tst` y luego revertidos
+  los **3** puntos del hilo `useBusinessName` (import, `const businessName = useBusinessName()`,
+  `title={businessName}` → `title="EstetiCAN"`). Diff residual con `tst` = exactamente esas 3
+  líneas.
+- **§4 del plan (desfase previo `tst`↔prod) — decisión: Opción 2, aislar** (recomendada,
+  confirmada por Tomas). NO se portó `lib/useBusinessName.ts` (+ su endpoint
+  `/api/settings/branding`, que **no existe** en el `routes/api.php` de prod), ni el diff de
+  `admin/MobCaja.tsx` / `admin/MobUserConfig.tsx` / `LoginScreen.tsx` / `lib/webauthnLock.ts`.
+  Motivo: nada de eso es emergencia ni del arco; prod es single-tenant (el nombre del negocio
+  *es* "EstetiCAN", ya literal en el header); cero regresión. Si se quiere la marca dinámica en
+  prod, es un porteo standalone aparte.
+
+**6 — Build:** `npx tsc --noEmit` → solo los **2 errores preexistentes ajenos** de
+`admin/MobCajaMovimientos.tsx` (prop `key`). `npm run build` en un contenedor `node:20-alpine`
+(el `dist/` previo era `root:root` de la build del 28/08 y el node local no podía limpiarlo) →
+`dist/assets/index-BGQmoGUw.js` + `index-DmX5KwtB.css`. `md5sum` **idéntico** host ↔
+`estetican_mob` (bind-mount directo, sin restart — `nginx.conf` no se tocó). El warning de CSS
+del `color-mix()` es el preexistente ya documentado en el propio fuente.
+
+**7 — Deploy:** commit `66e77ca` (`feat(agenda+móvil): porteo del arco SYNC-055..072 desde
+tst`), pusheado a `origin/main`. El código ya estaba vivo por bind-mount; `opcache` con
+`validate_timestamps=On`/`revalidate_freq=2` lo recoge solo (sin restart de `estetican_app`).
+
+**8 — Smoke (API, solo lectura):** `tinker` — booking existente #62 con `offset=0`/`dur=NULL`
+(retrocompatible OK); `OperatorAvailabilityChecker::hasConflict` con el join nuevo a
+`spa_booking_services` corre sin error contra la BD real. El smoke interactivo (agendar 2
+servicios + hueco, ‹ ›) queda para la pasada de Tomas en la app real.
+
+**9 — Docs:** `zeus-estetican/docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` — arco
+`SYNC-055`..`SYNC-072` movido a "Aplicados" con banner (commit `66e77ca`); "Pendientes" queda
+vacío (commit `2c5f472` en Zeus, `master` local sin remoto).
+
+---
+
 ## 📅 Sesión: 28/08/2026 — sincronización con `tst`: Fase 0 + Fase 2 (6 ports) + Fase 3a + 3b + Fase 4 — arco SYNC completo · + manual de pruebas `tstmov` y arreglo de 3 hallazgos (H1/H5/H7)
 
 ### ▶️ Próxima sesión — empezar por aquí
