@@ -4,9 +4,19 @@
 
 ### ▶️ Próxima sesión — empezar por aquí
 
-Estado al cerrar: **`main` = `origin/main` en `66e77ca`, working tree limpio.** El arco
-`SYNC-055`..`SYNC-072` está en producción y verificado por migración + tests + build. Lo que
-falta **no es código**:
+**Estado exacto al cerrar (29/08/2026):**
+- `/opt/www/estetican` — `main` = `origin/main` en **`66be4b4`**, **working tree limpio**, todo
+  pusheado. Commits de la sesión: `66e77ca` (código del arco), `552c92a` (bitácora — resumen),
+  `66be4b4` (cierre — MODELO_BD + NT-064 + estado exacto).
+- `/opt/www/zeus-estetican` — `master` (local, sin remoto) en **`2c5f472`**: `SYNC-055..072`
+  movido a "Aplicados" en `PENDIENTES_SINCRONIZAR_ESTETICAN.md`, "Pendientes" quedó **vacío**.
+- BD real: migración `2026_08_29_000001` **aplicada** (`spa_booking_services` +
+  `scheduled_offset_minutes` + `duration_minutes`). Backup previo:
+  `backups/estetican_pre-sync055-072_20260829_2321.sql.gz`.
+- Bundle móvil servido por `estetican_mob`: **`index-BGQmoGUw.js`** / `index-DmX5KwtB.css`
+  (md5 host ↔ contenedor idéntico).
+- El arco está **vivo en producción** y verificado por migración + 278 tests + build. Lo único
+  que falta **no es código** — es la pasada visual de Tomas:
 
 1. **Pasada visual de Tomas en la app real** (`mov.estetican.org`): agendar una cita con 2
    servicios y un hueco entre ellos (la cuadrícula por línea de `MobCitaNueva`); abrir una
@@ -107,9 +117,21 @@ tst`), pusheado a `origin/main`. El código ya estaba vivo por bind-mount; `opca
 `spa_booking_services` corre sin error contra la BD real. El smoke interactivo (agendar 2
 servicios + hueco, ‹ ›) queda para la pasada de Tomas en la app real.
 
-**9 — Docs:** `zeus-estetican/docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` — arco
-`SYNC-055`..`SYNC-072` movido a "Aplicados" con banner (commit `66e77ca`); "Pendientes" queda
-vacío (commit `2c5f472` en Zeus, `master` local sin remoto).
+**9 — Docs:**
+- `zeus-estetican/docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` — arco `SYNC-055`..`SYNC-072`
+  movido a "Aplicados" con banner (referencia commit `66e77ca`); "Pendientes" queda vacío
+  (commit `2c5f472` en Zeus, `master` local sin remoto).
+- `docs/tecnico/MODELO_BD.md` — `spa_booking_services` gana `scheduled_offset_minutes` +
+  `duration_minutes` (`SYNC-068`); nota de `spa_bookings.duration_minutes` corregida (fin más
+  lejano, no la suma, para citas con líneas); sección "Traslape de horario por operador"
+  reescrita con el nuevo `hasConflict` por línea + el `busy[]` de `AgendaController`.
+- `docs/tecnico/NOTAS_TECNICAS.md` — **NT-064**: `npm run build` de la app móvil truena con
+  `EACCES … unlink dist/assets/…` cuando la build anterior corrió en contenedor (dueño
+  `root:root`); fix = volver a buildear en `node:20-alpine` (mecanismo por defecto del repo).
+- `BACKLOG.md` — sin cambios: el arco es de alcance-emergencia (porteo deliberado desde `tst`),
+  no un ítem de backlog; los follow-ups del §6 del plan van en `tst` primero.
+- `PENDIENTES_SINCRONIZAR_TENANTS.md` (dirección inversa EstetiCAN→`tst`) — sin cambios: este
+  arco es un porteo *desde* `tst`, no hay nada que devolver.
 
 ---
 

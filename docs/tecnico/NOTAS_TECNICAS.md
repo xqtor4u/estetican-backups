@@ -1654,3 +1654,37 @@ pero el mismo abuso contra `POST /api/login` (la puerta que usa la app móvil) n
 tiene que cubrir **las dos rutas** y el limiter tiene que leer **todos los nombres de campo** que
 cada puerta usa para la misma credencial. Un `RateLimiter::for()` que hardcodea un solo
 `$request->input('campo')` es un limiter que solo protege a una de las puertas.
+
+## NT-064 — `npm run build` de la app móvil truena con `EACCES: permission denied, unlink dist/assets/…` cuando la build anterior corrió en contenedor
+
+| Campo | Valor |
+|---|---|
+| **Fecha** | 29/08/2026 |
+| **Severidad** | P4 — molestia de proceso (no afecta producción), pero frena un deploy si no se conoce |
+| **Componente** | `mob_apps/operador/` — `npm run build` (Vite `emptyOutDir`) · contenedor `estetican_mob` |
+
+**Síntoma:** al portar el arco `SYNC-055..072` se corrió `npm run build` con el Node local
+(`~/.nvm/.../v20.20.2`). Vite compiló los 94 módulos bien y luego abortó:
+`error during build: EACCES: permission denied, unlink '/opt/www/estetican/mob_apps/operador/dist/assets/index-B78f_e56.js'`
+en el paso `emptyDir` (limpieza de `dist/` antes de escribir el bundle nuevo).
+
+**Causa raíz:** el `dist/` de una sesión anterior (28/08) se generó **dentro de un contenedor
+`node:20-alpine`** (patrón documentado para el bundle web por un problema de Rollup/musl en arm —
+ver BITACORA 28/08). Ese build dejó `dist/assets/*`, `dist/fonts/*` y `dist/index.html` como
+`root:root`. El usuario `tomas` no tiene `sudo` sin contraseña en la OPi, así que el Node local
+no puede `unlink` esos archivos y `emptyOutDir` falla. El directorio `dist/` en sí es `tomas:tomas`
+(por NT-010 nunca se borra entero), pero su **contenido** quedó de root.
+
+**Fix aplicado (consistente con lo ya documentado):** volver a correr la build en contenedor —
+`docker run --rm -v "$PWD":/app -w /app node:20-alpine sh -c "npm run build"`. Escribe el nuevo
+`dist/` como root, `emptyDir` sí puede borrar lo de root, y `estetican_mob` lo sirve por bind-mount
+directo sin restart (`nginx.conf` no cambió). `md5sum` host ↔ contenedor idéntico para verificar.
+`node_modules` del host (instalado con Node glibc) funcionó sin reinstalar dentro de Alpine en este
+caso — si diera un mismatch de binario nativo, correr `npm ci` dentro del mismo contenedor primero.
+
+**Alternativa si se prefiere build con Node local:** `sudo chown -R tomas:tomas mob_apps/operador/dist`
+una sola vez (requiere que el usuario teclee la contraseña) y desde ahí las builds locales funcionan.
+
+**Lección:** elegir **un** mecanismo de build para la app móvil y no alternar — cada cambio de
+"local ↔ contenedor" deja el `dist/` con un dueño que el otro mecanismo no puede limpiar. El
+contenedor `node:20-alpine` es el mecanismo por defecto para este repo (mismo que el bundle web).
