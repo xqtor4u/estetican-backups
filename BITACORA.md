@@ -1,5 +1,77 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 30/08/2026 — roles de capacidad de servicio (config de datos en prod) + SYNC-003 cerrado + spec m2m operador↔servicio movido a Zeus
+
+### 📝 Resumen
+
+Sesión de arranque que derivó en dos cosas: (a) config de datos en producción para
+desacoplar "quién puede hacer qué servicio" de la jerarquía de puesto, y (b) redacción de
+la spec de la feature m2m real, que va en `tst` (Zeus), no acá.
+
+**1 — Revisión de pendientes de sincronización con los tenants (ambas direcciones).**
+- `tst → prod` (`zeus-estetican/docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md`): **vacío**.
+  El arco `SYNC-055..072` ya se portó el 29/08 (commit `66e77ca`), verificado (migración
+  `2026_08_29_000001` corrida, backup `estetican_pre-sync055-072_20260829_2321.sql.gz`,
+  bundle `index-BGQmoGUw.js`). Solo falta la pasada visual de Tomas — no es código.
+- `prod → tst` (`docs/tecnico/PENDIENTES_SINCRONIZAR_TENANTS.md`): **`SYNC-003`** — lo portó
+  la sesión de Zeus (`tenants-c6`) a `tenants/tst` este día (gate de `$operators` en
+  `SpaBookingController::index()` + caso en `SpaBookingControllerWebScopingTest`; 7 tests del
+  archivo + sweep `Agenda|SpaBooking` 136 en verde). Movido a "Aplicados" (30/08) en ese
+  documento por esa sesión; sección "Pendientes" queda **vacía**. `tenants/` no versionado.
+- Hueco de trazabilidad detectado: el porteo `66e77ca` del 29/08 no dejó entrada en la
+  `BITACORA.md` de Zeus (solo actualizó `PENDIENTES_SINCRONIZAR_ESTETICAN.md` y la bitácora
+  de EstetiCAN) — por eso `tenants-c6` arrancó creyendo que el arco seguía pendiente.
+  Corregido por esa sesión.
+
+**2 — Config de datos en producción: roles de capacidad de servicio (NO es código).**
+Backup previo: `backups/estetican_pre-roles-capacidad_20260830_1627.sql.gz` (88 tablas,
+`gzip -t` OK). Vía `tinker` contra la BD real:
+- 2 `operator_roles` nuevos: `CAP-BANO` "Baño" (#5), `CAP-CORTE` "Corte y estilizado" (#6),
+  `default_hourly_rate` NULL (no afectan `effectiveHourlyRate()` — el perfil de compensación
+  gana, y si no, el rol primario; las tarifas nulas se ignoran).
+- Asignados como rol **secundario** (`is_primary=false`) vía `roles()->syncWithoutDetaching`:
+  Jose Mendez Pérez (#1) → +Baño; Operador Prueba (#16) → +Baño; Tomas (#2) → +Baño, +Corte.
+- Servicios re-apuntados (`services.operator_role_id`): baños `BA-CH`/`BA-MD`/`SPA-0003-PRO`
+  → Baño; 5 cortes `CTE-PQ-PC`/`SPA-0001`/`CTE-PQ-PL`/`CTE-MD-PC`/`CTE-MD-PL` → Corte y
+  estilizado; 4 vacunas `VET-PER-VAC-*` → Veterinario (sin cambio).
+- `OperatorRoleCatalogCache::flush()`.
+- Verificado con simulación de elegibilidad contra la BD real: los 3 baños → Jose/Tomas/
+  Operador Prueba; los 5 cortes → solo Tomas; vacunas → nadie (0 operadores con rol
+  Veterinario, módulo clínico apagado — igual que antes, sin regresión).
+- Regla de calificación existente (no tocada): al agendar una línea de servicio,
+  `operador.activeRoles()->contains('id', $service->operator_role_id)`; `null` = cualquiera.
+- **Aviso operativo:** la ficha de Operador (`OperatorController::syncRoles`) hace
+  delete+recreate de todas las asignaciones de rol desde las casillas del form — al editar un
+  operador hay que dejar marcadas sus capacidades o se pierden. USEEDI (`syncOperatorRecord`)
+  sí es seguro, no toca la m2m.
+
+**3 — Spec de la feature real (m2m operador↔servicio) — redactada y movida a Zeus.**
+Conversación de diseño con Tomas. La solución definitiva es una relación muchos-a-muchos
+operador↔servicio con: plantilla por rol de puesto (solo Veterinario→vacunas de entrada) +
+capacidades directas por operador (toda la estética) + toggle `services.open_to_all_operators`.
+4 decisiones cerradas: (1) cita sin líneas se deja sin validar calificación como hoy;
+(2) `open_to_all_operators` es toggle de admin de primera clase, patrón "arranca abierto →
+acota"; (3) las 4 vacunas entran a la plantilla de Veterinario ya, aunque el módulo clínico
+esté apagado; (4) Baño/Corte NO son roles — son capacidades por operador, así que los roles
+interinos `CAP-BANO`/`CAP-CORTE` se retiran en la feature (backfill de retiro específico de
+prod). Es **mejora, no emergencia** → se construye en `tst`. El spec se guardó primero acá
+por error y se **movió** a `zeus-estetican/docs/tecnico/SPEC_CAPACIDADES_SERVICIO_POR_OPERADOR.md`
+(commit `a638765` en Zeus `master` local). Handoff a `tenants-c6`.
+
+### Archivos tocados (este repo)
+- `docs/tecnico/PENDIENTES_SINCRONIZAR_TENANTS.md` — `SYNC-003` → "Aplicados" (lo editó `tenants-c6`; commiteado desde acá).
+- `BITACORA.md` — esta entrada.
+- BD de producción: `operator_roles` (+2 filas), `operator_role_assignments` (+3 filas), `services.operator_role_id` (8 filas re-apuntadas). Config de datos, no esquema — `MODELO_BD.md` sin cambios.
+
+### Revisión de seguridad de rutas
+No se crearon ni modificaron rutas en este repo esta sesión. Regla #3 de `CLAUDE.md`: N/A.
+
+### ▶️ Próxima sesión
+- El spec `SYNC-XXX` (m2m operador↔servicio) lo construye la sesión de Zeus en `tst`, fase por fase, con pasada visual de Tomas. Al promover a prod, cuidar el backfill de retiro de `CAP-BANO`/`CAP-CORTE` (esos roles solo existen en prod, no en `tst`).
+- Sigue pendiente de sesiones anteriores: pasada visual de Tomas del arco `SYNC-055..072` en `mov.estetican.org`; auditar los ~37 fallos preexistentes de la suite; cron `calendario:sincronizar-google` llenando `laravel.log` cada 5 min.
+
+---
+
 ## 📅 Sesión: 29/08/2026 — porteo del arco `SYNC-055`..`SYNC-072` desde `tst` (agendado móvil con huecos + navegación ‹ › en plantilla de detalle + operador restringido)
 
 ### ▶️ Próxima sesión — empezar por aquí

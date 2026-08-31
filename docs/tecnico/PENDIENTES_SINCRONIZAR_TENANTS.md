@@ -19,6 +19,12 @@
 
 ## Pendientes
 
+> _(vacío)_
+
+---
+
+## Aplicados
+
 ### SYNC-003 — `/agenda` (web) embebe el directorio completo de operadores para un usuario restringido
 
 **Encontrado:** 28/08/2026, probando `SYNC-030` (operador restringido) en producción real con un
@@ -38,13 +44,16 @@ vacía (el `<select>` del pop-up queda vacío — igual no puede reasignar).
 `tests/Feature/Agenda/SpaBookingControllerWebScopingTest.php` — caso nuevo (`var OPERATORS = []`
 para el restringido; directorio completo con `agenda.ver_todas`).
 
-**Pendiente de portar a `tenants/tst`:** el `SpaBookingController.php` de `tst` (post-`SYNC-052`)
-tiene el mismo `$operators` sin gatear — mismo bug latente. Portar el gate + el test cuando se
-toque ese archivo.
+**Portado a `tenants/tst` (30/08/2026):** mismo gate en
+`tst/app/Http/Controllers/SpaBookingController.php` (`index()`) + mismo caso nuevo en
+`tst/tests/Feature/Agenda/SpaBookingControllerWebScopingTest.php`. El `SpaBookingController.php`
+de `tst` post-`SYNC-052` tenía el `$operators` sin gatear, idéntico al de prod pre-fix — sin
+divergencia propia del tenant. Verificado: 7 tests del archivo en verde + sweep
+`Agenda|SpaBooking` 136 en verde; Pint limpio. Blade `agenda/index.blade.php` emite
+`var OPERATORS = []` con la colección vacía (`@json((...)->map(...)->values())`). No versionado
+(`tenants/` en `.gitignore`) — si `tst` se reprovisiona, re-portar.
 
 ---
-
-## Aplicados
 
 ### SYNC-005 — `POST /api/login` (login de la app móvil) no tenía rate limit — H7
 
