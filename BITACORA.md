@@ -1,5 +1,70 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 31/08/2026 (cont.) — `SYNC-077` + `SYNC-078` portados desde Zeus: el sync de Google Calendar deja de notificar por correo al crear eventos y deja de agotar la cuota de ACL
+
+### 📝 Resumen
+
+Tomas pidió verificar cada cuánto corre el sync de Google Calendar en prod (**cada 5 min**,
+`*/5 * * * *` vía `schedule:run` del `crontab` del host → `->everyFiveMinutes()`), y luego que
+(a) el sync no mande correos de Google al crear eventos y (b) se arregle el error recurrente que
+salió al verificar.
+
+**Sin migración, sin assets.** Código bind-mounted → vivo en la siguiente corrida del cron.
+Construido y probado primero en `tenants/tst` (Zeus).
+
+### `SYNC-077` — sync de eventos sin notificar
+
+`GoogleCalendarSyncService::{upsertBookingEvent,deleteBookingEvent}` pasan
+`['sendUpdates' => 'none']` a `events->{insert,update,delete}`. Crear/mover/borrar el evento de
+una cita en el calendario del operador ya no dispara correos de Google. La sincronización es de
+un solo sentido (EstetiCAN → Google) y el operador ya se entera por la app. Los eventos no
+tienen `attendees`; los avisos de *cambios de calendario compartido* siguen siendo ajuste del
+`reader` en su propio Google (ver `SYNC-075`).
+
+### `SYNC-078` — el cron agotaba la cuota de ACL de Google
+
+**Hallazgo al verificar `SYNC-077`:** `SincronizarGoogleCalendarCommand::syncViewers()` llamaba
+`shareCalendarWithEmail()` (→ `acl.insert` directo) en **cada** corrida del cron para los 3
+usuarios con `google_personal_email`. Google limita fuerte las operaciones de ACL → `403
+"Calendar usage limits exceeded"` ~3 veces por corrida, **11.739 acumulados en `laravel.log`
+desde el 10/08/2026**. El sync de eventos en sí no tenía errores.
+
+- **`GoogleCalendarSyncService::ensureCalendarSharedWith($calendarId, $email)`** (nuevo, en el
+  contrato): lee la ACL del calendario **una vez por corrida** (`readUserAcl()` privado, caché
+  `aclByCalendar` por instancia) y solo hace `acl.insert` si el email no está ya en la lista. Si
+  la lectura falla, cae al `insert` directo (comportamiento previo).
+- `syncViewers()` pasa a usar `ensureCalendarSharedWith()`. El bucle de operadores no cambia (ya
+  se gatea con `google_calendar_shared_at`).
+
+### ✅ Verificación
+
+- Suite `GoogleCalendar/` **26 en verde**; sweep `GoogleCalendar|Booking|Agenda` **269 en verde**.
+  Pint limpio (9 archivos).
+- **En vivo, tras el deploy:** los `403 quotaExceeded` **pararon** — última ocurrencia 21:55
+  (pre-commit), corridas del cron 22:00 y 22:05 sin un solo error, y la corrida bajó de 1–3 s a
+  **~780 ms** (una lectura de ACL en vez de 3 `insert` que fallaban). `notifyWatchers()` sigue
+  sin mandar nada (0 usuarios con `google_calendar_notify_email`).
+
+### 📁 Archivos / commit
+
+- `apps/backoffice-laravel/app/Domain/GoogleCalendar/Contracts/GoogleCalendarSyncServiceInterface.php`
+- `apps/backoffice-laravel/app/Domain/GoogleCalendar/Services/GoogleCalendarSyncService.php`
+- `apps/backoffice-laravel/app/Console/Commands/SincronizarGoogleCalendarCommand.php`
+- `apps/backoffice-laravel/tests/Feature/GoogleCalendar/{EventSyncNoNotificationsTest,EnsureCalendarSharedWithTest}.php` (nuevos)
+- `apps/backoffice-laravel/tests/Feature/GoogleCalendar/SincronizarGoogleCalendarCommandTest.php` (ajustado)
+- Commit **`dd2bd03`**, pusheado a `origin/main`.
+
+### 🛑 Pendiente / notas
+
+- `SYNC-078` no rastrea el estado de compartido en BD — se apoya en `acl.list` cada corrida.
+  Suficiente para 1 calendario / 3 viewers; si el fleet crece, evaluar columna de estado.
+- Sigue pendiente (`SYNC-075`): avisar a Admin/arantxa/tomasmg que apaguen las notificaciones de
+  los calendarios compartidos en su propio Google Calendar si no las quieren.
+- Trazabilidad: `zeus-estetican/docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md`
+  (`SYNC-077`/`078`, en Aplicados).
+
+---
+
 ## 📅 Sesión: 31/08/2026 — porteo desde Zeus de `SYNC-074` (logo/favicon en Configuración + logo en la app móvil), `SYNC-075` (aclaración del switch de correo del Google Calendar) y `SYNC-076` (acceso de super admin legacy al área de administración) · **todo commiteado a `main`**
 
 ### 📝 Resumen
