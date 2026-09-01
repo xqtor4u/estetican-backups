@@ -59,7 +59,8 @@ desde el 10/08/2026**. El sync de eventos en sí no tenía errores.
 - `SYNC-078` no rastrea el estado de compartido en BD — se apoya en `acl.list` cada corrida.
   Suficiente para 1 calendario / 3 viewers; si el fleet crece, evaluar columna de estado.
 - Sigue pendiente (`SYNC-075`): avisar a Admin/arantxa/tomasmg que apaguen las notificaciones de
-  los calendarios compartidos en su propio Google Calendar si no las quieren.
+  los calendarios compartidos en su propio Google Calendar si no las quieren. **Mensaje de
+  WhatsApp con los pasos exactos (web + móvil) ya redactado** en la sesión — solo falta enviarlo.
 - Trazabilidad: `zeus-estetican/docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md`
   (`SYNC-077`/`078`, en Aplicados).
 
