@@ -125,8 +125,8 @@ de abajo (sin regresiones). Pint limpio en los 9 archivos tocados de `SYNC-075`+
 
 ### 🛑 Pendientes / notas
 
-- **Commiteado a `main`** (3 commits: `SYNC-074`, `SYNC-075`, `SYNC-076`). **Sin `git push`** —
-  pendiente de que Tomas lo pida.
+- **Commiteado y pusheado a `origin/main`** (3 commits: `215085b` `SYNC-074`, `16dfdd1` `SYNC-075`,
+  `be5fa89` `SYNC-076`). (Esta corrección de la nota va en un commit aparte.)
 - **Pasada visual de Tomas pendiente:**
   - `SYNC-074`: `app.estetican.org` → Configuración → Identidad y Branding (elegir logo → modal
     de recorte → guardar → PNG optimizado); `mov.estetican.org` → logo en el login + favicon de
