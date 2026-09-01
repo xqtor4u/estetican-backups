@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Rules\ValidPhoneNumber;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
 
 class SettingController extends Controller
 {
@@ -26,6 +27,24 @@ class SettingController extends Controller
 
         return response()->json([
             'watermark_enabled' => (bool) ($all['photo_watermark_enabled'] ?? false),
+        ]);
+    }
+
+    public function branding(SystemSettings $settings): JsonResponse
+    {
+        $all = $settings->all();
+
+        $logo = $all['brand_logo_web'] ?? null;
+        $favicon = $all['brand_favicon'] ?? null;
+
+        return response()->json([
+            'business_name' => (string) ($all['brand_business_name'] ?? 'EstetiCAN'),
+            // Rutas relativas (`/storage/...`) — el nginx de la app móvil ya proxya
+            // `/storage/` al backend, así que sirven igual desde la app del operador.
+            'logo_url' => $logo ? Storage::disk('public')->url($logo) : null,
+            'favicon_url' => $favicon
+                ? Storage::disk('public')->url($favicon)
+                : ($logo ? Storage::disk('public')->url($logo) : null),
         ]);
     }
 

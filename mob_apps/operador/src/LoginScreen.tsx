@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
+import { useBranding } from './lib/useBusinessName';
 
 export function LoginScreen() {
   const { login } = useAuth();
+  const { businessName, logoUrl } = useBranding();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -24,12 +26,14 @@ export function LoginScreen() {
 
       {/* Logo */}
       <div className="flex flex-col items-center gap-3 mb-12">
-        <div className="w-24 h-24 rounded-3xl bg-primary flex items-center justify-center shadow-xl">
-          <span className="material-symbols-outlined text-on-primary" style={{ fontSize: 56, fontVariationSettings: "'FILL' 1" }}>
-            content_cut
-          </span>
+        <div className={`w-24 h-24 rounded-3xl flex items-center justify-center shadow-xl overflow-hidden ${logoUrl ? 'bg-white' : 'bg-primary'}`}>
+          {logoUrl
+            ? <img src={logoUrl} alt={businessName} className="w-full h-full object-contain p-2" />
+            : <span className="material-symbols-outlined text-on-primary" style={{ fontSize: 56, fontVariationSettings: "'FILL' 1" }}>
+                content_cut
+              </span>}
         </div>
-        <h1 className="text-3xl font-bold text-on-background">EstetiCAN</h1>
+        <h1 className="text-3xl font-bold text-on-background">{businessName}</h1>
         <p className="text-base text-on-surface-variant">Acceso al sistema</p>
       </div>
 

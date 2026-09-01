@@ -5,15 +5,26 @@
     'previewShape' => 'circle', // circle, square or rect
     'defaultIcon' => 'bi-person-fill',
     'maxWidth' => '120px',
-    'aspectRatio' => 1, // 1 for circle/square, 4/3 for rect
+    'aspectRatio' => 1, // 1 for circle/square, 4/3 for rect, non-numeric ("free") = libre
+    'previewFit' => 'cover', // cover o contain (logos: contain, para que se vea completo)
     'formId' => null,
     'watermarkText' => null,
-    'autoSubmitFormId' => null
+    'autoSubmitFormId' => null,
+    'outputFormat' => 'image/jpeg', // image/jpeg | image/png | image/webp
+    'outputQuality' => 0.82,
+    'maxOutputWidth' => 1200,
+    'maxOutputHeight' => 1200,
 ])
-@php $inputId = 'img_upload_' . bin2hex(random_bytes(4)); @endphp
+@php
+    $inputId = 'img_upload_' . bin2hex(random_bytes(4));
+    // cropperjs usa NaN para recorte libre; PHP no tiene ese literal, así que lo emitimos a mano.
+    $aspectRatioJs = is_numeric($aspectRatio) ? $aspectRatio : 'NaN';
+    $previewAspect = ((string) $aspectRatio === '1') ? '1/1' : '4/3';
+    $objectFitClass = $previewFit === 'contain' ? 'object-fit-contain' : 'object-fit-cover';
+@endphp
 
 <div {{ $attributes->merge(['class' => 'image-upload-wrapper']) }}
-     x-data="imageUpload('{{ $value ? Storage::disk('public')->url($value) : '' }}', {{ $aspectRatio }}, {{ $watermarkText ? '\'' . addslashes($watermarkText) . '\'' : 'null' }}, {{ $autoSubmitFormId ? '\'' . $autoSubmitFormId . '\'' : 'null' }})"
+     x-data="imageUpload('{{ $value ? Storage::disk('public')->url($value) : '' }}', {{ $aspectRatioJs }}, {{ $watermarkText ? '\'' . addslashes($watermarkText) . '\'' : 'null' }}, {{ $autoSubmitFormId ? '\'' . $autoSubmitFormId . '\'' : 'null' }}, { format: '{{ $outputFormat }}', quality: {{ $outputQuality }}, maxWidth: {{ (int) $maxOutputWidth }}, maxHeight: {{ (int) $maxOutputHeight }} })"
      style="max-width: {{ $maxWidth }};">
 
     <div class="position-relative mb-2">
@@ -22,10 +33,10 @@
             @if($previewShape === 'circle') rounded-circle
             @elseif($previewShape === 'square') rounded-4
             @else rounded-4 @endif overflow-hidden border bg-light d-flex align-items-center justify-content-center"
-             style="aspect-ratio: {{ $aspectRatio === 1 ? '1/1' : '4/3' }}; width: 100%;">
+             style="aspect-ratio: {{ $previewAspect }}; width: 100%;">
 
             <template x-if="imageUrl">
-                <img :src="imageUrl" alt="Preview" class="img-fluid w-100 h-100 object-fit-cover">
+                <img :src="imageUrl" alt="Preview" class="img-fluid w-100 h-100 {{ $objectFitClass }}">
             </template>
 
             <template x-if="!imageUrl">

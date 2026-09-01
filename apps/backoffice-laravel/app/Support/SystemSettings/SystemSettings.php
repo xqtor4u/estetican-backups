@@ -322,6 +322,9 @@ class SystemSettings
                         'default' => null,
                         'config' => 'backoffice.brand.logo',
                         'rules' => ['nullable', 'string'],
+                        'help' => 'Se recorta y ajusta al subirlo. Se guarda como PNG optimizado (máx. 640×240 px). También se usa como logo en los PDFs (facturas, cotizaciones, órdenes).',
+                        'image_max_width' => 640,
+                        'image_max_height' => 240,
                     ],
                     'brand_favicon' => [
                         'label' => 'Favicon',
@@ -329,6 +332,9 @@ class SystemSettings
                         'default' => null,
                         'config' => 'backoffice.brand.favicon',
                         'rules' => ['nullable', 'string'],
+                        'help' => 'Ícono de la pestaña del navegador. Se recorta cuadrado y se guarda como PNG (máx. 128×128 px).',
+                        'image_max_width' => 128,
+                        'image_max_height' => 128,
                     ],
                     'brand_whatsapp_number' => [
                         'label' => 'WhatsApp del negocio (con lada, sin espacios)',

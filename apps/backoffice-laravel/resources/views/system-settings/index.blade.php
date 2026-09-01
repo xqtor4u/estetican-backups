@@ -90,23 +90,24 @@
                                                 <div class="small text-body-secondary mt-2">{{ $field['help'] ?? '' }}</div>
                                             </div>
                                         @elseif($field['type'] === 'image')
+                                            @php($isFavicon = $field['name'] === 'brand_favicon')
                                             <div class="border rounded-3 p-3 bg-light-subtle">
                                                 <label class="form-label fw-semibold d-block">{{ $field['label'] }}</label>
-                                                <div class="d-flex align-items-start gap-3 mt-2">
-                                                    @if($field['value'])
-                                                        <div class="border rounded p-1 bg-white" style="width: 120px; height: 80px;">
-                                                            <img src="{{ Storage::disk('public')->url($field['value']) }}" alt="Preview" class="w-100 h-100 object-fit-contain">
-                                                        </div>
-                                                    @else
-                                                        <div class="border rounded bg-white d-flex align-items-center justify-content-center text-body-secondary small" style="width: 120px; height: 80px; border-style: dashed !important;">
-                                                            Sin logo
-                                                        </div>
-                                                    @endif
-                                                    <div class="flex-grow-1">
-                                                        <input type="file" id="{{ $field['name'] }}" name="{{ $field['name'] }}" class="form-control" accept="image/*">
-                                                        <div class="form-text mt-1 small">{{ $field['help'] ?? '' }}</div>
-                                                    </div>
-                                                </div>
+                                                <x-image-upload
+                                                    :name="$field['name']"
+                                                    :value="$field['value']"
+                                                    :label="null"
+                                                    previewShape="rect"
+                                                    :aspectRatio="$isFavicon ? 1 : 'free'"
+                                                    previewFit="contain"
+                                                    defaultIcon="bi-image"
+                                                    :maxWidth="$isFavicon ? '120px' : '260px'"
+                                                    outputFormat="image/png"
+                                                    :maxOutputWidth="$field['image_max_width'] ?? 640"
+                                                    :maxOutputHeight="$field['image_max_height'] ?? 240"
+                                                    class="mt-2"
+                                                />
+                                                <div class="form-text mt-1 small">{{ $field['help'] ?? '' }}</div>
                                             </div>
                                         @else
                                             <label for="{{ $field['name'] }}" class="form-label">{{ $field['label'] }}</label>

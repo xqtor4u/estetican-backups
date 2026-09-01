@@ -28,6 +28,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
+// Público — la marca (nombre + logo + favicon) la consume la pantalla de login de la
+// app móvil antes de autenticarse. Solo lee branding, sin datos sensibles.
+Route::get('/settings/branding', [SettingController::class, 'branding']);
+
 // Público — widget de chat con IA del sitio WordPress, sin conexión a CRM/clientes.
 // El CORS de estas rutas se maneja en middleware global (HandleAssistantCors,
 // ver bootstrap/app.php) porque el preflight OPTIONS nunca llegaría a un

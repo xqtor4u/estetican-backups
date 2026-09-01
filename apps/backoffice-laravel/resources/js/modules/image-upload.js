@@ -1,6 +1,20 @@
 import Cropper from 'cropperjs';
 
-export default function imageUploadFactory(initialUrl, aspectRatio, watermarkText = null, autoSubmitFormId = null) {
+export default function imageUploadFactory(initialUrl, aspectRatio, watermarkText = null, autoSubmitFormId = null, options = {}) {
+    // Formato/tamaño de salida configurables. Por defecto: JPEG 0.82 a 1200×1200
+    // (comportamiento histórico — fotos de perfil/recursos). El logo de Configuración
+    // pasa 'image/png' + topes chicos para conservar transparencia y no engordar.
+    const output = {
+        format: 'image/jpeg',
+        quality: 0.82,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        ...options,
+    };
+    const outputExt = output.format === 'image/png'
+        ? '.png'
+        : (output.format === 'image/webp' ? '.webp' : '.jpg');
+
     return {
         imageUrl: initialUrl,
         cropper: null,
@@ -75,8 +89,8 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
             if (!this.cropper) return;
 
             const canvas = this.cropper.getCroppedCanvas({
-                maxWidth: 1200,
-                maxHeight: 1200,
+                maxWidth: output.maxWidth,
+                maxHeight: output.maxHeight,
                 imageSmoothingQuality: 'high',
             });
 
@@ -102,13 +116,13 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
                 ctx.fillText(fullText, boxX + padding, boxY + padding);
             }
 
-            this.imageUrl = canvas.toDataURL('image/jpeg', 0.82);
+            this.imageUrl = canvas.toDataURL(output.format, output.quality);
 
             canvas.toBlob((blob) => {
                 const croppedFile = new File(
                     [blob],
-                    this.originalFile.name.replace(/\.[^/.]+$/, '') + '.jpg',
-                    { type: 'image/jpeg', lastModified: Date.now() }
+                    this.originalFile.name.replace(/\.[^/.]+$/, '') + outputExt,
+                    { type: output.format, lastModified: Date.now() }
                 );
 
                 const dataTransfer = new DataTransfer();
@@ -132,7 +146,7 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
                 this.modalInstance.hide();
                 this.cropper.destroy();
                 this.cropper = null;
-            }, 'image/jpeg', 0.82);
+            }, output.format, output.quality);
         },
         cancelCrop() {
             if (this.modalInstance) this.modalInstance.hide();
