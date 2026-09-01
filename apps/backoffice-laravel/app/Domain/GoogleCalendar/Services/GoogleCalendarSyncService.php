@@ -75,10 +75,16 @@ class GoogleCalendarSyncService implements GoogleCalendarSyncServiceInterface
         }
 
         try {
+            // sendNotifications=false: no queremos que Google mande el correo
+            // "se compartió un calendario contigo" en cada corrida del cron (el ACL
+            // insert es idempotente, pero el default de la API es notificar). Los
+            // avisos de cambios de eventos posteriores los controla el destinatario
+            // en la configuración de su propio Google Calendar — EstetiCAN no puede
+            // apagarlos desde acá.
             $api->acl->insert($calendarId, new AclRule([
                 'role' => 'reader',
                 'scope' => ['type' => 'user', 'value' => $email],
-            ]));
+            ]), ['sendNotifications' => false]);
 
             return true;
         } catch (Throwable $e) {
@@ -191,7 +197,9 @@ class GoogleCalendarSyncService implements GoogleCalendarSyncServiceInterface
         return (string) ($this->settings->all()['system_timezone'] ?? 'America/Mexico_City');
     }
 
-    private function client(): ?GoogleCalendarApi
+    // protected (no private) para que un test pueda inyectar un cliente falso y verificar
+    // los optParams que se le pasan a la API de Google (p. ej. sendNotifications=false).
+    protected function client(): ?GoogleCalendarApi
     {
         $path = config('services.google_calendar.credentials_path');
 

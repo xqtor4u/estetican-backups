@@ -9,8 +9,9 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * El switch "Avisar por correo cuando se actualice el calendario" en la pantalla de
- * edición de usuario (USEEDI), sección Google Calendar.
+ * El switch "Enviarme un resumen de cambios por correo (lo manda EstetiCAN)" en la
+ * pantalla de edición de usuario (USEEDI), sección Google Calendar. Solo controla el
+ * correo resumen de EstetiCAN (`notifyWatchers`), no los avisos nativos de Google.
  */
 class UserGoogleCalendarNotifyToggleTest extends TestCase
 {
@@ -81,7 +82,9 @@ class UserGoogleCalendarNotifyToggleTest extends TestCase
         $this->actingAs($admin)
             ->get(route('users.edit', $user))
             ->assertOk()
-            ->assertSee('Avisar por correo cuando se actualice el calendario');
+            ->assertSee('Enviarme un resumen de cambios por correo (lo manda EstetiCAN)')
+            // Deja claro que la casilla NO apaga los avisos nativos de Google.
+            ->assertSee('esta casilla solo controla el correo de EstetiCAN');
     }
 
     public function test_checking_the_switch_persists_it(): void

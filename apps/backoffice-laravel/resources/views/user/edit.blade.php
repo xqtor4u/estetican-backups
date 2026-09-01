@@ -165,9 +165,10 @@
                             <div class="form-check form-switch">
                                 <input type="hidden" name="google_calendar_notify_email" value="0">
                                 <input class="form-check-input" type="checkbox" id="google_calendar_notify_email" name="google_calendar_notify_email" value="1" @checked(old('google_calendar_notify_email', $user->google_calendar_notify_email))>
-                                <label class="form-check-label" for="google_calendar_notify_email">Avisar por correo cuando se actualice el calendario</label>
+                                <label class="form-check-label" for="google_calendar_notify_email">Enviarme un resumen de cambios por correo (lo manda EstetiCAN)</label>
                             </div>
-                            <p class="text-muted small mb-0">Un correo por cada sincronización que haya tenido cambios en las citas que este usuario ve (nuevas, movidas o canceladas). Se envía al email personal de Google; si no hay, al email de acceso.</p>
+                            <p class="text-muted small mb-1">Un correo de EstetiCAN por cada sincronización con cambios en las citas que este usuario ve (nuevas, movidas o canceladas). Se envía al email personal de Google; si no hay, al email de acceso.</p>
+                            <p class="text-muted small mb-0"><strong>Nota:</strong> esta casilla solo controla el correo de EstetiCAN. Google Calendar también manda sus propios avisos de cambios a quien tiene el calendario compartido; esos se activan o desactivan desde las notificaciones del propio Google Calendar del usuario, no desde aquí.</p>
                         </div>
                     </div>
                 </div>
