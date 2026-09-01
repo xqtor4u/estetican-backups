@@ -174,8 +174,10 @@ class UserController extends Controller
     // Formulario de edición (USEEDI)
     public function edit(User $user)
     {
+        // Mismo criterio que show(): propio perfil o super admin (híbrido Spatie + legacy),
+        // no `hasRole('admin')` suelto — dejaba fuera a super admins sin el rol Spatie.
         abort_unless(
-            auth()->id() === $user->id || auth()->user()->hasRole('admin') || auth()->user()->hasRole('super-admin'),
+            auth()->id() === $user->id || auth()->user()->is_super_admin,
             403, 'No tienes permiso para editar este usuario.'
         );
 

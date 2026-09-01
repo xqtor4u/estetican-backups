@@ -238,8 +238,10 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
         ->middlewareFor(['edit', 'update'], 'permission:editar whatsapp')
         ->middlewareFor('destroy', 'permission:eliminar whatsapp');
 
-    // Rutas protegidas para administradores
-    Route::middleware('role:admin|super-admin')->group(function () {
+    // Rutas protegidas para administradores del sistema. Usa `superadmin` (=> is_super_admin,
+    // rol Spatie O columna legacy `users.role='admin'`) y no `role:admin|super-admin`, que
+    // solo mira Spatie y dejaba fuera a super admins sin el rol Spatie asignado.
+    Route::middleware('superadmin')->group(function () {
         Route::get('system-settings', [SystemSettingController::class, 'index'])->name('system-settings.index');
         Route::put('system-settings/{section}', [SystemSettingController::class, 'update'])->name('system-settings.update');
         Route::patch('system-settings/{section}/field', [SystemSettingController::class, 'patchField'])->name('system-settings.patch-field');

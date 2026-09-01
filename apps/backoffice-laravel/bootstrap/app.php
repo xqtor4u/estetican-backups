@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureHotelModuleEnabled;
 use App\Http\Middleware\EnsureScreenIsUnlocked;
 use App\Http\Middleware\EnsureStoreModuleEnabled;
 use App\Http\Middleware\EnsureStoreOrClinicalModuleEnabled;
+use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\HandleAssistantCors;
 use App\Http\Middleware\ProfileBackofficeRequests;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -40,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'store_or_clinical.module' => EnsureStoreOrClinicalModuleEnabled::class,
             'hotel.module' => EnsureHotelModuleEnabled::class,
             'screen.lock' => EnsureScreenIsUnlocked::class,
+            'superadmin' => EnsureSuperAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

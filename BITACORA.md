@@ -1,5 +1,147 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 31/08/2026 — porteo desde Zeus de `SYNC-074` (logo/favicon en Configuración + logo en la app móvil), `SYNC-075` (aclaración del switch de correo del Google Calendar) y `SYNC-076` (acceso de super admin legacy al área de administración) · **todo commiteado a `main`**
+
+### 📝 Resumen
+
+Porteo desde la sesión de Zeus (`tenants/`) que construyó `SYNC-074` en `tst` el mismo día.
+Tomas pidió aplicarlo a producción de una ("aplica estos cambios ligeros a producción").
+Origen: reportó que en **Configuración → Identidad y Branding** el logo no daba preview del
+archivo elegido, ni recorte, ni compresión; y que el logo **no aparecía en la app móvil**.
+
+**Sin migración. Sin backup de BD** — solo reprocesa archivos de imagen nuevos en
+`storage/app/public/branding/`. `estetican_app` corre sin `route:cache`/`config:cache`, así que
+la ruta API nueva quedó viva al instante.
+
+### 1 — Backoffice (`apps/backoffice-laravel/`, 6 archivos + 2 tests)
+
+Se conectó el campo de logo/favicon al componente `<x-image-upload>` + `cropperjs` que **ya
+existían** (se usan en fotos de operador — nunca se enganchó al logo): modal de recorte +
+preview en vivo + rotar. Recorte **libre** para el logo, **1:1** para el favicon.
+
+- `resources/js/modules/image-upload.js` — la factory `imageUploadFactory` gana un 5º arg
+  opcional `options = { format, quality, maxWidth, maxHeight }` (default = comportamiento
+  histórico JPEG 0.82 / 1200²; las 2 llamadas existentes no lo pasan → sin cambio de conducta).
+- `resources/views/components/image-upload.blade.php` — props `previewFit`, `outputFormat`,
+  `outputQuality`, `maxOutput{Width,Height}`; `aspectRatio` no numérico (`"free"`) → `NaN` a
+  cropperjs (recorte libre).
+- `resources/views/system-settings/index.blade.php` — el bloque `type === 'image'` monta
+  `<x-image-upload>` (favicon `1:1`, logo libre, `outputFormat="image/png"`, topes desde el
+  campo). Sin `autoSubmitFormId` → el crop solo llena el input oculto; se guarda con el botón.
+- `app/Support/SystemSettings/SystemSettings.php` — `brand_logo_web` `image_max_width=640`/
+  `image_max_height=240` (+ `help`); `brand_favicon` `128×128` (+ `help`).
+- `app/Http/Controllers/SystemSettingController.php` — `normalizeBrandingImage()` (GD): red de
+  seguridad server-side (envío sin JS / directo al endpoint) — reescala al tope **sin ampliar**
+  las chicas, conserva alpha, reencoda a **PNG** (compresión 6). `try/catch` + `report()`: si
+  GD falla, deja el archivo tal cual — guardar la config nunca revienta.
+- **PNG, no webp, a propósito:** `brand_logo_web` también alimenta PDFs con dompdf
+  (`reports/{invoice,quote,work-order}`, `CashReportService`, expedientes) y dompdf no
+  renderiza webp.
+- `app/Http/Controllers/Api/SettingController.php` → `branding()` devuelve además `logo_url` y
+  `favicon_url` (rutas `/storage/...`; favicon cae al logo). **Ruta pública nueva**
+  `GET /api/settings/branding` en `routes/api.php` (justo tras `/login` — la consume la
+  pantalla de login de la app móvil antes de autenticarse; solo lee branding, sin datos
+  sensibles).
+- Tests: `tests/Feature/SystemSettingsBrandingLogoTest.php` (5), `tests/Feature/Api/BrandingSettingsTest.php` (3).
+
+### 2 — App móvil del operador (`mob_apps/operador/`, 2 archivos)
+
+Producción **no consumía branding** en la app móvil (se aisló a propósito en el porteo
+`SYNC-055..072`, §4 "Opción 2", por ser single-tenant): el login tenía `"EstetiCAN"` + la
+tijera hardcodeados, y `index.html` no tenía favicon.
+
+- `src/lib/useBusinessName.ts` — **nuevo archivo**. Hook `useBranding()` →
+  `{ businessName, logoUrl, faviconUrl }` con caché a nivel de módulo (una sola llamada);
+  `useBusinessName()` como wrapper. Efecto colateral al resolver: fija el `<link rel="icon">`
+  del documento con `favicon_url`.
+- `src/LoginScreen.tsx` — importa `useBranding()`; el recuadro de la tijera muestra el logo
+  (`<img object-contain>` sobre fondo blanco) cuando hay uno configurado; el `<h1>` pasa de
+  `"EstetiCAN"` literal a `{businessName}`.
+
+### ✅ Verificación (en prod)
+
+- `SystemSettingsBrandingLogoTest` + `BrandingSettingsTest` + `PhotoSettingsTest` +
+  `SystemSettingsAssistantTest` + sweep `Setting|Branding` → **31 en verde**. Pint limpio
+  (6 archivos). Blade compila (`view:cache` OK).
+- Backoffice: `npm run build` en `estetican_app` → `app-DjwP53At.js` / `app-Cg63Nwl1.css`.
+- Móvil: `npm run build` en `node:20-alpine` → `index-Bzude42h.js`; `tsc --noEmit` solo los
+  2 errores preexistentes ajenos de `MobCajaMovimientos.tsx`; `estetican_mob` reiniciado.
+- `route:list` confirma `api/settings/branding`. `GET /api/settings/branding` vía el proxy de
+  `estetican_mob` → `logo_url`/`favicon_url` presentes; ambas imágenes resuelven **200
+  `image/png`** (logo/favicon actuales: 312 KB / 63 KB, subidos con el flujo viejo — no se
+  tocan; un re-upload por el cropper nuevo los optimiza).
+
+### 3 — `SYNC-075`: el switch de correo del Google Calendar prometía de más
+
+El switch `google_calendar_notify_email` de USEEDI solo apaga el **resumen propio de EstetiCAN**
+(`SincronizarGoogleCalendarCommand::notifyWatchers()` → `GoogleCalendarUpdatedMail`), no los
+avisos que **Google Calendar** manda a quien tiene el calendario compartido (`syncViewers()` da
+rol `reader` en el ACL a cualquier usuario con `google_personal_email`, sin mirar el switch; los
+avisos de cambios los controla el destinatario en su propio Google). Decisión de Tomas: **A + C**.
+
+- `resources/views/user/edit.blade.php` — el switch pasa a **"Enviarme un resumen de cambios por
+  correo (lo manda EstetiCAN)"** + una nota que aclara que los avisos nativos de Google se apagan
+  desde el propio Google Calendar del usuario.
+- `app/Domain/GoogleCalendar/Services/GoogleCalendarSyncService.php` — `shareCalendarWithEmail()`
+  llama `$api->acl->insert(...)` con `['sendNotifications' => false]` (para no disparar el correo
+  "se compartió un calendario contigo" en cada corrida del cron cada 5 min). `client()` pasó de
+  `private` a `protected` (seam de test, sin cambio de conducta).
+- Tests: `tests/Feature/GoogleCalendar/ShareCalendarSendNotificationsTest.php` (nuevo, cliente
+  Google falso verifica el optParam) + `UserGoogleCalendarNotifyToggleTest` actualizado al texto
+  nuevo. Sweep `GoogleCalendar/` **23 en verde** en prod.
+- **Sin migración, sin assets.** El sync **está encendido en prod** — los usuarios que ya son
+  `reader` (`Admin`, `arantxa`, `tomasmg`, con `google_personal_email` y `visibility=all`)
+  seguirán recibiendo los avisos de Google hasta que los apaguen en su propio Google Calendar (o
+  se les quite `google_personal_email`). **Avisarles.**
+
+### 4 — `SYNC-076`: super admin "legacy" recibía 403 en toda el área de administración
+
+Reporte de Tomas: "como superadmin parece que no aparece la configuración de usuario, aunque no
+se pueda borrar". Causa: el chequeo de super admin era inconsistente. El grupo de rutas de admin
+(**Configuración, Usuarios CRUD, Bitácora de actividad, y todo el módulo de Finanzas**) usaba
+`role:admin|super-admin` — middleware de Spatie que solo mira `hasAnyRole()`, ignorando la
+columna legacy `users.role='admin'` y el accessor `is_super_admin`. `UserController::edit()` tenía
+el mismo problema. El resto de la app ya usa `is_super_admin` (híbrido). Un super admin sin el rol
+Spatie asignado (aprovisionamiento de tenant, orden de seeders `MasterAdminSeeder`
+antes de `BaseRolesSeeder`, alta directa en BD) **veía el menú** pero recibía **403** al entrar.
+
+- `app/Http/Middleware/EnsureSuperAdmin.php` (nuevo) — `abort_unless($request->user()?->is_super_admin, 403)`.
+- `bootstrap/app.php` — alias `'superadmin' => EnsureSuperAdmin::class`.
+- `routes/web.php` — el grupo de admin pasa de `role:admin|super-admin` a `superadmin`.
+- `app/Http/Controllers/UserController.php` — `edit()` alineado a
+  `auth()->id() === $user->id || auth()->user()->is_super_admin` (igual que `show()`).
+- Nada más usa `hasRole('admin')`/`role:admin` suelto (grep). `UserPolicy` ya incluía `|| role === 'admin'`.
+- Tests: `tests/Feature/SuperAdminAreaAccessTest.php` (4) — admin legacy entra a las 5 zonas, admin
+  Spatie sigue entrando, operador sigue con 403, `edit()` deja a un admin legacy editar a otro.
+- **Sin migración, sin assets.** `estetican_app` corre sin `route:cache`, así que el cambio de
+  `routes/web.php` quedó vivo al instante (`route:list --middleware=superadmin` → 61 rutas). Repro
+  en prod: un admin legacy (`role='admin'` sin rol Spatie) ya entra 200 a
+  users/system-settings/activity-log/finances (antes 403).
+
+### ✅ Verificación global (prod)
+
+Suite completa de `apps/backoffice-laravel` corrida tras los tres ports — ver el bloque de tests
+de abajo (sin regresiones). Pint limpio en los 9 archivos tocados de `SYNC-075`+`SYNC-076`.
+
+### 🛑 Pendientes / notas
+
+- **Commiteado a `main`** (3 commits: `SYNC-074`, `SYNC-075`, `SYNC-076`). **Sin `git push`** —
+  pendiente de que Tomas lo pida.
+- **Pasada visual de Tomas pendiente:**
+  - `SYNC-074`: `app.estetican.org` → Configuración → Identidad y Branding (elegir logo → modal
+    de recorte → guardar → PNG optimizado); `mov.estetican.org` → logo en el login + favicon de
+    la pestaña (recarga dura — el favicon se cachea fuerte).
+  - `SYNC-075`: el texto nuevo del switch en USEEDI.
+  - `SYNC-076`: nada visible con los admins actuales (todos tienen rol Spatie) — solo aplica a un
+    super admin legacy.
+- **Avisar a Admin/arantxa/tomasmg** (`SYNC-075`): apagar las notificaciones de los calendarios
+  compartidos en su propio Google Calendar si no las quieren.
+- El **ícono de app instalada (PWA)** no cambia con `SYNC-074` — no hay `manifest.json`.
+- Trazabilidad `tst → prod`: `zeus-estetican/docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md`
+  (`SYNC-074`/`075`/`076`, en Aplicados).
+
+---
+
 ## 📅 Sesión: 30/08/2026 — roles de capacidad de servicio (config de datos en prod) + SYNC-003 cerrado + spec m2m operador↔servicio movido a Zeus
 
 ### 📝 Resumen
