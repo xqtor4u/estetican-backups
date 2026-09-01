@@ -128,9 +128,10 @@ class SincronizarGoogleCalendarCommand extends Command
      * personal de Google — independiente de si ese usuario es también un operador. Con
      * visibilidad 'all' ve todos los calendarios que existan hoy; con 'personal' solo el de
      * su propio operador vinculado (operator_id), si tiene uno con calendario ya creado.
-     * No hace falta rastrear "ya compartido": la API de Calendar es idempotente ante un ACL
-     * insert repetido con el mismo email+rol (confirmado en vivo), así que se llama cada
-     * corrida sin necesitar una columna de estado nueva.
+     * Usa `ensureCalendarSharedWith()` (no `shareCalendarWithEmail()`): lee la ACL del
+     * calendario una vez por corrida y solo inserta lo que falta. Repetir `acl.insert` en
+     * cada corrida —aunque el resultado sea idempotente— agota la cuota de ACL de Google
+     * (403 "Calendar usage limits exceeded", visto en prod ~11,7k veces desde el 10/08).
      */
     private function syncViewers(bool $isDry): void
     {
@@ -154,7 +155,7 @@ class SincronizarGoogleCalendarCommand extends Command
                     continue;
                 }
 
-                $this->sync->shareCalendarWithEmail($calendarId, $viewer->google_personal_email);
+                $this->sync->ensureCalendarSharedWith($calendarId, $viewer->google_personal_email);
             }
         }
     }

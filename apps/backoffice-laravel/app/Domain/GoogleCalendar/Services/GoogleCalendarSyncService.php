@@ -31,6 +31,14 @@ class GoogleCalendarSyncService implements GoogleCalendarSyncServiceInterface
 {
     private const REMINDER_MINUTES_BEFORE = 15;
 
+    /**
+     * Caché por corrida de las ACL de tipo `user` de cada calendario:
+     * calendarId => [emailEnMinúsculas => rol], o null si no se pudo leer la lista.
+     *
+     * @var array<string, array<string, string>|null>
+     */
+    private array $aclByCalendar = [];
+
     public function __construct(private SystemSettings $settings) {}
 
     public function ensureCalendarForOperator(Operator $operator): ?string
@@ -98,6 +106,68 @@ class GoogleCalendarSyncService implements GoogleCalendarSyncServiceInterface
         }
     }
 
+    public function ensureCalendarSharedWith(string $calendarId, string $email): bool
+    {
+        $api = $this->client();
+
+        if (! $api) {
+            return false;
+        }
+
+        $key = mb_strtolower(trim($email));
+
+        if (! array_key_exists($calendarId, $this->aclByCalendar)) {
+            $this->aclByCalendar[$calendarId] = $this->readUserAcl($api, $calendarId);
+        }
+
+        $known = $this->aclByCalendar[$calendarId];
+
+        // Ya está en la ACL → nada que hacer, sin llamar a la API.
+        if (is_array($known) && array_key_exists($key, $known)) {
+            return true;
+        }
+
+        // `null` = no se pudo leer la lista; se intenta el insert igual (comportamiento
+        // previo) — mejor eso que dejar a alguien sin el calendario compartido.
+        $ok = $this->shareCalendarWithEmail($calendarId, $email);
+
+        if ($ok && is_array($known)) {
+            $this->aclByCalendar[$calendarId][$key] = 'reader';
+        }
+
+        return $ok;
+    }
+
+    /**
+     * Lee las reglas de ACL de tipo `user` del calendario. Una sola llamada de lectura
+     * por calendario y corrida (mucho más barata en cuota que repetir `acl.insert`).
+     *
+     * @return array<string, string>|null emailEnMinúsculas => rol; null si falla la lectura
+     */
+    private function readUserAcl(GoogleCalendarApi $api, string $calendarId): ?array
+    {
+        try {
+            $map = [];
+
+            foreach ($api->acl->listAcl($calendarId)->getItems() ?? [] as $rule) {
+                $scope = $rule->getScope();
+
+                if ($scope && $scope->getType() === 'user' && $scope->getValue()) {
+                    $map[mb_strtolower($scope->getValue())] = (string) $rule->getRole();
+                }
+            }
+
+            return $map;
+        } catch (Throwable $e) {
+            Log::warning('GoogleCalendar: no se pudo leer la lista de ACL del calendario.', [
+                'calendar_id' => $calendarId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
     public function upsertBookingEvent(SpaBooking $booking): void
     {
         $operator = $booking->operator;
@@ -114,11 +184,16 @@ class GoogleCalendarSyncService implements GoogleCalendarSyncServiceInterface
 
         $event = $this->buildEvent($booking);
 
+        // sendUpdates=none: crear/mover un evento en el calendario del operador no debe
+        // disparar correos de Google. La sincronización es interna (EstetiCAN → Google);
+        // el operador ya se entera por la app. Aplica también a update y delete.
+        $noNotify = ['sendUpdates' => 'none'];
+
         try {
             if ($booking->google_event_id) {
-                $api->events->update($operator->google_calendar_id, $booking->google_event_id, $event);
+                $api->events->update($operator->google_calendar_id, $booking->google_event_id, $event, $noNotify);
             } else {
-                $created = $api->events->insert($operator->google_calendar_id, $event);
+                $created = $api->events->insert($operator->google_calendar_id, $event, $noNotify);
                 $booking->forceFill(['google_event_id' => $created->getId()])->saveQuietly();
             }
 
@@ -146,7 +221,7 @@ class GoogleCalendarSyncService implements GoogleCalendarSyncServiceInterface
         }
 
         try {
-            $api->events->delete($operator->google_calendar_id, $booking->google_event_id);
+            $api->events->delete($operator->google_calendar_id, $booking->google_event_id, ['sendUpdates' => 'none']);
         } catch (Throwable $e) {
             // Puede ser que el evento ya no exista del lado de Google (410/404) — no es
             // un fallo real que bloquee nada, solo se deja registro.

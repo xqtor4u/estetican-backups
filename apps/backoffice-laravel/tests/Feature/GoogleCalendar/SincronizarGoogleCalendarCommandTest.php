@@ -92,6 +92,7 @@ class SincronizarGoogleCalendarCommandTest extends TestCase
         $this->mock(GoogleCalendarSyncServiceInterface::class, function ($mock) {
             $mock->shouldNotReceive('ensureCalendarForOperator');
             $mock->shouldNotReceive('shareCalendarWithEmail');
+            $mock->shouldNotReceive('ensureCalendarSharedWith');
             $mock->shouldNotReceive('upsertBookingEvent');
             $mock->shouldNotReceive('deleteBookingEvent');
         });
@@ -150,8 +151,8 @@ class SincronizarGoogleCalendarCommandTest extends TestCase
         $this->viewer(['google_personal_email' => 'admin@example.com', 'google_calendar_visibility' => 'all']);
 
         $this->mock(GoogleCalendarSyncServiceInterface::class, function ($mock) {
-            $mock->shouldReceive('shareCalendarWithEmail')->once()->with('cal-A', 'admin@example.com')->andReturn(true);
-            $mock->shouldReceive('shareCalendarWithEmail')->once()->with('cal-B', 'admin@example.com')->andReturn(true);
+            $mock->shouldReceive('ensureCalendarSharedWith')->once()->with('cal-A', 'admin@example.com')->andReturn(true);
+            $mock->shouldReceive('ensureCalendarSharedWith')->once()->with('cal-B', 'admin@example.com')->andReturn(true);
         });
 
         $this->artisan('calendario:sincronizar-google')->assertSuccessful();
@@ -172,7 +173,7 @@ class SincronizarGoogleCalendarCommandTest extends TestCase
         ]);
 
         $this->mock(GoogleCalendarSyncServiceInterface::class, function ($mock) {
-            $mock->shouldReceive('shareCalendarWithEmail')->once()->with('cal-A', 'operadorusuario@example.com')->andReturn(true);
+            $mock->shouldReceive('ensureCalendarSharedWith')->once()->with('cal-A', 'operadorusuario@example.com')->andReturn(true);
         });
 
         $this->artisan('calendario:sincronizar-google')->assertSuccessful();
@@ -183,6 +184,7 @@ class SincronizarGoogleCalendarCommandTest extends TestCase
         $this->mock(GoogleCalendarSyncServiceInterface::class, function ($mock) {
             $mock->shouldReceive('ensureCalendarForOperator')->andReturn('cal-1');
             $mock->shouldReceive('shareCalendarWithEmail')->andReturn(true);
+            $mock->shouldReceive('ensureCalendarSharedWith')->andReturn(true);
             $mock->shouldReceive('upsertBookingEvent');
             $mock->shouldReceive('deleteBookingEvent');
         });
