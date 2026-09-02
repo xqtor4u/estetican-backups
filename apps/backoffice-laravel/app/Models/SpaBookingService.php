@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Observers\SpaBookingServiceObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable(['spa_booking_id', 'service_id', 'group_id', 'quantity', 'current_price', 'started_at', 'completed_at', 'cancelled_at', 'cancellation_reason', 'not_performed_at', 'not_performed_reason', 'operator_id', 'scheduled_offset_minutes', 'duration_minutes', 'is_external', 'external_cost'])]
+#[ObservedBy(SpaBookingServiceObserver::class)]
 class SpaBookingService extends Model
 {
     protected function casts(): array

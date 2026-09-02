@@ -105,7 +105,11 @@
 </div>
 
 @push('scripts')
-<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+{{-- SYNC-080: Alpine ya viene bundleado por Vite (resources/js/app.js, 'self').
+     El <script> de unpkg que había aquí lo bloqueaba la CSP (script-src no incluye
+     unpkg.com) → console error en cada carga de /agenda/create. `bookingWizard()`
+     se define abajo en un <script> clásico dentro de <body>, así que ya está en
+     window antes de que el módulo deferido app.js corra Alpine.start(). --}}
 <script nonce="{{ csp_nonce() }}">
     function bookingWizard() {
         return {

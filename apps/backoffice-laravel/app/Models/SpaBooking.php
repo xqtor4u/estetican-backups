@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Observers\SpaBookingObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +14,7 @@ use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
 #[Fillable(['pet_id', 'operator_id', 'created_by_user_id', 'scheduled_at', 'duration_minutes', 'status', 'total_estimated_price', 'notes', 'cancellation_reason', 'order_series_id', 'order_folio'])]
+#[ObservedBy(SpaBookingObserver::class)]
 class SpaBooking extends Model
 {
     use LogsActivity;
