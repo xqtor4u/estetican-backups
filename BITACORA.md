@@ -76,7 +76,8 @@ línea (se dejó un comentario Blade). Salió de una serie de 4 reportes de QA s
   `tests/Feature/GoogleCalendar/{SyncBookingToGoogleJob,BookingSyncObserver,GoogleCalendarSchedule}Test.php`
 - Tocados: `app/Models/SpaBooking.php`, `app/Models/SpaBookingService.php` (solo `#[ObservedBy]`),
   `routes/console.php`, `resources/views/agenda/global-create.blade.php`
-- Commit **`fcd5931`**.
+- Commit **`fcd5931`** (código) + `1a26dd9` (esta bitácora), **pusheados a `origin/main`**
+  (`611b7ef..1a26dd9`).
 
 ### 🛑 Pendiente / notas
 
