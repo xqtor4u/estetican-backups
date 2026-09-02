@@ -1,5 +1,95 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 01/09/2026 — `SYNC-079` + `SYNC-080` portados desde Zeus
+
+### 📝 Resumen
+
+Porteo de dos ítems construidos y probados primero en `tenants/tst` (Zeus). **Sin migración, sin
+assets, sin backup de BD.** Código bind-mounted (`.:/var/www/html`) → vivo al instante;
+`estetican_app` corre sin `route:cache`, así que el cambio de `routes/console.php` entra en la
+siguiente corrida del `schedule:run` del host (cada minuto). Plan de porteo:
+`zeus-estetican/docs/tecnico/260901 PLAN_PORTEO_SYNC-079.md`.
+
+### `SYNC-079` — sync a Google Calendar dirigido por eventos (antes solo cron cada 5 min)
+
+Origen: Tomas, revisando el sync tras `SYNC-077/078` — "5 min es muy rápido… ¿y si se ejecuta
+cada vez que se modifica la agenda?". Diseño acordado: **camino por eventos para la frescura +
+barrido lento de respaldo**, sin worker dedicado nuevo (prod no tiene ninguno; todo vive en el
+`schedule:run` del host).
+
+- **`app/Jobs/SyncBookingToGoogleJob.php`** (nuevo) — empuja **una** cita al calendario del
+  operador. `ShouldQueue` + `ShouldBeUnique` (`uniqueFor = 120`, id = `bookingId`), cola
+  `google-calendar`, `$tries = 3`, `$backoff = [30, 120]`. Recibe el id, relee el estado final.
+  No-op si `google_calendar_sync_enabled` está apagado, si la cita no existe, o si
+  `google_synced_at >= updated_at`. Enruta a `upsertBookingEvent` (`scheduled`/`work_order`/
+  `completed`) o `deleteBookingEvent` (`cancelled`/`no_show`) — mismo criterio que el barrido.
+- **`app/Observers/SpaBookingObserver.php`** (nuevo, `#[ObservedBy]`) — `saved`: encola en alta,
+  o en edición **solo si** `wasChanged()` tocó un campo del evento (`scheduled_at`,
+  `duration_minutes`, `status`, `operator_id`, `pet_id`, `notes`, `order_folio`). Cambiar
+  `total_estimated_price` u otros campos internos no encola nada. Gateado por el interruptor
+  maestro leído primero.
+- **`app/Observers/SpaBookingServiceObserver.php`** (nuevo, `#[ObservedBy]`) — `saved`/`deleted`
+  de una línea → encola el job para la cita padre (las líneas alimentan el título del evento y no
+  tocan `spa_bookings.updated_at`).
+- **`routes/console.php`:**
+  - `calendario:sincronizar-google` pasa de `everyFiveMinutes()` a **`hourly()`**. Ya no es el
+    camino principal — queda como **aprovisionamiento** (crear/compartir calendarios con
+    operadores y viewers) + **reconciliación / auto-sanación** de lo que el camino por eventos no
+    alcanzó (worker caído, error de Google, escritura directa a BD).
+  - Nuevo: `queue:work --queue='google-calendar' --stop-when-empty --max-time=50 --sleep=0
+    --tries=3`, `everyMinute()` + `withoutOverlapping()`, **con guarda
+    `->when(DB::table('jobs')->where('queue','google-calendar')->exists())`** (try/catch → `false`
+    si la tabla no existe). La guarda evita arrancar un proceso PHP sobre una cola vacía 1440
+    veces/día — solo arranca `queue:work` cuando de verdad hay jobs. Latencia real ≤ 1 min.
+- **⚠️ En prod el sync está encendido** (`google_calendar_sync_enabled = true`, cron corriendo),
+  así que `SYNC-079` cambia comportamiento **de inmediato**: las citas pasan a sincronizarse en
+  ≤ 1 min vía el observer y el sondeo baja de 5 min a 1 h.
+
+### `SYNC-080` — Alpine por CDN en `/agenda/create` que la CSP bloquea
+
+`resources/views/agenda/global-create.blade.php` (wizard "Nueva cita global") tenía en su
+`@push('scripts')` un `<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js">`. La
+CSP del motor (`script-src 'self' 'nonce-…' 'unsafe-eval'`, sin `unpkg.com`) lo bloquea → **console
+error en cada carga de `/agenda/create`**. No rompía el wizard: Alpine ya viene bundleado por
+Vite (`resources/js/app.js`, `'self'`) y `bookingWizard()` (un `<script>` clásico en `<body>`)
+queda en `window` antes de que el módulo deferido `app.js` corra `Alpine.start()`. Si el CDN
+**hubiera** cargado, habría un segundo Alpine auto-inicializándose (doble binding). Se borró la
+línea (se dejó un comentario Blade). Salió de una serie de 4 reportes de QA sobre `tstapp` — el
+único hallazgo real de la tanda.
+
+### ✅ Verificación
+
+- Suite `GoogleCalendar/` **41 en verde** (incl. `SyncBookingToGoogleJobTest` 6,
+  `BookingSyncObserverTest` 6, `GoogleCalendarScheduleTest` 3). Sweep
+  `Booking|Agenda|SpaBooking|Schedule|Observer|HotelModuleToggle` **278 en verde**, sin
+  regresiones. Pint limpio (6 archivos).
+- `schedule:list` en prod → 3 líneas: `*/15` whatsapp (intacto), `* * * * *`
+  `queue:work --queue='google-calendar' … --stop-when-empty`, `0 * * * *`
+  `calendario:sincronizar-google`.
+- **En vivo tras el deploy:** `jobs` (cola `google-calendar`) en 0; `schedule:run` manual sin
+  errores; barrido `calendario:sincronizar-google` manual → "0 citas, 0 eventos, 1 operador con
+  agenda compartida", sin nuevas líneas de error en `laravel.log`.
+
+### 📁 Archivos / commit
+
+- Nuevos: `app/Jobs/SyncBookingToGoogleJob.php`, `app/Observers/SpaBooking{,Service}Observer.php`,
+  `tests/Feature/GoogleCalendar/{SyncBookingToGoogleJob,BookingSyncObserver,GoogleCalendarSchedule}Test.php`
+- Tocados: `app/Models/SpaBooking.php`, `app/Models/SpaBookingService.php` (solo `#[ObservedBy]`),
+  `routes/console.php`, `resources/views/agenda/global-create.blade.php`
+- Commit **`fcd5931`**.
+
+### 🛑 Pendiente / notas
+
+- Smoke test real de `SYNC-079` (mover una cita → verla en el Google Calendar del operador en
+  ≤ ~70 s) queda para la pasada visual de Tomas — no se probó con una cita real para no ensuciar
+  producción.
+- Limitaciones conocidas (ya existían con el cron previo): renombrar mascota/cliente no re-empuja
+  sus citas; borrar una cita de raíz (no es flujo real) dejaría un evento huérfano.
+- Trazabilidad: `zeus-estetican/docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` (`SYNC-079`/
+  `SYNC-080`, movidos a "Aplicados").
+
+---
+
 ## 📅 Sesión: 31/08/2026 (cont.) — `SYNC-077` + `SYNC-078` portados desde Zeus: el sync de Google Calendar deja de notificar por correo al crear eventos y deja de agotar la cuota de ACL
 
 ### 📝 Resumen
