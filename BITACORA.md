@@ -1,5 +1,90 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 03/09/2026 — `SYNC-081` + `SYNC-082` + `SYNC-083` portados desde Zeus (Tanda A)
+
+### 📝 Resumen
+
+Porteo quirúrgico de la "Tanda A" de la sesión del 03/09 en `tenants/tst` (Zeus). **Sin
+migración, sin backup de BD.** Requiere assets recompilados (`SYNC-083` es CSS bundleado). Rama
+`port/sync-081-083`. La sesión de Zeus también construyó `SYNC-084/085/086` en el mismo
+`agenda/index.blade.php` / `SpaBookingController.php` — **no se portaron**, el patch se filtró
+para dejar fuera esas hunks.
+
+### `SYNC-081` — 403 crudo de Laravel → página propia
+
+- **`resources/views/errors/403.blade.php`** (nuevo) — Laravel la usa para todo `HttpException`
+  403 (Spatie `permission:`/`role:` y `abort(403)` del middleware `superadmin`). Autenticado →
+  "Acceso restringido para este usuario" + email de la cuenta + botón "Cambiar de usuario"
+  (`POST /logout`); invitado → "Iniciar sesión". `expectsJson()` sigue devolviendo JSON.
+  Estilos inline, variante `prefers-color-scheme: dark`. Ningún archivo existente se modifica.
+- **`tests/Feature/Errors403PageTest.php`** (nuevo, 4 casos).
+
+### `SYNC-082` — vista Día de `/agenda`: acciones rápidas contextuales en la columna "Acciones"
+
+- **`resources/views/agenda/index.blade.php`:** la columna "Acciones" pasa de 3 enlaces fijos a
+  chips contextuales al estado (`▶ Iniciar` / `↻ Reprogramar` / `✗ No asistió` / `✓ Terminar` /
+  `✎ Corregir fecha` / `$ Cobrar` + Detalle/Mascota/Cliente en chips `--ghost`). Transiciones
+  tras `@can('editar agenda')`; `Cobrar` tras `@can('cobros.registrar')`. `Cancelar` no vive
+  aquí (motivo obligatorio → Detalle). `<style>` inline con las clases `.agenda-chip*`.
+  `$lineTplUrl` ahora se calcula para cualquier cita `scheduled`/`work_order` (también
+  `overdue`). Triggers ganan `data-unfulfillable-url`; el modal `#agendaQuickActions` gana botón
+  "Marcar no realizada" a nivel cita.
+- **El pop-up ya no se cierra al accionar una línea de servicio.** Los botones del panel por
+  servicio (Iniciar/Completar/No se realizó/Reactivar/Reasignar) pasan de `<form>` con submit
+  nativo a `fetch()` contra `agenda.services.update`; el JS re-pinta el panel en su lugar
+  (`rerenderPanel`). Modal: `<div class="modal-footer">` con botón "Volver a la agenda"; al
+  cerrar, si se accionó algo por AJAX (`panelDirty`) se hace `location.reload()`.
+- **`app/Http/Controllers/SpaBookingController.php` → `updateServiceLine()`:** tipo de retorno
+  `RedirectResponse|JsonResponse`; rama `wantsJson()` que devuelve
+  `{ok, message, booking_status, lines:[{id,name,state}]}` (y `422 {ok:false,message}` en error).
+  El camino no-JSON (redirect + flash) queda **idéntico** — API y app móvil sin cambio.
+- **Tests:** `AgendaIndexQuickActionsTest.php` (nuevo, 9 casos), `ServiceLineWebActionsTest.php`
+  (+2 casos JSON), `AgendaDayViewDeduplicationTest.php` (aserción de dedup endurecida — compara
+  por sección "Estancias de Hotel" en vez de contar ocurrencias).
+
+### `SYNC-082-b` — chips ghost de "Acciones" en negritas
+
+`.agenda-chip--ghost`: `color: #374151; font-weight: 800` (el gris tenue en negritas casi no se
+leía). CSS inline en el mismo `<style>` de `SYNC-082`.
+
+### `SYNC-083` — colores/tamaño de los badges de estado + chips de servicio por departamento
+
+- **`resources/css/backoffice-blueprints.css`:** `.agenda-status-badge--*` repintados a **tinte
+  suave** (Programada azul, En proceso verde, Completada ámbar/ocre, No se presentó rojo,
+  Cancelada gris) con borde 1px; `--scheduled`/`--cancelled` nuevos (antes usaban las clases
+  genéricas `catalog-status-badge--active`/`--inactive`). "No realizada" y la alerta parpadeante
+  se quedan fuertes. Regla compacta `.catalog-status-badge.agenda-status-badge--*` (sin
+  `min-width: 6rem`). `.agenda-service-tags` + `.agenda-service-tag--spa` (teal, Estética) /
+  `--vet` (violeta, Veterinaria) para la columna "Servicios". `.agenda-calendar-event-chip--*`
+  (Semana/Mes) repintados igual.
+- **`resources/views/agenda/index.blade.php`:** los 2 `@class` de badge de estado (Día + timeline
+  de Hotel) cambian `catalog-status-badge--active`/`--inactive` →
+  `agenda-status-badge--scheduled`/`--cancelled`; el `<div>` de Servicios gana `agenda-service-tags`
+  y cada chip su clase por `type`; al `<button>` de servicio se le quita `border-0`.
+- **`tests/Feature/Agenda/AgendaCalendarStatusAndFolioTest.php`:** 3 tests renombrados
+  (`..._colors_..._blue/pink/red` → `..._tags_..._with_its_status_class`; asertaban sobre nombres
+  de clase, no colores). Pint quitó un `use DocumentSeries` sin usar + reordenó traits.
+- **Assets recompilados** (`npm run build` en `estetican_app`): `app-Cg63Nwl1.css` →
+  `app-oXqJKM1l.css`; `manifest.json` actualizado. El JS quedó byte-idéntico (`app-DjwP53At.js`).
+
+### ✅ Verificación
+
+- `php artisan test --filter=Agenda` → **123 en verde**.
+- Sweep de lo portado (`AgendaIndexQuickActions|ServiceLineWebActions|AgendaCalendarStatusAndFolio|AgendaDayViewDeduplication|Errors403Page|AgendaAlertBadge`) → **38 en verde**.
+- `SuperAdminAreaAccess|Navigation|Dashboard` → **23 en verde**.
+- Pint limpio en los 7 archivos PHP/Blade tocados. `vite build` OK.
+- **Pendiente:** smoke test visual de Tomas en `app.estetican.org/agenda` (chips de la columna
+  Acciones, colores de badges, pop-up que no se cierra al accionar 2 servicios) y una cuenta sin
+  `ver dashboard` para ver la página 403 propia.
+
+### Origen
+
+`zeus-estetican/docs/tecnico/PENDIENTES_SINCRONIZAR_ESTETICAN.md` (`SYNC-081`/`082`/`082-b`/`083`).
+Se mueven a "Aplicados" ahí. Quedan pendientes de portar `SYNC-084` (orden "Todas"), `SYNC-085`
+(formato de hora 12/24h + assets) y `SYNC-086` (AgSpaCre reintrabajada) — Tandas B y C.
+
+---
+
 ## 📅 Sesión: 01/09/2026 — `SYNC-079` + `SYNC-080` portados desde Zeus
 
 ### 📝 Resumen
