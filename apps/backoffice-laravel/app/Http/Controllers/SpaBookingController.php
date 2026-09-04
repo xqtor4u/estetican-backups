@@ -1045,13 +1045,17 @@ class SpaBookingController extends Controller
      * lógica y guardas que el endpoint móvil (`Api\BookingController::assignServiceProfessional`)
      * vía `ServiceLineActionService`.
      */
-    public function updateServiceLine(Request $request, SpaBooking $booking, SpaBookingService $line): RedirectResponse
+    public function updateServiceLine(Request $request, SpaBooking $booking, SpaBookingService $line): RedirectResponse|JsonResponse
     {
         $this->ensureVisible($booking);
         abort_unless($line->spa_booking_id === $booking->id, 404);
 
         if (in_array($booking->status, ['cancelled', 'no_show', 'completed'], true)) {
-            return redirect()->back()->with('error', 'La cita ya está cerrada — no se pueden cambiar sus servicios.');
+            $closed = 'La cita ya está cerrada — no se pueden cambiar sus servicios.';
+
+            return $request->wantsJson()
+                ? response()->json(['ok' => false, 'message' => $closed], 422)
+                : redirect()->back()->with('error', $closed);
         }
 
         $validated = $request->validate([
@@ -1070,6 +1074,31 @@ class SpaBookingController extends Controller
         ]);
 
         $error = app(ServiceLineActionService::class)->apply($booking, $line, $validated);
+
+        // El pop-up de acciones rápidas de la agenda (SYNC-082) manda esto por fetch()
+        // para no cerrarse: devuelve el estado fresco de todas las líneas y re-pinta el
+        // panel en su lugar, así se pueden accionar 2+ servicios sin reabrirlo.
+        if ($request->wantsJson()) {
+            if ($error !== null) {
+                return response()->json(['ok' => false, 'message' => $error], 422);
+            }
+
+            $booking->load('services.service');
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Servicio actualizado.',
+                'booking_status' => $booking->status,
+                'lines' => $booking->services->map(fn ($l) => [
+                    'id' => $l->id,
+                    'name' => $l->service?->name ?? 'Servicio',
+                    'state' => $l->cancelled_at ? 'cancelled'
+                        : ($l->not_performed_at ? 'not_performed'
+                        : ($l->completed_at ? 'completed'
+                        : ($l->started_at ? 'in_progress' : 'pending'))),
+                ])->values(),
+            ]);
+        }
 
         if ($error !== null) {
             return redirect()->back()->with('error', $error);

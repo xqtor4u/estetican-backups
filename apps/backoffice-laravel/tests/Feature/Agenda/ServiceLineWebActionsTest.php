@@ -115,4 +115,33 @@ class ServiceLineWebActionsTest extends TestCase
             ->patch(route('agenda.services.update', [$booking, $line]), ['mark_started' => '1'])
             ->assertRedirect()->assertSessionHas('error');
     }
+
+    /**
+     * SYNC-082: el pop-up de la agenda pide JSON (fetch) para no cerrarse — la respuesta
+     * trae el estado fresco de TODAS las líneas para re-pintar el panel en su lugar.
+     */
+    public function test_json_request_returns_fresh_line_states_without_a_redirect(): void
+    {
+        [$booking, $line] = $this->bookingWithLine('work_order');
+        $other = Service::create(['code' => 'S'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 20, 'is_active' => true]);
+        $line2 = $booking->services()->create(['service_id' => $other->id, 'current_price' => 100]);
+
+        $res = $this->actingAs($this->createAdminUser())
+            ->patchJson(route('agenda.services.update', [$booking, $line]), ['mark_started' => '1']);
+
+        $res->assertOk()->assertJson(['ok' => true]);
+        $res->assertJsonCount(2, 'lines');
+        $this->assertSame('in_progress', collect($res->json('lines'))->firstWhere('id', $line->id)['state']);
+        $this->assertSame('pending', collect($res->json('lines'))->firstWhere('id', $line2->id)['state']);
+    }
+
+    public function test_json_request_returns_422_with_a_message_on_error(): void
+    {
+        [$booking, $line] = $this->bookingWithLine('completed');
+
+        $this->actingAs($this->createAdminUser())
+            ->patchJson(route('agenda.services.update', [$booking, $line]), ['mark_started' => '1'])
+            ->assertStatus(422)
+            ->assertJson(['ok' => false]);
+    }
 }

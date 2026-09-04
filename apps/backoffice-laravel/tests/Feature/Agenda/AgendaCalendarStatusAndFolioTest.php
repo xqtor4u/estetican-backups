@@ -3,7 +3,6 @@
 namespace Tests\Feature\Agenda;
 
 use App\Models\Client;
-use App\Models\DocumentSeries;
 use App\Models\Pet;
 use App\Models\Service;
 use App\Models\SpaBooking;
@@ -22,8 +21,8 @@ use Tests\TestCase;
  */
 class AgendaCalendarStatusAndFolioTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -49,7 +48,7 @@ class AgendaCalendarStatusAndFolioTest extends TestCase
         return $booking;
     }
 
-    public function test_week_view_colors_a_completed_booking_chip_blue(): void
+    public function test_week_view_tags_a_completed_booking_chip_with_its_status_class(): void
     {
         $booking = $this->bookingWithStatus('completed', 'OT-SPA-000042');
 
@@ -61,7 +60,7 @@ class AgendaCalendarStatusAndFolioTest extends TestCase
         $response->assertSee('OT-SPA-000042', false);
     }
 
-    public function test_week_view_colors_a_work_order_booking_chip_pink(): void
+    public function test_week_view_tags_a_work_order_booking_chip_with_its_status_class(): void
     {
         $booking = $this->bookingWithStatus('work_order');
 
@@ -72,7 +71,7 @@ class AgendaCalendarStatusAndFolioTest extends TestCase
         $response->assertSee('agenda-calendar-event-chip--work-order', false);
     }
 
-    public function test_month_view_colors_a_no_show_booking_chip_red_and_puts_folio_in_the_title(): void
+    public function test_month_view_tags_a_no_show_booking_chip_with_its_status_class_and_puts_folio_in_the_title(): void
     {
         $booking = $this->bookingWithStatus('no_show', 'OT-SPA-000099');
 

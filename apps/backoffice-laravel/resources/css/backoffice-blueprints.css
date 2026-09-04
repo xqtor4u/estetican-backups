@@ -524,32 +524,90 @@ body.catalog-resize-active {
     color: #535b63;
 }
 
-/* Colores propios de estado de cita — mismos que ya usa la app móvil (puntos de
-   semana/mes y chips): azul = completada, rosa = en proceso, rojo = no se
-   presentó (falta del cliente). "No realizada" reutiliza el ámbar de
-   agenda-alert-badge (mismo significado: atípico, no es culpa de nadie).
-   Programada/Cancelada se quedan con el verde/gris genérico de --active/--inactive. */
-.agenda-status-badge--completed {
-    background: #3b82f6 !important;
-    color: #fff !important;
-    border-color: #3b82f6 !important;
+/* En la agenda el badge de estado va compacto, del mismo tamaño que los chips de
+   acción `.agenda-chip--*` (SYNC-083) — sin el `min-width: 6rem` ni el padding
+   ancho de `.catalog-status-badge`, que se usa igual en el resto de la app. */
+.catalog-status-badge.agenda-status-badge--scheduled,
+.catalog-status-badge.agenda-status-badge--work-order,
+.catalog-status-badge.agenda-status-badge--completed,
+.catalog-status-badge.agenda-status-badge--no-show,
+.catalog-status-badge.agenda-status-badge--cancelled,
+.catalog-status-badge.agenda-status-badge--unfulfillable,
+.catalog-status-badge.agenda-alert-badge {
+    min-width: 0;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+/* Colores de estado de cita — tinte suave, mismo estilo que los chips de acción
+   (`.agenda-chip--*`), con la misma familia de tono que la app móvil (tstmov):
+   Programada = azul (primary), En proceso = verde (secondary), Completada =
+   ámbar/ocre (tertiary), No se presentó = rojo (error), Cancelada = gris.
+   Los estados "con problema" se dejan fuertes a propósito para que salten:
+   la alerta ámbar parpadeante (`.agenda-alert-badge`) y "No realizada"
+   (`--unfulfillable`, ámbar sólido, ya es estado cerrado, sin parpadeo). */
+.agenda-status-badge--scheduled {
+    background: rgba(59, 130, 246, 0.12) !important;
+    color: #1d4ed8 !important;
+    border: 1px solid rgba(59, 130, 246, 0.28) !important;
 }
 .agenda-status-badge--work-order {
-    background: #ec4899 !important;
-    color: #fff !important;
-    border-color: #ec4899 !important;
+    background: rgba(22, 163, 74, 0.14) !important;
+    color: #15803d !important;
+    border: 1px solid rgba(22, 163, 74, 0.30) !important;
+}
+.agenda-status-badge--completed {
+    background: rgba(217, 119, 6, 0.13) !important;
+    color: #92510a !important;
+    border: 1px solid rgba(217, 119, 6, 0.28) !important;
 }
 .agenda-status-badge--no-show {
-    background: #ef4444 !important;
-    color: #fff !important;
-    border-color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.13) !important;
+    color: #b91c1c !important;
+    border: 1px solid rgba(239, 68, 68, 0.28) !important;
 }
-/* Mismo ámbar que agenda-alert-badge pero sólido, sin parpadeo — "no realizada"
-   ya es un estado cerrado/resuelto, no algo que requiera revisión ahora mismo. */
+.agenda-status-badge--cancelled {
+    background: rgba(108, 117, 125, 0.14) !important;
+    color: #535b63 !important;
+    border: 1px solid rgba(108, 117, 125, 0.28) !important;
+}
 .agenda-status-badge--unfulfillable {
     background: #f59e0b !important;
     color: #fff !important;
     border-color: #f59e0b !important;
+}
+
+/* Chips de servicio de la tabla de Día — misma familia visual que los chips de
+   acción y estado (SYNC-083): mismo tamaño/peso, pastilla con borde tenue en vez
+   del relleno gris de `.catalog-inline-tag` (que se usa igual en el resto de la
+   app). El `<button>` de servicio (`.agenda-service-trigger`) hace `font: inherit`,
+   así que el tamaño se fuerza aquí para que botón y `<span>` queden iguales. */
+.agenda-service-tags {
+    margin-top: 0;
+    gap: 0.28rem;
+}
+.agenda-service-tags .catalog-inline-tag {
+    padding: 0.2rem 0.55rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    background: transparent;
+    color: var(--app-muted, #6b7280);
+    border: 1px solid rgba(108, 117, 125, 0.35);
+}
+.agenda-service-tags .catalog-inline-tag.agenda-service-trigger:hover {
+    background: rgba(108, 117, 125, 0.10);
+}
+/* Color por departamento del servicio: Estética (spa) vs Veterinaria (vaccine/clinica). */
+.agenda-service-tags .catalog-inline-tag.agenda-service-tag--spa {
+    color: #0f766e;
+    background: rgba(13, 148, 136, 0.12);
+    border-color: rgba(13, 148, 136, 0.34);
+}
+.agenda-service-tags .catalog-inline-tag.agenda-service-tag--vet {
+    color: #6d28d9;
+    background: rgba(139, 92, 246, 0.12);
+    border-color: rgba(139, 92, 246, 0.34);
 }
 
 .catalog-title-stack__title,
@@ -948,37 +1006,37 @@ body.catalog-resize-active {
     border-color: rgba(13, 202, 240, 0.3);
 }
 
-/* Mismos colores por estado que ya usa la tabla de Día (agenda-status-badge--*)
-   y la app móvil — antes los chips de Semana/Mes solo distinguían SPA/Hotel. */
+/* Mismo tinte suave por estado que la tabla de Día (agenda-status-badge--*).
+   "No realizada" y la alerta parpadeante se quedan fuertes (estados con problema). */
 .agenda-calendar-event-chip--scheduled {
-    background: rgba(40, 167, 69, 0.14);
-    color: #17643a;
-    border-color: rgba(40, 167, 69, 0.3);
-}
-.agenda-calendar-event-chip--completed {
-    background: #3b82f6 !important;
-    color: #fff !important;
-    border-color: #3b82f6 !important;
+    background: rgba(59, 130, 246, 0.12) !important;
+    color: #1d4ed8 !important;
+    border-color: rgba(59, 130, 246, 0.30) !important;
 }
 .agenda-calendar-event-chip--work-order {
-    background: #ec4899 !important;
-    color: #fff !important;
-    border-color: #ec4899 !important;
+    background: rgba(22, 163, 74, 0.14) !important;
+    color: #15803d !important;
+    border-color: rgba(22, 163, 74, 0.32) !important;
+}
+.agenda-calendar-event-chip--completed {
+    background: rgba(217, 119, 6, 0.13) !important;
+    color: #92510a !important;
+    border-color: rgba(217, 119, 6, 0.30) !important;
 }
 .agenda-calendar-event-chip--no-show {
-    background: #ef4444 !important;
-    color: #fff !important;
-    border-color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.13) !important;
+    color: #b91c1c !important;
+    border-color: rgba(239, 68, 68, 0.30) !important;
+}
+.agenda-calendar-event-chip--cancelled {
+    background: rgba(108, 117, 125, 0.14) !important;
+    color: #535b63 !important;
+    border-color: rgba(108, 117, 125, 0.30) !important;
 }
 .agenda-calendar-event-chip--unfulfillable {
     background: #f59e0b !important;
     color: #fff !important;
     border-color: #f59e0b !important;
-}
-.agenda-calendar-event-chip--cancelled {
-    background: rgba(108, 117, 125, 0.14);
-    color: #535b63;
-    border-color: rgba(108, 117, 125, 0.3);
 }
 
 .agenda-calendar-event-chip__folio {

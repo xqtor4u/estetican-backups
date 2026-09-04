@@ -20,8 +20,8 @@ use Tests\TestCase;
  */
 class AgendaDayViewDeduplicationTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -48,8 +48,16 @@ class AgendaDayViewDeduplicationTest extends TestCase
         $response->assertOk();
         $html = $response->getContent();
 
-        // Aparece una sola vez en toda la página (solo la tabla) — no dos.
-        $this->assertSame(1, substr_count($html, 'MascotaUnicaSpa'));
+        // La cita SPA vive en la tabla de arriba y NO se duplica en las tarjetas de
+        // "Estancias de Hotel" de abajo. Se compara por sección en vez de contar
+        // ocurrencias en toda la página: el nombre de la mascota aparece varias veces
+        // dentro de su fila (celda visible + `data-pet` de los botones del pop-up),
+        // y cuántas depende de si la fila es accionable (hora del día) — irrelevante
+        // para lo que prueba este caso.
+        $hotelSectionAt = strpos($html, 'Estancias de Hotel');
+        $this->assertNotFalse($hotelSectionAt, 'No se encontró la sección de Hotel.');
+        $this->assertStringContainsString('MascotaUnicaSpa', substr($html, 0, $hotelSectionAt));
+        $this->assertStringNotContainsString('MascotaUnicaSpa', substr($html, $hotelSectionAt));
     }
 
     public function test_a_hotel_reservation_still_appears_in_the_timeline_cards(): void
