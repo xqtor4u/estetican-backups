@@ -1,5 +1,70 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 11/09/2026 — `SYNC-104` + `SYNC-105` portados desde Zeus
+
+### 📝 Resumen
+
+Dos commits separados, en el orden en que se construyeron en Zeus. **`SYNC-105` sí lleva
+migración** contra la BD real de producción — con backup previo
+(`/tmp/estetican-backups/estetican_pre_sync105_20260911_183952.sql`, host local, no versionado).
+Sin `git push` todavía — queda pendiente confirmación de Tomas.
+
+### `SYNC-104` (commit `6bddf96`) — `destroy()` de artículos/servicios suspende en vez de borrar en cascada
+
+- Verificado antes de portar que las 5 columnas `cascadeOnDelete()` (`quote_items.item_id`/
+  `service_id`, `spa_booking_items.item_id`, `spa_booking_services.service_id`,
+  `executed_service_items.service_id`) son idénticas a `tst` — el bug es el mismo.
+- **`app/Models/Item.php`/`Service.php`:** nuevo `hasHistoricalUsage(): bool` + relaciones
+  `quoteItems()`/`groupComponents()`/`spaBookingItems()` que faltaban.
+- **`ItemController::destroy()`/`ServiceController::destroy()`:** si hay uso real, suspende
+  (`is_active = false`) con flash `warning`; si no, borra de verdad como antes.
+- **`resources/views/agenda/partials/_work_order.blade.php`:** badge "Descontinuado" en servicio y
+  artículo cuando el catálogo referenciado está suspendido.
+- **`resources/views/items/partials/form.blade.php`/`items/edit.blade.php`:** `@error()`/
+  `is-invalid`/`old()` que faltaban (mismo patrón ya usado en Servicios).
+- **No portado a propósito:** `services.operator_role_id` sigue existiendo en este repo
+  (`SYNC-103`, aparte, sin portar) — sin cambios relacionados.
+- Tests: `ItemCrudTest` +3, `ServiceCrudTest` nuevo (+5), `AssignProfessionalTest` +2,
+  `GroupComponentTest` actualizado (1) — 18/18 assertions en verde.
+
+### `SYNC-105` (commit `621ceb2`) — congela nombre y precio reales de presupuestos y citas frente a cambios de catálogo
+
+- **3 migraciones aditivas**, corridas contra producción con backup previo: `quote_items` gana
+  `name_snapshot`/`description_snapshot`; `spa_booking_services` gana `service_name_snapshot`;
+  `spa_booking_items` gana `item_name_snapshot`. Backfill best-effort desde el catálogo actual —
+  verificado: 55/55 `spa_booking_services` reales quedaron con su nombre congelado, 0
+  `quote_items`/`spa_booking_items` reales todavía (features poco usadas en producción hasta hoy).
+- **`app/Models/QuoteItem.php`:** `name()` prefiere `name_snapshot` sobre el nombre vivo.
+- **`app/Observers/SpaBookingServiceObserver.php`:** nuevo hook `creating()` que congela
+  `service_name_snapshot` en toda ruta de creación directa, sin repetir la lógica en cada una.
+- **`app/Domain/Commercial/Services/QuoteService.php`:** `createQuoteFromBooking()` congela
+  `price_override`/`name_snapshot`/`description_snapshot` SIEMPRE al crear una línea (antes solo
+  si el frontend mandaba un precio explícito); `acceptQuote()` propaga el snapshot del
+  `QuoteItem` a la `SpaBookingService`/`SpaBookingItem` resultante. **No tocado a propósito:**
+  `registerPayment()` sigue usando `CashLedger`/`BankLedger` en este repo (`SYNC-098`, aparte).
+- **Vistas** (`reports/invoice.blade.php`, `reports/work-order.blade.php`,
+  `agenda/partials/_billing_summary.blade.php`, `agenda/partials/_work_order.blade.php`) y **API
+  móvil** (`Api\BookingController`, `Api\AgendaController` ×2): prefieren el snapshot sobre la
+  relación viva.
+- **Bug real encontrado y corregido de paso:** `ReportController::workOrder()` cargaba la
+  relación inexistente `executedServices.service` (`ExecutedService` tampoco la tiene en este
+  repo) — se quitó, no se usaba en la vista.
+- Tests: `QuoteSnapshotTest.php` nuevo (8/8 en verde, incluye el hallazgo de la tarjeta "Ejecución
+  Profesional" que encontró la batería beta de Zeus, no la auditoría original).
+
+### Verificación de ambos
+
+Suite completa del repo: **748 pasan (740 baseline + 8 nuevos), 37 fallas preexistentes sin
+relación** (`ClientAddressHarmonizationTest`, `ClientLivePetsCatalogTest`, el `ExampleTest` por
+defecto de Laravel, `HotelReservationResourceBlockingTest`, `OperatorBranchSelectionTest`,
+`OperatorPhotoUploadTest`, `PetCatalogRootViewsTest`, `PetDependenciesCrudTest`,
+`ResourceDuplicationTest`, `ResourceEventCrudTest`, `ResourcePhotoCrudTest`,
+`ServiceOperatorRoleLinkTest`) — confirmadas con `git stash` antes de empezar a portar: fallan
+igual sin este cambio. **No investigadas ni corregidas aquí, fuera de alcance de este porteo** —
+queda para una sesión dedicada a ese problema de ambiente.
+
+---
+
 ## 📅 Sesión: 03/09/2026 — `SYNC-081` + `SYNC-082` + `SYNC-083` portados desde Zeus (Tanda A)
 
 ### 📝 Resumen
