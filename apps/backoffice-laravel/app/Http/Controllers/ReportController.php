@@ -47,7 +47,6 @@ class ReportController extends Controller
             'quotes.items.operator',
             'items.item',
             'resourceAllocations.resource',
-            'executedServices.service',
             'services.service',
             'operator',
             'processNotes.user:id,name',

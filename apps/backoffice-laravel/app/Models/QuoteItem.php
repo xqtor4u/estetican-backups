@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'operator_id',
     'is_external',
     'price_override',
+    'name_snapshot',
+    'description_snapshot',
     'notes',
 ])]
 class QuoteItem extends Model
@@ -55,7 +57,7 @@ class QuoteItem extends Model
 
     public function name(): string
     {
-        return $this->service->name ?? $this->item->name;
+        return $this->name_snapshot ?? $this->service->name ?? $this->item->name;
     }
 
     public function unitPrice(): float

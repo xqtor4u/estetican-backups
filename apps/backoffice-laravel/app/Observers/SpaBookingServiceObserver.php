@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Jobs\SyncBookingToGoogleJob;
+use App\Models\Service;
 use App\Models\SpaBookingService;
 use App\Support\SystemSettings\SystemSettings;
 
@@ -16,6 +17,20 @@ use App\Support\SystemSettings\SystemSettings;
 class SpaBookingServiceObserver
 {
     public function __construct(private readonly SystemSettings $settings) {}
+
+    /**
+     * SYNC-105 (portado desde Zeus/ZEUS-037): congela el nombre del servicio al momento de crear
+     * la línea — hay 3+ puntos de creación distintos (alta directa web/móvil, sincronizar
+     * servicios al editar, aceptar presupuesto) y todos deben quedar protegidos por igual sin
+     * repetir la lógica en cada uno. Solo rellena si el creador no lo mandó ya explícito (p. ej.
+     * `QuoteService` manda el snapshot que ya traía el `QuoteItem` desde que se cotizó).
+     */
+    public function creating(SpaBookingService $line): void
+    {
+        if (! $line->service_name_snapshot && $line->service_id) {
+            $line->service_name_snapshot = Service::find($line->service_id)?->name;
+        }
+    }
 
     public function saved(SpaBookingService $line): void
     {

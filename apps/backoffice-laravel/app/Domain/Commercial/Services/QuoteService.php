@@ -41,11 +41,10 @@ class QuoteService implements QuoteServiceInterface
             if (! empty($data['items'])) {
                 foreach ($data['items'] as $item) {
                     $quantity = (float) ($item['quantity'] ?? 1);
-                    $unitPrice = $item['price'] ?? (
-                        ! empty($item['item_id'])
-                            ? Item::find($item['item_id'])->price
-                            : Service::find($item['service_id'])->price
-                    );
+                    $catalogRecord = ! empty($item['item_id'])
+                        ? Item::find($item['item_id'])
+                        : Service::find($item['service_id']);
+                    $unitPrice = $item['price'] ?? $catalogRecord?->price ?? 0;
 
                     $quoteItem = new QuoteItem([
                         'quote_id' => $quote->id,
@@ -53,7 +52,13 @@ class QuoteService implements QuoteServiceInterface
                         'item_id' => $item['item_id'] ?? null,
                         'group_id' => $item['group_id'] ?? null,
                         'quantity' => $quantity,
-                        'price_override' => $item['price'] ?? null,
+                        // SYNC-105 (portado desde Zeus/ZEUS-037): precio real cotizado, SIEMPRE
+                        // congelado — antes solo se guardaba si el frontend mandaba un override
+                        // explícito, y si no, unitPrice()/lineTotal() leían el precio EN VIVO del
+                        // catálogo cada vez que se reimprimía o aceptaba el presupuesto.
+                        'price_override' => $unitPrice,
+                        'name_snapshot' => $catalogRecord?->name,
+                        'description_snapshot' => $catalogRecord?->description,
                         'notes' => $item['notes'] ?? null,
                     ]);
                     $quoteItem->save();
@@ -104,6 +109,7 @@ class QuoteService implements QuoteServiceInterface
                 if ($item->item_id) {
                     $booking->items()->create([
                         'item_id' => $item->item_id,
+                        'item_name_snapshot' => $item->name_snapshot ?? $item->item?->name,
                         'group_id' => $item->group_id,
                         'quantity' => $item->quantity,
                         'current_price' => $lineTotal,
@@ -111,6 +117,7 @@ class QuoteService implements QuoteServiceInterface
                 } else {
                     $booking->services()->create([
                         'service_id' => $item->service_id,
+                        'service_name_snapshot' => $item->name_snapshot ?? $item->service?->name,
                         'group_id' => $item->group_id,
                         'quantity' => $item->quantity,
                         'current_price' => $lineTotal,

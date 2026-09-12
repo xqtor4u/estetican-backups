@@ -96,7 +96,7 @@ class BookingController extends Controller
                 return [
                     'id' => $s->service?->id,
                     'booking_service_id' => $s->id,
-                    'name' => $s->service?->name ?? '—',
+                    'name' => $s->service_name_snapshot ?? $s->service?->name ?? '—',
                     'type' => $s->service?->type,
                     'price' => (float) ($s->current_price ?? $s->service?->price ?? 0),
                     'duration_minutes' => $lineDuration,

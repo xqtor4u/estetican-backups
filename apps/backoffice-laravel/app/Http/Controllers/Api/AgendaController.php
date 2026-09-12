@@ -153,7 +153,7 @@ class AgendaController extends Controller
                 ] : null,
                 'services' => $b->services->map(fn ($s) => [
                     'id' => $s->service?->id,
-                    'name' => $s->service?->name ?? '—',
+                    'name' => $s->service_name_snapshot ?? $s->service?->name ?? '—',
                     'type' => $s->service?->type,
                 ])->values(),
                 'operators' => $operators,
@@ -291,7 +291,7 @@ class AgendaController extends Controller
                     'name' => trim($b->pet->client->first_name.' '.$b->pet->client->last_name),
                 ] : null,
                 'services' => $b->services->map(fn ($s) => [
-                    'name' => $s->service?->name ?? '—',
+                    'name' => $s->service_name_snapshot ?? $s->service?->name ?? '—',
                 ])->values(),
             ];
         }));

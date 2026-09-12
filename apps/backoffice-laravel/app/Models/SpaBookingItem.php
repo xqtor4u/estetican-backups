@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['spa_booking_id', 'item_id', 'group_id', 'quantity', 'current_price'])]
+#[Fillable(['spa_booking_id', 'item_id', 'item_name_snapshot', 'group_id', 'quantity', 'current_price'])]
 class SpaBookingItem extends Model
 {
     protected function casts(): array

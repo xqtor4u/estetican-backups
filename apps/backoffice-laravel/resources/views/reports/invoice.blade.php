@@ -63,7 +63,7 @@
             {{-- Citas cobradas directo desde la app móvil (sin presupuesto/Quote de por medio) --}}
             @foreach($booking->services as $bookingService)
                 <tr>
-                    <td>{{ $bookingService->service?->name ?? '—' }}</td>
+                    <td>{{ $bookingService->service_name_snapshot ?? $bookingService->service?->name ?? '—' }}</td>
                     <td class="text-right">${{ number_format($bookingService->current_price ?? 0, 2) }}</td>
                 </tr>
             @endforeach

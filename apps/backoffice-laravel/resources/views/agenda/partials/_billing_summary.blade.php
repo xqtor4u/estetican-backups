@@ -6,7 +6,7 @@
                 <div class="small text-body-secondary">
                     {{ $booking->pet?->name ?? 'Mascota' }}
                     @if($booking->order_folio) · <span class="font-monospace">{{ $booking->order_folio }}</span> @endif
-                    · {{ $booking->services->map(fn ($l) => $l->service?->name)->filter()->implode(', ') ?: 'Sin servicios' }}
+                    · {{ $booking->services->map(fn ($l) => $l->service_name_snapshot ?? $l->service?->name)->filter()->implode(', ') ?: 'Sin servicios' }}
                 </div>
             </div>
             <span class="badge rounded-pill text-bg-success">Servicio Finalizado</span>
@@ -85,7 +85,7 @@
                             @else
                                 @forelse($billableLines as $line)
                                     <tr>
-                                        <td>{{ $line->service?->name ?? 'Servicio' }}</td>
+                                        <td>{{ $line->service_name_snapshot ?? $line->service?->name ?? 'Servicio' }}</td>
                                         <td class="text-end">${{ number_format((float) $line->current_price, 2) }}</td>
                                     </tr>
                                 @empty

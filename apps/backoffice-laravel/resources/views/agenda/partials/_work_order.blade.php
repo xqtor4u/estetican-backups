@@ -58,7 +58,7 @@
                                 <div class="d-flex justify-content-between align-items-start gap-2">
                                     <div>
                                         <div class="fw-semibold text-primary">
-                                            {{ $item->service->name }}
+                                            {{ $item->service_name_snapshot ?? $item->service->name }}
                                             @unless($item->service->is_active)
                                                 <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">Descontinuado</span>
                                             @endunless
@@ -105,7 +105,7 @@
                                     <div class="d-flex justify-content-between align-items-start gap-2">
                                         <div>
                                             <div class="fw-semibold text-primary">
-                                                {{ $bookingItem->item->name }}
+                                                {{ $bookingItem->item_name_snapshot ?? $bookingItem->item->name }}
                                                 @unless($bookingItem->item->is_active)
                                                     <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">Descontinuado</span>
                                                 @endunless
@@ -172,7 +172,7 @@
               }">
             @csrf
             <div class="modal-header">
-                <h5 class="modal-title">Asignar Profesional: {{ $item->service->name }}</h5>
+                <h5 class="modal-title">Asignar Profesional: {{ $item->service_name_snapshot ?? $item->service->name }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">

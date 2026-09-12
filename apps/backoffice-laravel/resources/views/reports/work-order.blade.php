@@ -85,7 +85,7 @@
             @foreach($booking->services as $bookingService)
                 <tr>
                     <td>
-                        <div style="font-weight: bold;">{{ $bookingService->service?->name ?? '—' }}</div>
+                        <div style="font-weight: bold;">{{ $bookingService->service_name_snapshot ?? $bookingService->service?->name ?? '—' }}</div>
                         <div style="font-size: 9px; color: var(--secondary-color);">{{ $bookingService->service?->description }}</div>
                     </td>
                     <td>{{ $booking->operator?->full_name ?? 'Pendiente de asignar' }}</td>
