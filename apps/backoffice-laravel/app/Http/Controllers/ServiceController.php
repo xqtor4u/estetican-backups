@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\GroupComponent;
 use App\Models\OperatorRole;
 use App\Models\Service;
 use App\Support\CatalogCache\OperatorRoleCatalogCache;
@@ -137,11 +136,11 @@ class ServiceController extends Controller
 
     public function destroy(Service $service): RedirectResponse
     {
-        $groupCount = GroupComponent::where('service_id', $service->id)->count();
+        if ($service->hasHistoricalUsage()) {
+            $service->update(['is_active' => false]);
 
-        if ($groupCount > 0) {
             return redirect()->route('services.index')
-                ->with('error', "No se puede eliminar: es componente de {$groupCount} grupo(s). Quítalo del/de los grupo(s) primero.");
+                ->with('warning', 'Este servicio ya se usó antes (presupuestos, citas, grupos o servicios ejecutados) — no se puede eliminar sin perder ese historial. Se marcó como inactivo: ya no se puede ofrecer en nada nuevo, pero el historial existente se conserva intacto.');
         }
 
         $service->delete();

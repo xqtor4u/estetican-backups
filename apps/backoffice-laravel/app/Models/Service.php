@@ -69,4 +69,30 @@ class Service extends Model
     {
         return $this->hasMany(SpaBookingService::class);
     }
+
+    public function quoteItems(): HasMany
+    {
+        return $this->hasMany(QuoteItem::class);
+    }
+
+    public function groupComponents(): HasMany
+    {
+        return $this->hasMany(GroupComponent::class);
+    }
+
+    /**
+     * SYNC-104/ZEUS-027: `quote_items.service_id`, `spa_booking_services.service_id` y
+     * `executed_service_items.service_id` son todas `cascadeOnDelete()` — borrar un servicio ya
+     * usado en un presupuesto, una cita o un servicio ejecutado real borraría esas líneas
+     * históricas en cascada, sin aviso. `ServiceController::destroy()` usa este método para
+     * suspender (`is_active = false`, ya filtrado de todos los selectores de alta) en vez de
+     * borrar cuando hay uso real — solo se borra de verdad si no hay ninguno.
+     */
+    public function hasHistoricalUsage(): bool
+    {
+        return $this->groupComponents()->exists()
+            || $this->quoteItems()->exists()
+            || $this->spaBookingServices()->exists()
+            || $this->executedServiceItems()->exists();
+    }
 }

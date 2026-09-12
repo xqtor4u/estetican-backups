@@ -99,11 +99,12 @@ class GroupComponentTest extends TestCase
         $this->assertSame(0.0, $group->fresh()->load('components')->calculatedPrice());
     }
 
-    public function test_cannot_delete_an_item_used_as_a_group_component(): void
+    /** SYNC-104/ZEUS-027: ya no bloquea con error — suspende en vez de borrar. */
+    public function test_deleting_an_item_used_as_a_group_component_suspends_it_instead_of_deleting(): void
     {
         $group = Group::create(['name' => 'Cirugía']);
-        $item = Item::create(['name' => 'Venda', 'price' => 10]);
-        GroupComponent::create(['group_id' => $group->id, 'item_id' => $item->id, 'quantity' => 5]);
+        $item = Item::create(['name' => 'Venda', 'price' => 10, 'is_active' => true]);
+        $component = GroupComponent::create(['group_id' => $group->id, 'item_id' => $item->id, 'quantity' => 5]);
 
         Permission::firstOrCreate(['name' => 'eliminar catalogo_articulos', 'guard_name' => 'web']);
         $user = $this->admin();
@@ -111,8 +112,10 @@ class GroupComponentTest extends TestCase
 
         $this->actingAs($user)->delete(route('items.destroy', $item))
             ->assertRedirect()
-            ->assertSessionHas('error');
+            ->assertSessionHas('warning');
 
         $this->assertModelExists($item);
+        $this->assertFalse($item->fresh()->is_active);
+        $this->assertModelExists($component);
     }
 }

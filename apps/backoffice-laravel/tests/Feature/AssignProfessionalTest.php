@@ -132,4 +132,31 @@ class AssignProfessionalTest extends TestCase
         $response->assertSee('Precio de venta al cliente');
         $response->assertSee('Externo');
     }
+
+    /**
+     * SYNC-104/ZEUS-027: un servicio suspendido (`is_active = false`, ya usado antes — ver
+     * `Service::hasHistoricalUsage()`) sigue mostrándose normal en una orden de trabajo ya
+     * facturada, con un badge "Descontinuado" junto al nombre para que quede claro que ya no se
+     * ofrece, sin que la línea histórica se vea afectada.
+     */
+    public function test_shows_a_discontinued_badge_when_the_service_is_no_longer_active(): void
+    {
+        [$booking, $line] = $this->bookingWithServiceLine();
+        $line->service->update(['is_active' => false]);
+
+        $response = $this->actingAs($this->admin())->get(route('agenda.show', $booking));
+
+        $response->assertOk();
+        $response->assertSee('Descontinuado');
+    }
+
+    public function test_does_not_show_the_discontinued_badge_when_the_service_is_active(): void
+    {
+        [$booking] = $this->bookingWithServiceLine();
+
+        $response = $this->actingAs($this->admin())->get(route('agenda.show', $booking));
+
+        $response->assertOk();
+        $response->assertDontSee('Descontinuado');
+    }
 }

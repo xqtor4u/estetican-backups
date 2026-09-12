@@ -47,39 +47,50 @@
             </tbody>
         </table>
 
+        {{-- Las dos formas de abajo comparten nombres de campo (`quantity`/`notes`) — `old()` no
+             sabe cuál de las dos se envió, así que se scopea a mano por un campo exclusivo de
+             cada una (`type` solo existe en "Registrar", `from_branch_id` solo en "Transferir")
+             para no repoblar la forma equivocada tras un error en la otra. --}}
+        @php
+            $movementSubmitted = old('type') !== null;
+            $transferSubmitted = old('from_branch_id') !== null;
+        @endphp
         <form action="{{ route('items.movements.store', $item) }}" method="POST" class="row g-2 align-items-end mb-4">
             @csrf
             <div class="col-md-2">
                 <label for="movement-type" class="form-label small">Tipo</label>
-                <select id="movement-type" name="type" class="form-select form-select-sm" required>
-                    <option value="entrada">Entrada</option>
-                    <option value="ajuste">Ajuste</option>
-                    <option value="perdida">Pérdida</option>
+                <select id="movement-type" name="type" class="form-select form-select-sm @error('type') is-invalid @enderror" required>
+                    <option value="entrada" @selected($movementSubmitted && old('type') === 'entrada')>Entrada</option>
+                    <option value="ajuste" @selected($movementSubmitted && old('type') === 'ajuste')>Ajuste</option>
+                    <option value="perdida" @selected($movementSubmitted && old('type') === 'perdida')>Pérdida</option>
                 </select>
+                @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
             <div class="col-md-2">
                 <label for="movement-direction" class="form-label small">Dirección (solo ajuste)</label>
                 <select id="movement-direction" name="direction" class="form-select form-select-sm">
-                    <option value="suma">Suma</option>
-                    <option value="resta">Resta</option>
+                    <option value="suma" @selected(! $movementSubmitted || old('direction', 'suma') === 'suma')>Suma</option>
+                    <option value="resta" @selected($movementSubmitted && old('direction') === 'resta')>Resta</option>
                 </select>
             </div>
             <div class="col-md-2">
                 <label for="movement-quantity" class="form-label small">Cantidad</label>
-                <input id="movement-quantity" type="number" name="quantity" class="form-control form-control-sm" min="1" step="1" required>
+                <input id="movement-quantity" type="number" name="quantity" class="form-control form-control-sm {{ $movementSubmitted && $errors->has('quantity') ? 'is-invalid' : '' }}" min="1" step="1" value="{{ $movementSubmitted ? old('quantity') : '' }}" required>
+                @if($movementSubmitted) @error('quantity')<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
             </div>
             <div class="col-md-3">
                 <label for="movement-branch" class="form-label small">Sucursal</label>
-                <select id="movement-branch" name="branch_id" class="form-select form-select-sm" required>
-                    <option value="" disabled selected>Elegir sucursal</option>
+                <select id="movement-branch" name="branch_id" class="form-select form-select-sm @error('branch_id') is-invalid @enderror" required>
+                    <option value="" disabled @selected(! $movementSubmitted || ! old('branch_id'))>Elegir sucursal</option>
                     @foreach($branches as $branch)
-                        <option value="{{ $branch->id }}">{{ $branch->name }}</option>
+                        <option value="{{ $branch->id }}" @selected($movementSubmitted && (string) old('branch_id') === (string) $branch->id)>{{ $branch->name }}</option>
                     @endforeach
                 </select>
+                @error('branch_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
             <div class="col-md-2">
                 <label for="movement-notes" class="form-label small">Nota</label>
-                <input id="movement-notes" type="text" name="notes" class="form-control form-control-sm">
+                <input id="movement-notes" type="text" name="notes" class="form-control form-control-sm" value="{{ $movementSubmitted ? old('notes') : '' }}">
             </div>
             <div class="col-md-1">
                 <button type="submit" class="btn btn-sm btn-outline-primary w-100">Registrar</button>
@@ -91,29 +102,32 @@
             @csrf
             <div class="col-md-3">
                 <label for="transfer-from-branch" class="form-label small">Sucursal origen</label>
-                <select id="transfer-from-branch" name="from_branch_id" class="form-select form-select-sm" required>
-                    <option value="" disabled selected>Elegir sucursal</option>
+                <select id="transfer-from-branch" name="from_branch_id" class="form-select form-select-sm @error('from_branch_id') is-invalid @enderror" required>
+                    <option value="" disabled @selected(! $transferSubmitted || ! old('from_branch_id'))>Elegir sucursal</option>
                     @foreach($branches as $branch)
-                        <option value="{{ $branch->id }}">{{ $branch->name }} ({{ $branchStocks[$branch->id] ?? 0 }})</option>
+                        <option value="{{ $branch->id }}" @selected($transferSubmitted && (string) old('from_branch_id') === (string) $branch->id)>{{ $branch->name }} ({{ $branchStocks[$branch->id] ?? 0 }})</option>
                     @endforeach
                 </select>
+                @error('from_branch_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
             <div class="col-md-3">
                 <label for="transfer-to-branch" class="form-label small">Sucursal destino</label>
-                <select id="transfer-to-branch" name="to_branch_id" class="form-select form-select-sm" required>
-                    <option value="" disabled selected>Elegir sucursal</option>
+                <select id="transfer-to-branch" name="to_branch_id" class="form-select form-select-sm @error('to_branch_id') is-invalid @enderror" required>
+                    <option value="" disabled @selected(! $transferSubmitted || ! old('to_branch_id'))>Elegir sucursal</option>
                     @foreach($branches as $branch)
-                        <option value="{{ $branch->id }}">{{ $branch->name }} ({{ $branchStocks[$branch->id] ?? 0 }})</option>
+                        <option value="{{ $branch->id }}" @selected($transferSubmitted && (string) old('to_branch_id') === (string) $branch->id)>{{ $branch->name }} ({{ $branchStocks[$branch->id] ?? 0 }})</option>
                     @endforeach
                 </select>
+                @error('to_branch_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
             <div class="col-md-2">
                 <label for="transfer-quantity" class="form-label small">Cantidad</label>
-                <input id="transfer-quantity" type="number" name="quantity" class="form-control form-control-sm" min="1" step="1" required>
+                <input id="transfer-quantity" type="number" name="quantity" class="form-control form-control-sm {{ $transferSubmitted && $errors->has('quantity') ? 'is-invalid' : '' }}" min="1" step="1" value="{{ $transferSubmitted ? old('quantity') : '' }}" required>
+                @if($transferSubmitted) @error('quantity')<div class="invalid-feedback">{{ $message }}</div>@enderror @endif
             </div>
             <div class="col-md-3">
                 <label for="transfer-notes" class="form-label small">Nota</label>
-                <input id="transfer-notes" type="text" name="notes" class="form-control form-control-sm">
+                <input id="transfer-notes" type="text" name="notes" class="form-control form-control-sm" value="{{ $transferSubmitted ? old('notes') : '' }}">
             </div>
             <div class="col-md-1">
                 <button type="submit" class="btn btn-sm btn-outline-primary w-100">Transferir</button>

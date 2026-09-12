@@ -5,6 +5,7 @@
     <div class="col-12 d-flex flex-column align-items-center mb-3 pb-3 border-bottom">
         <label class="form-label text-muted fw-bold mb-3 text-uppercase" style="letter-spacing: 1px;">Foto del artículo</label>
         <x-image-upload name="photo" :value="$item->photo_path ?? null" previewShape="square" :aspectRatio="1" maxWidth="200px" label="Capturar foto" defaultIcon="bi-box-seam" />
+        @error('photo')<div class="invalid-feedback d-block text-center">{{ $message }}</div>@enderror
 
         @if(!empty($item?->photo_path))
             <div class="form-check mt-3">
@@ -18,7 +19,8 @@
 
     <div class="col-md-6">
         <label for="name" class="form-label">Nombre</label>
-        <input id="name" type="text" name="name" class="form-control" value="{{ old('name', $item->name ?? '') }}" required>
+        <input id="name" type="text" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $item->name ?? '') }}" required>
+        @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     @php
@@ -106,9 +108,10 @@
             }
          }">
         <label for="cost_price" class="form-label">Costo de compra</label>
-        <input id="cost_price" type="number" name="cost_price" class="form-control" min="0" step="0.01" placeholder="Opcional"
+        <input id="cost_price" type="number" name="cost_price" class="form-control @error('cost_price') is-invalid @enderror" min="0" step="0.01" placeholder="Opcional"
                value="{{ old('cost_price', isset($item) && $item->cost_price !== null ? number_format((float) $item->cost_price, 2, '.', '') : '') }}"
                x-model.number="cost">
+        @error('cost_price')<div class="invalid-feedback">{{ $message }}</div>@enderror
         <div class="form-text">
             Con margen del {{ rtrim(rtrim(number_format($profitMargin, 2), '0'), '.') }}% (<a href="{{ route('system-settings.index') }}#store" target="_blank">cambiar</a>),
             precio sugerido: $<span x-text="sugerido()">0.00</span>
@@ -118,7 +121,8 @@
 
     <div class="col-md-4">
         <label for="price" class="form-label">Precio de venta</label>
-        <input id="price" type="number" name="price" class="form-control" min="0" step="0.01" placeholder="Opcional" value="{{ old('price', isset($item) && $item->price !== null ? number_format((float) $item->price, 2, '.', '') : '') }}">
+        <input id="price" type="number" name="price" class="form-control @error('price') is-invalid @enderror" min="0" step="0.01" placeholder="Opcional" value="{{ old('price', isset($item) && $item->price !== null ? number_format((float) $item->price, 2, '.', '') : '') }}">
+        @error('price')<div class="invalid-feedback">{{ $message }}</div>@enderror
         <div class="form-text">Si se deja vacío, el asistente IA dirá "precio a consultar".</div>
     </div>
 

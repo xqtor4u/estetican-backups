@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
-use App\Models\GroupComponent;
 use App\Models\Item;
 use App\Support\ItemPhotoImageManager;
 use App\Support\Pages\ItemsPage;
@@ -151,11 +150,11 @@ class ItemController extends Controller
 
     public function destroy(Item $item): RedirectResponse
     {
-        $groupCount = GroupComponent::where('item_id', $item->id)->count();
+        if ($item->hasHistoricalUsage()) {
+            $item->update(['is_active' => false]);
 
-        if ($groupCount > 0) {
             return redirect()->route('items.index')
-                ->with('error', "No se puede eliminar: es componente de {$groupCount} grupo(s). Quítalo del/de los grupo(s) primero.");
+                ->with('warning', 'Este artículo ya se usó antes (presupuestos, citas o grupos) — no se puede eliminar sin perder ese historial. Se marcó como inactivo: ya no se puede ofrecer en nada nuevo, pero el historial existente se conserva intacto.');
         }
 
         $this->imageManager->deleteFiles($item->photo_path);

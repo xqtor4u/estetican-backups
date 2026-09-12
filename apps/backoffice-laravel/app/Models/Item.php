@@ -76,6 +76,37 @@ class Item extends Model
         return $this->hasMany(ItemBranchStock::class);
     }
 
+    public function quoteItems(): HasMany
+    {
+        return $this->hasMany(QuoteItem::class);
+    }
+
+    public function groupComponents(): HasMany
+    {
+        return $this->hasMany(GroupComponent::class);
+    }
+
+    public function spaBookingItems(): HasMany
+    {
+        return $this->hasMany(SpaBookingItem::class);
+    }
+
+    /**
+     * SYNC-104/ZEUS-027: `quote_items.item_id`, `spa_booking_items.item_id` son
+     * `cascadeOnDelete()` — borrar un artículo ya usado en un presupuesto o una cita borraría esas
+     * líneas históricas en cascada, sin aviso. `ItemController::destroy()` usa este método para
+     * suspender (`is_active = false`, ya filtrado de todos los selectores de alta) en vez de
+     * borrar cuando hay uso real — solo se borra de verdad si no hay ninguno.
+     * `pet_vaccinations`/`item_movements` quedan fuera a propósito: ya usan `nullOnDelete()` con
+     * snapshot propio, no pierden nada si el artículo se borra de verdad.
+     */
+    public function hasHistoricalUsage(): bool
+    {
+        return $this->groupComponents()->exists()
+            || $this->quoteItems()->exists()
+            || $this->spaBookingItems()->exists();
+    }
+
     public function getPhotoUrlAttribute(): string
     {
         if (!$this->photo_path) {

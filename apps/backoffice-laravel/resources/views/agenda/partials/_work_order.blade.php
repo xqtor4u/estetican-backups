@@ -57,7 +57,12 @@
                             <div class="card-body p-3">
                                 <div class="d-flex justify-content-between align-items-start gap-2">
                                     <div>
-                                        <div class="fw-semibold text-primary">{{ $item->service->name }}</div>
+                                        <div class="fw-semibold text-primary">
+                                            {{ $item->service->name }}
+                                            @unless($item->service->is_active)
+                                                <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">Descontinuado</span>
+                                            @endunless
+                                        </div>
                                         <small class="text-body-secondary">{{ $item->service->code }}</small>
                                     </div>
                                     <div class="text-end flex-shrink-0">
@@ -99,7 +104,12 @@
                                 <div class="card-body p-3">
                                     <div class="d-flex justify-content-between align-items-start gap-2">
                                         <div>
-                                            <div class="fw-semibold text-primary">{{ $bookingItem->item->name }}</div>
+                                            <div class="fw-semibold text-primary">
+                                                {{ $bookingItem->item->name }}
+                                                @unless($bookingItem->item->is_active)
+                                                    <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">Descontinuado</span>
+                                                @endunless
+                                            </div>
                                             @if((float) $bookingItem->quantity !== 1.0)
                                                 <small class="text-body-secondary">× {{ rtrim(rtrim(number_format($bookingItem->quantity, 2), '0'), '.') }}</small>
                                             @endif
