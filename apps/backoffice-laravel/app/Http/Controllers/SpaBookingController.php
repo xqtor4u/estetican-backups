@@ -73,8 +73,12 @@ class SpaBookingController extends Controller
             $calView = 'day';
         }
 
-        $sort = $request->query('sort', 'date');
-        $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
+        $sort = $request->query('sort') ?: 'date';
+        $direction = match (true) {
+            in_array($request->query('direction'), ['asc', 'desc'], true) => $request->query('direction'),
+            $dateScope === 'full' => 'desc',
+            default => 'asc',
+        };
 
         if ($calView !== 'day') {
             return $this->indexCalendarRange($request, $calView, $statuses, $statusTouched, $search, $sort, $direction);

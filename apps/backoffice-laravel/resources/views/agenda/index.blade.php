@@ -53,10 +53,10 @@
     queda este valor, preservando la ventana activa. --}}
     <input type="hidden" id="agenda-date-scope-hidden" name="date_scope" value="{{ $dateScope }}" form="agenda-filters-form">
     <section class="agenda-scope-switch mb-3" aria-label="Ventana operativa de agenda">
-        <button type="submit" form="agenda-filters-form" name="date_scope" value="today" class="agenda-scope-switch__item {{ $dateScope === 'today' ? 'agenda-scope-switch__item--active' : '' }}">Hoy</button>
-        <button type="submit" form="agenda-filters-form" name="date_scope" value="tomorrow" class="agenda-scope-switch__item {{ $dateScope === 'tomorrow' ? 'agenda-scope-switch__item--active' : '' }}">Mañana</button>
-        <button type="submit" form="agenda-filters-form" name="date_scope" value="all" class="agenda-scope-switch__item {{ $dateScope === 'all' ? 'agenda-scope-switch__item--active' : '' }}">Próximas</button>
-        <button type="submit" form="agenda-filters-form" name="date_scope" value="full" class="agenda-scope-switch__item {{ $dateScope === 'full' ? 'agenda-scope-switch__item--active' : '' }}">Todas</button>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="today" data-agenda-scope-btn class="agenda-scope-switch__item {{ $dateScope === 'today' ? 'agenda-scope-switch__item--active' : '' }}">Hoy</button>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="tomorrow" data-agenda-scope-btn class="agenda-scope-switch__item {{ $dateScope === 'tomorrow' ? 'agenda-scope-switch__item--active' : '' }}">Mañana</button>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="all" data-agenda-scope-btn class="agenda-scope-switch__item {{ $dateScope === 'all' ? 'agenda-scope-switch__item--active' : '' }}">Próximas</button>
+        <button type="submit" form="agenda-filters-form" name="date_scope" value="full" data-agenda-scope-btn class="agenda-scope-switch__item {{ $dateScope === 'full' ? 'agenda-scope-switch__item--active' : '' }}">Todas</button>
         <span class="agenda-scope-switch__hint">{{ $hotelModuleEnabled ? 'Agenda unificada: SPA y Hotel integrados para lectura rápida.' : 'Agenda de SPA.' }}</span>
     </section>
 
@@ -79,8 +79,8 @@
 
     <x-list-filters id="agenda-filters-form" :action="route('agenda.index')" :reset-url="route('agenda.index')">
         <input type="hidden" name="cal_view" value="{{ $calView }}">
-        <input type="hidden" name="sort" value="{{ $sort }}">
-        <input type="hidden" name="direction" value="{{ $direction }}">
+        <input type="hidden" name="sort" id="agenda-sort-hidden" value="{{ $sort }}">
+        <input type="hidden" name="direction" id="agenda-direction-hidden" value="{{ $direction }}">
         <div class="col-lg-2 col-md-6">
             <label class="form-label">Buscar</label>
             <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Mascota, cliente o servicio">
@@ -934,6 +934,23 @@ button.agenda-service-trigger:hover { filter: brightness(0.95); text-decoration:
     // Si el data-api de Bootstrap SÍ funciona, esto rellena el cuerpo antes de mostrarlo.
     modalEl.addEventListener('show.bs.modal', function (ev) {
         if (ev.relatedTarget) populate(ev.relatedTarget);
+    });
+})();
+</script>
+
+<script nonce="{{ csp_nonce() }}">
+(function () {
+    // Cambiar de ventana operativa (Hoy/Mañana/Próximas/Todas) es una vista nueva: se
+    // suelta el orden que viniera arrastrando por los hidden del form, para que la ventana
+    // destino tome su orden por defecto (p. ej. "Todas" abre con la cita más reciente
+    // primero). Un clic en un encabezado de orden no pasa por acá — navega con ?sort=/?direction=.
+    var sortHidden = document.getElementById('agenda-sort-hidden');
+    var directionHidden = document.getElementById('agenda-direction-hidden');
+    document.querySelectorAll('[data-agenda-scope-btn]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (sortHidden) { sortHidden.value = ''; }
+            if (directionHidden) { directionHidden.value = ''; }
+        });
     });
 })();
 </script>
