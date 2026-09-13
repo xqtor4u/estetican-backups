@@ -574,6 +574,24 @@ class SpaBookingController extends Controller
             return redirect()->back()->withInput()->with('error', 'El operador seleccionado no está disponible en ese periodo (vacaciones/permiso).');
         }
 
+        // Guard de calificación (SYNC-100): `update()` reasigna el operador responsable de la
+        // cita y nunca validaba si puede hacer los servicios que le quedan — hueco real,
+        // distinto del de `storeForPet()` que ya se corrigió en SYNC-099. Se valida contra los
+        // servicios que la cita tendrá tras guardar: los que vengan en el request, o si no
+        // cambiaron, los que ya tiene.
+        $reassignedOperator = Operator::with('roles')->find($validated['operator_id']);
+        $targetServiceIds = $request->has('services')
+            ? array_filter((array) ($validated['services'] ?? []))
+            : $booking->services()->pluck('service_id')->all();
+
+        foreach (Service::whereIn('id', $targetServiceIds)->get() as $service) {
+            if (! $reassignedOperator || ! $this->operatorServiceResolver->canPerform($reassignedOperator, $service)) {
+                $operatorName = $reassignedOperator?->full_name ?? 'El operador';
+
+                return redirect()->back()->withInput()->with('error', "{$operatorName} no está calificado para {$service->name}.");
+            }
+        }
+
         $this->bookingService->rescheduleBooking($booking->id, $validated['scheduled_at'], $validated['notes'] ?? null, (int) $validated['operator_id']);
 
         // Sync services only when still in scheduled state (not yet a work order)

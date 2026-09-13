@@ -385,6 +385,28 @@ class BookingController extends Controller
             }
         }
 
+        // Guard de calificación (SYNC-100): reasignar operador y/o cambiar los servicios de la
+        // cita nunca validaba si ese operador puede realizarlos — hueco real, distinto del de
+        // `store()` que ya usa `canPerform()`. Solo corre si el request de verdad toca uno de los
+        // dos campos (no rompe una cita existente por editar solo notas/estado, spec §7), y solo
+        // si de verdad hay un operador que evaluar — una cita sin operador (líneas "por asignar",
+        // SYNC-088) no tiene qué validar aquí; la calificación se revisa cuando piso lo asigne.
+        if (array_key_exists('operator_id', $data) || array_key_exists('services', $data)) {
+            $qualificationOperatorId = $data['operator_id'] ?? $booking->operator_id;
+            $qualificationOperator = $qualificationOperatorId ? Operator::with('roles')->find($qualificationOperatorId) : null;
+            $targetServiceIds = array_key_exists('services', $data)
+                ? $data['services']
+                : $booking->services()->pluck('service_id')->all();
+
+            if ($qualificationOperator) {
+                foreach (Service::whereIn('id', $targetServiceIds)->get() as $service) {
+                    if (! $this->operatorServiceResolver->canPerform($qualificationOperator, $service)) {
+                        return response()->json(['message' => "{$qualificationOperator->full_name} no está calificado para {$service->name}."], 422);
+                    }
+                }
+            }
+        }
+
         // Campos escalares — solo se tocan los que realmente vinieron en el payload,
         // para poder limpiar notes/cancellation_reason a null explícitamente sin que
         // un array_filter por null los descarte antes de llegar a fill().
