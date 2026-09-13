@@ -73,6 +73,25 @@
         </div>
     </div>
 
+    <div class="mb-2">
+        <details>
+            <summary class="form-label fw-semibold" style="cursor: pointer;">Emoticones — clic para insertar en el mensaje</summary>
+            <div class="d-flex flex-wrap gap-1 mt-2">
+                @foreach ([
+                    '👋','🙂','😊','😀','😉','😍','🥰','🤗','👍','👌','🙏','👏','💪','🙌','🎉','✨','⭐','🌟','❤️','🔔',
+                    '🐶','🐱','🐾','🐰','🐹','🦴','🛁','✂️','🧼','💧','💈','🎁',
+                    '💉','🩺','🏥','💊','🌡️','⚕️',
+                    '📅','🗓️','⏰','🕒','✅','⌛',
+                    '⚠️','❗','ℹ️','📞','📱','💬','📧','📩','📍',
+                ] as $emoji)
+                    <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size: 1.1rem; line-height: 1;"
+                        @click="insert(@js($emoji))">{{ $emoji }}</button>
+                @endforeach
+            </div>
+            <div class="form-text">Son emoji Unicode estándar — se ven igual en WhatsApp, Facebook, Instagram y correo.</div>
+        </details>
+    </div>
+
     <div class="mb-3">
         <label class="form-label fw-semibold">Mensaje</label>
         <textarea name="body" x-ref="bodyInput" x-model="body" rows="5" class="form-control @error('body') is-invalid @enderror" required></textarea>

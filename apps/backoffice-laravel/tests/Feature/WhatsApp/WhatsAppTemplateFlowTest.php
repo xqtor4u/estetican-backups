@@ -10,8 +10,8 @@ use Tests\TestCase;
 
 class WhatsAppTemplateFlowTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -93,5 +93,26 @@ class WhatsAppTemplateFlowTest extends TestCase
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['name', 'body']);
         $this->assertSame(0, WhatsAppTemplate::count());
+    }
+
+    /**
+     * SYNC-096: el editor de plantillas (un solo _form.blade.php para WhatsApp y correo) ofrece
+     * un selector de emoticones que reusa el mismo insert() de Alpine que los botones de
+     * variables. Son emoji Unicode estándar, nunca stickers propios de una plataforma.
+     */
+    public function test_template_form_offers_a_standard_unicode_emoji_picker(): void
+    {
+        foreach ([route('whatsapp.plantillas.create'), route('whatsapp.plantillas.edit', WhatsAppTemplate::create([
+            'name' => 'Base',
+            'body' => 'Hola {cliente}',
+            'context' => 'cita',
+            'is_active' => true,
+        ]))] as $url) {
+            $response = $this->actingAs($this->admin())->get($url);
+
+            $response->assertOk();
+            $response->assertSee('Emoticones', false);
+            $response->assertSee("insert('🐾')", false); // 🐾 vía @js()
+        }
     }
 }
