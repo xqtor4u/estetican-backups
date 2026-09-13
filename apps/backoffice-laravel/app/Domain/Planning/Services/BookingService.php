@@ -4,6 +4,7 @@ namespace App\Domain\Planning\Services;
 
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Planning\Contracts\SpaBookingRepositoryInterface;
+use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Models\SpaBooking;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
@@ -12,7 +13,8 @@ use Illuminate\Support\Facades\DB;
 class BookingService implements BookingServiceInterface
 {
     public function __construct(
-        private SpaBookingRepositoryInterface $spaBookingRepository
+        private SpaBookingRepositoryInterface $spaBookingRepository,
+        private ResourceAllocationServiceInterface $resourceAllocationService,
     ) {}
 
     public function scheduleSpaSession(int $petId, string $scheduledAt, array $services, ?string $notes = null, ?int $operatorId = null): SpaBooking
@@ -73,10 +75,18 @@ class BookingService implements BookingServiceInterface
             return false;
         }
 
-        return $this->spaBookingRepository->update($bookingId, [
-            'status' => 'cancelled',
-            'cancellation_reason' => $reason,
-        ]);
+        return DB::transaction(function () use ($bookingId, $reason, $booking): bool {
+            $updated = $this->spaBookingRepository->update($bookingId, [
+                'status' => 'cancelled',
+                'cancellation_reason' => $reason,
+            ]);
+
+            // La jaula/recurso asignado al agendar (SYNC-107) — sin esto queda huérfana,
+            // marcada como ocupada para el resto del día aunque la cita ya no exista.
+            $this->resourceAllocationService->releaseSourceAllocations($booking);
+
+            return $updated;
+        });
     }
 
     public function markNoShow(int $bookingId, ?string $reason = null): bool
