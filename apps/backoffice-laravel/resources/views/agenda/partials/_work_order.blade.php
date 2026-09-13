@@ -182,7 +182,9 @@
                     <label class="form-label">Especialista / Operador</label>
                     <select name="operator_id" class="form-select" required>
                         <option value="">Selecciona un profesional...</option>
-                        @foreach($operators as $operator)
+                        {{-- SYNC-101: solo operadores que de verdad pueden hacer este servicio
+                             (OperatorServiceResolver::operatorsFor, SYNC-073) --}}
+                        @foreach($eligibleOperatorsByService[$item->service_id] ?? [] as $operator)
                             <option value="{{ $operator->id }}" @selected($item->operator_id == $operator->id)>
                                 {{ $operator->name }} {{ $operator->specialty ? "({$operator->specialty})" : '' }}
                             </option>

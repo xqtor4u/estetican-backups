@@ -13,6 +13,8 @@ interface PetMin   { id: number; name: string; species: string | null; breed: st
 const SIZE_LABEL: Record<string, string> = { small: 'Pequeño', medium: 'Mediano', large: 'Grande', giant: 'Gigante' };
 interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null; operator_role_id: number | null }
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null; role_ids: number[] }
+/** Forma ligera que devuelve GET /api/services/{id}/operators — solo lo que necesita el picker. */
+interface EligibleOperator { id: number; name: string }
 interface OccBooking {
   time: string;
   end_time: string | null;
@@ -118,6 +120,10 @@ export function MobCitaNueva() {
   const [pet,       setPet]       = useState<PetMin | null>(null);
   const [services,  setServices]  = useState<Service[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
+  // SYNC-101 (Fase 3 de SYNC-073): operadores realmente calificados por servicio, según
+  // OperatorServiceResolver (plantilla de rol ∪ capacidad directa, u "open_to_all_operators") —
+  // reemplaza el filtro viejo por `role_ids`, que no conocía las capacidades directas.
+  const [eligibleByService, setEligibleByService] = useState<Record<number, EligibleOperator[]>>({});
   const [selDate,   setSelDate]   = useState<Date>(() => {
     // Si venimos de Agenda con una fecha ya elegida (flujo + Cita), arrancar ahí en vez
     // de en HOY — antes esta pantalla siempre ignoraba la fecha de Agenda y el operador
@@ -174,6 +180,8 @@ export function MobCitaNueva() {
       .catch(() => {});
     fetch('/api/services').then(r => r.json()).then(setServices).catch(() => {});
     fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
+    // Ojo: `role_ids` (arriba) queda como campo del catálogo general, no se usa ya para
+    // calificación — ver `eligibleByService` más abajo.
     fetch('/api/settings/booking')
       .then(r => r.json())
       .then((d: { opening_time?: string; closing_time?: string }) => {
@@ -183,6 +191,21 @@ export function MobCitaNueva() {
       })
       .catch(() => {});
   }, [id]);
+
+  /* SYNC-101: elegibilidad real por servicio (GET /api/services/{id}/operators, ya usa
+     OperatorServiceResolver::operatorsFor en el backend) — una vez por servicio, en cuanto se
+     conoce el catálogo. */
+  useEffect(() => {
+    if (services.length === 0) return;
+    Promise.all(
+      services.map(s =>
+        fetch(`/api/services/${s.id}/operators`)
+          .then(r => r.json())
+          .then((ops: EligibleOperator[]) => [s.id, ops] as const)
+          .catch(() => [s.id, []] as const)
+      )
+    ).then(entries => setEligibleByService(Object.fromEntries(entries)));
+  }, [services]);
 
   const ALL_SLOTS = useMemo(
     () => buildSlots(businessHours.start, businessHours.end),
@@ -350,11 +373,11 @@ export function MobCitaNueva() {
   };
 
   /* ── Líneas de servicio ────────────────────────────────── */
-  const qualifiedOperators = useCallback((svc: Service | undefined): Operator[] =>
+  const qualifiedOperators = useCallback((svc: Service | undefined): (Operator | EligibleOperator)[] =>
     svc == null
       ? operators
-      : operators.filter(o => svc.operator_role_id == null || o.role_ids.includes(svc.operator_role_id)),
-    [operators]
+      : (eligibleByService[svc.id] ?? []),
+    [operators, eligibleByService]
   );
 
   /** Operador por defecto para una línea nueva: el preferido (filtro de Agenda / usuario

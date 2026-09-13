@@ -197,7 +197,9 @@
                                                 @disabled(! $checked)
                                             >
                                                 <option value="">Selecciona…</option>
-                                                @foreach($operators as $operator)
+                                                {{-- SYNC-101: solo operadores que de verdad pueden hacer este servicio
+                                                     (OperatorServiceResolver::operatorsFor, SYNC-073) --}}
+                                                @foreach($eligibleOperatorsByService[$service->id] as $operator)
                                                     <option value="{{ $operator->id }}" @selected((string) old('service_operators.'.$service->id) === (string) $operator->id)>{{ $operator->name }}</option>
                                                 @endforeach
                                             </select>

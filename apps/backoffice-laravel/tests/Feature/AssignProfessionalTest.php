@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\Operator;
+use App\Models\OperatorRole;
+use App\Models\OperatorRoleServiceTemplate;
 use App\Models\Pet;
 use App\Models\Service;
 use App\Models\SpaBooking;
@@ -15,8 +17,8 @@ use Tests\TestCase;
 
 class AssignProfessionalTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -27,7 +29,7 @@ class AssignProfessionalTest extends TestCase
     {
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
-        $service = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Cirugía', 'type' => 'extra', 'price' => $price, 'duration_minutes' => 60, 'is_active' => true]);
+        $service = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Cirugía', 'type' => 'extra', 'price' => $price, 'duration_minutes' => 60, 'is_active' => true, 'open_to_all_operators' => true]);
 
         $booking = SpaBooking::create([
             'pet_id' => $pet->id,
@@ -44,6 +46,78 @@ class AssignProfessionalTest extends TestCase
         ]);
 
         return [$booking, $line];
+    }
+
+    /** Servicio que exige un rol específico, vía plantilla (SYNC-073) — mismo patrón que
+     *  Api\BookingSchedulingValidationTest::serviceRequiringRole(). */
+    private function bookingWithRoleRestrictedLine(OperatorRole $role, float $price = 1000): array
+    {
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
+        $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
+        $service = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Consulta', 'type' => 'spa', 'price' => $price, 'duration_minutes' => 30, 'is_active' => true]);
+        OperatorRoleServiceTemplate::create(['operator_role_id' => $role->id, 'service_id' => $service->id]);
+
+        $booking = SpaBooking::create([
+            'pet_id' => $pet->id,
+            'scheduled_at' => now(),
+            'status' => 'work_order',
+            'total_estimated_price' => $price,
+        ]);
+
+        $line = SpaBookingService::create([
+            'spa_booking_id' => $booking->id,
+            'service_id' => $service->id,
+            'quantity' => 1,
+            'current_price' => $price,
+        ]);
+
+        return [$booking, $line, $service];
+    }
+
+    public function test_rejects_assigning_an_operator_who_lacks_the_role_the_service_requires(): void
+    {
+        $role = OperatorRole::create(['code' => 'vet'.uniqid(), 'name' => 'Veterinario '.uniqid()]);
+        [$booking, $line] = $this->bookingWithRoleRestrictedLine($role);
+        $unqualified = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Estil', 'first_name' => 'Estil', 'is_active' => true]);
+
+        $response = $this->actingAs($this->admin())->post(route('agenda.items.assign', [$booking, $line]), [
+            'operator_id' => $unqualified->id,
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+        $this->assertNull($line->fresh()->operator_id);
+    }
+
+    public function test_allows_assigning_an_operator_who_has_the_role_the_service_requires(): void
+    {
+        $role = OperatorRole::create(['code' => 'vet'.uniqid(), 'name' => 'Veterinario '.uniqid()]);
+        [$booking, $line] = $this->bookingWithRoleRestrictedLine($role);
+        $vet = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Dra', 'first_name' => 'Dra', 'is_active' => true]);
+        $vet->roles()->attach($role->id, ['is_primary' => true, 'starts_at' => now()]);
+
+        $response = $this->actingAs($this->admin())->post(route('agenda.items.assign', [$booking, $line]), [
+            'operator_id' => $vet->id,
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+        $this->assertSame($vet->id, $line->fresh()->operator_id);
+    }
+
+    public function test_work_order_modal_only_offers_operators_qualified_for_that_line(): void
+    {
+        $role = OperatorRole::create(['code' => 'vet'.uniqid(), 'name' => 'Veterinario '.uniqid()]);
+        [$booking] = $this->bookingWithRoleRestrictedLine($role);
+        $vet = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Dra Calificada', 'first_name' => 'Dra', 'is_active' => true]);
+        $vet->roles()->attach($role->id, ['is_primary' => true, 'starts_at' => now()]);
+        Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Sin Rol', 'first_name' => 'Sin', 'is_active' => true]);
+
+        $response = $this->actingAs($this->admin())->get(route('agenda.show', $booking));
+
+        $response->assertOk();
+        $response->assertSee('Dra Calificada');
+        $response->assertDontSee('Sin Rol');
     }
 
     public function test_assigns_operator_to_a_spa_booking_service_line(): void

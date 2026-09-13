@@ -448,6 +448,13 @@ class SpaBookingController extends Controller
         $assignableResources = $this->loadAssignableResources();
         $operators = Operator::where('is_active', true)->orderBy('name')->get();
         $services = Service::where('is_active', true)->orderBy('name')->get();
+        // SYNC-101: mismo filtro de elegibilidad que en el alta, para el pop-up "Asignar
+        // Profesional" (por línea de servicio ya agendada, no el catálogo completo).
+        $eligibleOperatorsByService = $booking->services
+            ->pluck('service')
+            ->filter()
+            ->unique('id')
+            ->mapWithKeys(fn (Service $service) => [$service->id => $this->operatorServiceResolver->operatorsFor($service)]);
         $items = Item::where('is_active', true)->orderBy('name')->get(['id', 'name', 'price']);
         $groups = Group::where('is_active', true)->with('components.service', 'components.item')->orderBy('name')->get();
         $groupsForQuoteManager = $groups->map(fn (Group $g) => [
@@ -464,7 +471,7 @@ class SpaBookingController extends Controller
         $storeModuleEnabled = (bool) app(SystemSettings::class)->all()['store_module_enabled'];
         $paymentMethods = PaymentMethod::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name', 'type']);
 
-        return view('agenda.show', compact('page', 'booking', 'assignableResources', 'operators', 'services', 'items', 'groups', 'groupsForQuoteManager', 'storeModuleEnabled', 'paymentMethods'));
+        return view('agenda.show', compact('page', 'booking', 'assignableResources', 'operators', 'eligibleOperatorsByService', 'services', 'items', 'groups', 'groupsForQuoteManager', 'storeModuleEnabled', 'paymentMethods'));
     }
 
     public function globalCreate(Request $request): View
@@ -745,6 +752,13 @@ class SpaBookingController extends Controller
 
         $resourceCleaningBufferMinutes = (int) config('backoffice.resources.cleaning_buffer_minutes', 30);
         $operators = Operator::where('is_active', true)->orderBy('name')->get();
+        // SYNC-101 (Fase 3 de SYNC-073): el `<select>` de cada servicio ya no ofrece todos los
+        // operadores — solo los que de verdad pueden hacer ese servicio (plantilla de rol ∪
+        // capacidad directa, u "open_to_all_operators"). Antes el rechazo solo se descubría al
+        // guardar (guard de `storeForPet()`, SYNC-099).
+        $eligibleOperatorsByService = $services->mapWithKeys(
+            fn (Service $service) => [$service->id => $this->operatorServiceResolver->operatorsFor($service)]
+        );
         $openingTime = $this->businessHours->openingTime();
         $closingTime = $this->businessHours->closingTime();
 
@@ -753,7 +767,7 @@ class SpaBookingController extends Controller
         $returnViewMode = 'bookings';
 
         return view('agenda.create', compact(
-            'page', 'pet', 'client', 'services', 'resources',
+            'page', 'pet', 'client', 'services', 'resources', 'eligibleOperatorsByService',
             'upcomingBookings', 'resourceCleaningBufferMinutes',
             'isRootView', 'returnViewMode', 'operators', 'openingTime', 'closingTime'
         ));
@@ -1144,6 +1158,16 @@ class SpaBookingController extends Controller
             'external_cost' => 'nullable|numeric|min:0',
             'current_price' => 'nullable|numeric|min:0',
         ]);
+
+        // Guard de calificación (SYNC-101): este endpoint nunca validó nada — a diferencia de
+        // storeForPet()/update() (SYNC-099/100), aceptaba cualquier operador sin comprobar si
+        // puede hacer el servicio de la línea. Mismo criterio que los otros dos.
+        $operator = Operator::with('roles')->find($validated['operator_id']);
+        if (! $operator || ! $this->operatorServiceResolver->canPerform($operator, $item->service)) {
+            $operatorName = $operator?->full_name ?? 'El operador';
+
+            return redirect()->back()->with('error', "{$operatorName} no está calificado para {$item->service->name}.");
+        }
 
         $item->update([
             'operator_id' => $validated['operator_id'],
