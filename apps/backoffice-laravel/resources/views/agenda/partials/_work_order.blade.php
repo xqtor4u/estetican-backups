@@ -75,6 +75,12 @@
                                 <div class="mt-2 small d-flex align-items-center gap-2 flex-wrap">
                                     @if($item->operator_id)
                                         <span class="badge bg-white text-dark border"><i class="bi bi-person-check-fill text-success me-1"></i> {{ $item->operator->name }}</span>
+                                        @if($item->operator_no_longer_qualified)
+                                            {{-- SYNC-102: aviso no bloqueante (spec §7) — no impide nada, solo informa --}}
+                                            <span class="badge bg-danger-subtle text-danger border" title="Le quitaron el rol o la capacidad que lo calificaba para este servicio después de agendarlo">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Ya no figura calificado
+                                            </span>
+                                        @endif
                                     @else
                                         <span class="text-body-secondary italic">Sin profesional asignado</span>
                                     @endif

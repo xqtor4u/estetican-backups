@@ -960,6 +960,18 @@ class SpaBookingController extends Controller
         );
         $booking->setAttribute('alert_reason', $booking->alertReason($this->bookingGraceMinutes()));
 
+        // SYNC-102 (Fase 3 de SYNC-073, §7): "cita ya agendada cuyo operador deja de ser
+        // elegible no se rompe" — solo se avisa, sin bloquear nada. Puede pasar si a alguien le
+        // quitan un rol (o una capacidad directa) después de haber agendado con él.
+        foreach ($booking->services as $line) {
+            $line->setAttribute(
+                'operator_no_longer_qualified',
+                $line->operator && $line->service
+                    ? ! $this->operatorServiceResolver->canPerform($line->operator, $line->service)
+                    : false
+            );
+        }
+
         return $booking;
     }
 
@@ -989,7 +1001,7 @@ class SpaBookingController extends Controller
             'pet.primaryPhoto',
             'services.service',
             'services.group',
-            'services.operator',
+            'services.operator.roles',
             'items.item',
             'items.group',
             'resourceAllocations.resource:id,branch_id,code,name,resource_type',

@@ -4,16 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Operator;
-use App\Models\OperatorCompensationProfile;
 use App\Models\OperatorRole;
+use App\Models\OperatorRoleServiceTemplate;
+use App\Models\OperatorServiceCapability;
+use App\Models\Service;
 use App\Support\OperatorPhotoImageManager;
 use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\BusinessHours;
 use App\Support\SystemSettings\SystemSettings;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Throwable;
@@ -23,8 +26,7 @@ class OperatorController extends Controller
     public function __construct(
         private readonly OperatorPhotoImageManager $imageManager,
         private readonly BusinessHours $businessHours,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -33,11 +35,11 @@ class OperatorController extends Controller
         $sort = $request->query('sort');
         $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
 
-        if (!in_array($status, ['all', 'active', 'inactive'], true)) {
+        if (! in_array($status, ['all', 'active', 'inactive'], true)) {
             $status = 'all';
         }
 
-        if (!in_array($sort, ['name', 'code', 'jobs', 'status'], true)) {
+        if (! in_array($sort, ['name', 'code', 'jobs', 'status'], true)) {
             $sort = null;
         }
 
@@ -192,11 +194,43 @@ class OperatorController extends Controller
             'operator' => $operator,
             'availableRoles' => $availableRoles,
             'availableBranches' => $availableBranches,
+            'roleRemovalFreezeData' => $this->roleRemovalFreezeData($operator, $availableRoles),
             'suggestAreaCode' => $systemSettings->all()['commercial_clients_suggest_area_code'] ?? false,
             'defaultAreaCode' => $systemSettings->all()['commercial_clients_default_area_code'] ?? '',
             'defaultScheduleStartTime' => $this->businessHours->openingTime(),
             'defaultScheduleEndTime' => $this->businessHours->closingTime(),
         ]);
+    }
+
+    /**
+     * Datos para que el JS de la ficha (SYNC-102, spec §6.4) calcule en el navegador, sin ida y
+     * vuelta al servidor, qué servicios se pierden de verdad al desmarcar un rol — para decidir
+     * si hace falta mostrar el diálogo de "¿congelar como capacidad directa?" antes de guardar.
+     * El cálculo real y autoritativo sigue en `freezeServicesFromRemovedRoles()` (servidor); esto
+     * es solo para la UX de confirmación.
+     */
+    private function roleRemovalFreezeData(Operator $operator, Collection $availableRoles): array
+    {
+        $templateServiceIdsByRole = OperatorRoleServiceTemplate::query()
+            ->whereIn('operator_role_id', $availableRoles->pluck('id'))
+            ->get(['operator_role_id', 'service_id'])
+            ->groupBy('operator_role_id')
+            ->map(fn (Collection $rows) => $rows->pluck('service_id')->values());
+
+        // Nunca están "en riesgo": lo que ya tiene una fila directa (grant o revoke — manda hoy,
+        // sin importar el rol) y lo que está abierto a todos.
+        $exemptServiceIds = OperatorServiceCapability::query()
+            ->where('operator_id', $operator->id)
+            ->pluck('service_id')
+            ->merge(Service::query()->where('open_to_all_operators', true)->pluck('id'))
+            ->unique()
+            ->values();
+
+        return [
+            'templateServiceIdsByRole' => $templateServiceIdsByRole,
+            'exemptServiceIds' => $exemptServiceIds,
+            'serviceNames' => Service::query()->pluck('name', 'id'),
+        ];
     }
 
     public function update(Request $request, Operator $operator): RedirectResponse
@@ -215,14 +249,27 @@ class OperatorController extends Controller
             $validated['profile_photo_path'] = $newPhotoPath;
         }
 
+        // SYNC-102 (Fase 3 de SYNC-073, §6.4): roles ANTES de tocar nada — para saber cuáles se
+        // quitaron una vez que syncRoles() ya haya reemplazado las asignaciones.
+        $oldRoleIds = $operator->activeRoles()->pluck('id')->all();
+        $newRoleIds = collect($validated['role_ids'] ?? [])->map(fn ($id) => (int) $id)->filter()->unique()->values()->all();
+        $removedRoleIds = array_values(array_diff($oldRoleIds, $newRoleIds));
+        // Default true: "congelar" es la opción marcada por default en el diálogo (spec §6.4) —
+        // si el navegador no manda el campo (JS deshabilitado, o ningún rol se quitó), se congela.
+        $freezeRemovedRoleServices = $request->boolean('freeze_removed_role_services', true);
+
         try {
-            DB::transaction(function () use ($operator, $validated): void {
+            DB::transaction(function () use ($operator, $validated, $removedRoleIds, $newRoleIds, $freezeRemovedRoleServices): void {
                 $operator->update($this->preparePayload($validated, $operator));
 
                 $this->syncRoles($operator, $validated['role_ids'] ?? []);
                 $this->syncPrimaryBranch($operator, $validated['branch_id'] ?? null);
                 $this->syncCompensation($operator, $validated['hourly_rate'] ?? null);
                 $this->syncWeeklySchedule($operator, $validated['weekly_schedule'] ?? []);
+
+                if ($freezeRemovedRoleServices && $removedRoleIds !== []) {
+                    $this->freezeServicesFromRemovedRoles($operator, $removedRoleIds, $newRoleIds);
+                }
             });
         } catch (Throwable $exception) {
             $this->imageManager->deleteFiles($newPhotoPath);
@@ -257,11 +304,11 @@ class OperatorController extends Controller
     private function buildDuplicateCode(string $code): string
     {
         $baseCode = strtoupper(trim($code));
-        $candidate = $baseCode . '-COPY';
+        $candidate = $baseCode.'-COPY';
         $suffix = 2;
 
         while (Operator::where('code', $candidate)->exists()) {
-            $candidate = $baseCode . '-COPY-' . $suffix;
+            $candidate = $baseCode.'-COPY-'.$suffix;
             $suffix++;
         }
 
@@ -271,11 +318,11 @@ class OperatorController extends Controller
     private function buildDuplicateName(string $name): string
     {
         $baseName = Str::of($name)->replaceLast(' (copia)', '')->toString();
-        $candidate = $baseName . ' (copia)';
+        $candidate = $baseName.' (copia)';
         $suffix = 2;
 
         while (Operator::where('first_name', $candidate)->orWhere('name', $candidate)->exists()) {
-            $candidate = $baseName . ' (copia ' . $suffix . ')';
+            $candidate = $baseName.' (copia '.$suffix.')';
             $suffix++;
         }
 
@@ -295,7 +342,7 @@ class OperatorController extends Controller
         $uniqueRule = 'unique:operators,code';
 
         if ($operator) {
-            $uniqueRule .= ',' . $operator->id;
+            $uniqueRule .= ','.$operator->id;
         }
 
         return [
@@ -376,7 +423,7 @@ class OperatorController extends Controller
             'emergency_contact_phone' => $validated['emergency_contact_phone'] ?? null,
             'hire_date' => $validated['hire_date'] ?? null,
             'notes' => $validated['notes'] ?? null,
-            'is_active' => !empty($validated['is_active']),
+            'is_active' => ! empty($validated['is_active']),
         ];
     }
 
@@ -399,13 +446,64 @@ class OperatorController extends Controller
         }
     }
 
+    /**
+     * SYNC-102 (Fase 3 de SYNC-073, §6.4): al quitarle un rol a un operador, "congela" como
+     * capacidad directa (`grant`) los servicios que **solo** ese rol le aportaba — para que no
+     * pierda de golpe algo que sí podía hacer. Se llama ya DESPUÉS de `syncRoles()`, así que
+     * `$operator` ya tiene los roles nuevos; por eso $removedRoleIds/$remainingRoleIds vienen
+     * calculados desde antes de tocar nada.
+     *
+     * Un servicio NO se congela si: lo sigue templando algún rol que el operador conserva: ya
+     * tiene una fila directa (grant o revoke — esa fila ya manda hoy, quitar el rol no le cambia
+     * nada); o está `open_to_all_operators` (nunca depende de rol).
+     */
+    private function freezeServicesFromRemovedRoles(Operator $operator, array $removedRoleIds, array $remainingRoleIds): void
+    {
+        $removedServiceIds = OperatorRoleServiceTemplate::query()
+            ->whereIn('operator_role_id', $removedRoleIds)
+            ->pluck('service_id')
+            ->unique();
+
+        if ($removedServiceIds->isEmpty()) {
+            return;
+        }
+
+        $stillCoveredByRole = $remainingRoleIds === []
+            ? collect()
+            : OperatorRoleServiceTemplate::query()
+                ->whereIn('operator_role_id', $remainingRoleIds)
+                ->pluck('service_id')
+                ->unique();
+
+        $alreadyHasCapabilityRow = OperatorServiceCapability::query()
+            ->where('operator_id', $operator->id)
+            ->pluck('service_id');
+
+        $openToAllServiceIds = Service::query()
+            ->whereIn('id', $removedServiceIds)
+            ->where('open_to_all_operators', true)
+            ->pluck('id');
+
+        $atRiskServiceIds = $removedServiceIds
+            ->diff($stillCoveredByRole)
+            ->diff($alreadyHasCapabilityRow)
+            ->diff($openToAllServiceIds);
+
+        foreach ($atRiskServiceIds as $serviceId) {
+            OperatorServiceCapability::updateOrCreate(
+                ['operator_id' => $operator->id, 'service_id' => $serviceId],
+                ['mode' => OperatorServiceCapability::MODE_GRANT, 'note' => 'Congelado al quitar un rol de operador (SYNC-102)']
+            );
+        }
+    }
+
     private function syncPrimaryBranch(Operator $operator, mixed $branchId): void
     {
         $normalizedBranchId = $branchId ? (int) $branchId : null;
 
         $operator->branchAssignments()->delete();
 
-        if (!$normalizedBranchId) {
+        if (! $normalizedBranchId) {
             return;
         }
 
@@ -468,5 +566,4 @@ class OperatorController extends Controller
             ]);
         }
     }
-
 }

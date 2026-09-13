@@ -207,6 +207,38 @@ class AssignProfessionalTest extends TestCase
         $response->assertSee('Externo');
     }
 
+    public function test_shows_a_non_blocking_warning_when_the_assigned_operator_is_no_longer_qualified(): void
+    {
+        $role = OperatorRole::create(['code' => 'vet'.uniqid(), 'name' => 'Veterinario '.uniqid()]);
+        [$booking, $line] = $this->bookingWithRoleRestrictedLine($role);
+        $vet = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Dra', 'first_name' => 'Dra', 'is_active' => true]);
+        $vet->roles()->attach($role->id, ['is_primary' => true, 'starts_at' => now()]);
+        $line->update(['operator_id' => $vet->id]);
+
+        // Le quitan el rol después de que ya se agendó con ella — la cita no se rompe (spec §7),
+        // solo debe avisar.
+        $vet->roles()->detach($role->id);
+
+        $response = $this->actingAs($this->admin())->get(route('agenda.show', $booking));
+
+        $response->assertOk();
+        $response->assertSee('Ya no figura calificado');
+        $line->refresh();
+        $this->assertSame($vet->id, $line->operator_id); // sigue asignada, nada se revierte solo
+    }
+
+    public function test_does_not_show_the_warning_when_the_assigned_operator_is_still_qualified(): void
+    {
+        [$booking, $line] = $this->bookingWithServiceLine();
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $line->update(['operator_id' => $operator->id]);
+
+        $response = $this->actingAs($this->admin())->get(route('agenda.show', $booking));
+
+        $response->assertOk();
+        $response->assertDontSee('Ya no figura calificado');
+    }
+
     /**
      * SYNC-104/ZEUS-027: un servicio suspendido (`is_active = false`, ya usado antes — ver
      * `Service::hasHistoricalUsage()`) sigue mostrándose normal en una orden de trabajo ya

@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Operator;
-use App\Models\OperatorUnavailability;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesAdminUser;
@@ -11,8 +10,8 @@ use Tests\TestCase;
 
 class OperatorWeeklyScheduleAndUnavailabilityTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -67,8 +66,14 @@ class OperatorWeeklyScheduleAndUnavailabilityTest extends TestCase
         $response->assertOk();
         $this->assertSame(1, substr_count($content, 'value="10:00"'));
         $this->assertSame(1, substr_count($content, 'value="14:00"'));
+        // Acotado al bloque de horario semanal + el switch "Operador activo" (inclusive) — contar
+        // `checked>` en toda la página es frágil: SYNC-102 agregó un radio marcado por default en
+        // un modal sin relación, en esta misma pantalla, y rompía este conteo global.
+        $start = strpos($content, 'Horario de trabajo semanal');
+        $end = strpos($content, 'Operador activo', $start) + strlen('Operador activo');
+        $section = substr($content, $start, $end - $start);
         // Solo lunes (ya configurado) + el switch "Operador activo" quedan marcados, no los otros 6 días.
-        $this->assertSame(2, substr_count($content, 'checked>'));
+        $this->assertSame(2, substr_count($section, 'checked>'));
     }
 
     public function test_edit_page_renders_weekly_schedule_and_unavailability_blocks(): void
