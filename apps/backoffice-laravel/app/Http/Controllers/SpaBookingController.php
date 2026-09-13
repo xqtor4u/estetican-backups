@@ -254,7 +254,7 @@ class SpaBookingController extends Controller
             'overridable' => $outsideSchedule,
             'can_override' => $outsideSchedule && $this->canOverrideSchedule(),
             'operator_name' => Operator::whereKey($operatorId)->value('name'),
-            'day_summary' => $this->operatorAvailabilityChecker->daySummaryFor($operatorId, $scheduledAt),
+            'day_summary' => $this->operatorAvailabilityChecker->daySummaryFor($operatorId, $scheduledAt, $excludeId),
         ];
 
         if ($resourceId !== null) {
@@ -452,10 +452,8 @@ class SpaBookingController extends Controller
      * Primer hueco libre >= $duration para $operatorId, barriendo hasta $days días desde $from.
      * Devuelve ['date' => Carbon, 'minute' => int] o null.
      *
-     * `$excludeBookingId` se acepta (lo manda `AgSpaEdi` al reprogramar) pero, en esta versión,
-     * no se pasa todavía a `daySummaryFor()` — esa firma solo gana el 3er parámetro de exclusión
-     * cuando se porte `SYNC-094` (fuera de alcance de este lote, que es solo `AgSpaCre`). Sin
-     * efecto práctico hoy: `create.blade.php` nunca tiene una cita propia que excluir.
+     * `$excludeBookingId`: la propia cita al reprogramar (`AgSpaEdi`) no cuenta como "ocupada"
+     * contra sí misma — mismo bug de fondo que en `daySummaryFor()` (ver ese comentario).
      */
     private function firstFittingSlot(int $operatorId, Carbon $from, int $days, int $duration, ?int $excludeBookingId = null): ?array
     {
@@ -465,7 +463,7 @@ class SpaBookingController extends Controller
 
         for ($i = 0; $i < $days; $i++) {
             $day = $from->copy()->addDays($i);
-            $summary = $this->operatorAvailabilityChecker->daySummaryFor($operatorId, $day);
+            $summary = $this->operatorAvailabilityChecker->daySummaryFor($operatorId, $day, $excludeBookingId);
 
             if ($summary['window'] === null) {
                 $w0 = $bizOpen;
@@ -780,12 +778,31 @@ class SpaBookingController extends Controller
         $client = $pet?->client;
         $services = Service::where('is_active', true)->orderBy('name')->get();
         $resources = Resource::whereIn('administrative_status', ['active', 'inactive'])->orderBy('code')->get();
-        $assignedResourceId = $booking->resourceAllocations->firstWhere('allocation_type', 'reserved')?->resource_id;
+        // La estancia (SYNC-093): igual que AgSpaCre, la jaula tiene su propia ventana Entra/Sale,
+        // independiente de la hora del servicio — si ya hay una asignada, se prellena para poder
+        // ajustarla con las mismas barras de tiempo del alta.
+        $assignedAllocation = $booking->resourceAllocations->firstWhere('allocation_type', 'reserved');
+        $assignedResourceId = $assignedAllocation?->resource_id;
+        $resourceStartsAt = $assignedAllocation?->starts_at;
+        $resourceEndsAt = $assignedAllocation?->ends_at;
         $operators = Operator::where('is_active', true)->orderBy('name')->get();
         $openingTime = $this->businessHours->openingTime();
         $closingTime = $this->businessHours->closingTime();
+        // SYNC-095 (9ª vuelta): la cita ahora se puede alargar/acortar arrastrando el borde
+        // derecho del bloque en el panel — `duration_minutes` ya no es fijo (a diferencia de
+        // AgSpaCre, sigue sin tarjetas de servicio con duración editable por línea; lo que
+        // cambia es el bloque completo, no un servicio en particular). Si la cita ya tiene una
+        // duración propia guardada (de una edición anterior, o de creación con
+        // `service_durations`), esa manda; si no, cae a la suma de catálogo de siempre.
+        $durationMinutes = $booking->duration_minutes ?: (int) $booking->services()->with('service')->get()
+            ->sum(fn ($s) => $s->service?->suggested_duration_minutes ?? $s->service?->duration_minutes ?? 0);
+        $resourceCleaningBufferMinutes = (int) config('backoffice.system.resource_cleaning_buffer_minutes', 15);
 
-        return view('agenda.edit', compact('page', 'booking', 'services', 'resources', 'assignedResourceId', 'pet', 'client', 'operators', 'openingTime', 'closingTime'));
+        return view('agenda.edit', compact(
+            'page', 'booking', 'services', 'resources', 'assignedResourceId',
+            'resourceStartsAt', 'resourceEndsAt', 'durationMinutes', 'resourceCleaningBufferMinutes',
+            'pet', 'client', 'operators', 'openingTime', 'closingTime'
+        ));
     }
 
     public function update(Request $request, SpaBooking $booking): RedirectResponse
@@ -826,14 +843,23 @@ class SpaBookingController extends Controller
             'scheduled_at' => 'required|date',
             'operator_id' => 'required|exists:operators,id',
             'resource_id' => 'nullable|exists:resources,id',
+            'resource_starts_at' => 'nullable|date',
+            'resource_ends_at' => 'nullable|date',
             'notes' => 'nullable|string',
             'services' => 'nullable|array',
             'services.*' => 'exists:services,id',
+            // SYNC-095 (9ª vuelta): duración total editable arrastrando el borde del bloque del
+            // operador en AgSpaEdi — antes esta pantalla no tenía forma de guardar una duración
+            // distinta a la suma de los servicios ya asignados (ver el comentario de más abajo).
+            'duration_minutes' => 'nullable|integer|min:5|max:1440',
             'override_availability' => 'nullable|boolean',
         ]);
 
         $scheduledAt = Carbon::parse($validated['scheduled_at']);
-        $durationMinutes = (int) $booking->services()->with('service')->get()
+        // Si el arrastre del bloque mandó una duración explícita, manda ella; si no (formulario
+        // viejo, o la duración nunca se tocó), cae al cálculo de siempre — suma de la duración de
+        // catálogo de cada servicio ya asignado.
+        $durationMinutes = $validated['duration_minutes'] ?? (int) $booking->services()->with('service')->get()
             ->sum(fn ($s) => $s->service?->suggested_duration_minutes ?? $s->service?->duration_minutes ?? 0);
 
         if (! $this->businessHours->isWithin($scheduledAt)) {
@@ -873,6 +899,12 @@ class SpaBookingController extends Controller
 
         $this->bookingService->rescheduleBooking($booking->id, $validated['scheduled_at'], $validated['notes'] ?? null, (int) $validated['operator_id']);
 
+        // Persiste la duración total real de la cita — antes `AgSpaEdi` nunca escribía esta
+        // columna (siempre se recalculaba desde cero al leer, ver `edit()`), así que no había
+        // forma de que una duración distinta a la de catálogo sobreviviera a una edición.
+        $booking->duration_minutes = $durationMinutes;
+        $booking->save();
+
         // Sync services only when still in scheduled state (not yet a work order)
         if ($booking->status === 'scheduled' && $request->has('services')) {
             $serviceIds = array_filter((array) ($validated['services'] ?? []));
@@ -886,25 +918,58 @@ class SpaBookingController extends Controller
             }
         }
 
+        $resourceWarning = null;
+
         if (array_key_exists('resource_id', $validated)) {
             if (empty($validated['resource_id'])) {
                 $this->resourceAllocationService->releaseSourceAllocations($booking);
             } else {
-                $durationMinutes = (int) $booking->services->sum(fn ($s) => $s->service?->suggested_duration_minutes ?? $s->service?->duration_minutes ?? 0);
-                $cleanupBuffer = (int) config('backoffice.resources.cleaning_buffer_minutes', 30);
+                // `$durationMinutes` ya viene calculada arriba (respeta un `duration_minutes`
+                // explícito del arrastre — SYNC-095 9ª vuelta); antes se recalculaba aquí desde
+                // cero con la suma de catálogo, descartando en silencio cualquier duración
+                // distinta ya aplicada a la cita.
+                // Antes leía `backoffice.resources.cleaning_buffer_minutes` — clave que no existe
+                // en `config/backoffice.php` (la real es `backoffice.system.*`) — así que una
+                // reprogramación siempre aplicaba 30 min de limpieza fijos sin importar lo
+                // configurado, distinto del buffer real que ya usan `storeForPet`/
+                // `resourceAvailabilitySummary`. Corregido a la misma clave (SYNC-093).
+                $cleanupBuffer = (int) config('backoffice.system.resource_cleaning_buffer_minutes', 15);
 
-                $this->resourceAllocationService->syncResourceToSource(
-                    (int) $validated['resource_id'],
-                    $booking,
-                    $booking->pet_id,
-                    $validated['scheduled_at'],
-                    $durationMinutes,
-                    $cleanupBuffer
-                );
+                // La estancia (SYNC-093): igual que AgSpaCre, Entra/Sale son independientes de la
+                // hora del servicio — sin valores explícitos, cae al comportamiento de siempre
+                // (estancia = ventana del servicio).
+                $stayStart = ! empty($validated['resource_starts_at'])
+                    ? Carbon::parse($validated['resource_starts_at'])
+                    : $scheduledAt->copy();
+                $stayEnd = ! empty($validated['resource_ends_at'])
+                    ? Carbon::parse($validated['resource_ends_at'])
+                    : $scheduledAt->copy()->addMinutes($durationMinutes);
+                if ($stayEnd->lessThanOrEqualTo($stayStart)) {
+                    $stayEnd = $stayStart->copy()->addMinutes(max(15, $durationMinutes));
+                }
+
+                try {
+                    $this->resourceAllocationService->syncResourceWindowToSource(
+                        (int) $validated['resource_id'],
+                        $booking,
+                        $booking->pet_id,
+                        $stayStart->toDateTimeString(),
+                        $stayEnd->toDateTimeString(),
+                        'reserved',
+                        $cleanupBuffer
+                    );
+                } catch (RuntimeException) {
+                    // Misma política de `storeForPet`: la cita sí se actualiza, la jaula se deja
+                    // como estaba (o sin asignar) y se avisa — no se pierde el resto del cambio
+                    // por un choque de jaula.
+                    $resourceWarning = 'La cita se actualizó pero la jaula no se pudo asignar: ya está ocupada en esa ventana.';
+                }
             }
         }
 
-        return redirect()->route('agenda.show', $booking)->with('success', 'Sesión actualizada correctamente.');
+        $redirect = redirect()->route('agenda.show', $booking)->with('success', 'Sesión actualizada correctamente.');
+
+        return $resourceWarning ? $redirect->with('warning', $resourceWarning) : $redirect;
     }
 
     /**

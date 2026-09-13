@@ -91,9 +91,14 @@ class OperatorAvailabilityChecker
      * ese día, o `null` si no tiene ningún horario capturado (trabaja a cualquier hora).
      * `busy`: tramos ya ocupados ese día (citas + vacaciones/permisos), ordenados.
      *
+     * `$excludeBookingId`: al editar una cita ya agendada (AgSpaEdi), su propio horario actual
+     * no debe contar como "ocupado" contra sí misma — sin esto, mover el bloque de vuelta a (o
+     * cerca de) su posición original se veía como un choque y `snapToFit` lo empujaba a otro
+     * lado solo, aunque el backend sí la dejara guardar ahí (`hasConflict` ya excluía, esto no).
+     *
      * @return array{window: array{start: ?string, end: ?string}|null, busy: array<int, array{start: string, end: string, label: string}>}
      */
-    public function daySummaryFor(int $operatorId, Carbon $day): array
+    public function daySummaryFor(int $operatorId, Carbon $day, ?int $excludeBookingId = null): array
     {
         $window = null;
 
@@ -113,6 +118,7 @@ class OperatorAvailabilityChecker
         $busy = SpaBooking::where('operator_id', $operatorId)
             ->whereNotIn('status', ['cancelled', 'no_show'])
             ->whereBetween('scheduled_at', [$dayStart, $dayEnd])
+            ->when($excludeBookingId, fn ($q) => $q->where('id', '!=', $excludeBookingId))
             ->orderBy('scheduled_at')
             ->get(['scheduled_at', 'duration_minutes'])
             ->map(fn ($b) => [

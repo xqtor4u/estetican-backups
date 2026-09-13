@@ -81,6 +81,71 @@ class CheckAvailabilityTest extends TestCase
         $response->assertJson(['available' => false, 'reason' => 'El operador ya tiene una cita en ese horario.']);
     }
 
+    /**
+     * SYNC-094 — Tomas, probando AgSpaEdi: "la cita no se puede recorrer a un tiempo que se
+     * traslapa con el bloque actual... no se trata de una cita nueva sino de la misma en la
+     * misma línea del tiempo". `hasConflict()` ya excluía la cita propia (por eso `available`
+     * daba `true`), pero `day_summary.busy` — lo que la barra visual usa para dibujar rojo y
+     * lo que `snapToFit()` evita al arrastrar — nunca recibió `exclude_booking_id`, así que el
+     * propio horario de la cita aparecía como "ocupado" contra sí misma y el bloque "bailaba"
+     * al intentar soltarlo ahí.
+     */
+    public function test_day_summary_busy_excludes_the_booking_being_edited(): void
+    {
+        $operator = $this->operator();
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
+        $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
+        $scheduledAt = now()->addDay()->setTime(11, 0);
+
+        $booking = SpaBooking::create([
+            'pet_id' => $pet->id,
+            'operator_id' => $operator->id,
+            'scheduled_at' => $scheduledAt,
+            'duration_minutes' => 60,
+            'status' => 'scheduled',
+            'total_estimated_price' => 0,
+        ]);
+
+        $response = $this->actingAs($this->admin())->getJson('/agenda/check-availability?'.http_build_query([
+            'operator_id' => $operator->id,
+            'scheduled_at' => $scheduledAt->format('Y-m-d H:i:s'),
+            'exclude_booking_id' => $booking->id,
+        ]));
+
+        $response->assertOk();
+        $response->assertJson(['available' => true]);
+        $this->assertSame([], $response->json('day_summary.busy'));
+    }
+
+    public function test_day_summary_busy_still_shows_other_bookings_of_the_same_operator(): void
+    {
+        $operator = $this->operator();
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
+        $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
+        $editedAt = now()->addDay()->setTime(11, 0);
+        $otherAt = now()->addDay()->setTime(15, 0);
+
+        $edited = SpaBooking::create([
+            'pet_id' => $pet->id, 'operator_id' => $operator->id, 'scheduled_at' => $editedAt,
+            'duration_minutes' => 60, 'status' => 'scheduled', 'total_estimated_price' => 0,
+        ]);
+        SpaBooking::create([
+            'pet_id' => $pet->id, 'operator_id' => $operator->id, 'scheduled_at' => $otherAt,
+            'duration_minutes' => 60, 'status' => 'scheduled', 'total_estimated_price' => 0,
+        ]);
+
+        $response = $this->actingAs($this->admin())->getJson('/agenda/check-availability?'.http_build_query([
+            'operator_id' => $operator->id,
+            'scheduled_at' => $editedAt->format('Y-m-d H:i:s'),
+            'exclude_booking_id' => $edited->id,
+        ]));
+
+        $response->assertOk();
+        $busy = $response->json('day_summary.busy');
+        $this->assertCount(1, $busy);
+        $this->assertSame('15:00', $busy[0]['start']);
+    }
+
     public function test_unavailable_outside_operator_weekly_schedule(): void
     {
         $operator = $this->operator();

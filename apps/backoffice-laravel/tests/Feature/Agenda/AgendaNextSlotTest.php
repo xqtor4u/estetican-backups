@@ -19,12 +19,6 @@ use Tests\TestCase;
  * `GET /agenda/next-slot` — busca el primer día/hora hacia adelante donde una cita de N
  * minutos cabe entera para el operador (horario semanal ∩ horario del negocio, sin pisar
  * citas). `allow_other_qualified` amplía a operadores calificados y devuelve el más pronto.
- *
- * `exclude_booking_id` se acepta como parámetro (lo manda `AgSpaEdi`) pero, en este lote
- * (solo `AgSpaCre`, sin `SYNC-094`), todavía no tiene efecto real — ver el comentario en
- * `SpaBookingController::firstFittingSlot()`. Por eso no se porta
- * `test_excludes_the_booking_being_edited_from_its_own_full_day_block` de `tst`: prueba
- * justo el comportamiento de `SYNC-094`, fuera de alcance de este porteo.
  */
 class AgendaNextSlotTest extends TestCase
 {
@@ -148,5 +142,23 @@ class AgendaNextSlotTest extends TestCase
         ]);
 
         $res->assertOk()->assertJson(['found' => true, 'date' => '2026-09-03', 'time' => '09:00', 'operator_id' => $freeOp->id]);
+    }
+
+    /**
+     * SYNC-094 — `exclude_booking_id` se validaba en `nextSlot()` (AgSpaEdi lo manda al buscar
+     * "el próximo hueco" para reprogramar) pero nunca se usaba: la cita que se está editando
+     * contaba como "ocupada" contra sí misma, así que "buscar el próximo hueco" podía saltarse
+     * de largo el día en que la cita ya vive, aunque de sobra hubiera lugar quitándola de en
+     * medio primero (que es justo lo que se va a hacer al reprogramarla).
+     */
+    public function test_excludes_the_booking_being_edited_from_its_own_full_day_block(): void
+    {
+        $op = $this->operator();
+        $booking = $this->bookFullDay($op, '2026-09-03');
+
+        $res = $this->ask(['operator_id' => $op->id, 'duration_minutes' => 60, 'from' => '2026-09-03', 'exclude_booking_id' => $booking->id]);
+
+        $res->assertOk()->assertJson(['found' => true, 'date' => '2026-09-03', 'time' => '09:00']);
+        $this->assertSame(0, $res->json('days_ahead'));
     }
 }
