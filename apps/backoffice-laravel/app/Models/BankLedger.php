@@ -21,6 +21,11 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
     'cleared_at',
     'created_by_user_id',
 ])]
+/**
+ * @deprecated SYNC-098 — `payments` es la tabla única canónica de cobro (móvil y web).
+ * Ya nada escribe aquí; el modelo se conserva solo como cascarón hasta que el porteo a
+ * producción haga el backfill de datos históricos y el DROP de la tabla. No usar en código nuevo.
+ */
 class BankLedger extends Model
 {
     protected function casts(): array

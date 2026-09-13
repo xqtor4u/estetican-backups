@@ -28,8 +28,8 @@ use Tests\TestCase;
  */
 class BookingPaymentAccountingTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function apiHeaders(): array
     {
@@ -221,7 +221,9 @@ class BookingPaymentAccountingTest extends TestCase
         $entry->refresh();
         $this->assertSame('cancelado', $entry->status);
         $this->assertNotNull($entry->cancelled_at);
-        $this->assertDatabaseHas('cash_ledgers', ['amount' => -500, 'category' => 'reembolso_cancelacion']);
+        // SYNC-098: la reversión de dinero es un Payment negativo (antes: CashLedger/BankLedger negativo).
+        $this->assertDatabaseHas('payments', ['amount' => -500, 'category' => 'reembolso_cancelacion', 'destination' => 'caja']);
+        $this->assertDatabaseCount('cash_ledgers', 0);
         $this->assertDatabaseCount('bank_ledgers', 0);
     }
 

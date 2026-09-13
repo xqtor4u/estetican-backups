@@ -221,8 +221,6 @@ class PetController extends Controller
                 'services.service:id,code,name,type',
                 'services.operator:id,name',
                 'payments',
-                'quotes.cashLedgers',
-                'quotes.bankLedgers',
             ])
             ->orderByDesc('scheduled_at')
             ->get();

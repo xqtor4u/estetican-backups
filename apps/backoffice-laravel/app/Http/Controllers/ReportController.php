@@ -4,11 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Models\Payment;
-use App\Models\SpaBooking;
 use App\Models\Quote;
+use App\Models\SpaBooking;
 use App\Support\SystemSettings\SystemSettings;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class ReportController extends Controller
 {
@@ -68,8 +66,6 @@ class ReportController extends Controller
             'pet.client.phones',
             'quotes.items.service',
             'quotes.items.item',
-            'quotes.cashLedgers',
-            'quotes.bankLedgers',
             'services.service',
             'processNotes.user:id,name',
         ]);
@@ -78,7 +74,7 @@ class ReportController extends Controller
 
         $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');
 
-        // Cobros registrados directamente sobre el booking (app móvil) — no pasan por Quote/CashLedger/BankLedger.
+        // SYNC-098: todo cobro (móvil y web) vive en `payments`, ligado al SpaBooking.
         $directPayments = Payment::where('payable_type', SpaBooking::class)
             ->where('payable_id', $booking->id)
             ->get();
@@ -105,7 +101,7 @@ class ReportController extends Controller
     private function getReportSettings(): array
     {
         $all = $this->settings->all();
-        
+
         return [
             'branding' => [
                 'brand_business_name' => $all['brand_business_name'] ?? 'EstetiCAN',
@@ -121,7 +117,7 @@ class ReportController extends Controller
             'system' => [
                 'currency_code' => $all['system_currency_code'] ?? 'MXN',
                 'date_format' => $all['system_date_format'] ?? 'd/m/Y',
-            ]
+            ],
         ];
     }
 }

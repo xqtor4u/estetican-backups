@@ -96,8 +96,7 @@ class SpaBookingController extends Controller
             ->with([
                 'pet.client',
                 'services.service',
-                'quotes' => fn ($q) => $q->where('status', 'accepted')
-                    ->with(['cashLedgers', 'bankLedgers']),
+                'quotes' => fn ($q) => $q->where('status', 'accepted'),
                 'payments',
                 // Solo la estancia (`reserved`), no la fila de limpieza que le sigue — es lo que
                 // se muestra en la tabla como "en qué jaula está" (SYNC-092).
@@ -1424,8 +1423,6 @@ class SpaBookingController extends Controller
             'quotes.items.service',
             'quotes.items.item',
             'quotes.items.operator',
-            'quotes.cashLedgers',
-            'quotes.bankLedgers',
             'payments',
         ])->loadCount('quotes');
     }

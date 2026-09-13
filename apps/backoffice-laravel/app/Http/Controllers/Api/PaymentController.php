@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Http\Controllers\Controller;
-use App\Models\BankLedger;
-use App\Models\CashLedger;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\SpaBooking;
@@ -27,9 +25,9 @@ class PaymentController extends Controller
     {
         $this->ensureVisible($booking);
 
-        $morph = SpaBooking::class;
-
-        $payments = Payment::where('payable_type', $morph)
+        // SYNC-098: `payments` es la tabla única canónica de cobro (móvil Y web) — antes este
+        // endpoint mezclaba además cash_ledgers/bank_ledgers del camino web.
+        $payments = Payment::where('payable_type', SpaBooking::class)
             ->where('payable_id', $booking->id)
             ->orderBy('created_at')
             ->get()
@@ -41,26 +39,12 @@ class PaymentController extends Controller
                 'destination' => $p->destination ?? 'caja',
                 'notes' => $p->notes,
                 'created_at' => $p->created_at,
-            ]);
-
-        // Registros legacy de libros auxiliares (backward compat hasta BL-021)
-        $cash = CashLedger::where('payable_type', $morph)
-            ->where('payable_id', $booking->id)
-            ->get(['id', 'amount', 'payment_method', 'category', 'notes', 'created_at'])
-            ->map(fn ($r) => [...$r->toArray(), 'destination' => 'caja', 'amount' => (float) $r->amount]);
-
-        $bank = BankLedger::where('payable_type', $morph)
-            ->where('payable_id', $booking->id)
-            ->get(['id', 'amount', 'payment_method', 'category', 'notes', 'created_at'])
-            ->map(fn ($r) => [...$r->toArray(), 'destination' => 'banco', 'amount' => (float) $r->amount]);
-
-        $all = $payments->concat($cash)->concat($bank)
-            ->sortBy('created_at')
+            ])
             ->values();
 
         return response()->json([
-            'payments' => $all,
-            'paid' => round($all->sum('amount'), 2),
+            'payments' => $payments,
+            'paid' => round($payments->sum('amount'), 2),
         ]);
     }
 

@@ -15,18 +15,18 @@ use Tests\TestCase;
 
 /**
  * El usuario reportó que una cita "Completada" no dice si ya se cobró. Investigando
- * se encontró un bug real de fondo: la columna "Total" de la tabla de Día solo sumaba
- * CashLedger/BankLedger vía presupuesto aceptado — para una cita cobrada desde móvil
- * (Payment directo, sin Quote de por medio, el camino más usado en producción real)
- * el saldo siempre se mostraba como el precio completo sin pagar, aunque sí estuviera
- * pagada, y nunca se pintaba en rojo. `SpaBooking::totalPaid()`/`unpaidBalance()`
+ * se encontró un bug real de fondo: la columna "Total" de la tabla de Día no sumaba los
+ * cobros directos (Payment) de una cita sin Quote — el camino más usado en producción real —
+ * así que el saldo se mostraba como el precio completo sin pagar aunque sí estuviera
+ * pagada, y nunca se pintaba en rojo. SYNC-098: hoy `totalPaid()` suma solo los Payment
+ * del SpaBooking (tabla única canónica de cobro). `SpaBooking::totalPaid()`/`unpaidBalance()`
  * ahora suman ambos caminos, y "Completado" gana un asterisco rojo cuando de verdad
  * queda saldo pendiente.
  */
 class AgendaUnpaidCompletedIndicatorTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {

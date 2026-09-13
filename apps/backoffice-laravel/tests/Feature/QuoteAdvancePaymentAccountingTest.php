@@ -18,13 +18,14 @@ use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
- * BL-076 fase web: aceptar presupuesto con anticipo y "Liquidar Saldo" ahora generan
- * también Document+JournalEntry (antes solo escribían CashLedger/BankLedger sin recibo real).
+ * BL-076 fase web: aceptar presupuesto con anticipo y "Liquidar Saldo" generan Document+JournalEntry.
+ * SYNC-098: el dinero se registra en `payments` (tabla única canónica), ligado al SpaBooking —
+ * antes este camino web escribía CashLedger/BankLedger en paralelo.
  */
 class QuoteAdvancePaymentAccountingTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -79,7 +80,14 @@ class QuoteAdvancePaymentAccountingTest extends TestCase
         $quote->refresh();
         $this->assertSame('accepted', $quote->status);
 
-        $this->assertDatabaseHas('cash_ledgers', ['amount' => 300, 'category' => 'advance']);
+        $this->assertDatabaseHas('payments', [
+            'amount' => 300,
+            'category' => 'advance',
+            'destination' => 'caja',
+            'payable_type' => SpaBooking::class,
+            'payable_id' => $booking->id,
+        ]);
+        $this->assertDatabaseCount('cash_ledgers', 0);
         $document = Document::firstOrFail();
         $this->assertSame('emitido', $document->status);
         $this->assertEquals(300.0, $document->total);
@@ -103,6 +111,7 @@ class QuoteAdvancePaymentAccountingTest extends TestCase
         $quote->refresh();
         // La transacción completa se revirtió — el quote NO quedó aceptado
         $this->assertSame('draft', $quote->status);
+        $this->assertDatabaseCount('payments', 0);
         $this->assertDatabaseCount('cash_ledgers', 0);
         $this->assertDatabaseCount('documents', 0);
         $this->assertSame('scheduled', $booking->fresh()->status);
@@ -136,7 +145,15 @@ class QuoteAdvancePaymentAccountingTest extends TestCase
         ]);
 
         $response->assertRedirect();
-        $this->assertDatabaseHas('cash_ledgers', ['amount' => 1000, 'category' => 'liquidation']);
+        // SYNC-098: la categoría 'liquidation' del request se normaliza a 'liquidacion' en payments.
+        $this->assertDatabaseHas('payments', [
+            'amount' => 1000,
+            'category' => 'liquidacion',
+            'destination' => 'caja',
+            'payable_type' => SpaBooking::class,
+            'payable_id' => $booking->id,
+        ]);
+        $this->assertDatabaseCount('cash_ledgers', 0);
         $document = Document::firstOrFail();
         $this->assertEquals(1000.0, $document->total);
     }
@@ -156,6 +173,7 @@ class QuoteAdvancePaymentAccountingTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('payment_method_code');
+        $this->assertDatabaseCount('payments', 0);
         $this->assertDatabaseCount('cash_ledgers', 0);
     }
 }

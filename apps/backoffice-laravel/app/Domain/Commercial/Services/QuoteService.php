@@ -4,9 +4,8 @@ namespace App\Domain\Commercial\Services;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Commercial\Contracts\QuoteServiceInterface;
-use App\Models\BankLedger;
-use App\Models\CashLedger;
 use App\Models\Item;
+use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Quote;
 use App\Models\QuoteItem;
@@ -163,12 +162,13 @@ class QuoteService implements QuoteServiceInterface
     }
 
     /**
-     * Registra un pago (anticipo o liquidación) ligado a un quote/cita — BL-076: genera
-     * también el recibo real (Document + JournalEntry), de forma obligatoria y transaccional
-     * (antes esto solo escribía CashLedger/BankLedger, sin ningún recibo real).
+     * Registra un pago (anticipo o liquidación) de una cita — SYNC-098: el dinero se guarda
+     * SIEMPRE en `payments` (tabla única canónica), ligado al SpaBooking, igual que el cobro
+     * móvil. Genera también el recibo real (Document + JournalEntry) de forma obligatoria y
+     * transaccional (BL-076). Antes este camino escribía CashLedger/BankLedger en paralelo,
+     * lo que obligaba a 6 sitios de lectura a mezclar 3 fuentes a mano.
      *
-     * Requiere $data['payment_method_code'] (código real de PaymentMethod, no texto libre
-     * como antes) y $data['booking'] (SpaBooking, para el snapshot de línea) — si falta
+     * Requiere $data['payment_method_code'] y $data['booking'] (SpaBooking) — si falta
      * cualquiera de los dos, el pago no se registra en absoluto.
      */
     public function registerPayment(int $clientId, float $amount, array $data): Model
@@ -187,23 +187,35 @@ class QuoteService implements QuoteServiceInterface
 
         $destination = $paymentMethod->type === 'cash' ? 'caja' : 'banco';
 
-        $attributes = [
-            'client_id' => $clientId,
-            'payable_type' => $data['payable_type'] ?? null,
-            'payable_id' => $data['payable_id'] ?? null,
-            'amount' => $amount,
-            'payment_method' => $paymentMethod->name,
-            'category' => $data['category'] ?? 'payment',
-            'notes' => $data['notes'] ?? null,
-            'created_by_user_id' => auth()->id(),
-        ];
+        return DB::transaction(function () use ($clientId, $amount, $data, $destination, $paymentMethod, $booking) {
+            $payment = Payment::create([
+                'client_id' => $clientId,
+                'payable_type' => SpaBooking::class,
+                'payable_id' => $booking->id,
+                'amount' => $amount,
+                'payment_method' => $paymentMethod->name,
+                'destination' => $destination,
+                'category' => $this->normalizePaymentCategory($data['category'] ?? null),
+                'notes' => $data['notes'] ?? null,
+                'created_by_user_id' => auth()->id(),
+            ]);
 
-        return DB::transaction(function () use ($attributes, $destination, $paymentMethod, $amount, $data, $booking) {
-            $ledgerEntry = $destination === 'banco' ? BankLedger::create($attributes) : CashLedger::create($attributes);
+            $this->accountingService->recordBookingPayment($booking, $payment, $paymentMethod, $amount, null, $data['notes'] ?? null);
 
-            $this->accountingService->recordBookingPaymentLedger($booking, $ledgerEntry, $paymentMethod, $amount, null, $data['notes'] ?? null);
-
-            return $ledgerEntry;
+            return $payment;
         });
+    }
+
+    /**
+     * Vocabulario único de `payments.category` para el camino web: `advance` (anticipo al
+     * aceptar presupuesto), `misc_charge` (cargo suelto) o `liquidacion` (todo lo demás).
+     */
+    private function normalizePaymentCategory(?string $category): string
+    {
+        return match ($category) {
+            'advance' => 'advance',
+            'misc_charge', 'misc' => 'misc_charge',
+            default => 'liquidacion',
+        };
     }
 }

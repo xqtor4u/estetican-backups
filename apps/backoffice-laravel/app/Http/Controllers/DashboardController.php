@@ -4,13 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\HotelReservation;
+use App\Models\Payment;
 use App\Models\Pet;
 use App\Models\SpaBooking;
-use App\Models\CashLedger;
-use App\Models\BankLedger;
-use App\Models\Payment;
 use App\Support\SystemSettings\SystemSettings;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
@@ -20,7 +17,7 @@ class DashboardController extends Controller
         $today = Carbon::today();
 
         // Etiquetas de fecha para la vista
-        $dayName       = $today->locale('es')->isoFormat('dddd');
+        $dayName = $today->locale('es')->isoFormat('dddd');
         $dateFormatted = $today->locale('es')->isoFormat('D [de] MMMM [de] YYYY');
 
         // Citas SPA de hoy
@@ -30,11 +27,11 @@ class DashboardController extends Controller
             ->get();
 
         $spaCounts = [
-            'total'      => $spaToday->count(),
-            'scheduled'  => $spaToday->where('status', 'scheduled')->count(),
+            'total' => $spaToday->count(),
+            'scheduled' => $spaToday->where('status', 'scheduled')->count(),
             'work_order' => $spaToday->where('status', 'work_order')->count(),
-            'completed'  => $spaToday->where('status', 'completed')->count(),
-            'cancelled'  => $spaToday->where('status', 'cancelled')->count(),
+            'completed' => $spaToday->where('status', 'completed')->count(),
+            'cancelled' => $spaToday->where('status', 'cancelled')->count(),
         ];
 
         // Hotel: reservaciones activas hoy
@@ -48,25 +45,15 @@ class DashboardController extends Controller
 
         // Clientes y mascotas totales
         $totalClients = Client::count();
-        $totalPets    = Pet::visible()->count();
+        $totalPets = Pet::visible()->count();
 
-        // Ingresos del día: cash_ledgers/bank_ledgers (vía presupuesto aceptado) + Payment
-        // (cobro directo desde la app móvil, sin presupuesto de por medio) — mismas 3 fuentes
-        // que ya mezcla CashSessionController::allPaymentsForPeriod(). Antes solo sumaba los
-        // dos ledgers, así que todo cobro móvil directo quedaba afuera del ingreso del día.
-        $cashToday = 0;
-        $bankToday = 0;
-
-        if (class_exists(\App\Models\CashLedger::class)) {
-            $cashToday = \App\Models\CashLedger::whereDate('created_at', $today)->sum('amount');
-        }
-        if (class_exists(\App\Models\BankLedger::class)) {
-            $bankToday = \App\Models\BankLedger::whereDate('created_at', $today)->sum('amount');
-        }
-
-        $paymentsToday = Payment::whereDate('created_at', $today)->sum('amount');
-
-        $incomeToday = $cashToday + $bankToday + $paymentsToday;
+        // Ingresos del día — SYNC-098: todo cobro (móvil y web) vive en `payments`, la tabla
+        // única canónica. Se desglosa por destino (caja vs banco); antes se leían además
+        // cash_ledgers/bank_ledgers del camino web como fuentes paralelas.
+        $paymentsToday = Payment::whereDate('created_at', $today)->get(['amount', 'destination']);
+        $cashToday = (float) $paymentsToday->where('destination', 'caja')->sum('amount');
+        $bankToday = (float) $paymentsToday->where('destination', 'banco')->sum('amount');
+        $incomeToday = $cashToday + $bankToday;
 
         // Próximas citas SPA (las 5 siguientes)
         $upcomingBookings = SpaBooking::where('scheduled_at', '>=', now())
@@ -85,7 +72,6 @@ class DashboardController extends Controller
             'incomeToday',
             'cashToday',
             'bankToday',
-            'paymentsToday',
             'upcomingBookings',
             'today',
             'dayName',

@@ -82,19 +82,10 @@
         </div>
 
         @php
-            $allPayments = collect();
-            if ($acceptedQuote) {
-                foreach ($acceptedQuote->cashLedgers as $e) {
-                    $allPayments->push(['date' => $e->created_at, 'method' => $e->payment_method, 'dest' => 'Caja', 'amount' => $e->amount]);
-                }
-                foreach ($acceptedQuote->bankLedgers as $e) {
-                    $allPayments->push(['date' => $e->created_at, 'method' => $e->payment_method, 'dest' => 'Banco', 'amount' => $e->amount]);
-                }
-            }
-            foreach ($directPayments as $p) {
-                $allPayments->push(['date' => $p->created_at, 'method' => $p->payment_method, 'dest' => $p->destination === 'banco' ? 'Banco' : 'Caja', 'amount' => $p->amount]);
-            }
-            $allPayments = $allPayments->sortBy('date');
+            // SYNC-098: todo cobro (móvil y web) vive en `payments`, ligado al SpaBooking.
+            $allPayments = $directPayments
+                ->map(fn ($p) => ['date' => $p->created_at, 'method' => $p->payment_method, 'dest' => $p->destination === 'banco' ? 'Banco' : 'Caja', 'amount' => $p->amount])
+                ->sortBy('date');
         @endphp
 
         <div style="margin-top: 10px; border-top: 1px dashed var(--secondary-color); padding-top: 5px;">

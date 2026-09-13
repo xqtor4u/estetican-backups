@@ -4,6 +4,7 @@ namespace App\Domain\Accounting\Contracts;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * Arma los datos agregados de los 5 reportes de Caja (Resumen, Métodos de pago, Por operador,
@@ -19,9 +20,9 @@ interface CashReportServiceInterface
 {
     /**
      * Colección unificada de movimientos de caja del período (CashMovement manual + cobros de
-     * Payment/cash_ledgers/bank_ledgers), con el scope de sucursal ya resuelto.
+     * `payments`; SYNC-098), con el scope de sucursal ya resuelto.
      *
-     * @return array{0: \Illuminate\Support\Collection, 1: bool, 2: int|null} [items, isSuperAdmin, movementBranchId]
+     * @return array{0: Collection, 1: bool, 2: int|null} [items, isSuperAdmin, movementBranchId]
      */
     public function resolveMovementsItems(Request $request, User $user): array;
 

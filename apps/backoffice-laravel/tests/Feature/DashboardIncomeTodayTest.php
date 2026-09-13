@@ -2,8 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\BankLedger;
-use App\Models\CashLedger;
 use App\Models\Client;
 use App\Models\Payment;
 use App\Models\User;
@@ -12,46 +10,37 @@ use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
- * "Ingresos del día" del Dashboard solo sumaba CashLedger/BankLedger (el camino vía
- * Quote aceptado) — nunca incluía Payment, el modelo real que usa el cobro directo
- * desde la app móvil sin presupuesto de por medio (Api/PaymentController::store()).
- * Mismo tipo de bug ya arreglado una vez en el saldo de citas de Agenda, nunca portado
- * al Dashboard. CashSessionController::allPaymentsForPeriod() ya mezcla las 3 fuentes.
+ * SYNC-098: "Ingresos del día" del Dashboard suma los Payment de hoy (tabla única canónica
+ * de cobro, móvil y web), desglosados por destino caja/banco. Antes leía además
+ * cash_ledgers/bank_ledgers como fuentes paralelas del camino web.
  */
 class DashboardIncomeTodayTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
         return $this->createAdminUser(['role' => 'admin']);
     }
 
-    public function test_income_today_includes_mobile_payments_without_a_quote(): void
+    public function test_income_today_sums_todays_payments_by_destination(): void
     {
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz'.uniqid()]);
 
-        CashLedger::create([
-            'client_id' => $client->id,
-            'payable_type' => Client::class,
-            'payable_id' => $client->id,
-            'amount' => 100,
-            'payment_method' => 'efectivo',
-        ]);
-        BankLedger::create([
-            'client_id' => $client->id,
-            'payable_type' => Client::class,
-            'payable_id' => $client->id,
-            'amount' => 50,
-            'payment_method' => 'tarjeta',
-        ]);
-        Payment::create(['client_id' => $client->id, 'amount' => 75, 'payment_method' => 'efectivo']);
+        Payment::create(['client_id' => $client->id, 'amount' => 100, 'payment_method' => 'Efectivo', 'destination' => 'caja']);
+        Payment::create(['client_id' => $client->id, 'amount' => 50, 'payment_method' => 'Tarjeta', 'destination' => 'banco']);
+        Payment::create(['client_id' => $client->id, 'amount' => 75, 'payment_method' => 'Efectivo', 'destination' => 'caja']);
+
+        // Un pago de ayer no debe contar en "hoy".
+        $old = Payment::create(['client_id' => $client->id, 'amount' => 999, 'payment_method' => 'Efectivo', 'destination' => 'caja']);
+        $old->forceFill(['created_at' => now()->subDay()])->saveQuietly();
 
         $response = $this->actingAs($this->admin())->get(route('dashboard.index'));
 
         $response->assertOk();
-        // 100 (caja) + 50 (banco) + 75 (pago móvil directo) = 225
+        // Total: 100 + 50 + 75 = 225 ; Caja: 100 + 75 = 175 ; Banco: 50
         $response->assertSee('225.00');
+        $response->assertSee('175.00');
     }
 }

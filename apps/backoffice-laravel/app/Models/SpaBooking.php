@@ -128,21 +128,14 @@ class SpaBooking extends Model
     }
 
     /**
-     * Suma de todo lo cobrado por esta cita, sin importar el camino: CashLedger/BankLedger
-     * ligados al presupuesto aceptado (camino web) + Payment directo (camino móvil, el más
-     * usado en producción real — la mayoría de citas no tiene Quote de por medio). El total
-     * "Total" de la tabla de Agenda solo sumaba lo primero y quedaba en $0 para toda cita
-     * cobrada desde móvil sin Quote, aunque sí estuviera pagada — mismo patrón de bug ya
-     * corregido antes en reports/invoice.blade.php (ver BITACORA 27/07/2026).
+     * Suma de todo lo cobrado por esta cita. SYNC-098: desde que `payments` es la tabla única
+     * canónica de cobro (camino móvil Y web), esto es solo la suma de los Payment ligados al
+     * SpaBooking — ya no hay que mezclar CashLedger/BankLedger del presupuesto aceptado.
+     * Los Payment negativos de reembolso (cancelación tipo refund) restan aquí de forma natural.
      */
     public function totalPaid(): float
     {
-        $acceptedQuote = $this->quotes->firstWhere('status', 'accepted');
-        $ledgerPaid = $acceptedQuote
-            ? (float) $acceptedQuote->cashLedgers->sum('amount') + (float) $acceptedQuote->bankLedgers->sum('amount')
-            : 0.0;
-
-        return $ledgerPaid + (float) $this->payments->sum('amount');
+        return (float) $this->payments->sum('amount');
     }
 
     /**

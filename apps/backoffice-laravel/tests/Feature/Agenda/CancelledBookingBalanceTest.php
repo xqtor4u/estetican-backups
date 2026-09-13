@@ -18,13 +18,13 @@ use Tests\TestCase;
  * como "saldo pendiente" completo en la tabla de Agenda y en AgSpaSho, aunque el
  * servicio jamás ocurrió. Los reportes reales de caja/contabilidad (Dashboard,
  * CashSessionController) ya estaban a salvo de este problema de origen — solo leen
- * transacciones reales (Payment/CashLedger/BankLedger), nunca derivan de
+ * transacciones reales (Payment; SYNC-098), nunca derivan de
  * total_estimated_price, así que una cita cancelada sin pagos ya no aportaba nada ahí.
  */
 class CancelledBookingBalanceTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {

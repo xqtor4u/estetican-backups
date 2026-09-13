@@ -8,13 +8,14 @@ use App\Models\Branch;
 use App\Models\Client;
 use App\Models\Payment;
 use App\Models\User;
+use Database\Seeders\BaseRolesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
 
 /**
- * "Métodos de pago" — desglosa solo cobros (Payment/cash_ledgers/bank_ledgers) por el
+ * "Métodos de pago" — desglosa solo cobros (Payment; SYNC-098) por el
  * `payment_method` real, nunca movimientos manuales de CashMovement (ver "Resumen de caja"
  * para esos). Cubre en particular el bug real encontrado el 16/08/2026: dos cobros con el
  * mismo método pero distinta capitalización ("Efectivo"/"efectivo") se agrupaban en filas
@@ -23,8 +24,8 @@ use Tests\TestCase;
  */
 class CashMetodosPagoReportTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -34,7 +35,7 @@ class CashMetodosPagoReportTest extends TestCase
 
     private function operatorWithBranch(?int $branchId, array $permissions = ['caja.ver']): User
     {
-        (new \Database\Seeders\BaseRolesSeeder())->run();
+        (new BaseRolesSeeder)->run();
 
         $user = User::create([
             'name' => 'Operador Test '.uniqid(),

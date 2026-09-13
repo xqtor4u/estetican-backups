@@ -68,11 +68,13 @@ class Client extends Model
         return $this->hasMany(Payment::class);
     }
 
+    /** @deprecated SYNC-098 — el cobro vive en `payments`. Sin uso. */
     public function cashLedgers()
     {
         return $this->hasMany(CashLedger::class);
     }
 
+    /** @deprecated SYNC-098 — el cobro vive en `payments`. Sin uso. */
     public function bankLedgers()
     {
         return $this->hasMany(BankLedger::class);

@@ -2,8 +2,6 @@
 
 namespace App\Domain\Accounting\Contracts;
 
-use App\Models\BankLedger;
-use App\Models\CashLedger;
 use App\Models\Document;
 use App\Models\HotelReservation;
 use App\Models\JournalEntry;
@@ -68,29 +66,14 @@ interface AccountingServiceInterface
     ): Document;
 
     /**
-     * Igual que recordBookingPayment(), pero para el camino web de anticipos/liquidación
-     * (`QuoteService`), que registra el dinero en CashLedger/BankLedger en vez de Payment —
-     * así lo siguen viendo los reportes que hoy solo leen esas dos tablas (ej. DashboardController,
-     * "ingresos del día").
-     */
-    public function recordBookingPaymentLedger(
-        SpaBooking $booking,
-        CashLedger|BankLedger $ledgerEntry,
-        PaymentMethod $paymentMethod,
-        float $amount,
-        ?string $reference = null,
-        ?string $notes = null
-    ): Document;
-
-    /**
      * Cancela un documento emitido (recibo). Nunca se borra ni se reutiliza su folio.
      *
      * @param  string  $cancellationType  Document::CANCELLATION_TYPE_CORRECTION (el dinero se
      *                                    queda donde está, solo se corrige el papel — el asiento
      *                                    contable NO se toca, sigue siendo correcto) o
      *                                    Document::CANCELLATION_TYPE_REFUND (reembolso real —
-     *                                    también cancela el asiento contable y genera una
-     *                                    reversión en CashLedger/BankLedger).
+     *                                    también cancela el asiento contable y genera un
+     *                                    Payment negativo de reversión).
      */
     public function cancelDocument(Document $document, User $cancelledBy, string $cancellationType, string $reason): void;
 

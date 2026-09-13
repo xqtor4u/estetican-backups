@@ -4,8 +4,6 @@ namespace App\Domain\Accounting\Services;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Models\Account;
-use App\Models\BankLedger;
-use App\Models\CashLedger;
 use App\Models\Document;
 use App\Models\DocumentSeries;
 use App\Models\HotelReservation;
@@ -167,31 +165,8 @@ class AccountingService implements AccountingServiceInterface
     }
 
     /**
-     * Igual que recordBookingPayment(), pero para el camino web de anticipos/liquidación,
-     * que registra el dinero en CashLedger/BankLedger en vez de Payment (así lo siguen viendo
-     * los reportes existentes que solo leen esas dos tablas, ej. DashboardController).
-     */
-    public function recordBookingPaymentLedger(
-        SpaBooking $booking,
-        CashLedger|BankLedger $ledgerEntry,
-        PaymentMethod $paymentMethod,
-        float $amount,
-        ?string $reference = null,
-        ?string $notes = null
-    ): Document {
-        return DB::transaction(function () use ($booking, $ledgerEntry, $paymentMethod, $amount, $reference, $notes) {
-            $document = $this->createReceiptDocumentAndEntry($booking, $paymentMethod, $amount, $reference, $notes);
-
-            $ledgerEntry->update(['document_id' => $document->id]);
-
-            return $document->load('journalEntry.lines.account');
-        });
-    }
-
-    /**
      * Núcleo compartido: crea el Document (folio, snapshot de línea) y su JournalEntry de
-     * doble entrada. No liga el dinero (Payment vs CashLedger/BankLedger) — eso lo hace cada
-     * método público según qué tabla usa ese camino de cobro.
+     * doble entrada. No liga el dinero al Payment — eso lo hace recordBookingPayment().
      */
     private function createReceiptDocumentAndEntry(
         SpaBooking $booking,
@@ -345,9 +320,10 @@ class AccountingService implements AccountingServiceInterface
     }
 
     /**
-     * Genera la reversión real de dinero (BL-076, rama "reembolso") — una entrada negativa
-     * en CashLedger/BankLedger según el destino del pago original, visible en el corte de
-     * caja del día como cancelación, nunca oculta ni borrada.
+     * Genera la reversión real de dinero (BL-076, rama "reembolso") — un Payment negativo
+     * ligado al mismo payable/destino/método que el pago original, visible en el corte de
+     * caja del día como cancelación, nunca oculto ni borrado. SYNC-098: antes escribía una
+     * entrada negativa en CashLedger/BankLedger según el destino.
      */
     private function reverseDocumentMoney(Document $document, User $cancelledBy, string $reason): void
     {
@@ -357,22 +333,17 @@ class AccountingService implements AccountingServiceInterface
             throw new RuntimeException('No se puede reembolsar: este documento no tiene un pago vinculado del que determinar el destino (caja/banco).');
         }
 
-        $attributes = [
+        Payment::create([
             'client_id' => $payment->client_id,
             'payable_type' => $payment->payable_type,
             'payable_id' => $payment->payable_id,
             'amount' => -1 * abs((float) $payment->amount),
             'payment_method' => $payment->payment_method,
+            'destination' => $payment->destination,
             'category' => 'reembolso_cancelacion',
             'notes' => "Reembolso de {$document->folio_display} — {$reason} (cancelado por {$cancelledBy->name})",
             'created_by_user_id' => $cancelledBy->id,
-        ];
-
-        if ($payment->destination === 'banco') {
-            BankLedger::create($attributes);
-        } else {
-            CashLedger::create($attributes);
-        }
+        ]);
     }
 
     /**

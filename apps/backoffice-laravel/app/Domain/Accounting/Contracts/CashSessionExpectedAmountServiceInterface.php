@@ -8,7 +8,7 @@ use Illuminate\Support\Collection;
 
 /**
  * Calcula el "efectivo esperado" de una sesión de caja — fondo inicial + cobros reales a
- * clientes (Payment/cash_ledgers, destino "caja") + movimientos manuales de CashMovement.
+ * clientes (Payment, destino "caja"; SYNC-098) + movimientos manuales de CashMovement.
  *
  * Extraído el 16/08/2026 de `Finances\CashSessionController` (donde vivía duplicado como
  * métodos privados) tras encontrar que `Api\CashController::session()` (el "saldo esperado"
@@ -16,7 +16,7 @@ use Illuminate\Support\Collection;
  * incompleta — nunca sumaba los cobros reales, solo `CashMovement` — mientras que el cierre
  * real del backoffice web sí los sumaba. Una sola fuente de verdad para los dos.
  *
- * Nota de diseño heredada: `Payment`/`cash_ledgers` no tienen `cash_session_id` — no hay forma
+ * Nota de diseño heredada: `Payment` no tiene `cash_session_id` — no hay forma
  * directa de saber "este cobro es de este turno". Se resuelve con una ventana de tiempo: desde
  * que cerró la sesión anterior de la misma caja registradora (`periodStart()`) hasta ahora.
  */
@@ -26,8 +26,8 @@ interface CashSessionExpectedAmountServiceInterface
     public function periodStart(CashSession $cashSession): ?Carbon;
 
     /**
-     * Colección unificada de cobros del período (Payment + cash_ledgers + bank_ledgers legacy),
-     * para mostrar el detalle línea por línea (ver `finances.cash-sessions.show`).
+     * Cobros del período desde `payments` (tabla única canónica, SYNC-098), para mostrar el
+     * detalle línea por línea (ver `finances.cash-sessions.show`).
      */
     public function paymentsForPeriod(?Carbon $from, mixed $until): Collection;
 

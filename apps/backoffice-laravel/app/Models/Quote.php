@@ -7,8 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 #[Fillable([
     'spa_booking_id',
@@ -50,11 +50,13 @@ class Quote extends Model
         return $this->hasMany(QuoteItem::class);
     }
 
+    /** @deprecated SYNC-098 — el cobro vive en `payments` ligado al SpaBooking. Sin uso. */
     public function cashLedgers(): MorphMany
     {
         return $this->morphMany(CashLedger::class, 'payable');
     }
 
+    /** @deprecated SYNC-098 — el cobro vive en `payments` ligado al SpaBooking. Sin uso. */
     public function bankLedgers(): MorphMany
     {
         return $this->morphMany(BankLedger::class, 'payable');
