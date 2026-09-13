@@ -22,6 +22,7 @@ use App\Models\PaymentMethod;
 use App\Models\Pet;
 use App\Models\Quote;
 use App\Models\Resource;
+use App\Models\ResourceAllocation;
 use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
@@ -35,6 +36,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -221,12 +223,18 @@ class SpaBookingController extends Controller
             'scheduled_at' => 'required|date',
             'duration_minutes' => 'nullable|integer|min:1',
             'exclude_booking_id' => 'nullable|integer',
+            'resource_id' => 'nullable|integer|exists:resources,id',
+            'resource_starts_at' => 'nullable|date',
+            'resource_ends_at' => 'nullable|date',
         ]);
 
         $scheduledAt = Carbon::parse($validated['scheduled_at']);
         $duration = (int) ($validated['duration_minutes'] ?? 30);
         $operatorId = (int) $validated['operator_id'];
         $excludeId = $validated['exclude_booking_id'] ?? null;
+        $resourceId = $validated['resource_id'] ?? null;
+        $resourceStartsAt = ! empty($validated['resource_starts_at']) ? Carbon::parse($validated['resource_starts_at']) : null;
+        $resourceEndsAt = ! empty($validated['resource_ends_at']) ? Carbon::parse($validated['resource_ends_at']) : null;
 
         $hardBlockReason = match (true) {
             ! $this->businessHours->isWithin($scheduledAt) => 'Fuera del horario operativo del negocio ('.$this->businessHours->openingTime().'–'.$this->businessHours->closingTime().').',
@@ -240,14 +248,278 @@ class SpaBookingController extends Controller
 
         $reason = $hardBlockReason ?? ($outsideSchedule ? 'El operador no labora en el horario indicado.' : null);
 
-        return response()->json([
+        $payload = [
             'available' => $reason === null,
             'reason' => $reason,
             'overridable' => $outsideSchedule,
             'can_override' => $outsideSchedule && $this->canOverrideSchedule(),
             'operator_name' => Operator::whereKey($operatorId)->value('name'),
             'day_summary' => $this->operatorAvailabilityChecker->daySummaryFor($operatorId, $scheduledAt),
+        ];
+
+        if ($resourceId !== null) {
+            $payload['resource'] = $this->resourceAvailabilitySummary(
+                $resourceId,
+                $resourceStartsAt ?? $scheduledAt,
+                $resourceEndsAt ?? $scheduledAt->copy()->addMinutes($duration),
+                $excludeId
+            );
+        }
+
+        return response()->json($payload);
+    }
+
+    /**
+     * Estado de ocupación de una jaula/recurso para la ventana de estancia: si
+     * [inicio, fin + limpieza] pisa alguna asignación existente, y esas asignaciones para
+     * listarlas. La estancia es independiente del servicio — arranca con él pero puede
+     * terminar más tarde, incluso otro día (el perro se queda a dormir) — ver
+     * `resource_starts_at`/`resource_ends_at`.
+     */
+    private function resourceAvailabilitySummary(int $resourceId, Carbon $windowStart, Carbon $windowEnd, ?int $excludeBookingId): array
+    {
+        $buffer = (int) config('backoffice.system.resource_cleaning_buffer_minutes', 15);
+        $blockingEnd = $windowEnd->copy()->addMinutes($buffer);
+        $excludeClause = fn ($q) => $q->when($excludeBookingId, fn ($qq) => $qq
+            ->where(fn ($qqq) => $qqq
+                ->where('source_type', '!=', (new SpaBooking)->getMorphClass())
+                ->orWhere('source_id', '!=', $excludeBookingId)));
+
+        // Solape directo contra la ventana de estancia elegida (puede abarcar varios días) —
+        // determina si ESTA estancia en particular choca con algo: `available` y el aviso
+        // "⚠ Jaula ocupada" salen de aquí, acotado a lo que de verdad se pisa con lo propuesto.
+        $windowAllocations = $excludeClause(ResourceAllocation::query()
+            ->where('resource_id', $resourceId)
+            ->where('starts_at', '<', $blockingEnd)
+            ->where('ends_at', '>', $windowStart))
+            ->orderBy('starts_at')
+            ->get(['starts_at', 'ends_at']);
+
+        // Ocupación del DÍA completo de la jaula — mismo criterio que `daySummaryFor` del
+        // operador (día completo, no solo lo que choca con la ventana propuesta) — para que la
+        // barra visual, dibujada a la misma escala que la del operador, muestre de verdad las
+        // reservas de ese día.
+        $dayStart = $windowStart->copy()->startOfDay();
+        $dayEnd = $windowStart->copy()->endOfDay();
+        $dayAllocations = $excludeClause(ResourceAllocation::query()
+            ->where('resource_id', $resourceId)
+            ->where('starts_at', '<', $dayEnd)
+            ->where('ends_at', '>', $dayStart))
+            ->orderBy('starts_at')
+            ->get(['starts_at', 'ends_at']);
+
+        $resource = Resource::find($resourceId);
+        $tf = config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A';
+
+        return [
+            'available' => $windowAllocations->isEmpty(),
+            'name' => $resource ? trim($resource->code.' · '.$resource->name) : null,
+            'buffer_minutes' => $buffer,
+            'same_day' => $windowStart->isSameDay($windowEnd),
+            'window' => [
+                'start' => $windowStart->format('Y-m-d H:i'),
+                'end' => $windowEnd->format('Y-m-d H:i'),
+            ],
+            'busy' => collect($this->mergeAllocationIntervals($windowAllocations))->map(function ($iv) use ($tf, $windowStart) {
+                $spansDays = ! $iv['start']->isSameDay($iv['end']) || ! $iv['start']->isSameDay($windowStart);
+
+                return [
+                    'label' => 'Ocupada',
+                    'start' => $iv['start']->format('H:i'),
+                    'end' => $iv['end']->format('H:i'),
+                    'text' => $spansDays
+                        ? $iv['start']->format("d/m $tf").' → '.$iv['end']->format("d/m $tf")
+                        : $iv['start']->format($tf).'–'.$iv['end']->format($tf),
+                ];
+            })->values(),
+            // Para la barra visual del día completo — recortado a [dayStart, dayEnd] (una
+            // estancia que empieza el día anterior o sigue al siguiente se corta en el borde,
+            // igual que `OperatorUnavailability` en `daySummaryFor`).
+            'day_busy' => collect($this->mergeAllocationIntervals($dayAllocations))->map(function ($iv) use ($tf, $dayStart, $dayEnd) {
+                $start = $iv['start']->lt($dayStart) ? $dayStart : $iv['start'];
+                $end = $iv['end']->gt($dayEnd) ? $dayEnd : $iv['end'];
+
+                return [
+                    'start' => $start->format('H:i'),
+                    'end' => $end->format('H:i'),
+                    'text' => $start->format($tf).'–'.$end->format($tf),
+                ];
+            })->values(),
+        ];
+    }
+
+    /**
+     * Fusiona intervalos contiguos/solapados (ordenados por `starts_at`) en bloques únicos —
+     * una reservación real genera 2 filas (uso + limpieza pegada) y puede haber varias
+     * asignaciones solapadas; sin esto la agenda mostraría 2-3 bloques ocupados por una sola
+     * reservación.
+     *
+     * @param  Collection<int, ResourceAllocation>  $allocations
+     * @return array<int, array{start: Carbon, end: Carbon}>
+     */
+    private function mergeAllocationIntervals(Collection $allocations): array
+    {
+        $merged = [];
+        foreach ($allocations as $a) {
+            $last = end($merged);
+            if ($last !== false && $a->starts_at->lte($last['end'])) {
+                if ($a->ends_at->gt($last['end'])) {
+                    $merged[array_key_last($merged)]['end'] = $a->ends_at->copy();
+                }
+            } else {
+                $merged[] = ['start' => $a->starts_at->copy(), 'end' => $a->ends_at->copy()];
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Busca el primer día/hora hacia adelante donde una cita de `duration_minutes` cabe
+     * entera para el operador dado (dentro de su horario semanal ∩ horario del negocio, sin
+     * pisar sus citas ni permisos). Con `allow_other_qualified` amplía el universo a los
+     * operadores que pueden hacer TODOS los `service_ids` (resolver de capacidades, SYNC-073)
+     * y devuelve el hueco más pronto. Solo consulta — no agenda nada.
+     */
+    public function nextSlot(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'operator_id' => 'required|integer|exists:operators,id',
+            'duration_minutes' => 'required|integer|min:5|max:1440',
+            'from' => 'nullable|date',
+            'days' => 'nullable|integer|min:1|max:90',
+            'exclude_booking_id' => 'nullable|integer',
+            'allow_other_qualified' => 'nullable|boolean',
+            'service_ids' => 'nullable|array',
+            'service_ids.*' => 'integer|exists:services,id',
         ]);
+
+        $duration = (int) $validated['duration_minutes'];
+        $days = (int) ($validated['days'] ?? 30);
+        $excludeId = $validated['exclude_booking_id'] ?? null;
+
+        $from = ! empty($validated['from']) ? Carbon::parse($validated['from'])->startOfDay() : now()->startOfDay();
+        if ($from->lt(now()->startOfDay())) {
+            $from = now()->startOfDay();
+        }
+
+        // Universo de operadores a probar: el responsable primero.
+        $operatorIds = [(int) $validated['operator_id']];
+
+        if (! empty($validated['allow_other_qualified']) && ! empty($validated['service_ids'])) {
+            $resolver = $this->operatorServiceResolver;
+            $qualified = null;
+            foreach (Service::whereIn('id', $validated['service_ids'])->get() as $svc) {
+                $ids = $resolver->operatorsFor($svc)->pluck('id')->map(fn ($v) => (int) $v)->all();
+                $qualified = $qualified === null ? $ids : array_values(array_intersect($qualified, $ids));
+            }
+
+            if ($qualified === []) {
+                return response()->json(['found' => false, 'reason' => 'no_common_operator']);
+            }
+            if ($qualified !== null) {
+                $operatorIds = array_values(array_unique(array_merge($operatorIds, $qualified)));
+            }
+        }
+
+        $best = null;
+        foreach ($operatorIds as $opId) {
+            $slot = $this->firstFittingSlot($opId, $from->copy(), $days, $duration, $excludeId);
+            if ($slot === null) {
+                continue;
+            }
+            $key = $slot['date']->format('Y-m-d').sprintf('%04d', $slot['minute']);
+            if ($best === null || $key < $best['key']) {
+                $best = $slot + ['operator_id' => $opId, 'key' => $key];
+            }
+        }
+
+        if ($best === null) {
+            return response()->json(['found' => false, 'searched_days' => $days]);
+        }
+
+        return response()->json([
+            'found' => true,
+            'date' => $best['date']->format('Y-m-d'),
+            'time' => sprintf('%02d:%02d', intdiv($best['minute'], 60), $best['minute'] % 60),
+            'operator_id' => $best['operator_id'],
+            'operator_name' => Operator::whereKey($best['operator_id'])->value('name'),
+            'days_ahead' => (int) $from->diffInDays($best['date']),
+        ]);
+    }
+
+    /**
+     * Primer hueco libre >= $duration para $operatorId, barriendo hasta $days días desde $from.
+     * Devuelve ['date' => Carbon, 'minute' => int] o null.
+     *
+     * `$excludeBookingId` se acepta (lo manda `AgSpaEdi` al reprogramar) pero, en esta versión,
+     * no se pasa todavía a `daySummaryFor()` — esa firma solo gana el 3er parámetro de exclusión
+     * cuando se porte `SYNC-094` (fuera de alcance de este lote, que es solo `AgSpaCre`). Sin
+     * efecto práctico hoy: `create.blade.php` nunca tiene una cita propia que excluir.
+     */
+    private function firstFittingSlot(int $operatorId, Carbon $from, int $days, int $duration, ?int $excludeBookingId = null): ?array
+    {
+        $bizOpen = $this->timeToMinutes($this->businessHours->openingTime());
+        $bizClose = $this->timeToMinutes($this->businessHours->closingTime());
+        $nowMin = now()->hour * 60 + now()->minute;
+
+        for ($i = 0; $i < $days; $i++) {
+            $day = $from->copy()->addDays($i);
+            $summary = $this->operatorAvailabilityChecker->daySummaryFor($operatorId, $day);
+
+            if ($summary['window'] === null) {
+                $w0 = $bizOpen;
+                $w1 = $bizClose;
+            } elseif (($summary['window']['start'] ?? null) === null || ($summary['window']['end'] ?? null) === null) {
+                continue; // el operador no labora ese día
+            } else {
+                $w0 = max($bizOpen, $this->timeToMinutes($summary['window']['start']));
+                $w1 = min($bizClose, $this->timeToMinutes($summary['window']['end']));
+            }
+
+            if ($day->isToday()) {
+                $w0 = max($w0, (int) (ceil($nowMin / 5) * 5));
+            }
+            if ($w1 - $w0 < $duration) {
+                continue;
+            }
+
+            $busy = [];
+            foreach ($summary['busy'] as $b) {
+                $bs = $this->timeToMinutes($b['start']);
+                $be = $this->timeToMinutes($b['end']);
+                if ($be > $bs) {
+                    $busy[] = [$bs, $be];
+                }
+            }
+            usort($busy, fn ($x, $y) => $x[0] <=> $y[0]);
+
+            $cursor = $w0;
+            foreach ($busy as [$bs, $be]) {
+                if ($bs >= $w1) {
+                    break;
+                }
+                if ($bs - $cursor >= $duration) {
+                    return ['date' => $day->copy(), 'minute' => $cursor];
+                }
+                $cursor = max($cursor, $be);
+                if ($cursor >= $w1) {
+                    break;
+                }
+            }
+            if ($w1 - $cursor >= $duration) {
+                return ['date' => $day->copy(), 'minute' => $cursor];
+            }
+        }
+
+        return null;
+    }
+
+    private function timeToMinutes(string $hhmm): int
+    {
+        [$h, $m] = array_pad(explode(':', trim($hhmm)), 2, '0');
+
+        return (int) $h * 60 + (int) $m;
     }
 
     private function applyBookingFilters($query, array $statuses, string $search): void
@@ -753,7 +1025,10 @@ class SpaBookingController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
-        $resourceCleaningBufferMinutes = (int) config('backoffice.resources.cleaning_buffer_minutes', 30);
+        // Clave corregida en SYNC-086 — la real es `backoffice.system.resource_cleaning_buffer_minutes`
+        // (`backoffice.resources.cleaning_buffer_minutes` no existe en `config/backoffice.php`,
+        // así que siempre caía al default de 30 min sin importar lo configurado).
+        $resourceCleaningBufferMinutes = (int) config('backoffice.system.resource_cleaning_buffer_minutes', 15);
         $operators = Operator::where('is_active', true)->orderBy('name')->get();
         // SYNC-101 (Fase 3 de SYNC-073): el `<select>` de cada servicio ya no ofrece todos los
         // operadores — solo los que de verdad pueden hacer ese servicio (plantilla de rol ∪
@@ -784,13 +1059,17 @@ class SpaBookingController extends Controller
             // si no viene, se toma el del primer servicio que tenga uno asignado.
             'operator_id' => 'nullable|exists:operators,id',
             'resource_id' => 'nullable|exists:resources,id',
+            'resource_starts_at' => 'nullable|date',
+            'resource_ends_at' => 'nullable|date',
             'notes' => 'nullable|string',
             'services' => 'required|array',
             'services.*' => 'exists:services,id',
             'service_prices' => 'nullable|array',
             'service_prices.*' => 'nullable|numeric|min:0',
+            // Cada valor es un id de operador, la cadena "pending" ("por asignar", SYNC-088),
+            // o vacío. Sin regla de tipo — se normaliza a mano abajo para poder aceptar "pending".
             'service_operators' => 'nullable|array',
-            'service_operators.*' => 'nullable|exists:operators,id',
+            'service_operators.*' => 'nullable',
             'service_durations' => 'nullable|array',
             'service_durations.*' => 'nullable|integer|min:5|max:480',
             'override_availability' => 'nullable|boolean',
@@ -812,22 +1091,34 @@ class SpaBookingController extends Controller
         // `operator_id` que mandó el formulario o, si no vino, el del primer servicio con
         // uno asignado. Se valida la disponibilidad en secuencia — mismo criterio que el
         // agendado móvil (Api\BookingController::store).
-        $svcOperators = $validated['service_operators'] ?? [];
+        $rawSvcOperators = $validated['service_operators'] ?? [];
         $svcDurations = $validated['service_durations'] ?? [];
 
+        // Normaliza: "pending" → línea "por asignar" (operador null, se resuelve en piso);
+        // un id de operador válido → ese id; cualquier otra cosa → sin valor (cae al global).
+        $svcOperators = [];
+        $pendingServiceIds = [];
+        foreach ($rawSvcOperators as $sid => $val) {
+            if ($val === 'pending' || $val === '__pending__') {
+                $pendingServiceIds[(int) $sid] = true;
+            } elseif (ctype_digit((string) $val) && Operator::whereKey($val)->exists()) {
+                $svcOperators[(int) $sid] = (int) $val;
+            }
+        }
+
         $globalOperatorId = (int) ($validated['operator_id']
-            ?? collect($validated['services'])
-                ->map(fn ($serviceId) => $svcOperators[$serviceId] ?? null)
-                ->first(fn ($op) => ! empty($op)));
+            ?? collect($svcOperators)->first(fn ($op) => ! empty($op)));
 
         if ($globalOperatorId === 0) {
-            return redirect()->back()->withInput()->with('error', 'Asigna un operador a al menos un servicio.');
+            return redirect()->back()->withInput()->with('error', 'Asigna un operador a al menos un servicio (aunque el resto quede "por asignar").');
         }
 
         $lineOperators = [];
         $lines = [];
         foreach ($servicesData as $service) {
-            $lineOperators[$service->id] = (int) ($svcOperators[$service->id] ?? $globalOperatorId);
+            $lineOperators[$service->id] = isset($pendingServiceIds[$service->id])
+                ? null
+                : (int) ($svcOperators[$service->id] ?? $globalOperatorId);
             $lines[] = [
                 'operator_id' => $lineOperators[$service->id],
                 'duration_minutes' => (int) ($svcDurations[$service->id] ?? $service->suggested_duration_minutes ?? $service->duration_minutes ?? 30),
@@ -847,8 +1138,13 @@ class SpaBookingController extends Controller
         // asignado debe poder realizar su servicio — capacidad directa `grant`, plantilla de un
         // rol activo, u `open_to_all_operators`. Mismo criterio que el agendado móvil
         // (`Api\BookingController::store`).
-        $operatorsById = Operator::whereIn('id', array_values(array_unique($lineOperators)))->with('roles')->get()->keyBy('id');
+        $operatorsById = Operator::whereIn('id', array_values(array_filter(array_unique($lineOperators))))
+            ->with('roles')->get()->keyBy('id');
         foreach ($servicesData as $service) {
+            // Línea "por asignar" (SYNC-088): la calificación se valida cuando piso asigne el operador.
+            if ($lineOperators[$service->id] === null) {
+                continue;
+            }
             $operator = $operatorsById->get($lineOperators[$service->id]);
             if (! $operator || ! $this->operatorServiceResolver->canPerform($operator, $service)) {
                 $operatorName = $operator?->full_name ?? 'El operador';
@@ -863,6 +1159,26 @@ class SpaBookingController extends Controller
             return redirect()->back()->withInput()->with('error', $error);
         }
 
+        // Candado anti doble/triple submit (SYNC-086). Un doble clic en "Guardar" (o un
+        // reintento del navegador / back+re-post) creaba 2-3 citas idénticas, cada una con su
+        // reserva de jaula + limpieza. Un POST con la misma huella (usuario + mascota + hora +
+        // servicios + jaula + ventana de estancia) repetido en < 20 s se descarta: la primera
+        // ya quedó.
+        $submitFingerprint = 'spa-book:'.md5((string) json_encode([
+            auth()->id(),
+            $pet->id,
+            (string) $validated['scheduled_at'],
+            collect($validated['services'])->map(fn ($v) => (int) $v)->sort()->values()->all(),
+            $validated['resource_id'] ?? null,
+            $validated['resource_starts_at'] ?? null,
+            $validated['resource_ends_at'] ?? null,
+        ]));
+        if (! Cache::add($submitFingerprint, true, now()->addSeconds(20))) {
+            return redirect()->route('agenda.index')
+                ->with('success', 'Sesión programada correctamente.')
+                ->with('warning', 'Se ignoró un envío repetido del formulario (la cita ya se había registrado).');
+        }
+
         $booking = $this->bookingService->scheduleSpaSession(
             $pet->id,
             $validated['scheduled_at'],
@@ -871,31 +1187,53 @@ class SpaBookingController extends Controller
             $globalOperatorId
         );
 
-        // Operador por línea + duración total real de la cita.
+        // Operador por línea + duración total real de la cita. `array_key_exists` (no `isset`)
+        // para que una línea "por asignar" quede de verdad con `operator_id = null` y no
+        // herede el responsable que `scheduleSpaSession` puso.
         foreach ($booking->services as $line) {
-            if (isset($lineOperators[$line->service_id])) {
+            if (array_key_exists($line->service_id, $lineOperators)) {
                 $line->forceFill(['operator_id' => $lineOperators[$line->service_id]])->save();
             }
         }
         $booking->forceFill(['duration_minutes' => $durationMinutes])->save();
 
-        if (! empty($validated['resource_id'])) {
-            $cleanupBuffer = (int) config('backoffice.resources.cleaning_buffer_minutes', 30);
+        $warnings = [];
 
-            $this->resourceAllocationService->assignResourceToSource(
-                (int) $validated['resource_id'],
-                $booking,
-                $pet->id,
-                $validated['scheduled_at'],
-                $durationMinutes,
-                $cleanupBuffer
-            );
+        if (! empty($validated['resource_id'])) {
+            $cleanupBuffer = (int) config('backoffice.system.resource_cleaning_buffer_minutes', 15);
+
+            // La estancia en la jaula es independiente del servicio: entrada y salida propias
+            // (el perro puede entrar antes, al terminar el baño, y salir horas o días después,
+            // SYNC-086). Sin ventana propia = la del servicio.
+            $stayStart = ! empty($validated['resource_starts_at'])
+                ? Carbon::parse($validated['resource_starts_at'])
+                : $scheduledAt->copy();
+            $stayEnd = ! empty($validated['resource_ends_at'])
+                ? Carbon::parse($validated['resource_ends_at'])
+                : $scheduledAt->copy()->addMinutes($durationMinutes);
+
+            if ($stayEnd->lessThanOrEqualTo($stayStart)) {
+                $stayEnd = $stayStart->copy()->addMinutes(max(15, $durationMinutes));
+            }
+
+            try {
+                $this->resourceAllocationService->assignResourceWindowToSource(
+                    (int) $validated['resource_id'],
+                    $booking,
+                    $pet->id,
+                    $stayStart->toDateTimeString(),
+                    $stayEnd->toDateTimeString(),
+                    'reserved',
+                    $cleanupBuffer
+                );
+            } catch (RuntimeException $e) {
+                // La cita queda agendada; la jaula no. Se avisa para asignarla a mano.
+                $warnings[] = 'La cita quedó agendada pero la jaula no se asignó: ya está ocupada en esa ventana.';
+            }
         }
 
         $coverageWarning = $this->coverageChecker->checkPet($pet);
         $vaccinationWarning = $this->vaccinationChecker->check($pet);
-
-        $warnings = [];
 
         if ($coverageWarning) {
             $warnings[] = "Esta mascota está a {$coverageWarning['distance_km']} km de {$coverageWarning['branch_name']}, fuera del radio de cobertura de {$coverageWarning['radius_km']} km.";

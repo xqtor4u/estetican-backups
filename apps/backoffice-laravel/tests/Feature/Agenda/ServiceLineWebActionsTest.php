@@ -25,11 +25,12 @@ class ServiceLineWebActionsTest extends TestCase
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz'.uniqid()]);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
         $service = Service::create(['code' => 'S'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 200, 'duration_minutes' => 30, 'is_active' => true, 'open_to_all_operators' => true]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
         $booking = SpaBooking::create([
-            'pet_id' => $pet->id, 'scheduled_at' => now()->addHours(2),
+            'pet_id' => $pet->id, 'scheduled_at' => now()->addHours(2), 'operator_id' => $operator->id,
             'status' => $status, 'total_estimated_price' => 200, 'duration_minutes' => 30,
         ]);
-        $line = $booking->services()->create(['service_id' => $service->id, 'current_price' => 200]);
+        $line = $booking->services()->create(['service_id' => $service->id, 'current_price' => 200, 'operator_id' => $operator->id]);
 
         return [$booking, $line];
     }

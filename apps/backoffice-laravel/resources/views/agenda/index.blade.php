@@ -226,6 +226,7 @@
                                             'id' => $bookingService->id,
                                             'name' => $bookingService->service?->name ?? 'Servicio',
                                             'state' => $lineState($bookingService),
+                                            'operator' => $bookingService->operator?->name,
                                         ]])->toJson() }}"
                                         title="Acciones de este servicio">
                                         {{ $bookingService->service?->name ?? 'Servicio' }} <i class="bi bi-chevron-down" style="font-size: 0.6em;"></i>
@@ -282,6 +283,7 @@
                                     'id' => $l->id,
                                     'name' => $l->service?->name ?? 'Servicio',
                                     'state' => $lineState($l),
+                                    'operator' => $l->operator?->name,
                                 ])->values()->toJson() }}"
                                 title="Acciones rápidas de la cita">
                                 {{ $statusLabel }} <i class="bi bi-chevron-down ms-1" style="font-size: 0.7em;"></i>
@@ -361,6 +363,7 @@
                                             'id' => $l->id,
                                             'name' => $l->service?->name ?? 'Servicio',
                                             'state' => $lineState($l),
+                                            'operator' => $l->operator?->name,
                                         ])->values()->toJson() }}"
                                         title="Terminar la cita">
                                         <i class="bi bi-check2-circle"></i> Terminar
@@ -748,14 +751,14 @@ button.agenda-service-trigger:hover { filter: brightness(0.95); text-decoration:
         return b;
     }
 
-    function reassignRow(url) {
+    function reassignRow(url, unassigned) {
         var wrap = el('div', 'input-group input-group-sm mt-1');
         var sel = el('select', 'form-select form-select-sm');
-        var o0 = el('option', null, 'Reasignar operador…'); o0.value = ''; sel.appendChild(o0);
+        var o0 = el('option', null, unassigned ? 'Asignar operador…' : 'Reasignar operador…'); o0.value = ''; sel.appendChild(o0);
         OPERATORS.forEach(function (op) {
             var o = el('option', null, op.name); o.value = op.id; sel.appendChild(o);
         });
-        var b = el('button', 'btn btn-sm btn-outline-secondary', 'Reasignar'); b.type = 'button';
+        var b = el('button', 'btn btn-sm ' + (unassigned ? 'btn-warning' : 'btn-outline-secondary'), unassigned ? 'Asignar' : 'Reasignar'); b.type = 'button';
         b.addEventListener('click', function () {
             if (!sel.value) return;
             clearPanelError();
@@ -784,10 +787,18 @@ button.agenda-service-trigger:hover { filter: brightness(0.95); text-decoration:
             var st = STATE[s.state] || STATE.pending;
             var row = el('div', 'd-flex flex-column gap-1 py-2 border-top');
 
+            var unassigned = !s.operator && s.state !== 'not_performed' && s.state !== 'cancelled';
+
             var head = el('div', 'd-flex justify-content-between align-items-center');
-            head.appendChild(el('span', 'small fw-semibold', s.name));
+            var nameWrap = el('span', 'small');
+            nameWrap.appendChild(el('span', 'fw-semibold', s.name));
+            nameWrap.appendChild(el('span', 'text-body-secondary', ' · ' + (s.operator || 'Por asignar')));
+            head.appendChild(nameWrap);
             head.appendChild(el('span', 'badge ' + st.badge, st.label));
             row.appendChild(head);
+            if (unassigned) {
+                row.appendChild(el('div', 'small text-warning fw-semibold', '⚠ Operador por asignar — piso lo resuelve antes de iniciar.'));
+            }
 
             var actions = el('div', 'd-flex flex-wrap gap-1 align-items-center');
             if (s.state === 'pending') {
@@ -804,7 +815,7 @@ button.agenda-service-trigger:hover { filter: brightness(0.95); text-decoration:
             row.appendChild(actions);
 
             if (s.state !== 'not_performed' && s.state !== 'cancelled') {
-                row.appendChild(reassignRow(url));
+                row.appendChild(reassignRow(url, unassigned));
             }
             box.appendChild(row);
         });

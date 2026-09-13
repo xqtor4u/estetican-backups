@@ -82,7 +82,7 @@
                                             </span>
                                         @endif
                                     @else
-                                        <span class="text-body-secondary italic">Sin profesional asignado</span>
+                                        <span class="badge bg-warning-subtle text-warning border"><i class="bi bi-person-dash me-1"></i> Operador por asignar</span>
                                     @endif
                                     @if($item->is_external)
                                         <span class="badge bg-warning-subtle text-warning border">

@@ -178,16 +178,20 @@ class OperatorAvailabilityChecker
                 ? $start->copy()->addMinutes(max(0, (int) $line['offset_minutes']))
                 : $cursor->copy();
 
-            if ($this->hasConflict($operatorId, $lineStart, $durationMinutes, $excludeBookingId)) {
-                return "El operador asignado a \"{$serviceName}\" ya tiene una cita en ese horario.";
-            }
+            // Línea "por asignar" (SYNC-088): sin operador que validar — se resuelve en piso.
+            // Igual se avanza el cursor para que las líneas siguientes queden bien ubicadas.
+            if (! empty($operatorId)) {
+                if ($this->hasConflict($operatorId, $lineStart, $durationMinutes, $excludeBookingId)) {
+                    return "El operador asignado a \"{$serviceName}\" ya tiene una cita en ese horario.";
+                }
 
-            if (! $overrideSchedule && $this->isOutsideWorkingHours($operatorId, $lineStart, $durationMinutes)) {
-                return "El operador asignado a \"{$serviceName}\" no labora en el horario indicado.";
-            }
+                if (! $overrideSchedule && $this->isOutsideWorkingHours($operatorId, $lineStart, $durationMinutes)) {
+                    return "El operador asignado a \"{$serviceName}\" no labora en el horario indicado.";
+                }
 
-            if ($this->hasTimeOff($operatorId, $lineStart, $durationMinutes)) {
-                return "El operador asignado a \"{$serviceName}\" no está disponible en ese periodo (vacaciones/permiso).";
+                if ($this->hasTimeOff($operatorId, $lineStart, $durationMinutes)) {
+                    return "El operador asignado a \"{$serviceName}\" no está disponible en ese periodo (vacaciones/permiso).";
+                }
             }
 
             $cursor = $lineStart->copy()->addMinutes(max($durationMinutes, 0));

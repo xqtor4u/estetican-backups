@@ -38,7 +38,7 @@ class BookingServiceAssignmentTest extends TestCase
         return ['Authorization' => "Bearer {$plainToken}"];
     }
 
-    private function bookingWithServiceLine(float $price = 1000): array
+    private function bookingWithServiceLine(float $price = 1000, bool $withOperator = false): array
     {
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
@@ -51,11 +51,18 @@ class BookingServiceAssignmentTest extends TestCase
             'total_estimated_price' => $price,
         ]);
 
+        // SYNC-088: no se puede iniciar/terminar una línea sin operador. Los casos que ejercen
+        // mark_started/mark_completed/mark_realizada piden `withOperator: true`.
+        $operatorId = $withOperator
+            ? Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Ana', 'first_name' => 'Ana', 'is_active' => true])->id
+            : null;
+
         $line = SpaBookingService::create([
             'spa_booking_id' => $booking->id,
             'service_id' => $service->id,
             'quantity' => 1,
             'current_price' => $price,
+            'operator_id' => $operatorId,
         ]);
 
         return [$booking, $line, $service];
@@ -193,8 +200,10 @@ class BookingServiceAssignmentTest extends TestCase
             'status' => 'scheduled',
             'total_estimated_price' => 500,
         ]);
-        $bathLine = $booking->services()->create(['service_id' => $bath->id, 'current_price' => 300]);
-        $cutLine = $booking->services()->create(['service_id' => $cut->id, 'current_price' => 200]);
+        // SYNC-088: iniciar una línea exige que tenga operador.
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Ana', 'first_name' => 'Ana', 'is_active' => true]);
+        $bathLine = $booking->services()->create(['service_id' => $bath->id, 'current_price' => 300, 'operator_id' => $operator->id]);
+        $cutLine = $booking->services()->create(['service_id' => $cut->id, 'current_price' => 200, 'operator_id' => $operator->id]);
 
         $response = $this->withHeaders($this->apiHeaders())->patchJson("/api/bookings/{$booking->id}/services/{$bathLine->id}", [
             'mark_started' => true,
@@ -214,7 +223,7 @@ class BookingServiceAssignmentTest extends TestCase
 
     public function test_mark_started_is_idempotent_and_does_not_move_an_already_started_line(): void
     {
-        [$booking, $line] = $this->bookingWithServiceLine();
+        [$booking, $line] = $this->bookingWithServiceLine(withOperator: true);
 
         Carbon::setTestNow('2026-08-21 10:00:00');
         $this->withHeaders($this->apiHeaders())->patchJson("/api/bookings/{$booking->id}/services/{$line->id}", ['mark_started' => true]);
@@ -257,7 +266,7 @@ class BookingServiceAssignmentTest extends TestCase
 
     public function test_mark_completed_on_a_started_line_sets_completed_at(): void
     {
-        [$booking, $line] = $this->bookingWithServiceLine();
+        [$booking, $line] = $this->bookingWithServiceLine(withOperator: true);
         $this->withHeaders($this->apiHeaders())->patchJson("/api/bookings/{$booking->id}/services/{$line->id}", ['mark_started' => true]);
 
         $response = $this->withHeaders($this->apiHeaders())->patchJson("/api/bookings/{$booking->id}/services/{$line->id}", [
@@ -368,7 +377,7 @@ class BookingServiceAssignmentTest extends TestCase
 
     public function test_mark_realizada_completes_a_pending_line_backfilling_started_at(): void
     {
-        [$booking, $line] = $this->bookingWithServiceLine();
+        [$booking, $line] = $this->bookingWithServiceLine(withOperator: true);
 
         $response = $this->withHeaders($this->apiHeaders())->patchJson("/api/bookings/{$booking->id}/services/{$line->id}", [
             'mark_realizada' => true,
@@ -396,7 +405,7 @@ class BookingServiceAssignmentTest extends TestCase
 
     public function test_mark_completed_is_idempotent_and_does_not_move_an_already_completed_line(): void
     {
-        [$booking, $line] = $this->bookingWithServiceLine();
+        [$booking, $line] = $this->bookingWithServiceLine(withOperator: true);
         $this->withHeaders($this->apiHeaders())->patchJson("/api/bookings/{$booking->id}/services/{$line->id}", ['mark_started' => true]);
 
         Carbon::setTestNow('2026-08-21 11:00:00');

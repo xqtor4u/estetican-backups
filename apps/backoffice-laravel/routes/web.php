@@ -197,6 +197,7 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::get('agenda/create', [SpaBookingController::class, 'globalCreate'])->name('agenda.create')->middleware('permission:crear agenda');
     Route::get('agenda', [SpaBookingController::class, 'index'])->name('agenda.index')->middleware('permission:ver agenda');
     Route::get('agenda/check-availability', [SpaBookingController::class, 'checkAvailability'])->name('agenda.check-availability')->middleware('permission:ver agenda');
+    Route::get('agenda/next-slot', [SpaBookingController::class, 'nextSlot'])->name('agenda.next-slot')->middleware('permission:ver agenda');
     Route::get('agenda/{booking}', [SpaBookingController::class, 'show'])->name('agenda.show')->middleware('permission:ver agenda');
     Route::get('agenda/{booking}/edit', [SpaBookingController::class, 'edit'])->name('agenda.edit')->middleware('permission:editar agenda');
     Route::put('agenda/{booking}', [SpaBookingController::class, 'update'])->name('agenda.update')->middleware('permission:editar agenda');

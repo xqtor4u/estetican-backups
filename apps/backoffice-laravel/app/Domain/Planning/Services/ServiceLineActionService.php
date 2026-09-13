@@ -29,9 +29,17 @@ class ServiceLineActionService
     public function apply(SpaBooking $booking, SpaBookingService $line, array $data): ?string
     {
         $voided = $line->cancelled_at !== null || $line->not_performed_at !== null;
+        $isProgress = ! empty($data['mark_started']) || ! empty($data['mark_completed']) || ! empty($data['mark_realizada']);
 
-        if ((! empty($data['mark_started']) || ! empty($data['mark_completed']) || ! empty($data['mark_realizada'])) && $voided) {
+        if ($isProgress && $voided) {
             return 'No se puede iniciar ni terminar un servicio no realizado o cancelado. Reactívalo primero.';
+        }
+
+        // "Por asignar" (SYNC-088): no se puede iniciar/terminar una línea sin operador —
+        // piso tiene que asignar uno primero (se puede hacer en la misma acción con operator_id).
+        $assigningNow = array_key_exists('operator_id', $data) && $data['operator_id'] !== null;
+        if ($isProgress && $line->operator_id === null && ! $assigningNow) {
+            return 'Asigna un operador a este servicio antes de iniciarlo.';
         }
         if ((! empty($data['mark_not_performed']) || ! empty($data['mark_cancelled'])) && $line->completed_at) {
             return 'El servicio ya está completado.';
