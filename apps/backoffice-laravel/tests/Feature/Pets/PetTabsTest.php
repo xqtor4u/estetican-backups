@@ -123,6 +123,33 @@ class PetTabsTest extends TestCase
     }
 
     /**
+     * SYNC-097: la ficha de la mascota ofrece mandar WhatsApp al dueño — reusa
+     * <x-whatsapp-phone-link> con :pet-id (mismo patrón que agenda/show), con el mejor
+     * teléfono del dueño (PhoneNormalizer::bestPhoneFor). Sin teléfono usable, no aparece.
+     */
+    public function test_pet_show_offers_whatsapp_to_owner_when_phone_exists(): void
+    {
+        $pet = $this->petWithCompletedBooking();
+        $pet->client->phones()->create(['type' => 'mobile', 'number' => '5512345678']);
+
+        $response = $this->actingAs($this->admin())->get(route('pets.show', $pet));
+
+        $response->assertOk();
+        $response->assertSee('whatsappPhoneLink({', false);
+        $response->assertSee('5512345678');
+    }
+
+    public function test_pet_show_hides_whatsapp_when_owner_has_no_phone(): void
+    {
+        $pet = $this->petWithCompletedBooking();
+
+        $response = $this->actingAs($this->admin())->get(route('pets.show', $pet));
+
+        $response->assertOk();
+        $response->assertDontSee('whatsappPhoneLink({', false);
+    }
+
+    /**
      * Veterinaria es un módulo separado (`clinical.*`), nunca una pestaña dentro de la ficha
      * compartida de mascota — a propósito, para no acoplar visualmente los dos flujos (hallazgo
      * real 16/08/2026: una primera versión sí mezclaba una pestaña "Veterinaria" aquí, revertido

@@ -7,6 +7,7 @@
     $page = \App\Support\Pages\PetsPage::show($pet, $client, $isRootView, $returnViewMode);
     $breadcrumbs = $page['breadcrumbs'];
     $clinicalModuleEnabled = $clinicalModuleEnabled ?? (bool) app(\App\Support\SystemSettings\SystemSettings::class)->all()['clinical_module_enabled'];
+    $ownerPhone = \App\Support\WhatsApp\PhoneNormalizer::bestPhoneFor($client);
 @endphp
 @extends('layouts.app')
 
@@ -209,13 +210,18 @@
         <div class="d-flex flex-wrap justify-content-between gap-3">
             <div>
                 <h4 class="card-title mb-1">{{ $pet->name }}</h4>
-                <p class="text-muted mb-0">
-                    Cliente: {{ $client->first_name }} {{ $client->last_name }}
-                    @if($pet->species_label)
-                        · {{ $pet->species_label }}
-                    @endif
-                    @if($pet->breed)
-                        · {{ $pet->breed }}
+                <p class="text-muted mb-0 d-flex align-items-center flex-wrap gap-1">
+                    <span>
+                        Cliente: {{ $client->first_name }} {{ $client->last_name }}
+                        @if($pet->species_label)
+                            · {{ $pet->species_label }}
+                        @endif
+                        @if($pet->breed)
+                            · {{ $pet->breed }}
+                        @endif
+                    </span>
+                    @if($ownerPhone)
+                        <x-whatsapp-phone-link :client-id="$client->id" :phone="$ownerPhone" :pet-id="$pet->id" />
                     @endif
                 </p>
             </div>
