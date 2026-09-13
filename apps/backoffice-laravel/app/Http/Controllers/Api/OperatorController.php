@@ -34,7 +34,8 @@ class OperatorController extends Controller
             'role' => $this->roleLabel($o),
             'role_acronym' => $o->activeRoles()->first()?->short_label,
             // IDs de los roles activos (sin los que ya tienen ends_at) — el agendado móvil
-            // los cruza con Service.operator_role_id para ofrecer solo operadores calificados.
+            // los cruza con OperatorServiceResolver::canPerform() para ofrecer solo operadores
+            // calificados (SYNC-073; `Service.operator_role_id` ya no existe, SYNC-103).
             'role_ids' => $o->activeRoles()->pluck('id')->values(),
             'photo_url' => $o->profile_photo_path
                 ? Storage::disk('public')->url($o->profile_photo_path)

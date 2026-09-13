@@ -11,7 +11,7 @@ interface PetMin   { id: number; name: string; species: string | null; breed: st
 
 /** Etiqueta legible para el tamaño (`pets.size`) — incluye valores legado en español. */
 const SIZE_LABEL: Record<string, string> = { small: 'Pequeño', medium: 'Mediano', large: 'Grande', giant: 'Gigante' };
-interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null; operator_role_id: number | null }
+interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null }
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null; role_ids: number[] }
 /** Forma ligera que devuelve GET /api/services/{id}/operators — solo lo que necesita el picker. */
 interface EligibleOperator { id: number; name: string }

@@ -735,7 +735,10 @@ class SpaBookingController extends Controller
 
         $page = AgendaPage::create($pet, $client);
 
-        $services = Service::where('is_active', true)->orderBy('name')->get();
+        // SYNC-103: `roleTemplates.role` alimenta la etiqueta informativa de cada tarjeta de
+        // servicio (reemplaza a `operatorRole`, columna eliminada — el filtro real del
+        // `<select>` de operador ya usa `eligibleOperatorsByService`, portado en SYNC-101).
+        $services = Service::where('is_active', true)->orderBy('name')->with('roleTemplates.role')->get();
 
         $resources = Resource::whereIn('administrative_status', ['active', 'inactive'])
             ->where('resource_type', 'cage')

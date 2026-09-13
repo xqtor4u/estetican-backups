@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\OperatorRole;
 use App\Models\Service;
-use App\Support\CatalogCache\OperatorRoleCatalogCache;
+use App\Support\Pages\ServicesPage;
 use App\Support\Search\TokenSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,11 +20,11 @@ class ServiceController extends Controller
         $sort = $request->query('sort');
         $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
 
-        if (!in_array($status, ['all', 'active', 'inactive'], true)) {
+        if (! in_array($status, ['all', 'active', 'inactive'], true)) {
             $status = 'all';
         }
 
-        if (!in_array($sort, ['name', 'type'], true)) {
+        if (! in_array($sort, ['name', 'type'], true)) {
             $sort = null;
         }
 
@@ -33,7 +32,6 @@ class ServiceController extends Controller
             ->select([
                 'id',
                 'code',
-                'operator_role_id',
                 'name',
                 'description',
                 'type',
@@ -41,13 +39,12 @@ class ServiceController extends Controller
                 'suggested_duration_minutes',
                 'is_active',
             ])
-            ->with('operatorRole:id,code,name')
             ->withCount('executedServiceItems')
             ->orderByDesc('is_active');
 
         if ($search !== '') {
             TokenSearch::apply($services, $search, [
-                'code', 'name', 'type', 'description', 'operatorRole.name', 'operatorRole.code',
+                'code', 'name', 'type', 'description',
             ]);
         }
 
@@ -67,7 +64,7 @@ class ServiceController extends Controller
 
         $services = $services->paginate(15)->withQueryString();
 
-        $page = \App\Support\Pages\ServicesPage::index();
+        $page = ServicesPage::index();
         $serviceCollection = $services->getCollection();
         $activeServicesCount = $serviceCollection->where('is_active', true)->count();
         $inactiveServicesCount = $serviceCollection->count() - $activeServicesCount;
@@ -83,12 +80,11 @@ class ServiceController extends Controller
     public function create(Request $request): View
     {
         $copySourceId = (int) $request->query('copy_from');
-        $copySource = $copySourceId ? Service::with('operatorRole')->find($copySourceId) : null;
+        $copySource = $copySourceId ? Service::find($copySourceId) : null;
 
-        $operatorRoles = OperatorRoleCatalogCache::activeForForms();
         $existingServices = Service::orderBy('name')->get(['id', 'name', 'code']);
 
-        return view('services.create', compact('operatorRoles', 'existingServices', 'copySource'));
+        return view('services.create', compact('existingServices', 'copySource'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -102,16 +98,14 @@ class ServiceController extends Controller
 
     public function show(Service $service): View
     {
-        $service->load(['operatorRole'])->loadCount('executedServiceItems');
+        $service->loadCount('executedServiceItems');
 
         return view('services.show', compact('service'));
     }
 
     public function edit(Service $service): View
     {
-        $operatorRoles = OperatorRoleCatalogCache::activeForService($service->operator_role_id);
-
-        return view('services.edit', compact('service', 'operatorRoles'));
+        return view('services.edit', compact('service'));
     }
 
     public function update(Request $request, Service $service): RedirectResponse
@@ -152,7 +146,6 @@ class ServiceController extends Controller
     {
         return [
             'code' => ['nullable', 'string', 'max:255', Rule::unique('services', 'code')->ignore($service?->id)],
-            'operator_role_id' => ['required', 'integer', Rule::exists('operator_roles', 'id')],
             'type' => 'required|string|max:255',
             'department' => 'nullable|string|max:255',
             'name' => 'required|string|max:255',
@@ -178,13 +171,12 @@ class ServiceController extends Controller
             $code = $this->normalizeServiceCode($code);
         }
 
-        if (!$code) {
+        if (! $code) {
             $code = $service?->code ?? $this->generateServiceCode($validated['type']);
         }
 
         return [
             'code' => $code,
-            'operator_role_id' => (int) $validated['operator_role_id'],
             'type' => $validated['type'],
             'department' => $validated['department'] ?? null,
             'name' => $validated['name'],
@@ -194,11 +186,11 @@ class ServiceController extends Controller
             'duration_minutes' => $suggestedDuration,
             'suggested_duration_minutes' => $suggestedDuration,
             'recurrence_days' => $validated['recurrence_days'] ?? null,
-            'is_active' => !empty($validated['is_active']),
-            'is_core_vaccine' => !empty($validated['is_core_vaccine']),
-            'ai_visible' => !empty($validated['ai_visible']),
-            'is_generic' => !empty($validated['is_generic']),
-            'is_emergency' => !empty($validated['is_emergency']),
+            'is_active' => ! empty($validated['is_active']),
+            'is_core_vaccine' => ! empty($validated['is_core_vaccine']),
+            'ai_visible' => ! empty($validated['ai_visible']),
+            'is_generic' => ! empty($validated['is_generic']),
+            'is_emergency' => ! empty($validated['is_emergency']),
         ];
     }
 
@@ -233,11 +225,11 @@ class ServiceController extends Controller
     private function buildDuplicateName(string $name): string
     {
         $baseName = Str::of($name)->replaceLast(' (copia)', '')->toString();
-        $candidate = $baseName . ' (copia)';
+        $candidate = $baseName.' (copia)';
         $suffix = 2;
 
         while (Service::query()->where('name', $candidate)->exists()) {
-            $candidate = $baseName . ' (copia ' . $suffix . ')';
+            $candidate = $baseName.' (copia '.$suffix.')';
             $suffix++;
         }
 

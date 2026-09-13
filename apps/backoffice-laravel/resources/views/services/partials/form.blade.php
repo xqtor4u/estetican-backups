@@ -44,20 +44,6 @@
         <div class="form-text">Opcional — sugerencia para agrupar en el futuro módulo de inventario.</div>
     </div>
 
-    <div class="col-md-8">
-        <label for="operator_role_id" class="form-label">Tipo de operador</label>
-        <select id="operator_role_id" name="operator_role_id" class="form-select @error('operator_role_id') is-invalid @enderror" required>
-            <option value="">Seleccionar</option>
-            @foreach($operatorRoles as $operatorRole)
-                <option value="{{ $operatorRole->id }}" @selected((string) old('operator_role_id', $service->operator_role_id ?? '') === (string) $operatorRole->id)>
-                    {{ $operatorRole->name }}@if($operatorRole->code) ({{ $operatorRole->code }})@endif
-                </option>
-            @endforeach
-        </select>
-        @error('operator_role_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        <div class="form-text">Cada servicio queda ligado a la especialidad operativa que debe poder ejecutarlo.</div>
-    </div>
-
     <div class="col-md-4 d-flex align-items-end">
         <a href="{{ route('operator-roles.create', ['return_to' => request()->fullUrl()]) }}" class="btn btn-outline-secondary w-100">Nuevo tipo de operador</a>
     </div>

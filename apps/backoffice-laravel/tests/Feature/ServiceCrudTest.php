@@ -66,6 +66,47 @@ class ServiceCrudTest extends TestCase
         return Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
     }
 
+    /**
+     * SYNC-103 (Fase 3 de SYNC-073): `operator_role_id` se elimina de la tabla — antes era
+     * campo requerido en el alta/edición web del catálogo. Confirma que crear/editar un
+     * servicio sin mandar ese campo funciona igual que antes, y que las pantallas ya no lo
+     * muestran.
+     */
+    public function test_service_can_be_created_and_updated_without_operator_role_id(): void
+    {
+        $user = $this->userWithPermissions(['ver catalogo_servicios', 'crear catalogo_servicios', 'editar catalogo_servicios']);
+
+        $createForm = $this->actingAs($user)->get(route('services.create'));
+        $createForm->assertOk();
+        $createForm->assertDontSee('Tipo de operador');
+
+        $storeResponse = $this->actingAs($user)->post(route('services.store'), [
+            'code' => 'SVC-'.uniqid(),
+            'type' => 'spa',
+            'name' => 'Corte de pelo',
+            'suggested_price' => 250,
+            'suggested_duration_minutes' => 45,
+        ]);
+
+        $storeResponse->assertRedirect(route('services.index'));
+        $service = Service::where('name', 'Corte de pelo')->firstOrFail();
+
+        $editForm = $this->actingAs($user)->get(route('services.edit', $service));
+        $editForm->assertOk();
+        $editForm->assertDontSee('Tipo de operador');
+
+        $updateResponse = $this->actingAs($user)->put(route('services.update', $service), [
+            'code' => $service->code,
+            'type' => 'spa',
+            'name' => 'Corte de pelo premium',
+            'suggested_price' => 300,
+            'suggested_duration_minutes' => 60,
+        ]);
+
+        $updateResponse->assertRedirect(route('services.edit', $service));
+        $this->assertSame('Corte de pelo premium', $service->fresh()->name);
+    }
+
     public function test_deleting_a_service_with_no_usage_deletes_it_for_real(): void
     {
         $user = $this->userWithPermissions(['eliminar catalogo_servicios']);

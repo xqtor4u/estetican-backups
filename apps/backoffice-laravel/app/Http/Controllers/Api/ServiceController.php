@@ -15,7 +15,7 @@ class ServiceController extends Controller
     {
         $services = Service::where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'type', 'price', 'duration_minutes', 'operator_role_id', 'open_to_all_operators']);
+            ->get(['id', 'name', 'type', 'price', 'duration_minutes', 'open_to_all_operators']);
 
         return response()->json($services->map(fn ($s) => [
             'id' => $s->id,
@@ -23,10 +23,8 @@ class ServiceController extends Controller
             'type' => $s->type,
             'price' => (float) $s->price,
             'duration_minutes' => $s->duration_minutes,
-            // `operator_role_id` queda obsoleto desde SYNC-073 (Fase 1) — la fuente de verdad
-            // de quién puede hacer el servicio es GET /api/services/{service}/operators. Se
-            // conserva aquí hasta que se porte la Fase 3 (que lo elimina de verdad).
-            'operator_role_id' => $s->operator_role_id,
+            // SYNC-103: `operator_role_id` eliminado (Fase 3 de SYNC-073) — la fuente de verdad
+            // de quién puede hacer el servicio es GET /api/services/{service}/operators.
             'open_to_all_operators' => (bool) $s->open_to_all_operators,
         ]));
     }

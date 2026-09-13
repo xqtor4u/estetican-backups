@@ -167,7 +167,7 @@ class BookingController extends Controller
         $serviceRows = collect($data['services'] ?? []);
         $serviceIds = $serviceRows->pluck('id')->all();
         $catalog = $serviceIds
-            ? Service::whereIn('id', $serviceIds)->get(['id', 'name', 'price', 'duration_minutes', 'operator_role_id', 'open_to_all_operators'])->keyBy('id')
+            ? Service::whereIn('id', $serviceIds)->get(['id', 'name', 'price', 'duration_minutes', 'open_to_all_operators'])->keyBy('id')
             : collect();
 
         // Duración y offset (minutos desde el inicio de la cita) resueltos por línea, en el

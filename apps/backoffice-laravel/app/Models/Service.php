@@ -10,7 +10,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'code',
-    'operator_role_id',
     'open_to_all_operators',
     'account_id',
     'type',
@@ -76,14 +75,15 @@ class Service extends Model
         return $this->belongsTo(Account::class);
     }
 
-    public function operatorRole(): BelongsTo
-    {
-        return $this->belongsTo(OperatorRole::class);
-    }
-
     public function spaBookingServices(): HasMany
     {
         return $this->hasMany(SpaBookingService::class);
+    }
+
+    /** Roles de puesto cuya plantilla incluye este servicio (SYNC-073). */
+    public function roleTemplates(): HasMany
+    {
+        return $this->hasMany(OperatorRoleServiceTemplate::class);
     }
 
     public function quoteItems(): HasMany

@@ -528,7 +528,7 @@ Catálogo **único** de servicios ofrecidos — deliberadamente uno solo para to
 | `code` | string unique | Ej. `SPA-0001`, `HOT-0001` |
 | `type` | string | `spa`, `hotel`, `extra`, `combo`, `vaccine` (BL-048) — sin enum en BD, solo convención de UI |
 | `department` | string nullable | BL-050 — "Farmacia", "Accesorios", etc., mismo espíritu que `items.department`, pensando en agrupar de cara al futuro inventario |
-| `operator_role_id` | FK → `operator_roles` nullable | Tipo de operador requerido |
+| `open_to_all_operators` | boolean, default false | SYNC-073 — `true` = cualquier operador activo puede agendar este servicio, se ignoran plantillas de rol y capacidades directas. Sustituye al viejo `operator_role_id IS NULL` como "abierto a todos" explícito |
 | `name` | string | |
 | `description` | text nullable | |
 | `price` | decimal(10,2) | Precio base |
@@ -546,6 +546,8 @@ Catálogo **único** de servicios ofrecidos — deliberadamente uno solo para to
 | `is_generic` | boolean, default false | BL-051 — el asistente IA confirma que el servicio existe pero **no da precio**; invita a agendar cita de evaluación. Pensado para servicios como "Cirugía" sin costo fijo |
 | `is_emergency` | boolean, default false | BL-051 — el asistente IA invita al visitante a usar el botón de WhatsApp de inmediato (mismo CTA de `ai_assistant_cta_url`) en vez de seguir en el chat |
 | `timestamps` | | |
+
+**Nota SYNC-073/SYNC-103 (elegibilidad de operador por servicio):** hasta el 12/09/2026 existía además `services.operator_role_id` (FK nullable a `operator_roles`, campo requerido en el alta/edición web) — se eliminó por completo (migración `2026_09_10_180000_drop_operator_role_id_from_services_table`). La elegibilidad real de qué operador puede realizar un servicio ya no vive en esta tabla: es la unión de plantilla de rol (`operator_role_service_template`) ∪ capacidad directa (`operator_service_capabilities`, grant/revoke) ∪ `open_to_all_operators` (arriba), resuelta en `OperatorServiceResolver`. Estas dos tablas nuevas (creadas por la migración `2026_08_30_000001_create_operator_service_capability_tables`) todavía no tienen su propia sección en este documento — pendiente de una sesión aparte.
 
 **Nota BL-048 (modelo operativo — servicios que intersectan módulos):** un servicio tipo `vaccine` se **aplica** vía el módulo de Veterinaria (`pet_vaccinations`, con `administered_by_operator_id`/`clinical_visit_id` — el evento completo, incluyendo quién la aplicó), no vía `spa_bookings`. Para que la misma pantalla de Recurrencias (pensada originalmente solo para servicios de spa) también cubra vacunas, `RecurrenceMessageController::lastServiceDatesByPet()` tiene una rama: si `service.type === 'vaccine'`, la "última vez" sale de `MAX(pet_vaccinations.applied_at)` en vez de `spa_bookings` completados. El resto del flujo (plantillas, `recurrence_messages`, envío wa.me/correo) es 100% el mismo, sin tabla ni pantalla nueva. La ficha de mascota (`pets/show.blade.php`) también refleja esto **informativamente** en spa/hotel (sección "Vacunación": nombre de vacuna + fechas + vigente/vencida) — sin mostrar quién la aplicó, ese detalle queda exclusivo de las pantallas `clinical/*`.
 

@@ -33,15 +33,6 @@
                     <dt class="col-sm-4">Tipo</dt>
                     <dd class="col-sm-8">{{ strtoupper($service->type) }}</dd>
 
-                    <dt class="col-sm-4">Tipo de operador</dt>
-                    <dd class="col-sm-8">
-                        @if($service->operatorRole)
-                            {{ $service->operatorRole->name }} ({{ $service->operatorRole->code }})
-                        @else
-                            Sin tipo ligado.
-                        @endif
-                    </dd>
-
                     <dt class="col-sm-4">Descripción base</dt>
                     <dd class="col-sm-8">{{ $service->description ?: 'Sin descripción base.' }}</dd>
 

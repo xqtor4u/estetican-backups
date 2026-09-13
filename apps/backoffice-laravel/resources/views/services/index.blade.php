@@ -76,7 +76,6 @@
             <th>
                 <x-sortable-header-link route="services.index" column="type" label="Tipo" :sort="$sort" :direction="$direction" />
             </th>
-            <th>Tipo de operador</th>
             <th>Precio sugerido</th>
             <th>Duración</th>
             <th>Estado</th>
@@ -103,16 +102,6 @@
                 </td>
                 <td>
                     <span class="catalog-type-pill">{{ strtoupper($service->type) }}</span>
-                </td>
-                <td>
-                    @if($service->operatorRole)
-                        <div class="catalog-role-stack">
-                            <div class="catalog-role-stack__name">{{ $service->operatorRole->name }}</div>
-                            <div class="catalog-role-stack__code">{{ $service->operatorRole->code }}</div>
-                        </div>
-                    @else
-                        <span class="catalog-muted-copy">Sin tipo ligado</span>
-                    @endif
                 </td>
                 <td>
                     <div class="catalog-stat">${{ number_format((float) $service->suggested_price, 2) }}</div>
@@ -149,7 +138,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="9" class="text-center py-4 text-body-secondary">Aún no hay servicios registrados.</td>
+                <td colspan="8" class="text-center py-4 text-body-secondary">Aún no hay servicios registrados.</td>
             </tr>
         @endforelse
     </tbody>

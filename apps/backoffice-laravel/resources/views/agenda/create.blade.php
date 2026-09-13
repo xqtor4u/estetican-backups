@@ -158,8 +158,14 @@
                                     <div class="mb-3">
                                         <span class="catalog-type-pill">{{ strtoupper($service->type) }}</span>
                                     </div>
+                                    {{-- SYNC-103: `operator_role_id` se eliminó — la elegibilidad real es
+                                         plantilla de rol ∪ capacidad directa, u "abierto a todos" (SYNC-073). --}}
+                                    @php($serviceRoleNames = $service->roleTemplates->pluck('role.name')->filter()->unique()->values())
                                     <div class="d-flex flex-column gap-1 mb-3">
-                                        <span class="catalog-inline-tag text-truncate" title="{{ $service->operatorRole ? 'Solo lo puede realizar un operador con el rol: '.$service->operatorRole->name : 'No exige un rol de operador — lo puede realizar cualquier operador activo' }}"><i class="bi bi-person me-1"></i> {{ $service->operatorRole?->name ?? 'Cualquier operador' }}</span>
+                                        <span class="catalog-inline-tag text-truncate" title="{{ $service->open_to_all_operators ? 'Lo puede realizar cualquier operador activo' : ($serviceRoleNames->isNotEmpty() ? 'Requiere el rol: '.$serviceRoleNames->join(', ') : 'Requiere una capacidad asignada directamente al operador') }}">
+                                            <i class="bi bi-person me-1"></i>
+                                            {{ $service->open_to_all_operators ? 'Cualquier operador' : ($serviceRoleNames->isNotEmpty() ? $serviceRoleNames->join(', ') : 'Asignación directa') }}
+                                        </span>
                                     </div>
                                     <div class="mt-auto border-top pt-2 d-flex flex-column gap-2">
                                         <div>
