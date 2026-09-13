@@ -1356,12 +1356,19 @@ class SpaBookingController extends Controller
 
         $estimatedEndAt = $booking->scheduled_at?->copy()->addMinutes($estimatedDurationMinutes);
 
+        // UX-09 (12/09/2026): esta etiqueta se arma en el controller, antes de que la vista
+        // reciba `$timeFormat` — hardcodear 'H:i' aquí ignoraba el ajuste de 12h/24h aunque el
+        // resto de la misma fila (columna FECHA) sí lo respetara. `ApplySystemSettings` ya
+        // comparte 'timeFormat' con todas las vistas de este request; se reusa el mismo valor
+        // en vez de duplicar la lógica de `$is24h`.
+        $timeFormat = view()->shared('timeFormat', 'H:i');
+
         $booking->setAttribute('estimated_duration_minutes', $estimatedDurationMinutes);
         $booking->setAttribute('estimated_end_at', $estimatedEndAt);
         $booking->setAttribute(
             'time_window_label',
             $booking->scheduled_at
-                ? $booking->scheduled_at->format('H:i').($estimatedEndAt ? ' - '.$estimatedEndAt->format('H:i') : '')
+                ? $booking->scheduled_at->format($timeFormat).($estimatedEndAt ? ' - '.$estimatedEndAt->format($timeFormat) : '')
                 : null
         );
         $booking->setAttribute('alert_reason', $booking->alertReason($this->bookingGraceMinutes()));
