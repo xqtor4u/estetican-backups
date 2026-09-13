@@ -190,7 +190,14 @@
                                 <span class="badge bg-light text-dark border ms-1" style="font-size: 0.65rem; font-weight: 700;" title="Folio de orden de trabajo — el mismo número que se imprime en recibo, orden de trabajo y presupuesto.">{{ $booking->order_folio }}</span>
                             @endif
                         </div>
-                        <div class="catalog-title-stack__description">{{ $booking->pet?->species_label ?: 'Sin especie' }}</div>
+                        <div class="catalog-title-stack__description">
+                            {{ $booking->pet?->species_label ?: 'Sin especie' }}
+                            @if($stay = $booking->resourceAllocations->first())
+                                <span title="Jaula: {{ $stay->resource?->name ?? $stay->resource?->code }} · {{ $stay->starts_at?->format('d/m H:i') }} – {{ $stay->ends_at?->format('d/m H:i') }}">
+                                    · 🏠 {{ $stay->resource?->code ?? $stay->resource?->name }}
+                                </span>
+                            @endif
+                        </div>
                     </td>
                     <td>
                         <div class="catalog-title-stack__title">{{ trim(($booking->pet?->client?->first_name ?? '') . ' ' . ($booking->pet?->client?->last_name ?? '')) }}</div>

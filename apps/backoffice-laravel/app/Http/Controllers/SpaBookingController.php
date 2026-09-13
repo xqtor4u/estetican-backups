@@ -95,6 +95,10 @@ class SpaBookingController extends Controller
                 'quotes' => fn ($q) => $q->where('status', 'accepted')
                     ->with(['cashLedgers', 'bankLedgers']),
                 'payments',
+                // Solo la estancia (`reserved`), no la fila de limpieza que le sigue — es lo que
+                // se muestra en la tabla como "en qué jaula está" (SYNC-092).
+                'resourceAllocations' => fn ($q) => $q->where('allocation_type', 'reserved')
+                    ->with('resource'),
             ]);
 
         $this->applyBookingFilters($bookingsQuery, $statuses, $search);
