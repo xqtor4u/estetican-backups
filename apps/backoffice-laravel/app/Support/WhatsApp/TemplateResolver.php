@@ -31,6 +31,20 @@ class TemplateResolver
             ];
         }
 
+        if ($context === 'calendario') {
+            return [
+                'cliente' => 'Nombre del cliente',
+                'mascota' => 'Nombre de la mascota',
+                'servicio' => 'Servicio(s) agendado(s)',
+                'fecha' => 'Fecha de la cita',
+                'hora' => 'Hora de la cita',
+                'operador' => 'Nombre del operador asignado',
+                'folio' => 'Folio de la orden (vacío si la cita no tiene folio)',
+                'notas' => 'Notas internas de la cita (vacío si no tiene)',
+                'telefono' => 'Teléfono del cliente (vacío si no tiene teléfono registrado)',
+            ];
+        }
+
         if ($context === 'general') {
             return [
                 'cliente' => 'Nombre del cliente',
@@ -65,6 +79,34 @@ class TemplateResolver
             '{servicio}' => $booking->services->pluck('service.name')->filter()->implode(', ') ?: 'servicio agendado',
             '{fecha}' => $booking->scheduled_at?->format($dateFormat) ?? '',
             '{hora}' => $booking->scheduled_at?->format($timeFormat) ?? '',
+        ];
+
+        return strtr($body, $replacements);
+    }
+
+    /**
+     * Resuelve una plantilla de contexto "calendario" (descripción del evento de Google
+     * Calendar) — separado de `resolve()` a propósito: expone `{operador}`, `{folio}`,
+     * `{notas}` y `{telefono}`, datos internos que no deben colarse a una plantilla
+     * cliente-facing de WhatsApp/email por reusar el mismo método.
+     */
+    public static function resolveForCalendarEvent(string $body, SpaBooking $booking, ?string $dateFormat = null, ?string $timeFormat = null): string
+    {
+        $dateFormat ??= (string) config('backoffice.system.date_format', 'd/m/Y');
+        $timeFormat ??= config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A';
+
+        $client = $booking->pet?->client;
+
+        $replacements = [
+            '{cliente}' => $client?->full_name ?: 'Cliente',
+            '{mascota}' => $booking->pet?->name ?: 'Mascota',
+            '{servicio}' => $booking->services->pluck('service.name')->filter()->implode(', '),
+            '{fecha}' => $booking->scheduled_at?->format($dateFormat) ?? '',
+            '{hora}' => $booking->scheduled_at?->format($timeFormat) ?? '',
+            '{operador}' => $booking->operator?->full_name ?: '',
+            '{folio}' => (string) ($booking->order_folio ?? ''),
+            '{notas}' => (string) ($booking->notes ?? ''),
+            '{telefono}' => $client ? ((string) (PhoneNormalizer::bestPhoneFor($client) ?? '')) : '',
         ];
 
         return strtr($body, $replacements);

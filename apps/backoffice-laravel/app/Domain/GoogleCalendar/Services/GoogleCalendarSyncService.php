@@ -6,7 +6,7 @@ use App\Domain\GoogleCalendar\Contracts\GoogleCalendarSyncServiceInterface;
 use App\Models\Operator;
 use App\Models\SpaBooking;
 use App\Support\SystemSettings\SystemSettings;
-use App\Support\WhatsApp\PhoneNormalizer;
+use App\Support\WhatsApp\TemplateResolver;
 use Google\Client as GoogleClient;
 use Google\Service\Calendar\AclRule;
 use Google\Service\Calendar as GoogleCalendarApi;
@@ -237,17 +237,12 @@ class GoogleCalendarSyncService implements GoogleCalendarSyncServiceInterface
     private function buildEvent(SpaBooking $booking): GoogleEvent
     {
         $pet = $booking->pet;
-        $client = $pet?->client;
 
         $serviceNames = $booking->services->pluck('service.name')->filter()->implode(', ');
         $title = trim(($pet->name ?? 'Mascota').($serviceNames ? " — {$serviceNames}" : ''));
 
-        $description = implode("\n", array_filter([
-            $client ? "Cliente: {$client->full_name}" : null,
-            $client ? 'Tel: '.(PhoneNormalizer::bestPhoneFor($client) ?? 'sin teléfono') : null,
-            $booking->order_folio ? "Folio: {$booking->order_folio}" : null,
-            $booking->notes ? "Notas: {$booking->notes}" : null,
-        ]));
+        $template = (string) ($this->settings->all()['google_calendar_description_template'] ?? '');
+        $description = TemplateResolver::resolveForCalendarEvent($template, $booking);
 
         $timezone = $this->timezone();
         $start = $booking->scheduled_at->copy();

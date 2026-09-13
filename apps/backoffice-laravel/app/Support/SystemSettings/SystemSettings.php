@@ -832,6 +832,13 @@ class SystemSettings
                         'rules' => ['nullable', 'boolean'],
                         'help' => 'Interruptor maestro. Apagado por default — no se crea ni comparte ningún calendario hasta activarlo a propósito.',
                     ],
+                    'google_calendar_description_template' => [
+                        'label' => 'Plantilla de la descripción del evento',
+                        'type' => 'textarea',
+                        'default' => "Cliente: {cliente}\nTel: {telefono}\nOperador: {operador}\nFolio: {folio}\nNotas: {notas}",
+                        'rules' => ['nullable', 'string', 'max:2000'],
+                        'help' => 'Variables disponibles: {cliente}, {mascota}, {servicio}, {fecha}, {hora}, {operador}, {folio}, {notas}, {telefono}. Una variable sin valor para una cita en particular (p. ej. una cita sin folio) se deja en blanco — diseña la plantilla sabiendo eso.',
+                    ],
                 ],
             ],
         ];
