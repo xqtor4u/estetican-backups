@@ -84,12 +84,11 @@
                                 value="{{ $defaultScheduledAt }}"
                                 class="form-control"
                                 required
-                                data-force-24h="1"
                                 data-min-time="{{ $openingTime }}"
                                 data-max-time="{{ $closingTime }}"
                             >
                         </div>
-                        <div id="scheduled_at_hint" class="form-text">Horario operativo: {{ $openingTime }}–{{ $closingTime }}.</div>
+                        <div id="scheduled_at_hint" class="form-text">Horario operativo: {{ \Illuminate\Support\Carbon::parse($openingTime)->format($timeFormat) }}–{{ \Illuminate\Support\Carbon::parse($closingTime)->format($timeFormat) }}.</div>
                         <div id="availability_warning" class="form-text text-danger d-none"></div>
                         <div id="override_availability_wrapper" class="form-check mt-1 d-none">
                             <input type="checkbox" class="form-check-input" id="override_availability_checkbox" name="override_availability" value="1">
@@ -350,6 +349,21 @@
             return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
         }
 
+        // El formato de hora lo manda el ajuste del sistema (Configuración › Formato de hora),
+        // igual que el resto del backoffice. El backend siempre entrega "HH:MM" en 24h; acá se
+        // convierte a "hh:mm AM/PM" cuando el sistema está en 12h, para no mezclar formatos.
+        var USE_24H = document.body.dataset.time24h === '1';
+        function fmtHM(hhmm) {
+            var p = String(hhmm || '').split(':');
+            var h = parseInt(p[0], 10);
+            if (isNaN(h)) return hhmm || '';
+            var m = p[1] != null ? String(p[1]) : '00';
+            if (m.length < 2) m = ('0' + m).slice(-2);
+            if (USE_24H) return (h < 10 ? '0' : '') + h + ':' + m;
+            var h12 = h % 12; if (h12 === 0) h12 = 12;
+            return (h12 < 10 ? '0' : '') + h12 + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM');
+        }
+
         function dayTimeline(s, selectedHHMM) {
             var startM, endM;
             if (s.window && s.window.start && s.window.end) {
@@ -364,17 +378,17 @@
             var blocks = (s.busy || []).map(function (b) {
                 var l = pct(toMin(b.start)), r = pct(toMin(b.end));
                 if (r <= l) return '';
-                return '<div class="agenda-slot agenda-slot--busy" style="left:' + l + '%;width:' + (r - l) + '%" title="' + esc(b.start) + '–' + esc(b.end) + (b.label ? ' · ' + esc(b.label) : '') + '"></div>';
+                return '<div class="agenda-slot agenda-slot--busy" style="left:' + l + '%;width:' + (r - l) + '%" title="' + esc(fmtHM(b.start)) + '–' + esc(fmtHM(b.end)) + (b.label ? ' · ' + esc(b.label) : '') + '"></div>';
             }).join('');
 
             var marker = '';
             if (selectedHHMM) {
                 var mp = pct(toMin(selectedHHMM));
-                marker = '<div class="agenda-slot-marker" style="left:' + mp + '%" title="Hora elegida: ' + esc(selectedHHMM) + '"></div>';
+                marker = '<div class="agenda-slot-marker" style="left:' + mp + '%" title="Hora elegida: ' + esc(fmtHM(selectedHHMM)) + '"></div>';
             }
 
             return '<div class="agenda-daybar mt-2">' + blocks + marker + '</div>' +
-                   '<div class="d-flex justify-content-between agenda-daybar-scale"><span>' + esc(startM === toMin(BIZ_OPEN) ? BIZ_OPEN : s.window.start) + '</span><span>' + esc(endM === toMin(BIZ_CLOSE) ? BIZ_CLOSE : s.window.end) + '</span></div>';
+                   '<div class="d-flex justify-content-between agenda-daybar-scale"><span>' + esc(fmtHM(startM === toMin(BIZ_OPEN) ? BIZ_OPEN : s.window.start)) + '</span><span>' + esc(fmtHM(endM === toMin(BIZ_CLOSE) ? BIZ_CLOSE : s.window.end)) + '</span></div>';
         }
 
         function renderAvailability(data, selectedHHMM) {
@@ -385,7 +399,7 @@
             if (s.window === null || s.window === undefined) {
                 bits.push('Sin horario fijo capturado (puede a cualquier hora).');
             } else if (s.window.start && s.window.end) {
-                bits.push('Labora ese día de <strong>' + esc(s.window.start) + '</strong> a <strong>' + esc(s.window.end) + '</strong>.');
+                bits.push('Labora ese día de <strong>' + esc(fmtHM(s.window.start)) + '</strong> a <strong>' + esc(fmtHM(s.window.end)) + '</strong>.');
             } else {
                 bits.push('<strong>No labora ese día</strong> según su horario semanal.');
             }
@@ -393,7 +407,7 @@
             var busy = s.busy || [];
             if (busy.length) {
                 bits.push('Ocupado: ' + busy.map(function (b) {
-                    return esc(b.start) + '–' + esc(b.end) + (b.label && b.label !== 'Cita' ? ' (' + esc(b.label) + ')' : '');
+                    return esc(fmtHM(b.start)) + '–' + esc(fmtHM(b.end)) + (b.label && b.label !== 'Cita' ? ' (' + esc(b.label) + ')' : '');
                 }).join(', ') + '.');
             } else {
                 bits.push('Sin nada agendado ese día.');

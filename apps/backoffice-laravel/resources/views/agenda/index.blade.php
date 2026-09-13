@@ -403,7 +403,7 @@
                 <div class="alert alert-secondary d-flex flex-column gap-1 mb-3">
                     <strong>Operadores no disponibles hoy:</strong>
                     @foreach($blockedToday as $w)
-                        <span>🔒 {{ $w->operator?->full_name ?? 'Operador #'.$w->operator_id }} — {{ $w->starts_at->format('H:i') }}–{{ $w->ends_at->format('H:i') }}{{ $w->reason ? ' ('.$w->reason.')' : '' }}</span>
+                        <span>🔒 {{ $w->operator?->full_name ?? 'Operador #'.$w->operator_id }} — {{ $w->starts_at->format($timeFormat) }}–{{ $w->ends_at->format($timeFormat) }}{{ $w->reason ? ' ('.$w->reason.')' : '' }}</span>
                     @endforeach
                 </div>
             @endif

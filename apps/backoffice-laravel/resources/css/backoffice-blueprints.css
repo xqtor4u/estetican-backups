@@ -1188,3 +1188,40 @@ body.catalog-resize-active {
         display: none;
     }
 }
+
+/* Pie de acciones del pop-up de Flatpickr (datetime-picker.js) — Cancelar / Confirmar.
+   En tablet el desplegable se cierra al tocar fuera y no era obvio cómo aceptar o
+   descartar; estos botones lo hacen explícito. */
+.flatpickr-calendar .flatpickr-footer {
+    display: flex;
+    gap: .5rem;
+    justify-content: flex-end;
+    padding: .5rem .75rem;
+    border-top: 1px solid rgba(0, 0, 0, .08);
+    background: #fff;
+}
+.flatpickr-footer__btn {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: .3rem .8rem;
+    font-size: .8rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+}
+.flatpickr-footer__btn--cancel {
+    background: transparent;
+    color: #535b63;
+    border-color: rgba(108, 117, 125, .4);
+}
+.flatpickr-footer__btn--cancel:hover {
+    background: rgba(108, 117, 125, .12);
+}
+.flatpickr-footer__btn--confirm {
+    background: var(--app-primary, #0d6efd);
+    color: #fff;
+}
+.flatpickr-footer__btn--confirm:hover {
+    filter: brightness(.95);
+}
