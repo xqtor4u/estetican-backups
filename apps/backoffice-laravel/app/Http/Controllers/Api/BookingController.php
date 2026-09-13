@@ -6,6 +6,7 @@ use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
+use App\Domain\Planning\Services\OperatorServiceResolver;
 use App\Domain\Planning\Services\ServiceLineActionService;
 use App\Http\Controllers\Controller;
 use App\Models\Operator;
@@ -25,7 +26,8 @@ class BookingController extends Controller
         private BusinessHours $businessHours,
         private OperatorAvailabilityChecker $operatorAvailabilityChecker,
         private CoverageChecker $coverageChecker,
-        private VaccinationEligibilityChecker $vaccinationChecker
+        private VaccinationEligibilityChecker $vaccinationChecker,
+        private OperatorServiceResolver $operatorServiceResolver
     ) {}
 
     /**
@@ -165,7 +167,7 @@ class BookingController extends Controller
         $serviceRows = collect($data['services'] ?? []);
         $serviceIds = $serviceRows->pluck('id')->all();
         $catalog = $serviceIds
-            ? Service::whereIn('id', $serviceIds)->get(['id', 'name', 'price', 'duration_minutes', 'operator_role_id'])->keyBy('id')
+            ? Service::whereIn('id', $serviceIds)->get(['id', 'name', 'price', 'duration_minutes', 'operator_role_id', 'open_to_all_operators'])->keyBy('id')
             : collect();
 
         // Duración y offset (minutos desde el inicio de la cita) resueltos por línea, en el
@@ -212,30 +214,28 @@ class BookingController extends Controller
                 'service_name' => $catalog->get($row['id'])?->name ?? 'servicio',
             ])->all();
 
-            // Guard de calificación: cada operador debe tener el rol que exige su servicio
-            // (Service.operator_role_id; null = cualquiera). El agendado móvil ya filtra la
-            // lista ofrecida por línea, esto lo vuelve autoritativo por si el cliente trae
-            // un catálogo viejo en caché.
-            if ($catalog->contains(fn ($s) => $s->operator_role_id !== null)) {
-                $operatorIds = $serviceRows
-                    ->map(fn ($row) => (int) ($row['operator_id'] ?? $data['operator_id']))
-                    ->unique();
-                $operators = Operator::whereIn('id', $operatorIds)->with('roles')->get()->keyBy('id');
+            // Guard de calificación (SYNC-073): cada línea, su operador debe poder realizar el
+            // servicio según el resolver — plantilla del rol de puesto ∪ capacidades directas
+            // grant − revoke, o `open_to_all_operators`. Autoritativo por si el cliente trae un
+            // catálogo viejo en caché; el agendado móvil ya ofrece la lista filtrada por línea.
+            $operatorIds = $serviceRows
+                ->map(fn ($row) => (int) ($row['operator_id'] ?? $data['operator_id']))
+                ->unique();
+            $operators = Operator::whereIn('id', $operatorIds)->with('roles')->get()->keyBy('id');
 
-                foreach ($serviceRows as $row) {
-                    $service = $catalog->get($row['id']);
-                    if (! $service || $service->operator_role_id === null) {
-                        continue;
-                    }
-                    $operatorId = (int) ($row['operator_id'] ?? $data['operator_id']);
-                    $operator = $operators->get($operatorId);
-                    if (! $operator || ! $operator->activeRoles()->contains('id', $service->operator_role_id)) {
-                        $operatorName = $operator?->full_name ?? 'El operador';
+            foreach ($serviceRows as $row) {
+                $service = $catalog->get($row['id']);
+                if (! $service) {
+                    continue;
+                }
+                $operatorId = (int) ($row['operator_id'] ?? $data['operator_id']);
+                $operator = $operators->get($operatorId);
+                if (! $operator || ! $this->operatorServiceResolver->canPerform($operator, $service)) {
+                    $operatorName = $operator?->full_name ?? 'El operador';
 
-                        return response()->json([
-                            'message' => "{$operatorName} no está calificado para {$service->name}.",
-                        ], 422);
-                    }
+                    return response()->json([
+                        'message' => "{$operatorName} no está calificado para {$service->name}.",
+                    ], 422);
                 }
             }
 

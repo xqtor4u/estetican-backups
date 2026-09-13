@@ -24,7 +24,7 @@ class ServiceLineWebActionsTest extends TestCase
     {
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz'.uniqid()]);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
-        $service = Service::create(['code' => 'S'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 200, 'duration_minutes' => 30, 'is_active' => true]);
+        $service = Service::create(['code' => 'S'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 200, 'duration_minutes' => 30, 'is_active' => true, 'open_to_all_operators' => true]);
         $booking = SpaBooking::create([
             'pet_id' => $pet->id, 'scheduled_at' => now()->addHours(2),
             'status' => $status, 'total_estimated_price' => 200, 'duration_minutes' => 30,
@@ -62,7 +62,7 @@ class ServiceLineWebActionsTest extends TestCase
     public function test_mark_not_performed_excludes_the_line_from_the_total(): void
     {
         [$booking, $line] = $this->bookingWithLine('work_order');
-        $other = Service::create(['code' => 'S'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 20, 'is_active' => true]);
+        $other = Service::create(['code' => 'S'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 20, 'is_active' => true, 'open_to_all_operators' => true]);
         $booking->services()->create(['service_id' => $other->id, 'current_price' => 100]);
         $booking->update(['total_estimated_price' => 300]);
 
@@ -123,7 +123,7 @@ class ServiceLineWebActionsTest extends TestCase
     public function test_json_request_returns_fresh_line_states_without_a_redirect(): void
     {
         [$booking, $line] = $this->bookingWithLine('work_order');
-        $other = Service::create(['code' => 'S'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 20, 'is_active' => true]);
+        $other = Service::create(['code' => 'S'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 20, 'is_active' => true, 'open_to_all_operators' => true]);
         $line2 = $booking->services()->create(['service_id' => $other->id, 'current_price' => 100]);
 
         $res = $this->actingAs($this->createAdminUser())

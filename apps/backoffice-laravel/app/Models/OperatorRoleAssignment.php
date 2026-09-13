@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\CatalogCache\OperatorServiceCapabilityCache;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,6 +17,13 @@ class OperatorRoleAssignment extends Model
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Cambiar los roles de un operador cambia qué servicios trae por plantilla (SYNC-073).
+        static::saved(static fn () => OperatorServiceCapabilityCache::flush());
+        static::deleted(static fn () => OperatorServiceCapabilityCache::flush());
     }
 
     public function operator(): BelongsTo

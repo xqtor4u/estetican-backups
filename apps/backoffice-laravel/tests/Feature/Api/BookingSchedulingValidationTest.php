@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Models\Client;
 use App\Models\Operator;
 use App\Models\OperatorRole;
+use App\Models\OperatorRoleServiceTemplate;
 use App\Models\OperatorUnavailability;
 use App\Models\OperatorWeeklySchedule;
 use App\Models\Pet;
@@ -232,6 +233,9 @@ class BookingSchedulingValidationTest extends TestCase
             'name' => $name,
             'price' => $price,
             'duration_minutes' => $durationMinutes,
+            // "Servicio que puede hacer cualquiera" — bajo el modelo de capacidades (SYNC-073)
+            // eso es un toggle explícito, ya no el simple `operator_role_id = null`.
+            'open_to_all_operators' => true,
         ]);
     }
 
@@ -390,16 +394,27 @@ class BookingSchedulingValidationTest extends TestCase
 
     /* ── Calificación operador↔servicio (SYNC-043) ─────────────────────────── */
 
+    /**
+     * Servicio que sólo puede hacer quien tenga `$role`: bajo el modelo de capacidades
+     * (SYNC-073) eso es una fila de plantilla `operator_role_service_template`, ya no el
+     * simple `services.operator_role_id`.
+     */
     private function serviceRequiringRole(OperatorRole $role, string $name = 'Consulta', int $durationMinutes = 30): Service
     {
-        return Service::create([
+        $service = Service::create([
             'code' => 'SVC'.uniqid(),
             'type' => 'spa',
             'name' => $name,
             'price' => 100,
             'duration_minutes' => $durationMinutes,
-            'operator_role_id' => $role->id,
         ]);
+
+        OperatorRoleServiceTemplate::create([
+            'operator_role_id' => $role->id,
+            'service_id' => $service->id,
+        ]);
+
+        return $service;
     }
 
     public function test_rejects_a_service_line_whose_operator_lacks_the_required_role(): void

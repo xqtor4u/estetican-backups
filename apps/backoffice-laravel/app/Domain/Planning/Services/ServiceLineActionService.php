@@ -3,6 +3,7 @@
 namespace App\Domain\Planning\Services;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
+use App\Models\Operator;
 use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
 
@@ -37,6 +38,20 @@ class ServiceLineActionService
         }
         if (! empty($data['mark_completed']) && ! $line->started_at) {
             return 'No se puede completar un servicio que no ha iniciado.';
+        }
+
+        // Reasignar operador (SYNC-073): el operador nuevo debe poder realizar el servicio de
+        // la línea (plantilla de rol ∪ capacidades directas − revoke, o open_to_all).
+        if (array_key_exists('operator_id', $data)
+            && $data['operator_id'] !== null
+            && (int) $data['operator_id'] !== (int) $line->operator_id) {
+            $line->loadMissing('service');
+            $operator = Operator::find($data['operator_id']);
+            if ($line->service && (! $operator || ! app(OperatorServiceResolver::class)->canPerform($operator, $line->service))) {
+                $name = $operator?->full_name ?? 'El operador';
+
+                return "{$name} no está calificado para {$line->service->name}.";
+            }
         }
 
         $fill = [];

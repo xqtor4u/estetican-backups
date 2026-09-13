@@ -78,6 +78,8 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::get('/branches', [OperatorController::class, 'branches'])->middleware('permission:ver sucursales');
 
     Route::get('/services', [ServiceController::class, 'index'])->middleware('permission:ver catalogo_servicios');
+    // Operadores que pueden realizar un servicio (SYNC-073) — lo consume el agendado por línea.
+    Route::get('/services/{service}/operators', [ServiceController::class, 'operators'])->middleware('permission:ver agenda');
     Route::get('/items', [ItemController::class, 'index'])->middleware(['store.module', 'permission:ver catalogo_articulos']);
     Route::post('/bookings', [BookingController::class, 'store'])->middleware('permission:crear agenda');
     Route::get('/bookings/{booking}', [BookingController::class,  'show'])->middleware('permission:ver agenda');

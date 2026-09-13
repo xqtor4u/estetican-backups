@@ -42,7 +42,7 @@ class BookingServiceAssignmentTest extends TestCase
     {
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
-        $service = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Cirugía', 'type' => 'extra', 'price' => $price, 'duration_minutes' => 60, 'is_active' => true]);
+        $service = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Cirugía', 'type' => 'extra', 'price' => $price, 'duration_minutes' => 60, 'is_active' => true, 'open_to_all_operators' => true]);
 
         $booking = SpaBooking::create([
             'pet_id' => $pet->id,
@@ -99,7 +99,7 @@ class BookingServiceAssignmentTest extends TestCase
     public function test_syncing_services_on_the_booking_preserves_operator_and_external_cost_of_untouched_lines(): void
     {
         [$booking, $lineA, $serviceA] = $this->bookingWithServiceLine(price: 1000);
-        $serviceB = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 300, 'duration_minutes' => 30, 'is_active' => true]);
+        $serviceB = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 300, 'duration_minutes' => 30, 'is_active' => true, 'open_to_all_operators' => true]);
         $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Vet Externo', 'first_name' => 'Vet', 'is_active' => true]);
 
         // Se asigna operador/costo externo/precio editado a la línea A
@@ -133,7 +133,7 @@ class BookingServiceAssignmentTest extends TestCase
     public function test_syncing_services_removes_lines_no_longer_selected(): void
     {
         [$booking, $lineA, $serviceA] = $this->bookingWithServiceLine();
-        $serviceB = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 300, 'duration_minutes' => 30, 'is_active' => true]);
+        $serviceB = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 300, 'duration_minutes' => 30, 'is_active' => true, 'open_to_all_operators' => true]);
         $booking->services()->create(['service_id' => $serviceB->id, 'current_price' => 300]);
 
         $response = $this->withHeaders($this->apiHeaders())->patchJson("/api/bookings/{$booking->id}", [
@@ -168,7 +168,7 @@ class BookingServiceAssignmentTest extends TestCase
     public function test_editing_one_lines_price_recomputes_the_booking_total_from_all_lines(): void
     {
         [$booking, $lineA, $serviceA] = $this->bookingWithServiceLine(price: 500);
-        $serviceB = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 300, 'duration_minutes' => 30, 'is_active' => true]);
+        $serviceB = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 300, 'duration_minutes' => 30, 'is_active' => true, 'open_to_all_operators' => true]);
         $booking->services()->create(['service_id' => $serviceB->id, 'current_price' => 300]);
         $booking->update(['total_estimated_price' => 800]);
 
@@ -185,8 +185,8 @@ class BookingServiceAssignmentTest extends TestCase
     {
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
-        $bath = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 300, 'duration_minutes' => 30]);
-        $cut = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => 200, 'duration_minutes' => 20]);
+        $bath = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => 300, 'duration_minutes' => 30, 'open_to_all_operators' => true]);
+        $cut = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => 200, 'duration_minutes' => 20, 'open_to_all_operators' => true]);
         $booking = SpaBooking::create([
             'pet_id' => $pet->id,
             'scheduled_at' => now(),
@@ -280,8 +280,8 @@ class BookingServiceAssignmentTest extends TestCase
     {
         $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
         $pet = Pet::create(['client_id' => $client->id, 'name' => 'Luka']);
-        $svcA = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => $a, 'duration_minutes' => 30]);
-        $svcB = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => $b, 'duration_minutes' => 20]);
+        $svcA = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Baño', 'type' => 'spa', 'price' => $a, 'duration_minutes' => 30, 'open_to_all_operators' => true]);
+        $svcB = Service::create(['code' => 'SVC'.uniqid(), 'name' => 'Corte', 'type' => 'spa', 'price' => $b, 'duration_minutes' => 20, 'open_to_all_operators' => true]);
         $booking = SpaBooking::create([
             'pet_id' => $pet->id,
             'scheduled_at' => now(),

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\CatalogCache\OperatorServiceCapabilityCache;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'code',
     'operator_role_id',
+    'open_to_all_operators',
     'account_id',
     'type',
     'department',
@@ -47,7 +49,21 @@ class Service extends Model
             'ai_visible' => 'boolean',
             'is_generic' => 'boolean',
             'is_emergency' => 'boolean',
+            'open_to_all_operators' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Cambiar `open_to_all_operators` altera qué operadores son elegibles — invalidar la
+        // cache de resolución (SYNC-073).
+        static::saved(static function (self $service): void {
+            if ($service->wasChanged('open_to_all_operators')) {
+                OperatorServiceCapabilityCache::flush();
+            }
+        });
+
+        static::deleted(static fn () => OperatorServiceCapabilityCache::flush());
     }
 
     public function executedServiceItems(): HasMany
