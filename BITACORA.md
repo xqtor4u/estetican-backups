@@ -1,5 +1,85 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/09/2026 (cont. 2) — `SYNC-100`/`101`/`102`/`103` portados desde Zeus, cierra la Fase 3 completa de `SYNC-073`
+
+### 📝 Resumen
+
+Continuación directa de la sesión anterior (mismo día): Tomas pidió portar "101/103" y, al
+encontrar la cadena real de dependencias (`103` depende de `100`/`101`/`102`), se confirmó portar
+los 4 juntos, en ese orden. Cierra la Fase 3 completa del arco de capacidades de operador por
+servicio (`SYNC-073`..`103`) — solo queda pendiente el clúster de la barra de tiempo
+(`086`/`090`/`091`/`087`/`088`), bloqueado por razones aparte (ver entrada anterior).
+
+**`SYNC-100` (commit `b61c16b`) — portado.** Guard de calificación de operador al reprogramar una
+cita (`SpaBookingController::update()` web + `Api\BookingController::update()` móvil) — antes
+`update()` no validaba nada, a diferencia de la creación (`SYNC-099`). Sin tests nuevos: la
+fixture existente de `BookingServiceAssignmentTest` ya cubría el caso relevante.
+
+**`SYNC-101` (commit `210dc70`) — portado.** Los `<select>` de operador (alta de cita web, pop-up
+"Asignar Profesional", picker de `MobCitaNueva`) dejan de ofrecer todos los operadores activos —
+solo los realmente calificados (`OperatorServiceResolver::operatorsFor()`). Bug real encontrado de
+paso: `assignProfessional()` no tenía **ningún** guard de backend, aceptaba cualquier operador sin
+validar — mismo hueco que `099`/`100` ya habían cerrado en otros dos puntos de entrada. Bundle
+móvil reconstruido dentro de contenedor `node:20-alpine` (NT-064 — `dist/` de un build anterior
+quedó root-owned, el Node local no podía `emptyOutDir`); `estetican_mob` sirve el bundle nuevo por
+bind-mount directo, confirmado con `docker exec` + `curl` interno (hash `index-Dst0i5uU.js`).
+
+**`SYNC-102` (commit `f2d068a`) — portado.** Fase 3 §4/§5: diálogo "¿congelar como capacidad
+directa?" al quitarle un rol a un operador (modal Bootstrap en `operators/edit.blade.php`,
+default "congelar") + aviso no bloqueante "Ya no figura calificado" en una línea de cita cuyo
+operador perdió la calificación después de agendarse. 6 tests nuevos (`RoleRemovalFreezeTest`) +
+2 en `AssignProfessionalTest`.
+
+**`SYNC-103` (commits `b6faa02` + `88a41de`, este segundo solo por un `git add` que falló a medias
+por una ruta y dejó la mayoría de los archivos sin commitear la primera vez) — portado.** Elimina
+`services.operator_role_id` por completo — migración contract real (`DROP COLUMN`) corrida contra
+la BD. 2 bugs reales del sweep post-implementación, también corregidos: el tag informativo de cada
+tarjeta de servicio en `agenda/create.blade.php` seguía leyendo `$service->operatorRole` (se
+habría mostrado "Cualquier operador" en todos los servicios sin este fix) — reemplazado por
+`$service->roleTemplates->pluck('role.name')` (relación nueva en `Service`). `MODELO_BD.md`
+actualizado: quita la columna, documenta `open_to_all_operators` (nunca se había documentado desde
+`SYNC-073`) y dos tablas (`operator_role_service_template`/`operator_service_capabilities`) quedan
+anotadas como pendientes de su propia sección.
+
+**⚠️ Desviación de proceso, encontrada al cerrar la sesión — no se tomó un respaldo dedicado
+inmediatamente antes del `DROP COLUMN` de `SYNC-103`.** Se usó el respaldo `pre-sync073-099-arco`
+de la sesión anterior (sí cubre `operator_role_id` con sus datos intactos, tomado antes de correr
+cualquier migración de este arco) en vez de uno nuevo "justo antes". Detalle y decisión pendiente
+en `backups/LISTA_RESPALDOS.md`.
+
+**Verificación general:** cada SYNC se corrió con sweep antes/después comparado contra baseline
+real (`git stash`) cuando apareció un fallo nuevo — todas las fallas encontradas en el camino
+(`OperatorBranchSelectionTest`/`OperatorPhotoUploadTest`/`Hotel*`/`Resource*`, ~18 en el sweep más
+amplio) se confirmaron preexistentes, sin relación (redirect a `/login` en requests sin
+autenticar). `ServiceOperatorRoleLinkTest` (4 de esas fallas) se borró junto con `SYNC-103` por
+quedar obsoleto, no arregladas. Pint limpio en todos los archivos tocados. **Los 6 commits de este
+arco (`392faf0`..`88a41de`, más `8200115`/`905ec23`/`f4a047a`/`d3531a0` de la sesión anterior)
+siguen sin pushear** — pendiente de confirmación de Tomas.
+
+### 📁 Archivos principales tocados
+- `app/Http/Controllers/{SpaBookingController,OperatorController,ServiceController}.php`,
+  `app/Http/Controllers/Api/{BookingController,ServiceController,OperatorController}.php`
+- `app/Models/Service.php`
+- `resources/views/{agenda/create,agenda/partials/_work_order,operators/edit,services/index,services/show,services/partials/form}.blade.php`
+- `database/migrations/2026_09_10_180000_drop_operator_role_id_from_services_table.php` (nueva)
+- `tests/Feature/{AssignProfessionalTest,RoleRemovalFreezeTest,OperatorWeeklyScheduleAndUnavailabilityTest,ServiceCrudTest,Agenda/OperatorEligibilitySelectorTest,Api/ServiceCatalogApiTest}.php`
+  (`ServiceOperatorRoleLinkTest.php` borrado)
+- `mob_apps/operador/src/admin/MobCitaNueva.tsx` (+ `dist/` reconstruido)
+- `docs/tecnico/MODELO_BD.md`, `backups/LISTA_RESPALDOS.md`
+
+### 🛑 Pendientes activos
+1. Confirmar `git push` de los 10 commits locales del arco completo (`392faf0`..`88a41de` +
+   `8200115`/`905ec23`/`f4a047a`/`d3531a0`).
+2. Decidir si vale la pena un respaldo de refuerzo post-`DROP` de `SYNC-103` (ver nota de arriba).
+3. Clúster de la barra de tiempo (`086`/`090`/`091`/`087`/`088`) sigue bloqueado — decisión de
+   Tomas pendiente (Playwright real antes de portar, esperar a algo más, o pausar).
+4. `operator_role_service_template`/`operator_service_capabilities` sin su propia sección en
+   `MODELO_BD.md`.
+5. Fase 2 de `SYNC-073` (UI de configuración: plantilla en "Tipos de operador", "Servicios que
+   realiza" en la ficha del operador, "Quién lo realiza" en el catálogo) sigue sin portar.
+
+---
+
 ## 📅 Sesión: 12/09/2026 (cont.) — `SYNC-073`(Fase 1)/`084`/`092`/`099` portados desde Zeus; clúster de la barra (`086`/`090`/`091`/`087`/`088`) sigue bloqueado
 
 ### 📝 Resumen
