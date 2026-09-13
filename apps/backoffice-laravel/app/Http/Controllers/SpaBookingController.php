@@ -8,6 +8,7 @@ use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
+use App\Domain\Planning\Services\OperatorServiceResolver;
 use App\Domain\Planning\Services\ServiceLineActionService;
 use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Mail\ServiceSummaryMail;
@@ -49,7 +50,8 @@ class SpaBookingController extends Controller
         private BusinessHours $businessHours,
         private OperatorAvailabilityChecker $operatorAvailabilityChecker,
         private CoverageChecker $coverageChecker,
-        private VaccinationEligibilityChecker $vaccinationChecker
+        private VaccinationEligibilityChecker $vaccinationChecker,
+        private OperatorServiceResolver $operatorServiceResolver
     ) {}
 
     public function index(Request $request): View
@@ -805,19 +807,18 @@ class SpaBookingController extends Controller
             return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$this->businessHours->openingTime()}–{$this->businessHours->closingTime()}).");
         }
 
-        // Guard de calificación: el operador de cada línea debe tener el rol que exige su servicio.
-        if ($servicesData->contains(fn ($s) => $s->operator_role_id !== null)) {
-            $operatorsById = Operator::whereIn('id', array_values(array_unique($lineOperators)))->with('roles')->get()->keyBy('id');
-            foreach ($servicesData as $service) {
-                if ($service->operator_role_id === null) {
-                    continue;
-                }
-                $operator = $operatorsById->get($lineOperators[$service->id]);
-                if (! $operator || ! $operator->activeRoles()->contains('id', $service->operator_role_id)) {
-                    $operatorName = $operator?->full_name ?? 'El operador';
+        // Guard de calificación (SYNC-099: portado a `OperatorServiceResolver`, antes validaba
+        // solo por rol e ignoraba las capacidades directas de SYNC-073). Cada línea con operador
+        // asignado debe poder realizar su servicio — capacidad directa `grant`, plantilla de un
+        // rol activo, u `open_to_all_operators`. Mismo criterio que el agendado móvil
+        // (`Api\BookingController::store`).
+        $operatorsById = Operator::whereIn('id', array_values(array_unique($lineOperators)))->with('roles')->get()->keyBy('id');
+        foreach ($servicesData as $service) {
+            $operator = $operatorsById->get($lineOperators[$service->id]);
+            if (! $operator || ! $this->operatorServiceResolver->canPerform($operator, $service)) {
+                $operatorName = $operator?->full_name ?? 'El operador';
 
-                    return redirect()->back()->withInput()->with('error', "{$operatorName} no está calificado para {$service->name}.");
-                }
+                return redirect()->back()->withInput()->with('error', "{$operatorName} no está calificado para {$service->name}.");
             }
         }
 

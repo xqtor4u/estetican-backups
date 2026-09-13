@@ -31,6 +31,23 @@
     </x-slot:actions>
 </x-page-header>
 
+{{-- SYNC-099: aviso persistente de rechazo del guardado. Antes, un error de negocio de
+     storeForPet() (operador no calificado, fuera de horario, choque de agenda…) solo salía
+     como toast de 5 s dependiente de JS — invisible en la práctica en esta pantalla pesada. --}}
+@if(session('error') || session('warning') || $errors->any())
+    <div class="alert alert-danger d-flex align-items-start gap-2 mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+        <div>
+            @if(session('error'))<div class="fw-semibold">{{ session('error') }}</div>@endif
+            @if(session('warning'))<div>{{ session('warning') }}</div>@endif
+            @if($errors->any())
+                <div class="fw-semibold">Revisa los datos capturados:</div>
+                <ul class="mb-0">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+            @endif
+        </div>
+    </div>
+@endif
+
 <div class="catalog-content-wide">
     <section class="catalog-overview mb-4">
         <div class="catalog-overview__grid">

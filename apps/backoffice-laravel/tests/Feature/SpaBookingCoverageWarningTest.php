@@ -15,8 +15,8 @@ use Tests\TestCase;
 
 class SpaBookingCoverageWarningTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -38,7 +38,7 @@ class SpaBookingCoverageWarningTest extends TestCase
 
     private function service(): Service
     {
-        return Service::create(['code' => 'BC01', 'name' => 'Baño y corte', 'type' => 'spa', 'price' => 250, 'duration_minutes' => 60]);
+        return Service::create(['code' => 'BC01', 'name' => 'Baño y corte', 'type' => 'spa', 'price' => 250, 'duration_minutes' => 60, 'open_to_all_operators' => true]);
     }
 
     public function test_flashes_a_warning_when_the_pet_is_outside_the_coverage_radius(): void

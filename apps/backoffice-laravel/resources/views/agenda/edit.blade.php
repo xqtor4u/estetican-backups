@@ -19,6 +19,21 @@
     </x-slot:actions>
 </x-page-header>
 
+{{-- SYNC-099: aviso persistente de rechazo del guardado (mismo bloque que agenda/create.blade.php). --}}
+@if(session('error') || session('warning') || $errors->any())
+    <div class="alert alert-danger d-flex align-items-start gap-2 mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+        <div>
+            @if(session('error'))<div class="fw-semibold">{{ session('error') }}</div>@endif
+            @if(session('warning'))<div>{{ session('warning') }}</div>@endif
+            @if($errors->any())
+                <div class="fw-semibold">Revisa los datos capturados:</div>
+                <ul class="mb-0">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+            @endif
+        </div>
+    </div>
+@endif
+
 <div class="catalog-content-wide">
     <div class="row g-4">
         <div class="col-lg-8">

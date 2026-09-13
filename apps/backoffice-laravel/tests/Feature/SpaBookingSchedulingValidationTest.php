@@ -33,7 +33,7 @@ class SpaBookingSchedulingValidationTest extends TestCase
 
     private function service(): Service
     {
-        return Service::create(['code' => 'BC01', 'name' => 'Baño y corte', 'type' => 'spa', 'price' => 250, 'duration_minutes' => 60]);
+        return Service::create(['code' => 'BC01', 'name' => 'Baño y corte', 'type' => 'spa', 'price' => 250, 'duration_minutes' => 60, 'open_to_all_operators' => true]);
     }
 
     public function test_rejects_booking_when_no_service_has_an_operator(): void
@@ -206,8 +206,8 @@ class SpaBookingSchedulingValidationTest extends TestCase
     public function test_per_service_operator_overrides_the_global_operator_on_that_line(): void
     {
         $pet = $this->pet();
-        $bath = Service::create(['code' => 'B01', 'name' => 'Baño', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30]);
-        $cut = Service::create(['code' => 'C01', 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30]);
+        $bath = Service::create(['code' => 'B01', 'name' => 'Baño', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30, 'open_to_all_operators' => true]);
+        $cut = Service::create(['code' => 'C01', 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30, 'open_to_all_operators' => true]);
         $general = $this->op('General');
         $specialist = $this->op('Especialista');
 
@@ -232,8 +232,8 @@ class SpaBookingSchedulingValidationTest extends TestCase
     public function test_per_service_durations_set_the_booking_total_duration(): void
     {
         $pet = $this->pet();
-        $bath = Service::create(['code' => 'B01', 'name' => 'Baño', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30]);
-        $cut = Service::create(['code' => 'C01', 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30]);
+        $bath = Service::create(['code' => 'B01', 'name' => 'Baño', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30, 'open_to_all_operators' => true]);
+        $cut = Service::create(['code' => 'C01', 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30, 'open_to_all_operators' => true]);
         $operator = $this->op('Jose');
 
         $response = $this->actingAs($this->admin())->post(route('pets.bookings.store', $pet), [
@@ -250,8 +250,8 @@ class SpaBookingSchedulingValidationTest extends TestCase
     public function test_a_per_service_operator_with_a_conflict_in_its_own_segment_is_rejected(): void
     {
         $pet = $this->pet();
-        $bath = Service::create(['code' => 'B01', 'name' => 'Baño', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30]);
-        $cut = Service::create(['code' => 'C01', 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30]);
+        $bath = Service::create(['code' => 'B01', 'name' => 'Baño', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30, 'open_to_all_operators' => true]);
+        $cut = Service::create(['code' => 'C01', 'name' => 'Corte', 'type' => 'spa', 'price' => 100, 'duration_minutes' => 30, 'open_to_all_operators' => true]);
         $general = $this->op('General');
         $busy = $this->op('Ocupado');
         $start = now()->addDay()->setTime(11, 0);
