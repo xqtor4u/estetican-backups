@@ -1,5 +1,141 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/09/2026 (cont.) — `SYNC-073`(Fase 1)/`084`/`092`/`099` portados desde Zeus; clúster de la barra (`086`/`090`/`091`/`087`/`088`) sigue bloqueado
+
+### 📝 Resumen
+
+Continuación directa de la sesión anterior (mismo día): Tomas confirmó portar el "arco completo"
+detrás de la barra de tiempo, no solo `SYNC-085`/`086`. Se tomó un respaldo nuevo antes de tocar
+código — `backups/estetican_pre-sync073-099-arco_20260912_1938.sql.gz` /
+`estetican-completo_pre-sync073-099-arco_20260912_1938.tar.gz`, registrados en
+`backups/LISTA_RESPALDOS.md`.
+
+**`SYNC-073` (Fase 1, commit `392faf0`) — portado.** Tablas `operator_role_service_template` +
+`operator_service_capabilities` + `services.open_to_all_operators`, `OperatorServiceResolver`,
+guard de `Api\BookingController::store()` y `ServiceLineActionService::apply()`, endpoint
+`GET /api/services/{service}/operators`. Migración corrida contra la BD real — backfill verificado
+con datos reales (4 vacunas → plantilla Veterinario, `CAP-BANO`/`CAP-CORTE` → 14 capacidades
+`grant`, 0 servicios `spa` con rol nulo). Solo Fase 1 (backend) — Fases 2 (UI) y 3
+(`SYNC-100`..`103`, agendado + elimina `operator_role_id`) siguen sin portar a propósito.
+
+**`SYNC-084` (commit `905ec23`) — portado.** Ventana "Todas" de la agenda abre de la cita más
+reciente a la más vieja.
+
+**`SYNC-092` (commit `f4a047a`) — portado.** Indicador de jaula (🏠) en la tabla de agenda del día.
+
+**`SYNC-099` (commit `d3531a0`) — portado.** Alerta persistente de error en `create`/`edit` de
+citas + guard de `storeForPet()` migrado a `OperatorServiceResolver` (mismo criterio que móvil).
+`update()` (`SYNC-100`) sigue sin guard, no se tocó.
+
+**Clúster de la barra (`SYNC-086`+`090`+`091`+`087`+`088`) — porteo detenido a propósito, sin
+tocar código.** Al leer el `create.blade.php` real de `tst` completo (1359 líneas) para hacer el
+porteo quirúrgico, las mismas funciones JS de arrastre (`attachBlockDrag`, `wireStayBlock`)
+resultaron entrelazadas con `SYNC-095` (9 vueltas de bugs reales de arrastre, ninguno con test
+automatizado — dependen de arrastre de puntero real, verificados en `tst` solo con Playwright) y
+con `SYNC-101`/`103` (Fase 3 de `SYNC-073`, filtro de operadores nuevo). Portar solo lo
+documentado en `086`/`090`/`091` habría reintroducido a propósito bugs de arrastre ya corregidos
+en `tst`, sin manera de verificarlo sin repetir esa sesión de navegador real contra producción.
+Detalle completo en `PENDIENTES_SINCRONIZAR_ESTETICAN.md` (nota en `SYNC-086`). Pendiente decisión
+de Tomas: portar el paquete completo (incluyendo las rondas de `095` que tocan `create.blade.php`)
+con una pasada de Playwright real antes de dar por bueno el arrastre, o esperar a `101`/`103`
+primero.
+
+**Todos los commits de esta sesión (`392faf0`, `905ec23`, `f4a047a`, `d3531a0`) están locales, sin
+`git push`** — igual que `8200115` de la sesión anterior. Pendiente de confirmación de Tomas antes
+de subir a `origin/main`.
+
+**Hallazgo operativo, sin relación con el porteo en sí:** correr `vendor/bin/pint` sin acotar
+reformateó 260 archivos ajenos por drift de estilo preexistente en el repo — se revirtió todo lo
+que no era de este cambio antes de commitear. Vale la pena correr `pint --dirty` o con rutas
+explícitas de aquí en adelante en este repo, no `pint` a secas.
+
+### 📁 Archivos principales tocados
+- `app/Domain/Planning/Services/{OperatorServiceResolver,OperatorServiceBackfill}.php` (nuevos)
+- `app/Models/{OperatorServiceCapability,OperatorRoleServiceTemplate}.php` (nuevos)
+- `app/Support/CatalogCache/OperatorServiceCapabilityCache.php` (nuevo)
+- `database/migrations/2026_08_30_000001_create_operator_service_capability_tables.php` (nuevo)
+- `app/Models/{Service,OperatorRoleAssignment}.php`, `app/Http/Controllers/Api/{BookingController,ServiceController}.php`, `app/Domain/Planning/Services/ServiceLineActionService.php`, `routes/api.php`
+- `app/Http/Controllers/SpaBookingController.php`, `resources/views/agenda/{create,edit,index}.blade.php`
+- `tests/Feature/Agenda/{AgendaTodasDefaultOrderTest,AgendaIndexCageIndicatorTest}.php` (nuevos)
+- `tests/Feature/Api/{BookingSchedulingValidationTest,BookingServiceAssignmentTest}.php`, `tests/Feature/Agenda/ServiceLineWebActionsTest.php`, `tests/Feature/{SpaBookingSchedulingValidationTest,SpaBookingCoverageWarningTest}.php`
+
+### 🛑 Pendientes activos
+1. Confirmar `git push` de los 5 commits locales de porteo (`8200115`, `392faf0`, `905ec23`, `f4a047a`, `d3531a0`).
+2. Decidir el plan para el clúster de la barra (`086`/`090`/`091`/`087`/`088` + rondas de `095` que tocan `create.blade.php`) — ver nota arriba.
+3. Fases 2/3 de `SYNC-073` (`SYNC-100`..`103`) siguen sin portar.
+
+---
+
+## 📅 Sesión: 12/09/2026 — `SYNC-085` portado desde Zeus (formato de hora de la agenda); `SYNC-086` queda bloqueado
+
+### 📝 Resumen
+
+Pedido de Tomas: sincronizar "la barra de tiempo en las citas" que se arregló en `tst`. Al leer
+`PENDIENTES_SINCRONIZAR_ESTETICAN.md` resultó ser dos ítems encadenados — `SYNC-085` (formato de
+hora) y `SYNC-086` (rework completo de la barra de disponibilidad + estancia en jaula). Se hizo
+respaldo previo (dump + tarball de código) desde la sesión de Zeus antes de tocar este repo —
+`backups/estetican_pre-sync085-086_20260912_1832.sql.gz` /
+`estetican-completo_pre-sync085-086_20260912_1832.tar.gz`, registrados en `backups/LISTA_RESPALDOS.md`.
+
+**`SYNC-085` (commit `8200115`) — portado completo.** Sin `git push` todavía — pendiente
+confirmación de Tomas.
+
+**`SYNC-086` — bloqueado, no portado.** Sus propias notas de porteo decían "quirúrgico, no
+volcado del working tree", pero al leer el `create.blade.php` real de `tst` (1359 líneas contra
+487 en prod) resultó estar entrelazado en las mismas funciones JS (`attachBlockDrag`,
+`wireOperatorBlock`, el panel de disponibilidad) con al menos 6 SYNC más que `tst` ya acumuló
+encima y que **no** están en el alcance de este pedido: `SYNC-087` (buscar próximo hueco),
+`SYNC-088` (operador "por asignar"), `SYNC-095` (fix de un bug real de arrastre — el bloque se
+autoredimensionaba en estancias cortas), `SYNC-099` (banner de error persistente), `SYNC-101`/
+`SYNC-103` (sistema de elegibilidad de operador por rol/plantilla, que reemplaza por completo el
+`operatorRole` único que sigue usando este repo). Extraer solo 086 exigía o (a) portar a propósito
+una versión con un bug ya documentado y corregido en `tst` (`SYNC-095`), o (b) arrastrar de
+contrabando piezas de los otros SYNC — ambas cosas violan el alcance del pedido. Se detuvo antes
+de tocar código de 086 y se reportó de vuelta a la sesión de Zeus para que Tomas decida cómo
+armar la siguiente tanda (¿086+087+088+095+099 junto, ¿esperar a que 101/103 también se porten
+primero?).
+
+### `SYNC-085` (commit `8200115`) — la agenda sigue siempre el formato de hora del sistema
+
+- **Origen (Tomas, en `tst`):** *"los horarios no son consistentes, en algunos lados de 24 y en
+  otros de 12; deberían seguir la configuración del sistema siempre"*.
+- **`resources/js/modules/datetime-picker.js`:** ya no fuerza 24h en campos de agendado
+  (`data-force-24h`, confirmado que solo lo usaban `agenda/create.blade.php` y
+  `agenda/edit.blade.php` en este repo, igual que en `tst`) — sigue únicamente
+  `system_time_format`. En 12h se desactiva el tecleo libre (`allowInput`) para no reactivar el
+  parseo ambiguo de "AM/PM" en español que hacía que Flatpickr revirtiera la hora en silencio.
+  Footer "Cancelar"/"Confirmar" nuevo en el pop-up (pedido aparte de Tomas, mismo SYNC) — CSS en
+  `backoffice-blueprints.css`.
+- **`agenda/create.blade.php` + `edit.blade.php`:** quitado `data-force-24h="1"` de
+  `#scheduled_at`; el hint "Horario operativo: X–Y" pasa a usar `$timeFormat` en vez de crudo.
+  El daybar de disponibilidad que YA existía en este repo (versión simple, previa a `SYNC-086`)
+  ganó un helper `fmtHM` para que sus tooltips y las etiquetas de inicio/fin también respeten el
+  ajuste — sin esto la mitad del arreglo hubiera quedado coja mientras 086 sigue sin portar.
+- **`agenda/index.blade.php`:** la ventana de "Operadores no disponibles hoy" (`🔒 …`) pasa de
+  `format('H:i')` crudo a `format($timeFormat)`.
+- **Tests:** `AgendaTimeFormatSyncTest` nuevo (5 casos) — confirma que ya no queda ningún
+  `data-force-24h` en create/edit, que el hint de horario cambia entre 12h/24h según el ajuste, y
+  que la ventana de bloqueo en el índice de agenda también. Sweep `Agenda` **128/128 en verde**
+  (123 de baseline + 5 nuevos, cero regresiones), Pint limpio.
+- **Build de assets:** `npm run build` en `estetican_app` — el bundle JS
+  (`app-3bhl4-6q.js`) salió con **el mismo hash** que el bundle de referencia documentado en
+  `tst` para este mismo cambio, confirmando que el contenido de `datetime-picker.js` quedó
+  idéntico. CSS nuevo `app-n0LnOYb0.css`. `view:clear`/`config:clear` corridos tras el build.
+
+### 📁 Archivos tocados
+- `apps/backoffice-laravel/resources/js/modules/datetime-picker.js`
+- `apps/backoffice-laravel/resources/css/backoffice-blueprints.css`
+- `apps/backoffice-laravel/resources/views/agenda/{create,edit,index}.blade.php`
+- `apps/backoffice-laravel/tests/Feature/Agenda/AgendaTimeFormatSyncTest.php` (nuevo)
+- `apps/backoffice-laravel/public/build/` (bundle recompilado)
+
+### 🛑 Pendientes
+1. **`git push` de `8200115`** — confirmación de Tomas.
+2. **`SYNC-086` sin portar** — necesita que Tomas decida el alcance de la siguiente tanda dado el
+   entrelazamiento real con `SYNC-087/088/095/099/101/103` (ver arriba).
+
+---
+
 ## 📅 Sesión: 11/09/2026 — `SYNC-104` + `SYNC-105` portados desde Zeus
 
 ### 📝 Resumen
