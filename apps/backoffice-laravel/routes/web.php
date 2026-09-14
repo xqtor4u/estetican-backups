@@ -117,6 +117,10 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
         ->middlewareFor(['create', 'store'], 'permission:crear catalogo_servicios')
         ->middlewareFor(['edit', 'update'], 'permission:editar catalogo_servicios')
         ->middlewareFor('destroy', 'permission:eliminar catalogo_servicios');
+    // "Quién lo realiza" (SYNC-073) — toggle abierto-a-todos + capacidades directas por operador.
+    Route::put('services/{service}/eligibility', [ServiceController::class, 'updateEligibility'])->name('services.eligibility.update')->middleware('permission:editar catalogo_servicios');
+    Route::post('services/{service}/operator-capabilities', [ServiceController::class, 'addOperatorCapability'])->name('services.operator-capabilities.store')->middleware('permission:editar catalogo_servicios');
+    Route::delete('services/{service}/operator-capabilities/{operator}', [ServiceController::class, 'removeOperatorCapability'])->name('services.operator-capabilities.destroy')->middleware('permission:editar catalogo_servicios');
     // El maestro de artículos en sí (items.*) es compartido con Veterinaria (Farmacia/Vacunas,
     // ver EnsureStoreOrClinicalModuleEnabled) — accesible con Tienda O Veterinaria activa.
     // Movimientos de inventario y sincronización de catálogo externo siguen siendo exclusivos
@@ -157,6 +161,7 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
         ->middlewareFor(['edit', 'update'], 'permission:editar operadores')
         ->middlewareFor('destroy', 'permission:eliminar operadores');
     Route::post('operators/{operator}/duplicate', [OperatorController::class, 'duplicate'])->name('operators.duplicate')->middleware('permission:crear operadores');
+    Route::put('operators/{operator}/service-capabilities', [OperatorController::class, 'syncServiceCapabilities'])->name('operators.service-capabilities.update')->middleware('permission:editar operadores');
     Route::post('operators/{operator}/unavailabilities', [OperatorUnavailabilityController::class, 'store'])->name('operators.unavailabilities.store')->middleware('permission:editar operadores');
     Route::delete('operators/{operator}/unavailabilities/{unavailability}', [OperatorUnavailabilityController::class, 'destroy'])->name('operators.unavailabilities.destroy')->middleware('permission:editar operadores');
     Route::put('operators/{operator}/google-calendar', [OperatorGoogleCalendarController::class, 'update'])->name('operators.google-calendar.update')->middleware('permission:editar operadores');
@@ -189,6 +194,7 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
         ->middlewareFor(['edit', 'update'], 'permission:editar operadores')
         ->middlewareFor('destroy', 'permission:eliminar operadores');
     Route::post('operator-roles/{operatorRole}/duplicate', [OperatorRoleController::class, 'duplicate'])->name('operator-roles.duplicate')->middleware('permission:crear operadores');
+    Route::put('operator-roles/{operatorRole}/template', [OperatorRoleController::class, 'updateTemplate'])->name('operator-roles.template.update')->middleware('permission:editar operadores');
     Route::post('resources/{resource}/duplicate', [ResourceController::class, 'duplicate'])->name('resources.duplicate')->middleware('permission:crear sucursales');
     Route::post('resources/{resource}/photos', [ResourcePhotoController::class, 'store'])->name('resources.photos.store')->middleware('permission:editar sucursales');
     Route::put('resources/{resource}/photos/{photo}', [ResourcePhotoController::class, 'update'])->name('resources.photos.update')->middleware('permission:editar sucursales');

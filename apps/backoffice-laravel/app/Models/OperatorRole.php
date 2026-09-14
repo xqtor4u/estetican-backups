@@ -53,4 +53,10 @@ class OperatorRole extends Model
     {
         return $this->hasMany(Service::class);
     }
+
+    /** Servicios que trae por defecto quien tenga este rol (SYNC-073). */
+    public function templatedServices(): BelongsToMany
+    {
+        return $this->belongsToMany(Service::class, 'operator_role_service_template')->withTimestamps();
+    }
 }

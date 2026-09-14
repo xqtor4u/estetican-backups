@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Planning\Services\OperatorServiceResolver;
+use App\Models\Operator;
+use App\Models\OperatorServiceCapability;
 use App\Models\Service;
 use App\Support\Pages\ServicesPage;
 use App\Support\Search\TokenSearch;
@@ -103,9 +106,65 @@ class ServiceController extends Controller
         return view('services.show', compact('service'));
     }
 
-    public function edit(Service $service): View
+    public function edit(Service $service, OperatorServiceResolver $resolver): View
     {
-        return view('services.edit', compact('service'));
+        // Panel "Quién lo realiza" (SYNC-073).
+        $eligibleOperators = $resolver->operatorsFor($service)
+            ->map(fn (Operator $o) => [
+                'operator' => $o,
+                'origin' => $resolver->originFor($o, $service),
+            ]);
+        $eligibleIds = $eligibleOperators->pluck('operator.id');
+        $addableOperators = Operator::query()
+            ->where('is_active', true)
+            ->whereNotIn('id', $eligibleIds)
+            ->orderBy('apellido_paterno')->orderBy('first_name')
+            ->get(['id', 'first_name', 'apellido_paterno', 'apellido_materno', 'name']);
+        $templateRoles = $service->roleTemplates()->with('role:id,name')->get()
+            ->pluck('role')->filter()->values();
+
+        return view('services.edit', compact(
+            'service', 'eligibleOperators', 'addableOperators', 'templateRoles'
+        ));
+    }
+
+    /**
+     * Toggle "Abierto a todos los operadores" (SYNC-073, §6.3). Explícito, patrón "arranca
+     * abierto → acota": el admin lo apaga cuando quiere gobernar por plantilla/capacidades.
+     */
+    public function updateEligibility(Request $request, Service $service): RedirectResponse
+    {
+        $validated = $request->validate(['open_to_all_operators' => ['required', 'boolean']]);
+
+        $service->update(['open_to_all_operators' => $validated['open_to_all_operators']]);
+
+        return redirect()->route('services.edit', $service)->with('success', 'Disponibilidad del servicio actualizada.');
+    }
+
+    /** Agrega una capacidad directa `grant` de un operador sobre este servicio (SYNC-073). */
+    public function addOperatorCapability(Request $request, Service $service): RedirectResponse
+    {
+        $validated = $request->validate([
+            'operator_id' => ['required', 'integer', 'exists:operators,id'],
+        ]);
+
+        OperatorServiceCapability::updateOrCreate(
+            ['operator_id' => $validated['operator_id'], 'service_id' => $service->id],
+            ['mode' => OperatorServiceCapability::MODE_GRANT, 'created_by_user_id' => $request->user()?->id],
+        );
+
+        return redirect()->route('services.edit', $service)->with('success', 'Operador agregado al servicio.');
+    }
+
+    /** Quita la capacidad directa de un operador sobre este servicio (grant o revoke). */
+    public function removeOperatorCapability(Service $service, Operator $operator): RedirectResponse
+    {
+        OperatorServiceCapability::query()
+            ->where('service_id', $service->id)
+            ->where('operator_id', $operator->id)
+            ->delete();
+
+        return redirect()->route('services.edit', $service)->with('success', 'Capacidad directa eliminada.');
     }
 
     public function update(Request $request, Service $service): RedirectResponse
@@ -128,6 +187,13 @@ class ServiceController extends Controller
         return redirect()->route('services.edit', $duplicate)->with('success', 'Servicio duplicado. Revisa código, nombre y detalles antes de activarlo.');
     }
 
+    /**
+     * ZEUS-027: si el servicio ya se usó (grupo, presupuesto, cita, o servicio ejecutado),
+     * borrarlo de verdad borraría esas líneas históricas en cascada (ver
+     * `Service::hasHistoricalUsage()`) — en vez de eso se suspende (`is_active = false`, ya lo
+     * saca de todos los selectores de alta) y el historial existente queda intacto. Solo se
+     * borra de verdad si no hay ningún uso.
+     */
     public function destroy(Service $service): RedirectResponse
     {
         if ($service->hasHistoricalUsage()) {

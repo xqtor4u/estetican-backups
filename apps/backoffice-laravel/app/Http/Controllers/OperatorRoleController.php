@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\OperatorRole;
+use App\Models\Service;
+use App\Support\CatalogCache\OperatorServiceCapabilityCache;
 use App\Support\Search\TokenSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,11 +21,11 @@ class OperatorRoleController extends Controller
         $sort = $request->query('sort');
         $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
 
-        if (!in_array($status, ['all', 'active', 'inactive'], true)) {
+        if (! in_array($status, ['all', 'active', 'inactive'], true)) {
             $status = 'all';
         }
 
-        if (!in_array($sort, ['code', 'name', 'rate', 'assignments', 'status'], true)) {
+        if (! in_array($sort, ['code', 'name', 'rate', 'assignments', 'status'], true)) {
             $sort = null;
         }
 
@@ -64,7 +66,7 @@ class OperatorRoleController extends Controller
     {
         $copySourceId = (int) $request->query('copy_from');
         $copySource = $copySourceId ? OperatorRole::find($copySourceId) : null;
-        
+
         $existingRoles = OperatorRole::orderBy('name')->get(['id', 'name', 'code']);
         $returnTo = $request->query('return_to');
 
@@ -95,7 +97,34 @@ class OperatorRoleController extends Controller
 
     public function edit(OperatorRole $operatorRole): View
     {
-        return view('operator-roles.edit', compact('operatorRole'));
+        $operatorRole->load('templatedServices:id');
+        $templateServices = Service::query()
+            ->where('is_active', true)
+            ->orderBy('type')
+            ->orderBy('name')
+            ->get(['id', 'name', 'type']);
+        $templateServiceIds = $operatorRole->templatedServices->pluck('id')->all();
+
+        return view('operator-roles.edit', compact('operatorRole', 'templateServices', 'templateServiceIds'));
+    }
+
+    /**
+     * Plantilla de servicios del rol (SYNC-073): los servicios que trae por defecto quien tenga
+     * este rol de puesto. En la práctica sólo `veterinario` la usa de entrada (→ vacunas).
+     */
+    public function updateTemplate(Request $request, OperatorRole $operatorRole): RedirectResponse
+    {
+        $validated = $request->validate([
+            'template_service_ids' => ['array'],
+            'template_service_ids.*' => ['integer', 'exists:services,id'],
+        ]);
+
+        $operatorRole->templatedServices()->sync($validated['template_service_ids'] ?? []);
+        OperatorServiceCapabilityCache::flush();
+
+        return redirect()
+            ->route('operator-roles.edit', $operatorRole)
+            ->with('success', 'Servicios de la plantilla actualizados.');
     }
 
     public function update(Request $request, OperatorRole $operatorRole): RedirectResponse
@@ -121,11 +150,11 @@ class OperatorRoleController extends Controller
     private function buildDuplicateCode(string $code): string
     {
         $baseCode = strtoupper(trim($code));
-        $candidate = $baseCode . '-COPY';
+        $candidate = $baseCode.'-COPY';
         $suffix = 2;
 
         while (OperatorRole::where('code', $candidate)->exists()) {
-            $candidate = $baseCode . '-COPY-' . $suffix;
+            $candidate = $baseCode.'-COPY-'.$suffix;
             $suffix++;
         }
 
@@ -135,11 +164,11 @@ class OperatorRoleController extends Controller
     private function buildDuplicateName(string $name): string
     {
         $baseName = Str::of($name)->replaceLast(' (copia)', '')->toString();
-        $candidate = $baseName . ' (copia)';
+        $candidate = $baseName.' (copia)';
         $suffix = 2;
 
         while (OperatorRole::where('name', $candidate)->exists()) {
-            $candidate = $baseName . ' (copia ' . $suffix . ')';
+            $candidate = $baseName.' (copia '.$suffix.')';
             $suffix++;
         }
 
@@ -156,9 +185,9 @@ class OperatorRoleController extends Controller
     private function rules(?OperatorRole $operatorRole = null): array
     {
         return [
-            'code'     => ['required', 'string', 'max:255', Rule::unique('operator_roles', 'code')->ignore($operatorRole?->id)],
-            'acronym'  => ['nullable', 'string', 'size:3', 'regex:/^[A-Z0-9]{3}$/', Rule::unique('operator_roles', 'acronym')->ignore($operatorRole?->id)],
-            'name'     => ['required', 'string', 'max:255', Rule::unique('operator_roles', 'name')->ignore($operatorRole?->id)],
+            'code' => ['required', 'string', 'max:255', Rule::unique('operator_roles', 'code')->ignore($operatorRole?->id)],
+            'acronym' => ['nullable', 'string', 'size:3', 'regex:/^[A-Z0-9]{3}$/', Rule::unique('operator_roles', 'acronym')->ignore($operatorRole?->id)],
+            'name' => ['required', 'string', 'max:255', Rule::unique('operator_roles', 'name')->ignore($operatorRole?->id)],
             'description' => 'nullable|string',
             'default_hourly_rate' => 'nullable|numeric|min:0',
             'is_active' => 'nullable|boolean',
@@ -169,7 +198,7 @@ class OperatorRoleController extends Controller
     private function preparePayload(array $validated): array
     {
         return [
-            'code'    => strtoupper(trim($validated['code'])),
+            'code' => strtoupper(trim($validated['code'])),
             'acronym' => isset($validated['acronym']) && $validated['acronym'] !== ''
                 ? strtoupper(trim($validated['acronym']))
                 : null,
@@ -179,20 +208,20 @@ class OperatorRoleController extends Controller
             'default_hourly_rate' => isset($validated['default_hourly_rate']) && $validated['default_hourly_rate'] !== null && $validated['default_hourly_rate'] !== ''
                 ? number_format((float) $validated['default_hourly_rate'], 2, '.', '')
                 : null,
-            'is_active' => !empty($validated['is_active']),
-            'can_login' => !empty($validated['can_login']),
+            'is_active' => ! empty($validated['is_active']),
+            'can_login' => ! empty($validated['can_login']),
         ];
     }
 
     private function sanitizeReturnTo(?string $returnTo): ?string
     {
-        if (!$returnTo) {
+        if (! $returnTo) {
             return null;
         }
 
         $appUrl = rtrim((string) config('app.url'), '/');
 
-        if ($appUrl !== '' && Str::startsWith($returnTo, $appUrl . '/')) {
+        if ($appUrl !== '' && Str::startsWith($returnTo, $appUrl.'/')) {
             return $returnTo;
         }
 

@@ -28,6 +28,7 @@
     </div>
 </div>
 
+@include('operators.partials.service_capabilities', ['operator' => $operator, 'serviceCapabilityRows' => $serviceCapabilityRows])
 @include('operators.partials.unavailabilities', ['operator' => $operator])
 @include('operators.partials.google_calendar', ['operator' => $operator])
 

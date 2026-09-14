@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Planning\Services\OperatorServiceResolver;
 use App\Models\Branch;
 use App\Models\Operator;
 use App\Models\OperatorRole;
 use App\Models\OperatorRoleServiceTemplate;
 use App\Models\OperatorServiceCapability;
 use App\Models\Service;
+use App\Support\CatalogCache\OperatorServiceCapabilityCache;
 use App\Support\OperatorPhotoImageManager;
 use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\BusinessHours;
@@ -194,6 +196,7 @@ class OperatorController extends Controller
             'operator' => $operator,
             'availableRoles' => $availableRoles,
             'availableBranches' => $availableBranches,
+            'serviceCapabilityRows' => $this->serviceCapabilityRows($operator),
             'roleRemovalFreezeData' => $this->roleRemovalFreezeData($operator, $availableRoles),
             'suggestAreaCode' => $systemSettings->all()['commercial_clients_suggest_area_code'] ?? false,
             'defaultAreaCode' => $systemSettings->all()['commercial_clients_default_area_code'] ?? '',
@@ -444,6 +447,11 @@ class OperatorController extends Controller
                 'starts_at' => now(),
             ]);
         }
+
+        // Cambiar los roles cambia qué trae por plantilla — pero NO toca las capacidades directas
+        // (`operator_service_capabilities`, sin cascada desde `operator_role_assignments`).
+        // El `->delete()` de arriba no dispara eventos de modelo, así que el flush va explícito.
+        OperatorServiceCapabilityCache::flush();
     }
 
     /**
@@ -495,6 +503,94 @@ class OperatorController extends Controller
                 ['mode' => OperatorServiceCapability::MODE_GRANT, 'note' => 'Congelado al quitar un rol de operador (SYNC-102)']
             );
         }
+    }
+
+    /**
+     * Filas para el panel "Servicios que realiza" (SYNC-073, §6.2): cada servicio activo con si
+     * el operador lo puede hacer y de dónde le viene (plantilla de rol / capacidad directa /
+     * abierto a todos).
+     *
+     * @return Collection<int, array{service: Service, can: bool, origin: string, locked: bool}>
+     */
+    private function serviceCapabilityRows(Operator $operator): Collection
+    {
+        $resolver = app(OperatorServiceResolver::class);
+
+        return Service::query()
+            ->where('is_active', true)
+            ->orderBy('type')->orderBy('name')
+            ->get()
+            ->map(function (Service $service) use ($operator, $resolver): array {
+                $origin = $resolver->originFor($operator, $service);
+
+                return [
+                    'service' => $service,
+                    'can' => $resolver->canPerform($operator, $service),
+                    'origin' => $origin,
+                    // Un servicio abierto a todos no se acota desde acá (el toggle gana siempre).
+                    'locked' => $origin === 'open_to_all',
+                ];
+            });
+    }
+
+    /**
+     * Guarda las capacidades directas del operador (SYNC-073, §6.2). Para cada servicio activo:
+     *  - si el estado deseado coincide con lo que aporta la plantilla → se borra la fila (alineado)
+     *  - si se quiere y la plantilla no lo da → fila `grant`
+     *  - si no se quiere y la plantilla lo da → fila `revoke`
+     * Los servicios "abiertos a todos" se ignoran (no se pueden acotar por persona).
+     */
+    public function syncServiceCapabilities(Request $request, Operator $operator): RedirectResponse
+    {
+        $validated = $request->validate([
+            'service_ids' => ['array'],
+            'service_ids.*' => ['integer', 'exists:services,id'],
+        ]);
+
+        $wanted = collect($validated['service_ids'] ?? [])->map(fn ($id) => (int) $id)->flip();
+
+        $roleIds = $operator->activeRoles()->pluck('id');
+        $templateServiceIds = $roleIds->isEmpty()
+            ? collect()
+            : OperatorRoleServiceTemplate::query()
+                ->whereIn('operator_role_id', $roleIds)
+                ->pluck('service_id')
+                ->flip();
+
+        $existing = OperatorServiceCapability::query()
+            ->where('operator_id', $operator->id)
+            ->get()
+            ->keyBy('service_id');
+
+        Service::query()
+            ->where('is_active', true)
+            ->where('open_to_all_operators', false)
+            ->get(['id'])
+            ->each(function (Service $service) use ($operator, $wanted, $templateServiceIds, $existing, $request): void {
+                $wantCan = $wanted->has($service->id);
+                $inTemplate = $templateServiceIds->has($service->id);
+                $row = $existing->get($service->id);
+
+                if ($wantCan === $inTemplate) {
+                    $row?->delete();
+
+                    return;
+                }
+
+                OperatorServiceCapability::updateOrCreate(
+                    ['operator_id' => $operator->id, 'service_id' => $service->id],
+                    [
+                        'mode' => $wantCan
+                            ? OperatorServiceCapability::MODE_GRANT
+                            : OperatorServiceCapability::MODE_REVOKE,
+                        'created_by_user_id' => $request->user()?->id,
+                    ],
+                );
+            });
+
+        return redirect()
+            ->route('operators.edit', $operator)
+            ->with('success', 'Servicios que realiza el operador actualizados.');
     }
 
     private function syncPrimaryBranch(Operator $operator, mixed $branchId): void
