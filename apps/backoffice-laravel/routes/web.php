@@ -56,12 +56,28 @@ use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserSettingsController;
 use App\Http\Controllers\WhatsAppTemplateController;
+use App\Support\Navigation\MainNavigation;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return auth()->check()
-        ? redirect()->route('dashboard.index')
-        : redirect()->route('login');
+    if (! auth()->check()) {
+        return redirect()->route('login');
+    }
+
+    $user = auth()->user();
+
+    if ($user->can('ver dashboard') || $user->is_super_admin) {
+        return redirect()->route('dashboard.index');
+    }
+
+    // EST-019: antes de esto, cualquier usuario sin `ver dashboard` (aunque tuviera permisos
+    // para otras secciones) caía siempre en /dashboard y quedaba atrapado en la pantalla de
+    // "Acceso restringido" sin salida real. Ahora aterriza en la primera sección del menú a la
+    // que sí tiene acceso; si no tiene ninguna, cae en su propia configuración de cuenta (sin
+    // permiso asociado, siempre disponible).
+    $fallback = MainNavigation::mobileLinks()[0]['route'] ?? null;
+
+    return redirect($fallback ?? route('user.settings'));
 })->name('home');
 
 Route::get('login', [LoginController::class, 'showLoginForm'])->name('login');
