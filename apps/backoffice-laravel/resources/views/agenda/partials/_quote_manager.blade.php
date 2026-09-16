@@ -106,6 +106,9 @@
                 },
                 removeItem(index) {
                     this.items.splice(index, 1);
+                },
+                subtotal() {
+                    return this.items.reduce((sum, item) => sum + (parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 0), 0);
                 }
             }">
                 <div class="row g-3 mb-4">
@@ -148,6 +151,13 @@
                             </div>
                         </div>
                     </template>
+                </div>
+
+                {{-- EST-041 (auditoría 14/09/2026): subtotal visible antes de guardar — antes no
+                había ninguna cifra resumen en el armador, solo notas y "Guardar Presupuesto". --}}
+                <div class="d-flex justify-content-end align-items-center gap-2 mb-3 pb-2 border-bottom">
+                    <span class="text-body-secondary">Subtotal de la propuesta</span>
+                    <span class="h5 mb-0 fw-bold text-success" x-text="'$' + subtotal().toFixed(2)"></span>
                 </div>
 
                 <div class="p-3 border rounded-3 bg-white mb-3">
