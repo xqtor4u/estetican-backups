@@ -28,6 +28,10 @@ trait CreatesRestrictedOperatorUser
             'is_active' => true,
             'can_login' => true,
             'operator_id' => $operator?->id,
+            // EST-023: la agenda/scoping propios ahora exigen `is_operator` activo, no solo el
+            // vínculo `operator_id` (ver `User::activeOperatorId()`) — un "operador restringido"
+            // de prueba siempre debe ser uno vigente cuando se le pasa un Operator real.
+            'is_operator' => $operator !== null,
         ]);
 
         if ($permissions !== []) {

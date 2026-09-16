@@ -3,9 +3,11 @@
 namespace Tests\Feature\Api;
 
 use App\Models\ApiToken;
+use App\Models\Operator;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -48,7 +50,7 @@ class ProfileTest extends TestCase
             'first_name' => 'Anita',
             'apellido_paterno' => 'Ruiz',
             'apellido_materno' => 'Gómez',
-            'email'      => 'anita.updated@example.com',
+            'email' => 'anita.updated@example.com',
         ], $headers);
 
         $response->assertOk();
@@ -70,7 +72,7 @@ class ProfileTest extends TestCase
 
         $response = $this->patchJson('/api/me', [
             'first_name' => 'Ana',
-            'email'      => 'taken@example.com',
+            'email' => 'taken@example.com',
         ], $headers);
 
         $response->assertStatus(422);
@@ -102,7 +104,7 @@ class ProfileTest extends TestCase
         ], $headers);
 
         $response->assertOk();
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('nueva123', $user->fresh()->password));
+        $this->assertTrue(Hash::check('nueva123', $user->fresh()->password));
     }
 
     public function test_verify_password_succeeds_with_correct_password_and_does_not_change_it(): void
@@ -114,7 +116,7 @@ class ProfileTest extends TestCase
 
         $response->assertOk();
         $response->assertJson(['ok' => true]);
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('secret123', $user->fresh()->password));
+        $this->assertTrue(Hash::check('secret123', $user->fresh()->password));
     }
 
     public function test_verify_password_rejects_wrong_password(): void
@@ -149,8 +151,8 @@ class ProfileTest extends TestCase
 
     public function test_me_exposes_linked_operator_id(): void
     {
-        $operator = \App\Models\Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
-        $user = $this->makeUser(['operator_id' => $operator->id]);
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $user = $this->makeUser(['operator_id' => $operator->id, 'is_operator' => true]);
         $headers = $this->loginAs($user);
 
         $response = $this->getJson('/api/me', $headers);
@@ -168,5 +170,21 @@ class ProfileTest extends TestCase
 
         $response->assertOk();
         $response->assertJson(['operator_id' => null]);
+    }
+
+    /**
+     * EST-023 (auditoría 14/09/2026): apagar "¿Es personal operativo?" conserva el vínculo
+     * histórico (`operator_id`) pero la API ya no debe identificar la sesión como ese operador.
+     */
+    public function test_me_hides_operator_id_when_is_operator_is_off_despite_the_link(): void
+    {
+        $operator = Operator::create(['code' => 'OP'.uniqid(), 'name' => 'Jose', 'first_name' => 'Jose', 'is_active' => true]);
+        $user = $this->makeUser(['operator_id' => $operator->id, 'is_operator' => false]);
+        $headers = $this->loginAs($user);
+
+        $response = $this->getJson('/api/me', $headers);
+
+        $response->assertOk();
+        $response->assertJson(['operator_id' => null, 'operator_role' => null]);
     }
 }

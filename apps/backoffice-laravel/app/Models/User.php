@@ -179,6 +179,18 @@ class User extends Authenticatable
         return false;
     }
 
+    /**
+     * `operator_id` es el vínculo histórico con un `Operator` — se conserva a propósito aunque
+     * se apague "¿Es personal operativo?" (ver `hasHistoricalDependencies()` arriba, que sigue
+     * leyendo la columna cruda). Para autorización/alcance en vivo (agenda propia, API móvil)
+     * hay que usar este método en su lugar: si el interruptor está apagado, el usuario deja de
+     * actuar como ese operador aunque el vínculo siga guardado (EST-023, auditoría 14/09/2026).
+     */
+    public function activeOperatorId(): ?int
+    {
+        return $this->is_operator ? $this->operator_id : null;
+    }
+
     /** Forma compartida del usuario para respuestas de la API móvil (login/me/perfil) */
     public function toApiArray(): array
     {
@@ -205,8 +217,8 @@ class User extends Authenticatable
             'can_view_pets' => $this->can('ver mascotas') || $this->is_super_admin,
             'can_view_operators' => $this->can('ver operadores') || $this->is_super_admin,
             'can_view_articulos' => $this->can('ver catalogo_articulos') || $this->is_super_admin,
-            'operator_id' => $this->operator_id,
-            'operator_role' => $this->operatorRole?->name,
+            'operator_id' => $this->activeOperatorId(),
+            'operator_role' => $this->is_operator ? $this->operatorRole?->name : null,
             'photo_url' => $this->profile_photo_url,
         ];
     }

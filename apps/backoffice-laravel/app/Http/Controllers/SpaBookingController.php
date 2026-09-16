@@ -692,7 +692,8 @@ class SpaBookingController extends Controller
             return null;
         }
 
-        return $user->operator_id ?: -1;
+        // EST-023 (auditoría 14/09/2026): activeOperatorId(), no la columna cruda.
+        return $user->activeOperatorId() ?: -1;
     }
 
     /**

@@ -112,7 +112,10 @@ class SpaBooking extends Model
             return $query;
         }
 
-        $operatorId = $user->operator_id;
+        // EST-023 (auditoría 14/09/2026): usa activeOperatorId(), no la columna cruda — con
+        // "¿Es personal operativo?" apagado el vínculo histórico se conserva, pero deja de
+        // autorizar agenda propia en vivo.
+        $operatorId = $user->activeOperatorId();
 
         if (! $operatorId) {
             return $query->whereRaw('1 = 0');

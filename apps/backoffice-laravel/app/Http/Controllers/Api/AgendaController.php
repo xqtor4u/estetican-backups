@@ -175,10 +175,12 @@ class AgendaController extends Controller
         $operatorId = $request->query('operator_id') ? (int) $request->query('operator_id') : null;
 
         if (! $canViewAll) {
-            if (! $user->operator_id) {
+            // EST-023: activeOperatorId(), no la columna cruda — con "¿Es personal operativo?"
+            // apagado el usuario deja de autorizar su propia agenda en vivo.
+            if (! $user->activeOperatorId()) {
                 return response()->json([]);
             }
-            $operatorId = $user->operator_id;
+            $operatorId = $user->activeOperatorId();
         }
 
         $anchor = Carbon::parse($request->query('date', now()->toDateString()));
