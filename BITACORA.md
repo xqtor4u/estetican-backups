@@ -1,5 +1,54 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 27/09/2026 — Versión visible automática (`SYNC-006`) + `SYNC-108a` descartado como emergencia
+
+### 📝 Resumen
+
+**Hueco en esta bitácora, aclarado:** las sesiones del **13/09** (porteo de `SYNC-086`..`098`,
+`106`, `107` y `SYNC-073` Fase 2, commits `739713a`..`aadc1d5`) y del **15/09** (Tanda A de la
+auditoría QA/UX: `EST-041` `496dab3`, `EST-019` `50ad518`, `EST-023` `644d3ec`) tocaron este repo
+pero solo quedaron registradas en `/opt/www/zeus-estetican/BITACORA.md`. Todo eso está pusheado a
+`origin/main`. Ver el detalle allá.
+
+**`SYNC-108a` (Zeus) — revisado, no es emergencia.** `User::toApiArray()` de producción no trae
+`can_close_caja` ni `can_view_agenda`, pero nada en producción los lee: ni `mob_apps/operador/src`
+ni el bundle realmente servido por `estetican_mob` (`index-Dst0i5uU.js`, bind-mount de `dist/`).
+Origen en `tst` (vía `git log -S`): `can_close_caja` viene de `b5088a1` (ZEUS-034/035, cerrar turno
+de caja desde el móvil — feature completa nunca portada); `can_view_agenda` viene del commit de
+`EST-023` en `tst` (`c74c877`), con su único consumidor aún sin commitear en `GlobalAgenda.tsx`
+(trabajo a medias, probablemente `EST-001`). Entran solos cuando se promuevan esas features.
+
+**Versión visible del backoffice (`SYNC-006`, commit `e666492`).** Tomas reportó que la navegación
+seguía mostrando `v.260426-2225`: estaba literal en `config/backoffice.php` desde el respaldo del
+15/05 y nunca se actualizaba. Ahora `brand.version` lee `apps/backoffice-laravel/VERSION` (no
+versionado), que regeneran los hooks `post-commit`/`post-merge`/`post-checkout`/`post-rewrite` con
+la fecha del commit actual (`scripts/git-hooks/escribir_version.sh`, instalados con
+`scripts/git-hooks/instalar.sh`). Verificado: `config('backoffice.brand.version')` dentro de
+`estetican_app` devuelve el valor nuevo y el hook se disparó solo al commitear. Mismo fix aplicado
+y commiteado en `tst` (`a0a5ea1`), solo los archivos del fix — el trabajo sin commitear de
+ZEUS-043/SYNC-107 en `tst` quedó intacto. Paso agregado al checklist de deploy
+(`ESTRATEGIA_DESARROLLO.md` §7.1).
+
+**Rutas:** esta sesión no creó ni tocó rutas (regla de seguridad #3 — sin nada que clasificar).
+
+### 📁 Archivos principales tocados
+- `apps/backoffice-laravel/config/backoffice.php`, `apps/backoffice-laravel/.gitignore`
+- `scripts/git-hooks/{escribir_version,instalar}.sh` (nuevos)
+- `docs/tecnico/{ESTRATEGIA_DESARROLLO,PENDIENTES_SINCRONIZAR_TENANTS,BACKLOG}.md`
+- `tst`: `config/backoffice.php`, `.gitignore`, `scripts/git-hooks/` (commit `a0a5ea1`)
+
+### 🛑 Pendientes activos
+1. **`git push`** de este repo y de `tst` — el clasificador de auto mode bloqueó el push; lo hace
+   Tomas a mano.
+2. Versión visible en la app móvil (`package.json` = `0.0.0`) — no emergencia, se construye en
+   `tst`. Quedó sin hacer en esta sesión (el clasificador bloqueó la exploración de `tst/mobile`).
+3. Anotar en `PENDIENTES_SINCRONIZAR_ESTETICAN.md` (Zeus) el resultado de `SYNC-108a` y limpiar las
+   notas de cabecera que siguen diciendo "sin portar" en `SYNC-096`..`106` (ya portados).
+4. `SYNC-108b` (`mobile_screen_lock_idle_minutes`) y `108c` (campo `phone` en la agenda móvil) en
+   la cola normal de porteo; ZEUS-043 espera la prueba de Tomas en su teléfono contra `tstmov`.
+
+---
+
 ## 📅 Sesión: 12/09/2026 (cont. 2) — `SYNC-100`/`101`/`102`/`103` portados desde Zeus, cierra la Fase 3 completa de `SYNC-073`
 
 ### 📝 Resumen
