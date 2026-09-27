@@ -29,23 +29,43 @@ y commiteado en `tst` (`a0a5ea1`), solo los archivos del fix — el trabajo sin 
 ZEUS-043/SYNC-107 en `tst` quedó intacto. Paso agregado al checklist de deploy
 (`ESTRATEGIA_DESARROLLO.md` §7.1).
 
-**Rutas:** esta sesión no creó ni tocó rutas (regla de seguridad #3 — sin nada que clasificar).
+**ZEUS-043 portado a producción (commit `5f0913f`), a pedido explícito de Tomas** ("ya están
+totalmente desincronizados… al dejar una etapa funcional en tst sin portear se van acumulando").
+Al probar en `tstmov` se vio que el prototipo `DraggableSlotGrid` había perdido la leyenda y los
+estados de `SYNC-064/066/067` que `mov` sí tenía — corregido primero en `tst` (prop
+`slotAppearance`, commit `3c07cdf`, + `SYNC-107` commiteado aparte en `caa4b1f`). El porteo
+arrastró la **Fase 1 (backend)** que nunca había llegado a prod: `availabilitySummary()` movido de
+`SpaBookingController` a `ResourceAllocationService`, `Api\ResourceController` nuevo, `resource_id`
+en `Api\BookingController`. 4 archivos copiados tal cual (solo diferían en Fase 1 + formato Pint),
+`SpaBookingController`/`routes/api.php` a mano (tienen divergencias ajenas). Fase 2
+(`TimelineBar`) descartada, no se porta. Sin migraciones. 12 tests nuevos en verde; suite completa
+866 ok / 33 fallas, idénticas en número y patrón al baseline del 15/09. Bundle móvil
+`index-CzbR-rx1.js` compilado en contenedor `node:20-alpine` (NT-064) y confirmado servido por
+`estetican_mob` y por el dominio público.
+
+**Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
+`GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
+(categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,
+legítimamente visibles para cualquiera con `ver agenda` (excepción de la regla #2).
 
 ### 📁 Archivos principales tocados
 - `apps/backoffice-laravel/config/backoffice.php`, `apps/backoffice-laravel/.gitignore`
 - `scripts/git-hooks/{escribir_version,instalar}.sh` (nuevos)
 - `docs/tecnico/{ESTRATEGIA_DESARROLLO,PENDIENTES_SINCRONIZAR_TENANTS,BACKLOG}.md`
 - `tst`: `config/backoffice.php`, `.gitignore`, `scripts/git-hooks/` (commit `a0a5ea1`)
+- ZEUS-043: `app/Domain/Resources/{Contracts,Services}/ResourceAllocation*.php`,
+  `app/Http/Controllers/{SpaBookingController,Api/BookingController,Api/ResourceController}.php`,
+  `routes/api.php`, `tests/Feature/Api/{ResourceEndpoints,BookingResourceAssignment}Test.php`,
+  `mob_apps/operador/src/admin/{DraggableSlotGrid,MobCitaNueva}.tsx`
 
 ### 🛑 Pendientes activos
 1. **`git push`** de este repo y de `tst` — el clasificador de auto mode bloqueó el push; lo hace
    Tomas a mano.
-2. Versión visible en la app móvil (`package.json` = `0.0.0`) — no emergencia, se construye en
+2. Pasada de Tomas en `mov` real sobre la cuadrícula nueva (ZEUS-043) + push de `5f0913f`.
+3. Versión visible en la app móvil (`package.json` = `0.0.0`) — no emergencia, se construye en
    `tst`. Quedó sin hacer en esta sesión (el clasificador bloqueó la exploración de `tst/mobile`).
-3. Anotar en `PENDIENTES_SINCRONIZAR_ESTETICAN.md` (Zeus) el resultado de `SYNC-108a` y limpiar las
-   notas de cabecera que siguen diciendo "sin portar" en `SYNC-096`..`106` (ya portados).
 4. `SYNC-108b` (`mobile_screen_lock_idle_minutes`) y `108c` (campo `phone` en la agenda móvil) en
-   la cola normal de porteo; ZEUS-043 espera la prueba de Tomas en su teléfono contra `tstmov`.
+   la cola normal de porteo.
 
 ---
 
