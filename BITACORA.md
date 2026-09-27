@@ -43,6 +43,15 @@ en `Api\BookingController`. 4 archivos copiados tal cual (solo diferían en Fase
 `index-CzbR-rx1.js` compilado en contenedor `node:20-alpine` (NT-064) y confirmado servido por
 `estetican_mob` y por el dominio público.
 
+**Botón de WhatsApp en `MobCitaDet` (commit `80369a8`, `6d9c6dd` en `tst`), pedido de Tomas,
+construido en `tst` y portado el mismo día.** En "Acciones" de la cita (cualquier estado), abre
+`WhatsAppMessageSheet`: mensaje directo en blanco o plantilla; desde una cita suma las plantillas
+de contexto "cita" resueltas con esa cita. `booking_id` opcional en `/whatsapp-templates` y
+`/clients/{client}/whatsapp-link` (cita visible para el usuario vía `visibleTo` y del mismo
+cliente, si no 422 — sin rutas nuevas). `/api/bookings/{id}` expone `client.phone`. 6 tests
+nuevos; prod 872 ok / 33 preexistentes, `tst` 927/927. Bundle `index-iN41-esd.js`. De paso quedó
+anotado `ZEUS-044` (selector de emoticones en el backoffice) en el backlog de Zeus.
+
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
 (categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,
@@ -61,7 +70,7 @@ legítimamente visibles para cualquiera con `ver agenda` (excepción de la regla
 ### 🛑 Pendientes activos
 1. **`git push`** de este repo y de `tst` — el clasificador de auto mode bloqueó el push; lo hace
    Tomas a mano.
-2. Pasada de Tomas en `mov` real sobre la cuadrícula nueva (ZEUS-043) + push de `5f0913f`.
+2. Pasada de Tomas en `mov` real: cuadrícula nueva (ZEUS-043) y botón de WhatsApp en `MobCitaDet`.
 3. Versión visible en la app móvil (`package.json` = `0.0.0`) — no emergencia, se construye en
    `tst`. Quedó sin hacer en esta sesión (el clasificador bloqueó la exploración de `tst/mobile`).
 4. `SYNC-108b` (`mobile_screen_lock_idle_minutes`) y `108c` (campo `phone` en la agenda móvil) en
