@@ -5,7 +5,8 @@ return [
         'html_title' => 'EstetiCAN Backoffice',
         'kicker' => 'EstetiCAN',
         'shell_title' => 'Backoffice operativo',
-        'version' => '260426-2225',
+        // AAMMDD-HHMM del commit actual, regenerado por los hooks de git (scripts/git-hooks/).
+        'version' => trim((string) @file_get_contents(base_path('VERSION'))) ?: '000000-0000',
         'favicon' => 'favicon.webp',
     ],
 
