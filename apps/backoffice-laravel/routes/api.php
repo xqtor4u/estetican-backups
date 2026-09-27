@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PetController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ResourceController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\UnavailabilityController;
@@ -80,6 +81,10 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::get('/services', [ServiceController::class, 'index'])->middleware('permission:ver catalogo_servicios');
     // Operadores que pueden realizar un servicio (SYNC-073) — lo consume el agendado por línea.
     Route::get('/services/{service}/operators', [ServiceController::class, 'operators'])->middleware('permission:ver agenda');
+    // Jaulas/recursos para el selector de jaula del agendado móvil (ZEUS-043) — mismo permiso
+    // que el resto de lecturas de agendado.
+    Route::get('/resources', [ResourceController::class, 'index'])->middleware('permission:ver agenda');
+    Route::get('/resources/{resource}/availability', [ResourceController::class, 'availability'])->middleware('permission:ver agenda');
     Route::get('/items', [ItemController::class, 'index'])->middleware(['store.module', 'permission:ver catalogo_articulos']);
     Route::post('/bookings', [BookingController::class, 'store'])->middleware('permission:crear agenda');
     Route::get('/bookings/{booking}', [BookingController::class,  'show'])->middleware('permission:ver agenda');

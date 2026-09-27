@@ -8,6 +8,7 @@ use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Domain\Planning\Services\OperatorServiceResolver;
 use App\Domain\Planning\Services\ServiceLineActionService;
+use App\Domain\Resources\Contracts\ResourceAllocationServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\Operator;
 use App\Models\Service;
@@ -19,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 
 class BookingController extends Controller
 {
@@ -27,8 +29,28 @@ class BookingController extends Controller
         private OperatorAvailabilityChecker $operatorAvailabilityChecker,
         private CoverageChecker $coverageChecker,
         private VaccinationEligibilityChecker $vaccinationChecker,
-        private OperatorServiceResolver $operatorServiceResolver
+        private OperatorServiceResolver $operatorServiceResolver,
+        private ResourceAllocationServiceInterface $resourceAllocationService
     ) {}
+
+    /**
+     * Ventana de la estancia en la jaula: la que mandó el cliente, o la del servicio si no
+     * vino una propia — mismo default que `SpaBookingController::storeForPet`/`update` (ZEUS-043,
+     * spec §0.9: en v1 del popup de `tstmov` siempre coincide con la del servicio, pero el
+     * campo ya admite una ventana independiente desde el día 1 para no repetir el hueco que
+     * `AgSpaEdi` tuvo que cerrar después, SYNC-093).
+     */
+    private function resolveResourceWindow(array $data, Carbon $scheduledAt, int $durationMinutes): array
+    {
+        $stayStart = ! empty($data['resource_starts_at']) ? Carbon::parse($data['resource_starts_at']) : $scheduledAt->copy();
+        $stayEnd = ! empty($data['resource_ends_at']) ? Carbon::parse($data['resource_ends_at']) : $scheduledAt->copy()->addMinutes($durationMinutes);
+
+        if ($stayEnd->lessThanOrEqualTo($stayStart)) {
+            $stayEnd = $stayStart->copy()->addMinutes(max(15, $durationMinutes));
+        }
+
+        return [$stayStart, $stayEnd];
+    }
 
     /**
      * Único caso de disponibilidad que se puede forzar: el operador fuera de su horario
@@ -61,7 +83,12 @@ class BookingController extends Controller
             'services.service:id,name,type,price,duration_minutes',
             'services.operator:id,first_name,apellido_paterno,apellido_materno,name',
             'operator:id,first_name,apellido_paterno,apellido_materno,profile_photo_path',
+            // Solo la asignación "reserved" — la de limpieza (hija, allocation_type=cleaning)
+            // es un detalle interno de ResourceAllocationService, no algo que el cliente edite.
+            'resourceAllocations' => fn ($q) => $q->where('allocation_type', 'reserved'),
         ]);
+
+        $resourceAllocation = $b->resourceAllocations->first();
 
         $endTime = $b->duration_minutes
             ? $b->scheduled_at->copy()->addMinutes($b->duration_minutes)->format('H:i')
@@ -125,6 +152,12 @@ class BookingController extends Controller
                     ? Storage::disk('public')->url($b->operator->profile_photo_path)
                     : null,
             ] : null,
+            // Jaula asignada (ZEUS-043) — null si la cita no tiene una.
+            'resource' => $resourceAllocation ? [
+                'id' => $resourceAllocation->resource_id,
+                'starts_at' => $resourceAllocation->starts_at->format('Y-m-d H:i:s'),
+                'ends_at' => $resourceAllocation->ends_at->format('Y-m-d H:i:s'),
+            ] : null,
         ];
     }
 
@@ -152,6 +185,12 @@ class BookingController extends Controller
             'services.*.offset_minutes' => 'nullable|integer|min:0|max:960',
             'notes' => 'nullable|string|max:1000',
             'override_availability' => 'nullable|boolean',
+            // Jaula (ZEUS-043) — opcional; una cita sin jaula sigue siendo válida, igual que
+            // antes de este campo. Ventana propia opcional (spec §0.9: en v1 el cliente de
+            // tstmov siempre manda la misma que el servicio, pero el backend no lo asume).
+            'resource_id' => 'nullable|exists:resources,id',
+            'resource_starts_at' => 'nullable|date_format:Y-m-d H:i:s',
+            'resource_ends_at' => 'nullable|date_format:Y-m-d H:i:s',
         ]);
 
         $scheduledAt = Carbon::parse($data['scheduled_at']);
@@ -307,17 +346,38 @@ class BookingController extends Controller
             return $booking;
         });
 
+        // Asignación de jaula (ZEUS-043) — fuera de la transacción de arriba, mismo criterio
+        // que `SpaBookingController::storeForPet` (web): un choque de jaula no debe tumbar la
+        // cita ya creada, solo avisar (aviso suave, no bloqueo duro — spec §7).
+        $resourceWarning = null;
+        if (! empty($data['resource_id'])) {
+            [$stayStart, $stayEnd] = $this->resolveResourceWindow($data, $scheduledAt, $computedDuration);
+
+            try {
+                $this->resourceAllocationService->assignResourceWindowToSource(
+                    (int) $data['resource_id'],
+                    $booking,
+                    $booking->pet_id,
+                    $stayStart->toDateTimeString(),
+                    $stayEnd->toDateTimeString(),
+                );
+            } catch (RuntimeException) {
+                $resourceWarning = 'La cita quedó agendada pero la jaula no se asignó: ya está ocupada en esa ventana.';
+            }
+        }
+
         $coverageWarning = $this->coverageChecker->checkPet($booking->pet);
         $vaccinationWarning = $this->vaccinationChecker->check($booking->pet);
 
         return response()->json([
-            ...$this->serialize($booking),
+            ...$this->serialize($booking->fresh()),
             'coverage_warning' => $coverageWarning
                 ? "Esta mascota está a {$coverageWarning['distance_km']} km de {$coverageWarning['branch_name']}, fuera del radio de cobertura de {$coverageWarning['radius_km']} km."
                 : null,
             'vaccination_warning' => $vaccinationWarning
                 ? 'Esta mascota no tiene vigente: '.implode(', ', $vaccinationWarning['missing_vaccines']).'.'
                 : null,
+            'resource_warning' => $resourceWarning,
         ], 201);
     }
 
@@ -344,6 +404,11 @@ class BookingController extends Controller
             'notes' => 'sometimes|nullable|string|max:1000',
             'cancellation_reason' => 'sometimes|nullable|string|max:500',
             'override_availability' => 'nullable|boolean',
+            // Jaula (ZEUS-043) — `resource_id: null` explícito libera la jaula asignada, igual
+            // que el flujo web (`SpaBookingController::update`).
+            'resource_id' => 'sometimes|nullable|exists:resources,id',
+            'resource_starts_at' => 'sometimes|nullable|date_format:Y-m-d H:i:s',
+            'resource_ends_at' => 'sometimes|nullable|date_format:Y-m-d H:i:s',
         ]);
 
         // Re-validar horario/traslape solo si el request realmente reprograma la cita
@@ -452,6 +517,37 @@ class BookingController extends Controller
 
         $booking->save();
 
+        // Jaula (ZEUS-043) — mismo criterio que `SpaBookingController::update` (web,
+        // SYNC-093): `resource_id` explícito en null libera lo asignado; un `resource_id`
+        // nuevo (re)sincroniza la ventana (borra y recrea, `syncResourceWindowToSource`); un
+        // choque avisa sin tumbar el resto del cambio. Usa `$booking->scheduled_at`/
+        // `duration_minutes` ya recalculados arriba, no `$data`, para que ajustar solo la
+        // jaula sin reprogramar la cita tome el horario vigente.
+        $resourceWarning = null;
+        if (array_key_exists('resource_id', $data)) {
+            if (empty($data['resource_id'])) {
+                $this->resourceAllocationService->releaseSourceAllocations($booking);
+            } else {
+                [$stayStart, $stayEnd] = $this->resolveResourceWindow(
+                    $data,
+                    $booking->scheduled_at,
+                    (int) ($booking->duration_minutes ?? 30)
+                );
+
+                try {
+                    $this->resourceAllocationService->syncResourceWindowToSource(
+                        (int) $data['resource_id'],
+                        $booking,
+                        $booking->pet_id,
+                        $stayStart->toDateTimeString(),
+                        $stayEnd->toDateTimeString(),
+                    );
+                } catch (RuntimeException) {
+                    $resourceWarning = 'La cita se actualizó pero la jaula no se pudo asignar: ya está ocupada en esa ventana.';
+                }
+            }
+        }
+
         // Generar folio de orden al iniciar el trabajo
         if (($data['status'] ?? null) === 'work_order' && ! $booking->order_folio) {
             try {
@@ -473,7 +569,10 @@ class BookingController extends Controller
             app(BookingStockConsumptionServiceInterface::class)->consume($booking, auth()->id());
         }
 
-        return response()->json($this->serialize($booking->fresh()));
+        return response()->json([
+            ...$this->serialize($booking->fresh()),
+            'resource_warning' => $resourceWarning,
+        ]);
     }
 
     /**

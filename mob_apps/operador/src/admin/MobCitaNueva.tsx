@@ -5,6 +5,7 @@ import { getUserPrefs } from '../hooks/useUserPrefs';
 import { useAuth } from '../AuthContext';
 import { ScreenHeader } from '../ScreenHeader';
 import { ServicePickerSheet } from './ServicePickerSheet';
+import { DraggableSlotGrid } from './DraggableSlotGrid';
 
 /* ── Tipos ────────────────────────────────────────────────── */
 interface PetMin   { id: number; name: string; species: string | null; breed: string | null; size: string | null; weight_kg: number | string | null; photo: string | null }
@@ -15,6 +16,10 @@ interface Service  { id: number; name: string; type: string | null; price: numbe
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null; role_ids: number[] }
 /** Forma ligera que devuelve GET /api/services/{id}/operators — solo lo que necesita el picker. */
 interface EligibleOperator { id: number; name: string }
+/** ZEUS-043 — GET /api/resources (Fase 1). Prototipo de cuadrícula arrastrable: la jaula es
+ *  opcional y comparte la ventana del servicio (spec §0.9), sin selector de "sheet" propio
+ *  todavía — un <select> simple mientras se compara contra el enfoque de barras de tiempo. */
+interface CageOption { id: number; label: string }
 interface OccBooking {
   time: string;
   end_time: string | null;
@@ -55,18 +60,6 @@ function hhmmToMinutes(hhmm: string): number {
 function minutesToClock(mins: number): string {
   const h = Math.floor(mins / 60), m = mins % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function buildSlots(startMin: number, endMin: number): string[] {
-  const slots: string[] = [];
-  let mins = startMin;
-  while (mins < endMin) {
-    const h = String(Math.floor(mins / 60)).padStart(2, '0');
-    const m = String(mins % 60).padStart(2, '0');
-    slots.push(`${h}:${m}`);
-    mins += STEP;
-  }
-  return slots;
 }
 
 /** ¿El intervalo [aStart, aEnd) se solapa con [bStart, bEnd)? (medio-abierto: tocar el borde no cuenta) */
@@ -142,6 +135,11 @@ export function MobCitaNueva() {
   const [occupiedRanges, setOccupiedRanges] = useState<{ start: number; end: number }[]>([]);
   const [blockedRanges,  setBlockedRanges]  = useState<{ start: number; end: number }[]>([]);
   const [loadSlots, setLoadSlots] = useState(false);
+  // ZEUS-043 (prototipo) — jaula opcional, sin conexión a una línea propia todavía: comparte
+  // la ventana del servicio armado (spec §0.9), solo aviso visual en la cuadrícula, no bloquea.
+  const [cageOptions, setCageOptions] = useState<CageOption[]>([]);
+  const [cageId,      setCageId]      = useState<number | null>(null);
+  const [cageBusy,    setCageBusy]    = useState<{ start: number; end: number }[]>([]);
   const [businessHours, setBusinessHours] = useState({ start: DEFAULT_OPEN_MIN, end: DEFAULT_CLOSE_MIN });
   // Líneas de la cita, en orden de agregado. La 1ª es el ancla: su hora de inicio es la de la
   // cita (`scheduled_at`), su operador el "responsable". Cada línea 2ª+ se coloca en su propio
@@ -180,6 +178,11 @@ export function MobCitaNueva() {
       .catch(() => {});
     fetch('/api/services').then(r => r.json()).then(setServices).catch(() => {});
     fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
+    // ZEUS-043 (prototipo) — jaulas activas para el selector de prueba.
+    fetch('/api/resources')
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: unknown) => setCageOptions(Array.isArray(rows) ? rows as CageOption[] : []))
+      .catch(() => {});
     // Ojo: `role_ids` (arriba) queda como campo del catálogo general, no se usa ya para
     // calificación — ver `eligibleByService` más abajo.
     fetch('/api/settings/booking')
@@ -206,11 +209,6 @@ export function MobCitaNueva() {
       )
     ).then(entries => setEligibleByService(Object.fromEntries(entries)));
   }, [services]);
-
-  const ALL_SLOTS = useMemo(
-    () => buildSlots(businessHours.start, businessHours.end),
-    [businessHours]
-  );
 
   /* Carga citas ocupadas al cambiar fecha u operador — requiere operador elegido */
   const loadOccupied = useCallback((date: Date, operatorId: number | null) => {
@@ -311,6 +309,21 @@ export function MobCitaNueva() {
 
   useEffect(() => { loadOccupied(selDate, armedOperator); }, [selDate, armedOperator, loadOccupied]);
 
+  /* ZEUS-043 (prototipo) — ocupación de la jaula elegida para pintar el punto de aviso en la
+     cuadrícula (GET /api/resources/{id}/availability, Fase 1). Sin `resource_starts_at`/
+     `resource_ends_at` — pide el día completo (`day_busy`), que es lo único que necesita esta
+     vista (spec §0.9: la ventana específica se resuelve al guardar, no antes). */
+  useEffect(() => {
+    if (!cageId) { setCageBusy([]); return; }
+    fetch(`/api/resources/${cageId}/availability?date=${localDateStr(selDate)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { day_busy?: { start: string; end: string }[] } | null) => {
+        const rows = d?.day_busy ?? [];
+        setCageBusy(rows.map(w => ({ start: hhmmToMinutes(w.start), end: hhmmToMinutes(w.end) })));
+      })
+      .catch(() => setCageBusy([]));
+  }, [cageId, selDate]);
+
   /* Tiempo de trabajo total (suma de duraciones, sin huecos) — solo para mostrar. */
   const totalDuration = useMemo(() =>
     lines.reduce((acc, l) => acc + (l.durationMinutes || 0), 0),
@@ -410,9 +423,14 @@ export function MobCitaNueva() {
     setTimingIdx(0);
   };
 
-  /** Fija la hora de inicio (minutos desde medianoche) de una línea al tocar la cuadrícula. */
-  const setLineStart = (idx: number, startMin: number) =>
-    setLines(prev => prev.map((l, i) => (i === idx ? { ...l, startMin } : l)));
+  /** ZEUS-043 (prototipo) — fija inicio y duración de una línea de una sola vez, para
+   *  `DraggableSlotGrid`: un toque simple (sin arrastre real) fija el inicio y conserva la
+   *  duración vigente — mismo comportamiento que el `setLineStart` que reemplaza —, un
+   *  arrastre real ajusta ambos (ver el propio componente). */
+  const setLineRange = (idx: number, startMin: number, durationMinutes: number) =>
+    setLines(prev => prev.map((l, i) => (
+      i === idx ? { ...l, startMin, durationMinutes: Math.max(LINE_DUR_MIN, durationMinutes) } : l
+    )));
 
   const setLinePrice = (svcId: number, price: number) =>
     setLines(prev => prev.map(l => (l.serviceId === svcId ? { ...l, price } : l)));
@@ -479,6 +497,9 @@ export function MobCitaNueva() {
           duration_minutes: effectiveDuration,
           services:         servicesPayload,
           notes:            notes.trim() || null,
+          // ZEUS-043 (prototipo) — sin resource_starts_at/ends_at: la ventana de la jaula cae
+          // al default del backend (= la del servicio), como decide la spec §0.9 para v1.
+          ...(cageId ? { resource_id: cageId } : {}),
           ...(overrideAvailability ? { override_availability: true } : {}),
         }),
       });
@@ -844,8 +865,28 @@ export function MobCitaNueva() {
             </div>
           ) : (
             <>
+              {/* ZEUS-043 (prototipo, 13/09/2026) — selector de jaula opcional, comparando
+                  este enfoque (cuadrícula arrastrable) contra el de barras de tiempo
+                  (TimelineBar.tsx/HorarioLandscapePopup.tsx, Fase 2, sin borrar). */}
+              {cageOptions.length > 0 && (
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-base text-on-surface-variant">meeting_room</span>
+                  <select
+                    value={cageId ?? ''}
+                    onChange={e => setCageId(e.target.value ? Number(e.target.value) : null)}
+                    className="flex-1 min-w-0 bg-surface border border-outline-variant rounded-lg px-2 py-1.5 text-xs text-on-surface outline-none focus:border-primary transition-colors"
+                  >
+                    <option value="">Sin jaula</option>
+                    {cageOptions.map(c => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Leyenda — cada muestra usa EXACTAMENTE las mismas clases que el slot que
-                  representa abajo, para que el color del recuadro coincida con lo que se ve. */}
+                  representa abajo, para que el color del recuadro coincida con lo que se ve.
+                  ZEUS-043 conserva los estados de SYNC-064/066/067 y suma el punto de la jaula. */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-3 text-[11px] text-on-surface-variant">
                 <span className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded bg-primary inline-block" />
@@ -877,12 +918,27 @@ export function MobCitaNueva() {
                   <span className="w-3 h-3 rounded bg-surface-container border border-dashed border-amber-500/60 inline-block" />
                   No cabe la duración
                 </span>
+                {cageId != null && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: '#6f42c1' }} />
+                    Jaula ocupada
+                  </span>
+                )}
               </div>
 
-              <div className="grid grid-cols-4 gap-2">
-                {ALL_SLOTS.map(slot => {
-                  const slotMin = hhmmToMinutes(slot);
-                  const slotEnd = slotMin + STEP;
+              <DraggableSlotGrid
+                businessHours={businessHours}
+                value={showArmedSpan ? { start: armedStart, end: armedStart + armedDur } : null}
+                onChange={range => setLineRange(armedIdx, range.start, range.end - range.start)}
+                isBusy={(slotMin, slotEnd) => {
+                  const occFull = occupiedRanges.some(r => r.start <= slotMin && r.end >= slotEnd);
+                  const blkFull = !occFull && blockedRanges.some(r => r.start <= slotMin && r.end >= slotEnd);
+                  const otherSameOp = !occFull && !blkFull && otherLineRanges.some(r =>
+                    overlaps(slotMin, slotEnd, r.start, r.end) && r.operatorId != null && r.operatorId === armedOperator
+                  );
+                  return occFull || blkFull || otherSameOp;
+                }}
+                slotAppearance={({ slotMin, slotEnd, isStart, inSpan }) => {
                   // "full" = una cita/bloqueo cubre el bloque de 30 min completo;
                   // "part" = lo toca pero no lo llena.
                   const occFull = occupiedRanges.some(r => r.start <= slotMin && r.end >= slotEnd);
@@ -897,53 +953,45 @@ export function MobCitaNueva() {
                   const otherOtherOp = !otherSameOp && otherHere.length > 0;
                   const occ = occFull || occPart;
                   const blocked = blkFull || blkPart;
-                  const isSel = showArmedSpan && slotMin === armedStart;
-                  const inSpan = showArmedSpan && slotMin >= armedStart && slotMin < armedStart + armedDur && !isSel;
                   const durTail = inSpan && (armedStart + armedDur) > slotMin && (armedStart + armedDur) < slotEnd;
-                  const durConflict = !occ && !blocked && !otherSameOp && !isSel && !inSpan && slotWouldConflict(slotMin);
-                  const hardBlocked = occFull || blkFull || otherSameOp;
+                  const durConflict = !occ && !blocked && !otherSameOp && !isStart && !inSpan && slotWouldConflict(slotMin);
 
-                  return (
-                    <button
-                      key={slot}
-                      disabled={hardBlocked}
-                      title={
-                        otherSameOp ? `Ya lo usa "${otherHere.find(r => r.operatorId === armedOperator)?.name}" (mismo operador)`
-                        : occPart ? 'Otra cita termina/empieza a mitad de este bloque — no se puede agendar acá'
-                        : blocked ? 'Operador no disponible (vacaciones/permiso)'
-                        : otherOtherOp ? `Otro servicio de esta cita (${otherHere[0].name}) ocupa este rango`
-                        : durTail ? 'El servicio solo usa parte de este bloque'
-                        : durConflict ? 'El servicio no cabe acá (se traslapa o pasa del cierre)'
-                        : undefined
-                      }
-                      onClick={() => setLineStart(armedIdx, slotMin)}
-                      className={`py-2.5 rounded-xl text-sm font-mono font-semibold transition-all ${
-                        occFull
-                          ? 'bg-error-container text-on-error-container border border-error/20 cursor-not-allowed line-through'
-                          : blkFull
-                            ? 'bg-surface-container-high text-on-surface-variant border border-outline-variant cursor-not-allowed line-through'
-                            : otherSameOp
-                              ? 'bg-error-container/70 text-on-error-container border border-error/20 cursor-not-allowed line-through'
-                              : (occPart || blkPart)
-                                ? 'bg-amber-500/25 text-on-surface border border-amber-500/60 cursor-not-allowed'
-                                : isSel
-                                  ? 'bg-primary text-on-primary shadow-md scale-105'
-                                  : durTail
-                                    ? 'bg-amber-500/25 text-on-surface border border-amber-500/60'
-                                    : inSpan
-                                      ? 'bg-primary/25 text-primary border border-primary/30'
-                                      : otherOtherOp
-                                        ? 'bg-violet-500/20 text-on-surface border border-dashed border-violet-500/70'
-                                        : durConflict
-                                          ? 'bg-surface-container text-on-surface-variant border border-dashed border-amber-500/60'
-                                          : 'bg-surface-container text-on-surface border border-outline-variant active:scale-95 hover:border-primary/40'
-                      }`}
-                    >
-                      {slot}
-                    </button>
-                  );
-                })}
-              </div>
+                  return {
+                    disabled: occFull || blkFull || otherSameOp,
+                    title:
+                      otherSameOp ? `Ya lo usa "${otherHere.find(r => r.operatorId === armedOperator)?.name}" (mismo operador)`
+                      : occPart ? 'Otra cita termina/empieza a mitad de este bloque — no se puede agendar acá'
+                      : blocked ? 'Operador no disponible (vacaciones/permiso)'
+                      : otherOtherOp ? `Otro servicio de esta cita (${otherHere[0].name}) ocupa este rango`
+                      : durTail ? 'El servicio solo usa parte de este bloque'
+                      : durConflict ? 'El servicio no cabe acá (se traslapa o pasa del cierre)'
+                      : undefined,
+                    className:
+                      occFull
+                        ? 'bg-error-container text-on-error-container border border-error/20 cursor-not-allowed line-through'
+                        : blkFull
+                          ? 'bg-surface-container-high text-on-surface-variant border border-outline-variant cursor-not-allowed line-through'
+                          : otherSameOp
+                            ? 'bg-error-container/70 text-on-error-container border border-error/20 cursor-not-allowed line-through'
+                            : (occPart || blkPart)
+                              ? 'bg-amber-500/25 text-on-surface border border-amber-500/60 cursor-not-allowed'
+                              : isStart
+                                ? 'bg-primary text-on-primary shadow-md scale-105'
+                                : durTail
+                                  ? 'bg-amber-500/25 text-on-surface border border-amber-500/60'
+                                  : inSpan
+                                    ? 'bg-primary/25 text-primary border border-primary/30'
+                                    : otherOtherOp
+                                      ? 'bg-violet-500/20 text-on-surface border border-dashed border-violet-500/70'
+                                      : durConflict
+                                        ? 'bg-surface-container text-on-surface-variant border border-dashed border-amber-500/60'
+                                        : 'bg-surface-container text-on-surface border border-outline-variant active:scale-95 hover:border-primary/40',
+                  };
+                }}
+                isCageBusy={cageId != null
+                  ? (slotMin, slotEnd) => cageBusy.some(r => overlaps(slotMin, slotEnd, r.start, r.end))
+                  : undefined}
+              />
 
               {showArmedSpan && slotWouldConflict(armedStart) && (
                 <p className="text-xs text-error mt-2 flex items-center gap-1">
