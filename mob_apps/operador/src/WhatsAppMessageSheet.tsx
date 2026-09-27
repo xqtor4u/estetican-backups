@@ -8,6 +8,9 @@ interface WhatsAppMessageSheetProps {
   phone: string;
   /** Si ya se sabe qué mascota es (ej. la de la cita desde donde se abre), nunca se pregunta. */
   petId?: number;
+  /** Si se abre desde una cita (`MobCitaDet`): suma las plantillas de contexto "cita",
+   *  resueltas con los datos reales de esa cita (servicio, fecha, hora). */
+  bookingId?: number;
   onClose: () => void;
 }
 
@@ -22,7 +25,7 @@ interface WhatsAppMessageSheetProps {
  * contexto "general" (puede usar `{mascota}`), no viene un `petId` fijo, y el cliente tiene más
  * de una mascota viva, se pregunta cuál antes de enviar — con una sola, o ninguna, no hace falta.
  */
-export function WhatsAppMessageSheet({ clientId, phone, petId, onClose }: WhatsAppMessageSheetProps) {
+export function WhatsAppMessageSheet({ clientId, phone, petId, bookingId, onClose }: WhatsAppMessageSheetProps) {
   const [templates, setTemplates] = useState<WhatsAppTemplateOption[] | null>(null);
   const [step, setStep] = useState<'menu' | 'pets'>('menu');
   const [livePets, setLivePets] = useState<LivePet[] | null>(null);
@@ -31,11 +34,11 @@ export function WhatsAppMessageSheet({ clientId, phone, petId, onClose }: WhatsA
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/whatsapp-templates')
+    fetch(bookingId ? `/api/whatsapp-templates?booking_id=${bookingId}` : '/api/whatsapp-templates')
       .then(r => r.json())
       .then(data => setTemplates(Array.isArray(data) ? data : []))
       .catch(() => setTemplates([]));
-  }, []);
+  }, [bookingId]);
 
   const doSend = async (templateId: number | null, chosenPetId: number | null) => {
     setSending(true);
@@ -45,6 +48,7 @@ export function WhatsAppMessageSheet({ clientId, phone, petId, onClose }: WhatsA
       const params = new URLSearchParams({ phone });
       if (templateId) params.set('template_id', String(templateId));
       if (chosenPetId) params.set('pet_id', String(chosenPetId));
+      if (bookingId) params.set('booking_id', String(bookingId));
 
       const res = await fetch(`/api/clients/${clientId}/whatsapp-link?${params.toString()}`);
       const data = await res.json();

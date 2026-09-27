@@ -2,13 +2,20 @@
 
 namespace Tests\Feature\WhatsApp;
 
+use App\Models\ApiToken;
 use App\Models\Client;
+use App\Models\Operator;
 use App\Models\Pet;
 use App\Models\Phone;
+use App\Models\Service;
+use App\Models\SpaBooking;
+use App\Models\SpaBookingService;
 use App\Models\User;
 use App\Models\WhatsAppTemplate;
+use App\Support\WhatsApp\TemplateResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesAdminUser;
+use Tests\Concerns\CreatesRestrictedOperatorUser;
 use Tests\TestCase;
 
 /**
@@ -22,8 +29,9 @@ use Tests\TestCase;
  */
 class ClientWhatsAppLinkTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use CreatesRestrictedOperatorUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -265,7 +273,7 @@ class ClientWhatsAppLinkTest extends TestCase
     {
         $user = $this->admin();
         $token = 'test-token-'.uniqid();
-        \App\Models\ApiToken::create([
+        ApiToken::create([
             'user_id' => $user->id,
             'token' => hash('sha256', $token),
             'name' => 'mobile-test',
@@ -277,5 +285,105 @@ class ClientWhatsAppLinkTest extends TestCase
 
         $response->assertOk();
         $response->assertJson(['wa_link' => 'https://wa.me/528110000001']);
+    }
+
+    private function bookingFor(Client $client, string $petName = 'Firulais', ?int $operatorId = null): SpaBooking
+    {
+        $pet = Pet::create(['client_id' => $client->id, 'name' => $petName]);
+        $booking = SpaBooking::create([
+            'pet_id' => $pet->id,
+            'operator_id' => $operatorId,
+            'scheduled_at' => now()->addDay()->setTime(10, 30),
+            'duration_minutes' => 60,
+            'status' => 'scheduled',
+            'total_estimated_price' => 250,
+        ]);
+        $service = Service::create(['code' => 'WA-BANO-'.uniqid(), 'name' => 'Baño completo', 'type' => 'spa', 'price' => 250, 'suggested_price' => 250, 'duration_minutes' => 60, 'is_active' => true]);
+        SpaBookingService::create(['spa_booking_id' => $booking->id, 'service_id' => $service->id, 'current_price' => 250]);
+
+        return $booking;
+    }
+
+    public function test_templates_endpoint_adds_cita_context_templates_only_when_opened_from_a_booking(): void
+    {
+        WhatsAppTemplate::create(['name' => 'Recordatorio de cita', 'body' => 'Hola {cliente}', 'context' => 'cita', 'is_active' => true]);
+        WhatsAppTemplate::create(['name' => 'Saludo directo', 'body' => 'Hola {cliente}', 'context' => 'cliente', 'is_active' => true]);
+        WhatsAppTemplate::create(['name' => 'Recurrencia', 'body' => 'Hola {cliente}', 'context' => 'recurrencia', 'is_active' => true]);
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->getJson(route('clients.whatsapp.templates'))
+            ->assertOk()->assertJsonCount(1)->assertJsonMissing(['name' => 'Recordatorio de cita']);
+
+        $this->actingAs($admin)->getJson(route('clients.whatsapp.templates').'?booking_id=1')
+            ->assertOk()->assertJsonCount(2)->assertJsonFragment(['name' => 'Recordatorio de cita']);
+    }
+
+    public function test_link_endpoint_resolves_a_cita_template_with_the_real_booking_data(): void
+    {
+        $client = $this->clientWithPhone();
+        $booking = $this->bookingFor($client);
+        $template = WhatsAppTemplate::create([
+            'name' => 'Recordatorio de cita',
+            'body' => 'Hola {cliente}, te esperamos con {mascota} para {servicio} el {fecha} a las {hora}.',
+            'context' => 'cita',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin())
+            ->getJson(route('clients.whatsapp.link', $client).'?phone=8110000001&template_id='.$template->id.'&booking_id='.$booking->id);
+
+        $response->assertOk();
+        // Mismos formatos de fecha/hora que aplicó el request (ApplySystemSettings).
+        $expected = TemplateResolver::resolve($template->body, $booking->fresh(['pet.client', 'services.service']));
+        $response->assertJson(['message' => $expected]);
+        $this->assertStringContainsString('Firulais para Baño completo', $expected);
+        $this->assertStringNotContainsString('{', $expected);
+    }
+
+    public function test_link_endpoint_rejects_a_cita_template_without_a_booking(): void
+    {
+        $client = $this->clientWithPhone();
+        $template = WhatsAppTemplate::create(['name' => 'Recordatorio', 'body' => 'Hola {cliente} {fecha}', 'context' => 'cita', 'is_active' => true]);
+
+        $this->actingAs($this->admin())
+            ->getJson(route('clients.whatsapp.link', $client).'?phone=8110000001&template_id='.$template->id)
+            ->assertStatus(404);
+    }
+
+    public function test_link_endpoint_rejects_a_booking_of_another_client(): void
+    {
+        $client = $this->clientWithPhone();
+        $otherBooking = $this->bookingFor($this->clientWithPhone('8110000002'));
+
+        $this->actingAs($this->admin())
+            ->getJson(route('clients.whatsapp.link', $client).'?phone=8110000001&booking_id='.$otherBooking->id)
+            ->assertStatus(422);
+    }
+
+    public function test_link_endpoint_rejects_a_booking_the_restricted_operator_cannot_see(): void
+    {
+        $client = $this->clientWithPhone();
+        $mine = Operator::create(['code' => 'OP-WA-1', 'name' => 'Mío', 'first_name' => 'Mío', 'is_active' => true]);
+        $other = Operator::create(['code' => 'OP-WA-2', 'name' => 'Otro', 'first_name' => 'Otro', 'is_active' => true]);
+        $foreign = $this->bookingFor($client, 'Ajena', $other->id);
+        $user = $this->createOperatorUser(['ver agenda', 'ver clientes'], $mine);
+
+        $this->withHeaders($this->operatorAuthHeader($user))
+            ->getJson('/api/clients/'.$client->id.'/whatsapp-link?phone=8110000001&booking_id='.$foreign->id)
+            ->assertStatus(422);
+    }
+
+    public function test_booking_detail_api_exposes_the_owner_phone_for_the_whatsapp_button(): void
+    {
+        $client = $this->clientWithPhone();
+        $booking = $this->bookingFor($client);
+        $user = $this->admin();
+        $token = 'test-token-'.uniqid();
+        ApiToken::create(['user_id' => $user->id, 'token' => hash('sha256', $token), 'name' => 'mobile-test']);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/bookings/'.$booking->id)
+            ->assertOk()
+            ->assertJsonPath('client.phone', '8110000001');
     }
 }

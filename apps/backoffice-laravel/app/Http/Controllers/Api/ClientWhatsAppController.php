@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\SpaBooking;
 use App\Models\WhatsAppTemplate;
 use App\Support\WhatsApp\PhoneNormalizer;
 use App\Support\WhatsApp\TemplateResolver;
@@ -19,10 +20,15 @@ class ClientWhatsAppController extends Controller
      * con datos del cliente (sin cita de por medio), por eso comparten este mismo listado.
      * Incluye `context` para que el frontend sepa cuándo puede hacer falta preguntar la mascota
      * (solo las de contexto "general" pueden usar `{mascota}`).
+     *
+     * Con `booking_id` (se abre desde el detalle de una cita, `MobCitaDet`) se suman las de
+     * contexto "cita" — esas sí tienen de dónde sacar `{servicio}`/`{fecha}`/`{hora}`.
      */
-    public function templates(): JsonResponse
+    public function templates(Request $request): JsonResponse
     {
-        $templates = WhatsAppTemplate::whereIn('context', ['cliente', 'general'])
+        $request->validate(['booking_id' => ['nullable', 'integer']]);
+
+        $templates = WhatsAppTemplate::whereIn('context', $this->contextsFor($request->filled('booking_id')))
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'context']);
@@ -53,6 +59,7 @@ class ClientWhatsAppController extends Controller
             'phone' => ['required', 'string'],
             'template_id' => ['nullable', 'integer'],
             'pet_id' => ['nullable', 'integer'],
+            'booking_id' => ['nullable', 'integer'],
         ]);
 
         $client->loadMissing('phones');
@@ -73,7 +80,23 @@ class ClientWhatsAppController extends Controller
             ], 422);
         }
 
-        $pet = null;
+        // Desde una cita: tiene que ser una que el usuario pueda ver (mismo criterio que
+        // `/api/bookings/{id}`, operador restringido solo las suyas) y de este cliente.
+        $booking = null;
+
+        if (! empty($validated['booking_id'])) {
+            $booking = SpaBooking::visibleTo($request->user())
+                ->with(['pet.client', 'services.service'])
+                ->find($validated['booking_id']);
+
+            if (! $booking || $booking->pet?->client_id !== $client->id) {
+                return response()->json([
+                    'message' => 'Esa cita no existe o no es de este cliente.',
+                ], 422);
+            }
+        }
+
+        $pet = $booking?->pet;
 
         if (! empty($validated['pet_id'])) {
             $pet = $client->pets()->find($validated['pet_id']);
@@ -88,7 +111,7 @@ class ClientWhatsAppController extends Controller
         $message = '';
 
         if (! empty($validated['template_id'])) {
-            $template = WhatsAppTemplate::whereIn('context', ['cliente', 'general'])
+            $template = WhatsAppTemplate::whereIn('context', $this->contextsFor($booking !== null))
                 ->where('is_active', true)
                 ->find($validated['template_id']);
 
@@ -98,9 +121,11 @@ class ClientWhatsAppController extends Controller
                 ], 404);
             }
 
-            $message = $template->context === 'general'
-                ? TemplateResolver::resolveGeneral($template->body, $client, $pet)
-                : TemplateResolver::resolveForClient($template->body, $client);
+            $message = match ($template->context) {
+                'cita' => TemplateResolver::resolve($template->body, $booking),
+                'general' => TemplateResolver::resolveGeneral($template->body, $client, $pet),
+                default => TemplateResolver::resolveForClient($template->body, $client),
+            };
         }
 
         $waLink = 'https://wa.me/'.$waNumber.($message !== '' ? '?text='.rawurlencode($message) : '');
@@ -109,5 +134,11 @@ class ClientWhatsAppController extends Controller
             'wa_link' => $waLink,
             'message' => $message,
         ]);
+    }
+
+    /** @return array<int, string> */
+    private function contextsFor(bool $fromBooking): array
+    {
+        return $fromBooking ? ['cita', 'cliente', 'general'] : ['cliente', 'general'];
     }
 }

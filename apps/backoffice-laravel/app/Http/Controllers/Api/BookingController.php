@@ -16,6 +16,7 @@ use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
 use App\Support\Geo\CoverageChecker;
 use App\Support\SystemSettings\BusinessHours;
+use App\Support\WhatsApp\PhoneNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -80,6 +81,7 @@ class BookingController extends Controller
         $b->loadMissing([
             'pet:id,name,species,breed,profile_photo_path,client_id',
             'pet.client:id,first_name,apellido_paterno,apellido_materno',
+            'pet.client.phones',
             'services.service:id,name,type,price,duration_minutes',
             'services.operator:id,first_name,apellido_paterno,apellido_materno,name',
             'operator:id,first_name,apellido_paterno,apellido_materno,profile_photo_path',
@@ -117,6 +119,8 @@ class BookingController extends Controller
             'client' => $b->pet->client ? [
                 'id' => $b->pet->client->id,
                 'name' => trim($b->pet->client->first_name.' '.$b->pet->client->last_name),
+                // Para el botón de WhatsApp de `MobCitaDet` — mismo criterio que la web (celular primero).
+                'phone' => PhoneNormalizer::bestPhoneFor($b->pet->client),
             ] : null,
             'services' => $b->services->map(function ($s) use ($b) {
                 $lineDuration = $s->duration_minutes ?? $s->service?->duration_minutes;

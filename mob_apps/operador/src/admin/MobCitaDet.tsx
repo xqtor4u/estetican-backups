@@ -6,6 +6,7 @@ import { getNavCrumbs, setNavCrumbs } from '../navState';
 import { ScreenHeader } from '../ScreenHeader';
 import { useSiblingNav, setSiblingNav } from '../hooks/useSiblingNav';
 import { useAuth } from '../AuthContext';
+import { WhatsAppMessageSheet } from '../WhatsAppMessageSheet';
 
 /** Debe coincidir exactamente con el mensaje de OperatorAvailabilityChecker::isOutsideWorkingHours en el backend. */
 const SCHEDULE_OVERRIDE_MESSAGE = 'El operador seleccionado no labora en el horario indicado.';
@@ -23,7 +24,7 @@ interface BookingDetail {
   cancellation_reason: string | null;
   total: number;
   pet: { id: number; name: string; species: string | null; breed: string | null; photo: string | null };
-  client: { id: number; name: string } | null;
+  client: { id: number; name: string; phone: string | null } | null;
   services: {
     id: number | null;
     booking_service_id: number;
@@ -214,6 +215,7 @@ export function MobCitaDet() {
   /* Cancelación */
   const [cancelReason, setCancelReason] = useState('');
   const [showCancel,   setShowCancel]   = useState(false);
+  const [showWhatsApp, setShowWhatsApp] = useState(false);
 
   /* No se realizó — no_show (falta del cliente) o unfulfillable (cualquier otro motivo, no punitivo) */
   const [showUnfulfilled,   setShowUnfulfilled]   = useState(false);
@@ -784,6 +786,8 @@ export function MobCitaDet() {
   );
 
   const editable = !['completed', 'cancelled'].includes(booking.status);
+  // Los endpoints de WhatsApp piden `ver clientes`; sin teléfono del dueño no hay a quién escribir.
+  const canWhatsApp = !!booking.client?.phone && !!user?.can_view_clients;
 
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col pb-28" {...(editing ? {} : sib.swipeHandlers)}>
@@ -911,14 +915,25 @@ export function MobCitaDet() {
           );
         })()}
 
-        {/* ── Acciones de TODA la cita (las de cada servicio viven en "Servicios", abajo) ── */}
-        {!editing && editable && acciones.length > 0 && (
+        {/* ── Acciones de TODA la cita (las de cada servicio viven en "Servicios", abajo) ──
+            WhatsApp al dueño va aquí también, y en cualquier estado (una cita completada es
+            justo cuando se avisa que la mascota ya está lista). */}
+        {!editing && ((editable && acciones.length > 0) || canWhatsApp) && (
           <section>
             <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">
               Acciones <span className="font-normal normal-case text-on-surface-variant/60">· toda la cita</span>
             </p>
             <div className="flex flex-wrap gap-2">
-              {acciones.map(action => (
+              {canWhatsApp && (
+                <button
+                  onClick={() => setShowWhatsApp(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border font-semibold text-xs transition-colors active:scale-95 bg-green-100 border-green-300 text-green-700"
+                >
+                  <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
+                  WhatsApp
+                </button>
+              )}
+              {editable && acciones.map(action => (
                 <button
                   key={action.value}
                   disabled={saving}
@@ -1000,6 +1015,16 @@ export function MobCitaDet() {
         )}
 
         {/* ── Modal cancelación ────────────────────────── */}
+        {showWhatsApp && booking.client?.phone && (
+          <WhatsAppMessageSheet
+            clientId={booking.client.id}
+            phone={booking.client.phone}
+            petId={booking.pet.id}
+            bookingId={booking.id}
+            onClose={() => setShowWhatsApp(false)}
+          />
+        )}
+
         {showCancel && (
           <div className="bg-error/8 border border-error/30 rounded-2xl px-4 py-4 flex flex-col gap-3">
             <p className="text-sm font-semibold text-error">Cancelar cita</p>
