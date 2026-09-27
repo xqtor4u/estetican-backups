@@ -52,6 +52,12 @@ cliente, si no 422 — sin rutas nuevas). `/api/bookings/{id}` expone `client.ph
 nuevos; prod 872 ok / 33 preexistentes, `tst` 927/927. Bundle `index-iN41-esd.js`. De paso quedó
 anotado `ZEUS-044` (selector de emoticones en el backoffice) en el backlog de Zeus.
 
+**Emergencia: emoji rotos (�) al mandar WhatsApp desde la PC (`SYNC-007`, `574ff54` / `tst`
+`5bd4bac`).** La redirección de `wa.me` reemplaza los emoji de 4 bytes por U+FFFD — verificado en
+vivo. Los links pasan a `api.whatsapp.com/send` vía `WhatsAppLink::to()` (4 lugares). Prod 873 ok /
+33 preexistentes; `tst` 73/73 en WhatsApp + sucursales. De paso, el chip de WhatsApp de
+`MobCitaDet` se movió al final de las acciones (`251933d` / `e00260e`).
+
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
 (categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,

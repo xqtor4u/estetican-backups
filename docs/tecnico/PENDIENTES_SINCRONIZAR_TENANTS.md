@@ -25,6 +25,22 @@
 
 ## Aplicados
 
+### SYNC-007 — Emoji rotos (�) al enviar WhatsApp desde la PC: la redirección de `wa.me` los corrompe
+
+**Encontrado:** 27/09/2026, reportado por Tomas: un mensaje enviado desde `mov` en la PC llegaba
+con `�` en lugar de 👋🏻/🐶; desde el teléfono salía bien. Verificado en vivo con `curl`:
+`wa.me/…?text=%F0%9F%90%B6` redirige a `api.whatsapp.com/send/?…text=%EF%BF%BD` (U+FFFD). El
+teléfono abre la app directo sin seguir la redirección; el navegador de escritorio sí la sigue.
+`api.whatsapp.com/send` responde 200 sin redirigir y conserva el UTF-8.
+
+**Fix (producción `574ff54`):** `App\Support\WhatsApp\WhatsAppLink::to()` arma el link con
+`api.whatsapp.com/send`; usado en `Api\ClientWhatsAppController`, `BookingMessageController`,
+`RecurrenceMessageController` y `Branch::whats_app_share_url`. Test nuevo del caso emoji.
+Sin tocar a propósito: `MetaCatalogSyncService` (URL de producto del catálogo de Meta, texto sin
+emoji) y el link sin texto del correo (`emails/template-message`).
+
+**Portado a `tst`:** 27/09/2026, commit `5bd4bac` (mismo cambio, hecho en paralelo).
+
 ### SYNC-006 — La versión visible del backoffice (`v.AAMMDD-HHMM`) estaba fija a mano desde mayo
 
 **Encontrado:** 27/09/2026, reportado por Tomas: la navegación seguía mostrando
