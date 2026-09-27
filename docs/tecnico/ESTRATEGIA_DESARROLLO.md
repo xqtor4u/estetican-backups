@@ -229,7 +229,9 @@ git push origin main
 **Deploy — en OPi:**
 ```bash
 cd /opt/www/estetican
-git pull
+# Solo la primera vez en un clon nuevo: hooks que mantienen la versión visible (v.AAMMDD-HHMM)
+# scripts/git-hooks/instalar.sh
+git pull   # el hook post-merge regenera apps/backoffice-laravel/VERSION
 
 cd apps/backoffice-laravel
 

@@ -25,6 +25,22 @@
 
 ## Aplicados
 
+### SYNC-006 — La versión visible del backoffice (`v.AAMMDD-HHMM`) estaba fija a mano desde mayo
+
+**Encontrado:** 27/09/2026, reportado por Tomas: la navegación seguía mostrando
+`EstetiCAN v.260426-2225` aunque el último cambio en producción era del 15/09.
+`config/backoffice.php` tenía `'version' => '260426-2225'` literal y nada lo actualizaba.
+
+**Fix (producción `e666492`):** `brand.version` lee el archivo `VERSION` (no versionado) de la
+raíz de Laravel; lo regeneran los hooks `post-commit`/`post-merge`/`post-checkout`/`post-rewrite`
+con la fecha del commit actual (`scripts/git-hooks/escribir_version.sh`). Los hooks no viajan con
+git: en un clon nuevo hay que correr `scripts/git-hooks/instalar.sh` una vez.
+
+**Portado a `tst`:** 27/09/2026, commit `a0a5ea1` (mismo script, detecta si Laravel vive en
+`apps/backoffice-laravel` o en la raíz). Cualquier tenant nuevo clonado de `tst` necesita
+correr `instalar.sh`. Pendiente aparte, no emergencia: la app móvil no tiene versión visible
+(`package.json` = `0.0.0`) — se construye en `tst` si se decide.
+
 ### SYNC-003 — `/agenda` (web) embebe el directorio completo de operadores para un usuario restringido
 
 **Encontrado:** 28/08/2026, probando `SYNC-030` (operador restringido) en producción real con un
