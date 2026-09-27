@@ -11,6 +11,7 @@ use App\Support\Pages\WhatsAppPage;
 use App\Support\SystemSettings\SystemSettings;
 use App\Support\WhatsApp\PhoneNormalizer;
 use App\Support\WhatsApp\TemplateResolver;
+use App\Support\WhatsApp\WhatsAppLink;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -149,7 +150,7 @@ class BookingMessageController extends Controller
             return $resolved;
         }
 
-        $waLink = 'https://wa.me/'.$resolved['wa_number'].'?text='.rawurlencode($resolved['message']);
+        $waLink = WhatsAppLink::to($resolved['wa_number'], $resolved['message']);
 
         $bookingMessage = BookingMessage::create([
             'spa_booking_id' => $booking->id,

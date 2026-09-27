@@ -11,6 +11,7 @@ use App\Models\WhatsAppTemplate;
 use App\Support\Pages\WhatsAppPage;
 use App\Support\WhatsApp\PhoneNormalizer;
 use App\Support\WhatsApp\TemplateResolver;
+use App\Support\WhatsApp\WhatsAppLink;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -131,7 +132,7 @@ class RecurrenceMessageController extends Controller
             return $resolved;
         }
 
-        $waLink = 'https://wa.me/'.$resolved['wa_number'].'?text='.rawurlencode($resolved['message']);
+        $waLink = WhatsAppLink::to($resolved['wa_number'], $resolved['message']);
 
         $recurrenceMessage = RecurrenceMessage::create([
             'pet_id' => $pet->id,

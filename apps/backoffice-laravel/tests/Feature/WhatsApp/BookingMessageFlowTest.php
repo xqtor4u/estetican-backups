@@ -17,8 +17,8 @@ use Tests\TestCase;
 
 class BookingMessageFlowTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function admin(): User
     {
@@ -70,7 +70,7 @@ class BookingMessageFlowTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonStructure(['wa_link', 'sent_at']);
-        $this->assertStringContainsString('https://wa.me/525512345678?text=', $response->json('wa_link'));
+        $this->assertStringContainsString('https://api.whatsapp.com/send?phone=525512345678&text=', $response->json('wa_link'));
 
         $this->assertDatabaseHas('booking_messages', [
             'spa_booking_id' => $booking->id,

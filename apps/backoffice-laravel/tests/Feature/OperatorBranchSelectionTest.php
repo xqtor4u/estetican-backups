@@ -84,7 +84,7 @@ class OperatorBranchSelectionTest extends TestCase
         $createResponse->assertSee('address-editor-geocode-btn', false);
         $createResponse->assertSee('address-editor-maps-btn', false);
         $createResponse->assertSee('address-editor-import-btn', false);
-        $createResponse->assertSee('name="return_to" value="' . e($returnTo) . '"', false);
+        $createResponse->assertSee('name="return_to" value="'.e($returnTo).'"', false);
 
         $storeResponse = $this->post(route('branches.store'), [
             'code' => 'CDMX-SUR',
@@ -103,12 +103,12 @@ class OperatorBranchSelectionTest extends TestCase
 
         $branch = Branch::query()->where('code', 'CDMX-SUR')->firstOrFail();
 
-        $storeResponse->assertRedirect($returnTo . '?branch_id=' . $branch->id);
+        $storeResponse->assertRedirect($returnTo.'?branch_id='.$branch->id);
 
-        $returnResponse = $this->get($returnTo . '?branch_id=' . $branch->id);
+        $returnResponse = $this->get($returnTo.'?branch_id='.$branch->id);
         $returnResponse->assertOk();
         $returnResponse->assertSee('CDMX Sur');
-        $returnResponse->assertSee('value="' . $branch->id . '" selected', false);
+        $returnResponse->assertSee('value="'.$branch->id.'" selected', false);
     }
 
     public function test_branch_show_exposes_atomized_address_and_share_links(): void
@@ -140,7 +140,7 @@ class OperatorBranchSelectionTest extends TestCase
         $response->assertSee('Abrir en Maps');
         $response->assertSee('Compartir por WhatsApp');
         $response->assertSee('https://www.google.com/maps?q=25.65123456,-100.28987654', false);
-        $response->assertSee('https://wa.me/?text=', false);
+        $response->assertSee('https://api.whatsapp.com/send?text=', false);
     }
 
     public function test_branch_can_be_deleted_when_it_has_no_assignments(): void

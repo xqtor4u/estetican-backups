@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\WhatsApp\WhatsAppLink;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -44,7 +45,7 @@ class Branch extends Model
         ], fn ($value) => is_string($value) && trim($value) !== '')));
 
         if ($this->interior_number && trim($this->interior_number) !== '') {
-            $streetLine = trim($streetLine . ' Int ' . trim($this->interior_number));
+            $streetLine = trim($streetLine.' Int '.trim($this->interior_number));
         }
 
         $parts = array_filter([
@@ -62,22 +63,22 @@ class Branch extends Model
     public function getGoogleMapsUrlAttribute(): string
     {
         if ($this->lat !== null && $this->lng !== null) {
-            return 'https://www.google.com/maps?q=' . $this->lat . ',' . $this->lng;
+            return 'https://www.google.com/maps?q='.$this->lat.','.$this->lng;
         }
 
         if ($this->formatted_address === '') {
             return '';
         }
 
-        return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($this->formatted_address);
+        return 'https://www.google.com/maps/search/?api=1&query='.rawurlencode($this->formatted_address);
     }
 
     public function getWhatsAppAddressTextAttribute(): string
     {
         $lines = array_filter([
-            'Sucursal: ' . $this->name,
-            $this->formatted_address !== '' ? 'Dirección: ' . $this->formatted_address : null,
-            $this->google_maps_url !== '' ? 'Maps: ' . $this->google_maps_url : null,
+            'Sucursal: '.$this->name,
+            $this->formatted_address !== '' ? 'Dirección: '.$this->formatted_address : null,
+            $this->google_maps_url !== '' ? 'Maps: '.$this->google_maps_url : null,
         ]);
 
         return implode("\n", $lines);
@@ -89,6 +90,7 @@ class Branch extends Model
             return '';
         }
 
-        return 'https://wa.me/?text=' . rawurlencode($this->whats_app_address_text);
+        // api.whatsapp.com/send y no wa.me: la redirección de wa.me rompe los emoji en escritorio (ver WhatsAppLink).
+        return WhatsAppLink::to(null, $this->whats_app_address_text);
     }
 }

@@ -202,7 +202,7 @@ class ClientWhatsAppLinkTest extends TestCase
             ->getJson(route('clients.whatsapp.link', $client).'?phone=8110000001');
 
         $response->assertOk();
-        $response->assertJson(['wa_link' => 'https://wa.me/528110000001', 'message' => '']);
+        $response->assertJson(['wa_link' => 'https://api.whatsapp.com/send?phone=528110000001', 'message' => '']);
     }
 
     public function test_web_link_endpoint_resolves_the_chosen_template_with_the_client_name(): void
@@ -220,7 +220,7 @@ class ClientWhatsAppLinkTest extends TestCase
 
         $response->assertOk();
         $response->assertJson([
-            'wa_link' => 'https://wa.me/528110000001?text='.rawurlencode('Hola Renata Vidal, ¿cómo estás?'),
+            'wa_link' => 'https://api.whatsapp.com/send?phone=528110000001&text='.rawurlencode('Hola Renata Vidal, ¿cómo estás?'),
             'message' => 'Hola Renata Vidal, ¿cómo estás?',
         ]);
     }
@@ -284,7 +284,7 @@ class ClientWhatsAppLinkTest extends TestCase
             ->getJson('/api/clients/'.$client->id.'/whatsapp-link?phone=8110000001');
 
         $response->assertOk();
-        $response->assertJson(['wa_link' => 'https://wa.me/528110000001']);
+        $response->assertJson(['wa_link' => 'https://api.whatsapp.com/send?phone=528110000001']);
     }
 
     private function bookingFor(Client $client, string $petName = 'Firulais', ?int $operatorId = null): SpaBooking
@@ -385,5 +385,23 @@ class ClientWhatsAppLinkTest extends TestCase
             ->getJson('/api/bookings/'.$booking->id)
             ->assertOk()
             ->assertJsonPath('client.phone', '8110000001');
+    }
+
+    public function test_link_keeps_4_byte_emoji_intact_instead_of_going_through_wa_me(): void
+    {
+        // wa.me reemplaza estos emoji por U+FFFD (�) al redirigir en navegador de escritorio —
+        // el link tiene que ir directo a api.whatsapp.com/send con el UTF-8 original.
+        $client = $this->clientWithPhone();
+        $template = WhatsAppTemplate::create(['name' => 'Listo', 'body' => '👋🏻 {cliente}, ya estoy listo 🐶', 'context' => 'cliente', 'is_active' => true]);
+
+        $link = $this->actingAs($this->admin())
+            ->getJson(route('clients.whatsapp.link', $client).'?phone=8110000001&template_id='.$template->id)
+            ->assertOk()
+            ->json('wa_link');
+
+        $this->assertStringStartsWith('https://api.whatsapp.com/send?phone=528110000001&text=', $link);
+        $this->assertStringNotContainsString('wa.me', $link);
+        $this->assertStringContainsString(rawurlencode('🐶'), $link);
+        $this->assertStringNotContainsString('%EF%BF%BD', $link);
     }
 }

@@ -8,6 +8,7 @@ use App\Models\SpaBooking;
 use App\Models\WhatsAppTemplate;
 use App\Support\WhatsApp\PhoneNormalizer;
 use App\Support\WhatsApp\TemplateResolver;
+use App\Support\WhatsApp\WhatsAppLink;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -49,7 +50,7 @@ class ClientWhatsAppController extends Controller
     }
 
     /**
-     * Arma el link de wa.me para un teléfono real del cliente — con mensaje vacío ("mensaje
+     * Arma el link de WhatsApp (`WhatsAppLink`) para un teléfono real del cliente — con mensaje vacío ("mensaje
      * directo") o resuelto desde una plantilla de contexto "cliente"/"general" (usa los datos
      * del cliente para preformatear el mensaje).
      */
@@ -128,7 +129,7 @@ class ClientWhatsAppController extends Controller
             };
         }
 
-        $waLink = 'https://wa.me/'.$waNumber.($message !== '' ? '?text='.rawurlencode($message) : '');
+        $waLink = WhatsAppLink::to($waNumber, $message);
 
         return response()->json([
             'wa_link' => $waLink,
