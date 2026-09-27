@@ -924,15 +924,6 @@ export function MobCitaDet() {
               Acciones <span className="font-normal normal-case text-on-surface-variant/60">· toda la cita</span>
             </p>
             <div className="flex flex-wrap gap-2">
-              {canWhatsApp && (
-                <button
-                  onClick={() => setShowWhatsApp(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border font-semibold text-xs transition-colors active:scale-95 bg-green-100 border-green-300 text-green-700"
-                >
-                  <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
-                  WhatsApp
-                </button>
-              )}
               {editable && acciones.map(action => (
                 <button
                   key={action.value}
@@ -991,6 +982,15 @@ export function MobCitaDet() {
                   {action.label}
                 </button>
               ))}
+              {canWhatsApp && (
+                <button
+                  onClick={() => setShowWhatsApp(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border font-semibold text-xs transition-colors active:scale-95 bg-green-100 border-green-300 text-green-700"
+                >
+                  <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
+                  WhatsApp
+                </button>
+              )}
             </div>
           </section>
         )}
