@@ -64,6 +64,10 @@ donde se envía, no por permisos — `ZEUS-045` cerrado sin cambios, ver backlog
 `{hora_local}`/`{sucursal}`/`{usuario}` en cita/cliente/general/recurrencia; `{precio_cita}`/
 `{precio_lista}` solo en cita; calendario ninguna. Prod 877 ok / 33 preexistentes; `tst` 932/932.
 
+**ZEUS-044 — selector de emoticones visible (`bdcff27` en `tst`, `99c0a1d` aquí).** En el editor de
+plantillas: línea siempre visible con los 12 más usados + botón "Más" desplegable por categoría, en
+lugar del `<details>` colapsado de `SYNC-096`. Vistas compiladas borradas (NT-005). WhatsApp 71/71.
+
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
 (categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,
@@ -87,6 +91,8 @@ legítimamente visibles para cualquiera con `ver agenda` (excepción de la regla
    `tst`. Quedó sin hacer en esta sesión (el clasificador bloqueó la exploración de `tst/mobile`).
 4. `SYNC-108b` (`mobile_screen_lock_idle_minutes`) y `108c` (campo `phone` en la agenda móvil) en
    la cola normal de porteo.
+5. Tomas: subir un favicon cuadrado en Configuración — el actual (12/07) es el logo horizontal
+   503×129 y en la pestaña de `mov` queda ilegible; el recorte cuadrado ya es obligatorio (SYNC-074).
 
 ---
 
