@@ -81,20 +81,6 @@ class WhatsAppTemplateFlowTest extends TestCase
         );
     }
 
-    public function test_creating_a_template_via_json_with_invalid_data_returns_validation_errors(): void
-    {
-        $response = $this->actingAs($this->admin())
-            ->postJson(route('whatsapp.plantillas.store'), [
-                'name' => '',
-                'body' => '',
-                'context' => 'cita',
-            ]);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['name', 'body']);
-        $this->assertSame(0, WhatsAppTemplate::count());
-    }
-
     /**
      * SYNC-096: el editor de plantillas (un solo _form.blade.php para WhatsApp y correo) ofrece
      * un selector de emoticones que reusa el mismo insert() de Alpine que los botones de
@@ -113,6 +99,26 @@ class WhatsAppTemplateFlowTest extends TestCase
             $response->assertOk();
             $response->assertSee('Emoticones', false);
             $response->assertSee("insert('🐾')", false); // 🐾 vía @js()
+            // ZEUS-044: línea visible de frecuentes + pestaña "Más" desplegable por categoría,
+            // ya no escondido en un <details> colapsado.
+            $response->assertSee('data-bs-toggle="dropdown"', false);
+            $response->assertSee('Mascotas y estética', false);
+            $response->assertSee("insert('💉')", false);
+            $response->assertDontSee('<details>', false);
         }
+    }
+
+    public function test_creating_a_template_via_json_with_invalid_data_returns_validation_errors(): void
+    {
+        $response = $this->actingAs($this->admin())
+            ->postJson(route('whatsapp.plantillas.store'), [
+                'name' => '',
+                'body' => '',
+                'context' => 'cita',
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['name', 'body']);
+        $this->assertSame(0, WhatsAppTemplate::count());
     }
 }

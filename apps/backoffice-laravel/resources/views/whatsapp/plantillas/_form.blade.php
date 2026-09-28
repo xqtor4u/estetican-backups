@@ -73,23 +73,42 @@
         </div>
     </div>
 
+    {{-- ZEUS-044: línea visible con los más usados + pestaña desplegable con el resto, por
+         categoría. Solo emoji Unicode estándar (se ven igual en WhatsApp, redes y correo),
+         nunca stickers propios de una plataforma. --}}
+    @php($frequentEmoji = ['👋', '🙂', '😊', '👍', '🙏', '🎉', '❤️', '🐶', '🐾', '✅', '📅', '⏰'])
+    @php($emojiGroups = [
+        'Saludos y ánimo' => ['😀', '😉', '😍', '🥰', '🤗', '👌', '👏', '💪', '🙌', '✨', '⭐', '🌟', '🔔'],
+        'Mascotas y estética' => ['🐱', '🐰', '🐹', '🦴', '🛁', '✂️', '🧼', '💧', '💈', '🎁'],
+        'Salud' => ['💉', '🩺', '🏥', '💊', '🌡️', '⚕️'],
+        'Agenda y tiempo' => ['🗓️', '🕒', '⌛'],
+        'Avisos y contacto' => ['⚠️', '❗', 'ℹ️', '📞', '📱', '💬', '📧', '📩', '📍'],
+    ])
     <div class="mb-2">
-        <details>
-            <summary class="form-label fw-semibold" style="cursor: pointer;">Emoticones — clic para insertar en el mensaje</summary>
-            <div class="d-flex flex-wrap gap-1 mt-2">
-                @foreach ([
-                    '👋','🙂','😊','😀','😉','😍','🥰','🤗','👍','👌','🙏','👏','💪','🙌','🎉','✨','⭐','🌟','❤️','🔔',
-                    '🐶','🐱','🐾','🐰','🐹','🦴','🛁','✂️','🧼','💧','💈','🎁',
-                    '💉','🩺','🏥','💊','🌡️','⚕️',
-                    '📅','🗓️','⏰','🕒','✅','⌛',
-                    '⚠️','❗','ℹ️','📞','📱','💬','📧','📩','📍',
-                ] as $emoji)
-                    <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size: 1.1rem; line-height: 1;"
-                        @click="insert(@js($emoji))">{{ $emoji }}</button>
-                @endforeach
+        <label class="form-label fw-semibold">Emoticones — clic para insertar en el mensaje</label>
+        <div class="d-flex flex-wrap align-items-center gap-1">
+            @foreach ($frequentEmoji as $emoji)
+                <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size: 1.1rem; line-height: 1;"
+                    @click="insert(@js($emoji))">{{ $emoji }}</button>
+            @endforeach
+            <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    Más
+                </button>
+                <div class="dropdown-menu p-2" style="width: 18rem;">
+                    @foreach ($emojiGroups as $group => $emojis)
+                        <div class="small text-body-secondary fw-semibold mt-1 mb-1">{{ $group }}</div>
+                        <div class="d-flex flex-wrap gap-1 mb-1">
+                            @foreach ($emojis as $emoji)
+                                <button type="button" class="btn btn-sm btn-light" style="font-size: 1.1rem; line-height: 1;"
+                                    @click="insert(@js($emoji))">{{ $emoji }}</button>
+                            @endforeach
+                        </div>
+                    @endforeach
+                </div>
             </div>
-            <div class="form-text">Son emoji Unicode estándar — se ven igual en WhatsApp, Facebook, Instagram y correo.</div>
-        </details>
+        </div>
+        <div class="form-text">Son emoji Unicode estándar — se ven igual en WhatsApp, Facebook, Instagram y correo.</div>
     </div>
 
     <div class="mb-3">
