@@ -170,11 +170,13 @@
                     $totalPaid = $booking->totalPaid();
                     $balance = $booking->unpaidBalance();
                     $quoteTotal = (float) ($acceptedQuote?->total_amount ?? $booking->total_estimated_price ?? 0);
+                    // EST-008: "anticipo" es solo lo cobrado como anticipo, no todo lo pagado.
+                    $advancePaid = (float) $booking->payments->where('category', 'advance')->sum('amount');
                 @endphp
                 <div class="catalog-overview-card__value-sm text-{{ $balance > 0 ? 'danger' : 'success' }}">${{ number_format($balance, 2) }}</div>
                 <div class="catalog-overview-card__label">
                     @if($totalPaid > 0)
-                        anticipo ${{ number_format($totalPaid, 2) }} · total ${{ number_format($quoteTotal, 2) }}
+                        pagado ${{ number_format($totalPaid, 2) }}@if($advancePaid > 0 && abs($advancePaid - $totalPaid) > 0.009) (anticipo ${{ number_format($advancePaid, 2) }})@endif · total ${{ number_format($quoteTotal, 2) }}
                     @else
                         {{ $balance > 0 ? 'Por liquidar' : 'Pagado completo' }}
                     @endif

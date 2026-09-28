@@ -86,10 +86,10 @@ class AgendaShowLabelsAndBalanceTest extends TestCase
         $response = $this->actingAs($this->admin())->get(route('agenda.show', $booking));
 
         $response->assertOk();
-        // El label existente muestra "anticipo $X · total $Y" en cuanto hay algún pago
-        // registrado (diseño previo, sin cambios) — lo que se corrigió es que $totalPaid
-        // ahora sí ve el Payment directo de móvil en vez de quedar siempre en $0.
-        $response->assertSee('anticipo $400.00', false);
+        // El label muestra "pagado $X · total $Y" en cuanto hay algún pago registrado — lo que
+        // se corrigió aquí es que $totalPaid ahora sí ve el Payment directo de móvil en vez de
+        // quedar siempre en $0. EST-008: antes decía "anticipo" aunque fuera todo lo pagado.
+        $response->assertSee('pagado $400.00', false);
         $response->assertSee('total $400.00', false);
         $response->assertDontSee('Por liquidar');
     }

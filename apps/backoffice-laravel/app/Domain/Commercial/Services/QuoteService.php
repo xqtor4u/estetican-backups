@@ -100,6 +100,14 @@ class QuoteService implements QuoteServiceInterface
             // recibo (BL-076) refleje los servicios recién aceptados, no una cita vacía.
             $quote->loadMissing('items.service', 'items.item');
             $booking = $quote->spaBooking;
+            // Lo asignado por línea al agendar (operador, hora de inicio y duración propias,
+            // servicio externo) — las líneas se recrean desde el presupuesto y sin esto se
+            // perdía: la orden quedaba "Operador por asignar" aunque ya se había elegido uno
+            // (EST-002). Se empareja por servicio, en orden, si el presupuesto lo repite.
+            $assignedByService = $booking->services()
+                ->orderBy('id')
+                ->get(['service_id', 'operator_id', 'scheduled_offset_minutes', 'duration_minutes', 'is_external', 'external_cost'])
+                ->groupBy('service_id');
             $booking->services()->delete();
             $booking->items()->delete();
             foreach ($quote->items as $item) {
@@ -114,13 +122,15 @@ class QuoteService implements QuoteServiceInterface
                         'current_price' => $lineTotal,
                     ]);
                 } else {
+                    $assigned = $assignedByService->get($item->service_id)?->shift();
+
                     $booking->services()->create([
                         'service_id' => $item->service_id,
                         'service_name_snapshot' => $item->name_snapshot ?? $item->service?->name,
                         'group_id' => $item->group_id,
                         'quantity' => $item->quantity,
                         'current_price' => $lineTotal,
-                    ]);
+                    ] + ($assigned?->only(['operator_id', 'scheduled_offset_minutes', 'duration_minutes', 'is_external', 'external_cost']) ?? []));
                 }
             }
             $booking->update([

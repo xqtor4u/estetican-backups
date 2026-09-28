@@ -113,8 +113,9 @@
             }">
                 <div class="row g-3 mb-4">
                     <div class="col-md-8">
-                        <label class="form-label fw-bold">Etiqueta de versión</label>
+                        <label class="form-label fw-bold">Etiqueta de versión <span class="text-danger">*</span></label>
                         <input type="text" name="version_label" class="form-control" placeholder="Ej: Opción Integral, Opción Básica..." required>
+                        <div class="form-text">Obligatoria — distingue esta opción de las demás del mismo presupuesto.</div>
                     </div>
                 </div>
                 
@@ -226,6 +227,11 @@
             suggested: 0,
             methods: @json($paymentMethods->map(fn ($pm) => ['code' => $pm->code, 'name' => $pm->name, 'type' => $pm->type])),
             methodCode: '',
+            advance: 0,
+            // El método de pago solo hace falta si de verdad se registra un anticipo.
+            get needsMethod() {
+                return (parseFloat(this.advance) || 0) > 0;
+            },
             get isCash() {
                 let m = this.methods.find(m => m.code === this.methodCode);
                 return m ? m.type === 'cash' : true;
@@ -238,7 +244,7 @@
                     @endif
                 @endforeach
                 this.suggested = s.toFixed(2);
-                $refs.advanceInput{{ $quote->id }}.value = this.suggested;
+                this.advance = this.suggested;
             }
         }">
             <div class="modal-dialog">
@@ -264,20 +270,21 @@
                                 </label>
                                 <div class="input-group">
                                     <span class="input-group-text">$</span>
-                                    <input type="number" name="advance_amount" x-ref="advanceInput{{ $quote->id }}" class="form-control form-control-lg" step="0.01" min="0">
+                                    <input type="number" name="advance_amount" x-ref="advanceInput{{ $quote->id }}" x-model="advance" class="form-control form-control-lg" step="0.01" min="0">
                                 </div>
                                 <div class="form-text">Monto pagado por el cliente para confirmar.</div>
                             </div>
                             
                             <div class="mb-1">
-                                <label class="form-label fw-bold">Método de pago</label>
-                                <select name="advance_payment_method_code" class="form-select" x-model="methodCode" required>
+                                <label class="form-label fw-bold">Método de pago <span class="text-danger" x-show="needsMethod">*</span></label>
+                                <select name="advance_payment_method_code" class="form-select" x-model="methodCode" :required="needsMethod" :disabled="!needsMethod">
                                     <option value="">Selecciona...</option>
                                     @foreach($paymentMethods as $pm)
                                         <option value="{{ $pm->code }}">{{ $pm->name }}</option>
                                     @endforeach
                                 </select>
-                                <div class="form-text" x-show="methodCode" x-cloak>
+                                <div class="form-text" x-show="!needsMethod" x-cloak>Sin anticipo — no hace falta método de pago.</div>
+                                <div class="form-text" x-show="needsMethod && methodCode" x-cloak>
                                     Destino: <span :class="isCash ? 'text-warning fw-bold' : 'text-info fw-bold'" x-text="isCash ? 'En Caja' : 'En Banco'"></span>
                                 </div>
                             </div>
@@ -285,7 +292,7 @@
                     </div>
                     <div class="modal-footer border-0">
                         <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-success px-4" @if(!app(\App\Support\SystemSettings\SystemSettings::class)->all()['allow_override_advance_requirement']) :disabled="$refs.advanceInput{{ $quote->id }}.value < suggested" @endif>
+                        <button type="submit" class="btn btn-success px-4" @if(!app(\App\Support\SystemSettings\SystemSettings::class)->all()['allow_override_advance_requirement']) :disabled="(parseFloat(advance) || 0) < parseFloat(suggested)" @endif>
                             Confirmar y Abrir Orden
                         </button>
                     </div>
