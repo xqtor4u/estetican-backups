@@ -7,6 +7,7 @@ use App\Models\HotelReservation;
 use App\Models\Pet;
 use App\Models\SpaBooking;
 use App\Support\CatalogCache\PetCatalogCache;
+use App\Support\Images\UploadLimit;
 use App\Support\PetPhotoImageManager;
 use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\SystemSettings;
@@ -263,7 +264,7 @@ class PetController extends Controller
             ]);
 
             $request->validate([
-                'photo' => 'required|image|max:15360',
+                'photo' => 'required|image|'.UploadLimit::rule(),
             ]);
 
             $imageManager = app(PetPhotoImageManager::class);

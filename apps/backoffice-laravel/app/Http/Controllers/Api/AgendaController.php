@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Http\Controllers\Controller;
+use App\Support\Images\PhotoUrl;
 use App\Models\Payment;
 use App\Models\SpaBooking;
 use App\Support\SystemSettings\SystemSettings;
@@ -143,7 +144,7 @@ class AgendaController extends Controller
                     'species' => $b->pet->species,
                     'breed' => $b->pet->breed,
                     'photo' => $b->pet->profile_photo_path
-                        ? Storage::disk('public')->url($b->pet->profile_photo_path)
+                        ? PhotoUrl::thumb($b->pet->profile_photo_path)
                         : null,
                 ],
                 'client' => $b->pet->client ? [
@@ -285,7 +286,7 @@ class AgendaController extends Controller
                     'id' => $b->pet->id,
                     'name' => $b->pet->name,
                     'photo' => $b->pet->profile_photo_path
-                        ? Storage::disk('public')->url($b->pet->profile_photo_path)
+                        ? PhotoUrl::thumb($b->pet->profile_photo_path)
                         : null,
                 ],
                 'client' => $b->pet->client ? [
@@ -305,6 +306,6 @@ class AgendaController extends Controller
             return null;
         }
 
-        return Storage::disk('public')->url($operator->profile_photo_path);
+        return PhotoUrl::thumb($operator->profile_photo_path);
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Operator;
 use App\Models\OperatorRole;
 use App\Models\User;
+use App\Support\Images\UploadLimit;
 use App\Support\UserPhotoImageManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -132,7 +133,7 @@ class UserController extends Controller
             'operator_role_id' => 'nullable|exists:operator_roles,id',
             'branch_id' => 'nullable|exists:branches,id',
             'notes' => 'nullable|string',
-            'profile_photo' => 'nullable|image|max:5120',
+            'profile_photo' => 'nullable|image|'.UploadLimit::rule(),
         ], [
             'required' => 'El campo :attribute es obligatorio.',
             'email' => 'El :attribute debe ser un correo válido.',
@@ -238,7 +239,7 @@ class UserController extends Controller
             'operator_role_id' => 'nullable|exists:operator_roles,id',
             'branch_id' => 'nullable|exists:branches,id',
             'notes' => 'nullable|string',
-            'profile_photo' => 'nullable|image|max:5120',
+            'profile_photo' => 'nullable|image|'.UploadLimit::rule(),
             'google_personal_email' => 'nullable|email|max:255',
             'google_calendar_visibility' => ['nullable', Rule::in(['personal', 'all'])],
             'google_calendar_notify_email' => 'nullable|boolean',

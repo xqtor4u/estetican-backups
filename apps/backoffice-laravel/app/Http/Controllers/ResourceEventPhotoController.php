@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
+use App\Support\Images\UploadLimit;
 
 class ResourceEventPhotoController extends Controller
 {
@@ -111,7 +112,7 @@ class ResourceEventPhotoController extends Controller
             'taken_at' => 'nullable|date',
             'description' => 'nullable|string',
             'is_primary' => 'nullable|boolean',
-            'photo' => [$request->isMethod('post') ? 'required' : 'nullable', 'file', 'image', 'max:15360'],
+            'photo' => [$request->isMethod('post') ? 'required' : 'nullable', 'file', 'image', UploadLimit::rule()],
         ]);
 
         if (!empty($validated['resource_event_update_id'])) {

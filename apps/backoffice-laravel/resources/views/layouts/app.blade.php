@@ -14,6 +14,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{-- A4: límite de subida de fotos configurable, lo lee resources/js/modules/image-upload.js --}}
+    <meta name="upload-max-mb" content="{{ \App\Support\Images\UploadLimit::megabytes() }}">
     <title>@yield('title', data_get($backofficeConfig, 'brand.html_title', 'EstetiCAN Backoffice'))</title>
     @php
         $faviconConfig = data_get($backofficeConfig, 'brand.favicon', 'favicon.webp');

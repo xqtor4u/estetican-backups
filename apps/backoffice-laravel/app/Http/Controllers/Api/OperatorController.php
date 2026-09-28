@@ -7,7 +7,7 @@ use App\Models\Branch;
 use App\Models\Operator;
 use App\Models\OperatorCheckin;
 use App\Models\SpaBooking;
-use Illuminate\Support\Facades\Storage;
+use App\Support\Images\PhotoUrl;
 
 class OperatorController extends Controller
 {
@@ -38,7 +38,7 @@ class OperatorController extends Controller
             // calificados (SYNC-073; `Service.operator_role_id` ya no existe, SYNC-103).
             'role_ids' => $o->activeRoles()->pluck('id')->values(),
             'photo_url' => $o->profile_photo_path
-                ? Storage::disk('public')->url($o->profile_photo_path)
+                ? PhotoUrl::thumb($o->profile_photo_path)
                 : null,
         ]));
     }
@@ -82,7 +82,7 @@ class OperatorController extends Controller
                 'name' => $o->full_name,
                 'role' => $this->roleLabel($o),
                 'photo_url' => $o->profile_photo_path
-                    ? Storage::disk('public')->url($o->profile_photo_path)
+                    ? PhotoUrl::thumb($o->profile_photo_path)
                     : null,
                 'checked_in' => (bool) $checkin,
                 'checked_in_at' => $checkin?->checked_in_at,

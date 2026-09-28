@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Planning\Services\OperatorServiceResolver;
 use App\Http\Controllers\Controller;
 use App\Models\Service;
-use Illuminate\Support\Facades\Storage;
+use App\Support\Images\PhotoUrl;
 
 class ServiceController extends Controller
 {
@@ -42,7 +42,7 @@ class ServiceController extends Controller
             'id' => $o->id,
             'name' => $o->full_name,
             'photo_url' => $o->profile_photo_path
-                ? Storage::disk('public')->url($o->profile_photo_path)
+                ? PhotoUrl::thumb($o->profile_photo_path)
                 : null,
         ])->values());
     }

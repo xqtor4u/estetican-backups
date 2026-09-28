@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Phone;
 use App\Rules\ValidPhoneNumber;
+use App\Support\Images\PhotoUrl;
 use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class ClientController extends Controller
 {
@@ -72,7 +72,7 @@ class ClientController extends Controller
                 'id' => $pet->id,
                 'name' => $pet->name,
                 'breed' => $pet->breed,
-                'photo' => $pet->profile_photo_path ? Storage::disk('public')->url($pet->profile_photo_path) : null,
+                'photo' => $pet->profile_photo_path ? PhotoUrl::thumb($pet->profile_photo_path) : null,
             ]),
         ];
     }

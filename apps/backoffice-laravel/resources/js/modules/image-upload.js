@@ -25,8 +25,10 @@ export default function imageUploadFactory(initialUrl, aspectRatio, watermarkTex
             const file = event.target.files[0];
             if (!file) return;
 
-            if (file.size > 10 * 1024 * 1024) {
-                alert('La imagen es demasiado pesada. El máximo permitido es 10MB.');
+            // A4: el límite viene de Configuración → Fotografías (<meta name="upload-max-mb">).
+            const maxMb = Number(document.querySelector('meta[name="upload-max-mb"]')?.content) || 15;
+            if (file.size > maxMb * 1024 * 1024) {
+                alert(`La imagen es demasiado pesada. El máximo permitido es ${maxMb} MB.`);
                 event.target.value = '';
                 return;
             }

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Pet;
 use App\Models\PetWeight;
+use App\Support\Images\PhotoUrl;
+use App\Support\Images\UploadLimit;
 use App\Support\PetPhotoImageManager;
 use App\Support\Search\TokenSearch;
 use Illuminate\Http\Request;
@@ -131,7 +133,7 @@ class PetController extends Controller
 
     public function updatePhoto(Request $request, Pet $pet)
     {
-        $request->validate(['photo' => 'required|image|max:15360']);
+        $request->validate(['photo' => 'required|image|'.UploadLimit::rule()]);
 
         $photoUrl = $this->storeProfilePhoto($pet, $request->file('photo'));
 
@@ -198,7 +200,7 @@ class PetController extends Controller
             'breed' => $pet->breed,
             'owner' => $pet->client?->full_name,
             'photo' => $pet->profile_photo_path
-                                ? Storage::disk('public')->url($pet->profile_photo_path)
+                                ? PhotoUrl::thumb($pet->profile_photo_path)
                                 : null,
             'next_visit' => optional(
                 $pet->spaBookings()

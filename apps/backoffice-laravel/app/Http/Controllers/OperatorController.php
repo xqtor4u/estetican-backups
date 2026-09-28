@@ -10,6 +10,7 @@ use App\Models\OperatorRoleServiceTemplate;
 use App\Models\OperatorServiceCapability;
 use App\Models\Service;
 use App\Support\CatalogCache\OperatorServiceCapabilityCache;
+use App\Support\Images\UploadLimit;
 use App\Support\OperatorPhotoImageManager;
 use App\Support\Search\TokenSearch;
 use App\Support\SystemSettings\BusinessHours;
@@ -358,7 +359,7 @@ class OperatorController extends Controller
             'imss_number' => 'nullable|string|max:255',
             'address' => 'nullable|string',
             'phone' => 'nullable|string|max:255',
-            'profile_photo' => 'nullable|file|image|max:15360',
+            'profile_photo' => 'nullable|file|image|'.UploadLimit::rule(),
             'remove_profile_photo' => 'nullable|boolean',
             'emergency_contact_name' => 'nullable|string|max:255',
             'emergency_contact_phone' => 'nullable|string|max:255',

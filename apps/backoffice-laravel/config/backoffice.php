@@ -89,6 +89,8 @@ return [
     ],
 
     'images' => [
+        // A4: tamaño máximo por foto subida (MB); se sobreescribe desde Configuración → Fotografías.
+        'max_upload_mb' => env('BACKOFFICE_IMAGE_MAX_UPLOAD_MB', 15),
         'pets' => [
             'main_max_size' => env('BACKOFFICE_PET_IMAGE_MAX_SIZE', 1200),
             'main_quality' => env('BACKOFFICE_PET_IMAGE_QUALITY', 80),

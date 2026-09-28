@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use App\Support\Images\UploadLimit;
 
 class ResourceController extends Controller
 {
@@ -192,7 +193,7 @@ class ResourceController extends Controller
     public function updateProfilePhoto(Request $request, Resource $resource)
     {
         $request->validate([
-            'photo' => 'required|image|max:15360',
+            'photo' => 'required|image|'.UploadLimit::rule(),
         ]);
 
         $imageManager = app(\App\Support\ResourcePhotoImageManager::class);

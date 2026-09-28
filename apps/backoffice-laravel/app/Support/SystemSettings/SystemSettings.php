@@ -725,6 +725,15 @@ class SystemSettings
                         'rules' => ['nullable', 'boolean'],
                         'help' => 'Si está activo, las fotos subidas desde la app móvil llevan una marca de agua pequeña (nombre y fecha) en la parte inferior, agregada antes de subir la foto.',
                     ],
+                    'photo_max_upload_mb' => [
+                        'label' => 'Tamaño máximo por foto (MB)',
+                        'type' => 'number',
+                        'default' => 15,
+                        'config' => 'backoffice.images.max_upload_mb',
+                        'rules' => ['required', 'integer', 'min:1', 'max:50'],
+                        'input' => ['min' => 1, 'max' => 50, 'step' => 1],
+                        'help' => 'Límite para las fotos que se suben desde el backoffice (mascotas, operadores, artículos, recursos, usuarios). La foto se reduce y optimiza al guardarla, así que este límite solo evita archivos enormes.',
+                    ],
                 ],
             ],
             'whatsapp_catalog' => [

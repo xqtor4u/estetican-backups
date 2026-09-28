@@ -15,12 +15,12 @@ use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
 use App\Support\Geo\CoverageChecker;
+use App\Support\Images\PhotoUrl;
 use App\Support\SystemSettings\BusinessHours;
 use App\Support\WhatsApp\PhoneNormalizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 class BookingController extends Controller
@@ -115,7 +115,7 @@ class BookingController extends Controller
                 'species' => $b->pet->species,
                 'breed' => $b->pet->breed,
                 'photo' => $b->pet->profile_photo_path
-                    ? Storage::disk('public')->url($b->pet->profile_photo_path)
+                    ? PhotoUrl::thumb($b->pet->profile_photo_path)
                     : null,
             ],
             'client' => $b->pet->client ? [
@@ -155,7 +155,7 @@ class BookingController extends Controller
                 'id' => $b->operator->id,
                 'name' => $b->operator->full_name,
                 'photo_url' => $b->operator->profile_photo_path
-                    ? Storage::disk('public')->url($b->operator->profile_photo_path)
+                    ? PhotoUrl::thumb($b->operator->profile_photo_path)
                     : null,
             ] : null,
             // Jaula asignada (ZEUS-043) — null si la cita no tiene una.

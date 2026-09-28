@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use App\Support\Images\UploadLimit;
 
 class UserSettingsController extends Controller
 {
@@ -63,7 +64,7 @@ class UserSettingsController extends Controller
             'apellido_materno' => 'nullable|string|max:255',
             'email' => 'required|email|max:255|unique:users,email,' . $user->id,
             'phone' => 'nullable|string|max:255',
-            'profile_photo' => 'nullable|image|max:5120',
+            'profile_photo' => 'nullable|image|'.UploadLimit::rule(),
         ]);
 
         $user->fill($validated);

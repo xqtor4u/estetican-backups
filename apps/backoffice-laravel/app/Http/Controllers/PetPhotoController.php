@@ -9,6 +9,7 @@ use App\Support\PetPhotoImageManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
+use App\Support\Images\UploadLimit;
 
 class PetPhotoController extends Controller
 {
@@ -112,7 +113,7 @@ class PetPhotoController extends Controller
             'taken_at' => 'nullable|date',
             'description' => 'nullable|string',
             'is_primary' => 'nullable|boolean',
-            'photo' => [$request->isMethod('post') ? 'required' : 'nullable', 'file', 'image', 'max:15360'],
+            'photo' => [$request->isMethod('post') ? 'required' : 'nullable', 'file', 'image', UploadLimit::rule()],
         ]);
 
         $data = [

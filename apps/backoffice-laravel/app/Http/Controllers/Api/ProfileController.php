@@ -7,6 +7,7 @@ use App\Support\UserPhotoImageManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use App\Support\Images\UploadLimit;
 
 class ProfileController extends Controller
 {
@@ -64,7 +65,7 @@ class ProfileController extends Controller
     {
         $user = Auth::user();
 
-        $request->validate(['photo' => 'required|image|max:5120']);
+        $request->validate(['photo' => 'required|image|'.UploadLimit::rule()]);
 
         $this->imageManager->deleteFiles($user->profile_photo_path);
         $user->profile_photo_path = $this->imageManager->store($request->file('photo'));

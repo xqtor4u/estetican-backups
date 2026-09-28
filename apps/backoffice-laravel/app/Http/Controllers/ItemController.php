@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Throwable;
+use App\Support\Images\UploadLimit;
 
 /**
  * CRUD del maestro de artículos (BL-050) — identidad de producto, venta e inventario
@@ -174,7 +175,7 @@ class ItemController extends Controller
             'price' => 'nullable|numeric|min:0',
             'is_active' => 'nullable|boolean',
             'ai_visible' => 'nullable|boolean',
-            'photo' => 'nullable|image|max:10240',
+            'photo' => 'nullable|image|'.UploadLimit::rule(),
             'notes' => 'nullable|string',
             'meta_category' => 'nullable|string|max:255',
             'meta_variant_group' => 'nullable|string|max:255',
