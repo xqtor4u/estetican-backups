@@ -59,7 +59,16 @@ Tamaños: **S** = una sesión, **M** = 2–3 sesiones, **L** = requiere diseño 
 
 ## Estado (27/09/2026)
 
-**A2, A1, A3, B1, A4 y B2 construidos en `tst` y portados a producción el mismo día** — ver `BITACORA.md`. Siguen pendientes de decisión: B3–B5, C1–C3, D1–D5.
+**A2, A1, A3, B1, A4, B2 y B4 construidos en `tst` y portados a producción el mismo día** — ver `BITACORA.md`.
+- **B3 — ya cubierto, no se construyó:** el alta/edición web de citas ya tiene desde SYNC-086..095 una barra
+  del día con el bloque del operador arrastrable, ocupado/bloqueado, estancia de jaula y "Buscar el
+  próximo hueco". Una cuadrícula como la del móvil duplicaría la función en la misma pantalla.
+- **B5 — bloqueado, no se construyó:** las reservas de Hotel no tienen anticipo ni pagos (no hay
+  relación de cobro), ni estado de llegada/no-show (solo `scheduled`/`cancelled`), y hay 0 reservas en
+  producción. Antes de "retener el anticipo" haría falta un cobro de Hotel: anticipo al reservar,
+  registrar llegada/salida y "no se presentó", y la regla (horas de tolerancia, % retenido). Tamaño L,
+  requiere decisiones de Tomas.
+Siguen pendientes de decisión: B5 (con su prerrequisito), C1–C3, D1–D5.
 
 ## Recomendación original
 

@@ -121,6 +121,15 @@ del test de A3, que pasa en ambos repos.
   propio → sin cambio de comportamiento hasta que se configure.
 Prod 919 ok / 33 preexistentes; `tst` 974/974. Sin rutas nuevas (test de A3 en verde).
 
+**B3/B4/B5 de la propuesta.** *B4* (`7272eac` / `464aeea`): historial inmutable de lo ejecutado —
+`BookingExecutionRecorder` congela en `executed_services`/`executed_service_items` al completarse la
+cita (observer, un solo lugar para web, cobro móvil y edición); comando idempotente
+`ejecuciones:registrar-historico` corrido en prod tras respaldo `estetican_pre-B4-ejecuciones`: 26
+citas, total \$7,600.00 = total de las citas. *B3* no se construyó: ya cubierto por la barra de
+disponibilidad arrastrable de SYNC-086..095. *B5* no se construyó: el Hotel no tiene anticipos, pagos
+ni estado de llegada/no-show (0 reservas en prod) — prerrequisito anotado en la propuesta. Prod 924 ok /
+33 preexistentes; `tst` 979/979. Sin rutas nuevas.
+
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
 (categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,
