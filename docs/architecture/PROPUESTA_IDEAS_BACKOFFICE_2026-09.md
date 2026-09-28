@@ -57,7 +57,11 @@ Tamaños: **S** = una sesión, **M** = 2–3 sesiones, **L** = requiere diseño 
 
 ---
 
-## Recomendación
+## Estado (27/09/2026)
+
+**A2, A1, A3 y B1 construidos en `tst` y portados a producción el mismo día** — ver `BITACORA.md`. Siguen pendientes de decisión: A4, B2–B5, C1–C3, D1–D5.
+
+## Recomendación original
 
 Siguiente bloque: **A2 → A1 → A3 → B1**, en ese orden. A2 primero porque A1 (los PDF) va a
 mostrar totales y saldos, y conviene que salgan de un solo cálculo. B1 abre la puerta a todo lo

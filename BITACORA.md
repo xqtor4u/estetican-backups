@@ -83,6 +83,31 @@ Prod 888 ok / 33 preexistentes; `tst` 943/943. Bundle `index-vD8nezO_.js`.
 **Propuesta de ideas grandes sin SAT:** `docs/architecture/PROPUESTA_IDEAS_BACKOFFICE_2026-09.md`
 (recomendación A2 → A1 → A3 → B1). Permisos de Hotel ya estaban hechos — marcado en `IDEAS_FUTURO.md`.
 
+**Bloque A2 → A1 → A3 → B1 de la propuesta, construido en `tst` y portado uno por uno.**
+- *A2* (`d8a9325` / `ad8959e`): `SpaBooking::chargeLines()`/`chargesTotal()`/`advancePaid()` como
+  fuente única de cargos y total — Estado de Cuenta, recibo, correo de resumen, tarjeta Balance,
+  API móvil y `{precio_cita}`. Bugs de paso: el recibo listaba líneas canceladas y omitía
+  artículos; el correo de resumen salía vacío sin presupuesto. Verificado antes con datos reales
+  (69 citas: suma de líneas = total guardado; ningún saldo cambia).
+- *A1* (`7cb6489`+`635b93b` / `d97947d`): PDF de presupuesto, orden y recibo (`layouts.report-pdf`
+  compatible con dompdf, subconjunto de fuente, logo reescalado — 171 KB con el logo real);
+  envío al cliente por correo (adjunto) o WhatsApp (link firmado, 7 días) solo de presupuesto y
+  recibo — la orden de trabajo es interna. Los documentos ahora respetan `visibleTo` (antes un
+  operador restringido podía abrir el de cualquier cita). Verificado en vivo en app.estetican.org:
+  firmado 200, alterado/sin firma 403.
+- *A3* (`28c1ed5` / `5f199cf`): `tests/Feature/Security/RoutePermissionCoverageTest.php` — falla
+  si una ruta no tiene `permission:`/`role:`/`superadmin` ni razón documentada; con auto-prueba.
+  Regla de seguridad #3 de `CLAUDE.md` actualizada.
+- *B1* (`a409281` / `dfa303c`): `branch_id` en `spa_bookings` y `payments` (migración aditiva con
+  relleno, respaldo previo `estetican_pre-B1-branch-id_20260927_2022.sql.gz`), asignado al crear
+  por `BranchResolver`; reporte de caja filtra cobros por sucursal; `{sucursal}` sale de la cita.
+  Prod: 69/69 citas y 26/26 pagos con sucursal. `MODELO_BD.md` actualizado.
+Prod 909 ok / 33 preexistentes; `tst` 964/964.
+**Rutas nuevas de este bloque (regla #3):** `reports/{document}/{id}/pdf|email|whatsapp` →
+`permission:ver agenda` (+ `visibleTo` en el controlador); `documentos/{document}/{id}` →
+categoría (b), pública a propósito con firma que caduca + `throttle:30,1`, documentada en `ALLOWED`
+del test de A3, que pasa en ambos repos.
+
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
 (categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,
