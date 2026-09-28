@@ -107,7 +107,7 @@ class TemplateResolver
             '{servicio}' => $booking->services->pluck('service.name')->filter()->implode(', ') ?: 'servicio agendado',
             '{fecha}' => $booking->scheduled_at?->format($dateFormat) ?? '',
             '{hora}' => $booking->scheduled_at?->format($timeFormat) ?? '',
-            '{precio_cita}' => self::money(self::bookingTotal($booking)),
+            '{precio_cita}' => self::money($booking->chargesTotal()),
             '{precio_lista}' => self::money((float) $booking->services->sum(fn ($line) => (float) ($line->service?->price ?? 0))),
         ];
 
@@ -241,13 +241,6 @@ class TemplateResolver
         }
 
         return (string) ($branch?->name ?? '');
-    }
-
-    private static function bookingTotal(SpaBooking $booking): float
-    {
-        $accepted = $booking->quotes()->where('status', 'accepted')->first();
-
-        return $accepted ? (float) $accepted->total_amount : (float) $booking->total_estimated_price;
     }
 
     private static function money(float $amount): string

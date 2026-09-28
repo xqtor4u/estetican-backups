@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
-use App\Models\Payment;
 use App\Models\Quote;
 use App\Models\SpaBooking;
 use App\Support\SystemSettings\SystemSettings;
@@ -67,6 +66,8 @@ class ReportController extends Controller
             'quotes.items.service',
             'quotes.items.item',
             'services.service',
+            'items',
+            'payments',
             'processNotes.user:id,name',
         ]);
         $this->ensureOrderFolio($booking);
@@ -75,9 +76,7 @@ class ReportController extends Controller
         $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');
 
         // SYNC-098: todo cobro (móvil y web) vive en `payments`, ligado al SpaBooking.
-        $directPayments = Payment::where('payable_type', SpaBooking::class)
-            ->where('payable_id', $booking->id)
-            ->get();
+        $directPayments = $booking->payments;
 
         return view('reports.invoice', compact('booking', 'acceptedQuote', 'settings', 'directPayments'));
     }

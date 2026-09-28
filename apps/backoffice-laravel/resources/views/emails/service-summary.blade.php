@@ -31,22 +31,20 @@
 
             <h3 style="color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 5px;">Resumen de Atención</h3>
             
-            @php($acceptedQuote = $booking->quotes->firstWhere('status', 'accepted'))
-            @if($acceptedQuote)
-                @foreach($acceptedQuote->items as $item)
-                    <div class="service-item">
-                        <span class="price-box">${{ number_format($item->lineTotal(), 2) }}</span>
-                        <strong>{{ $item->name() }}</strong>
-                        @if($item->operator)
-                            <br><small>Por: {{ $item->operator->full_name }} ({{ $item->operator->specialty }})</small>
-                        @endif
-                    </div>
-                @endforeach
-                
-                <div class="total-row">
-                    Total: ${{ number_format($acceptedQuote->total_amount, 2) }}
+            {{-- A2: misma lista de cargos que el recibo y el Estado de Cuenta (SpaBooking::chargeLines()).
+                 Antes solo listaba algo si había presupuesto aceptado — sin él, el correo salía
+                 sin ningún cargo ni total. --}}
+            @foreach($booking->chargeLines() as $line)
+                <div class="service-item">
+                    <span class="price-box">${{ number_format($line['amount'], 2) }}</span>
+                    <strong>{{ $line['name'] }}</strong>
                 </div>
-            @endif
+            @endforeach
+
+            {{-- A2: mismo total que el recibo y el Estado de Cuenta (SpaBooking::chargesTotal()). --}}
+            <div class="total-row">
+                Total: ${{ number_format($booking->chargesTotal(), 2) }}
+            </div>
 
             @if($booking->notes)
                 <div style="margin-top: 20px; padding: 15px; border-left: 4px solid #3498db; background: #ebf5fb;">

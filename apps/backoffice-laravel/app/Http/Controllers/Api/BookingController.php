@@ -82,6 +82,7 @@ class BookingController extends Controller
             'pet:id,name,species,breed,profile_photo_path,client_id',
             'pet.client:id,first_name,apellido_paterno,apellido_materno',
             'pet.client.phones',
+            'items',
             'services.service:id,name,type,price,duration_minutes',
             'services.operator:id,first_name,apellido_paterno,apellido_materno,name',
             'operator:id,first_name,apellido_paterno,apellido_materno,profile_photo_path',
@@ -106,7 +107,8 @@ class BookingController extends Controller
             'status' => $b->status,
             'notes' => $b->notes,
             'cancellation_reason' => $b->cancellation_reason,
-            'total' => (float) ($b->total_estimated_price ?? 0),
+            // A2: mismo total que el backoffice web (SpaBooking::chargesTotal()).
+            'total' => $b->chargesTotal(),
             'pet' => [
                 'id' => $b->pet->id,
                 'name' => $b->pet->name,

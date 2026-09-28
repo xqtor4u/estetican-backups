@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Collection;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
@@ -145,6 +146,68 @@ class SpaBooking extends Model
     }
 
     /**
+     * Cargos de la cita — FUENTE ÚNICA de qué se cobra (A2, 27/09/2026). Antes cada vista armaba
+     * su propia lista y su propio total (presupuesto aceptado, `total_estimated_price` o suma de
+     * líneas) y podían no coincidir entre pantallas. Regla: líneas de servicio cobrables (sin
+     * canceladas ni "no realizadas") más líneas de artículo. Al aceptar un presupuesto sus
+     * renglones se copian a estas líneas, así que ya lo incluyen y además reflejan
+     * cancelaciones posteriores. Solo si la cita no tiene ninguna línea se usan los renglones
+     * del presupuesto aceptado.
+     *
+     * @return Collection<int, array{name: string, quantity: float, amount: float}>
+     */
+    public function chargeLines(): Collection
+    {
+        $services = $this->services->whereNull('cancelled_at')->whereNull('not_performed_at')
+            ->map(fn ($line) => [
+                'name' => (string) ($line->service_name_snapshot ?? $line->service?->name ?? 'Servicio'),
+                'quantity' => (float) ($line->quantity ?? 1),
+                'amount' => round((float) $line->current_price, 2),
+            ]);
+        $items = $this->items->map(fn ($line) => [
+            'name' => (string) ($line->item_name_snapshot ?? $line->item?->name ?? 'Artículo'),
+            'quantity' => (float) ($line->quantity ?? 1),
+            'amount' => round((float) $line->current_price, 2),
+        ]);
+        $lines = $services->concat($items)->values();
+
+        if ($lines->isNotEmpty() || $this->services->isNotEmpty()) {
+            return $lines;
+        }
+
+        $acceptedQuote = $this->quotes->firstWhere('status', 'accepted');
+
+        return collect($acceptedQuote?->items ?? [])->map(fn ($item) => [
+            'name' => (string) $item->name(),
+            'quantity' => (float) $item->quantity,
+            'amount' => round((float) $item->lineTotal(), 2),
+        ])->values();
+    }
+
+    /**
+     * Total a cobrar — la suma de `chargeLines()`. Sin ninguna línea ni presupuesto (cita
+     * recién creada sin servicios), cae al total estimado guardado.
+     */
+    public function chargesTotal(): float
+    {
+        $lines = $this->chargeLines();
+
+        if ($lines->isEmpty() && $this->services->isEmpty()) {
+            $acceptedQuote = $this->quotes->firstWhere('status', 'accepted');
+
+            return round((float) ($acceptedQuote?->total_amount ?? $this->total_estimated_price ?? 0), 2);
+        }
+
+        return round((float) $lines->sum('amount'), 2);
+    }
+
+    /** Lo cobrado como anticipo (categoría `advance`) — distinto de todo lo pagado. */
+    public function advancePaid(): float
+    {
+        return round((float) $this->payments->where('category', 'advance')->sum('amount'), 2);
+    }
+
+    /**
      * Una cita cancelada nunca se llegó a prestar — su total_estimated_price/monto de
      * presupuesto no representa dinero pendiente de verdad, solo lo que se había cotizado
      * antes de cancelar. Mostrarlo como "saldo pendiente" es engañoso (a pedido del usuario,
@@ -158,10 +221,7 @@ class SpaBooking extends Model
             return 0.0;
         }
 
-        $acceptedQuote = $this->quotes->firstWhere('status', 'accepted');
-        $total = $acceptedQuote ? (float) $acceptedQuote->total_amount : (float) $this->total_estimated_price;
-
-        return max(0, $total - $this->totalPaid());
+        return max(0, round($this->chargesTotal() - $this->totalPaid(), 2));
     }
 
     /**

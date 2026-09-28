@@ -291,7 +291,7 @@ class CashReportService implements CashReportServiceInterface
         $user = auth()->user();
 
         $items = SpaBooking::whereIn('status', ['work_order', 'completed'])
-            ->with(['pet.client', 'quotes', 'payments'])
+            ->with(['pet.client', 'quotes', 'payments', 'services', 'items'])
             ->orderBy('scheduled_at')
             ->get()
             ->map(fn (SpaBooking $b) => [

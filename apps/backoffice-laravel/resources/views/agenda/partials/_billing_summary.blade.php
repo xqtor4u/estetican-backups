@@ -17,19 +17,11 @@
             $acceptedQuote = $booking->quotes->firstWhere('status', 'accepted');
 
             // SYNC-098: todo cobro (móvil y web) vive en `payments`, ligado al SpaBooking.
-            $allPayments = \App\Models\Payment::where('payable_type', \App\Models\SpaBooking::class)
-                ->where('payable_id', $booking->id)
-                ->get()
-                ->sortBy('created_at');
-            $totalPaid   = (float) $allPayments->sum('amount');
+            $allPayments = $booking->payments->sortBy('created_at');
+            $totalPaid   = $booking->totalPaid();
 
-            // Sin presupuesto aceptado (cita cerrada por "Iniciar cita" + "Terminar y cobrar",
-            // SYNC-052/053), el resumen de cargos y el subtotal salen de las propias líneas de
-            // servicio de la cita — las que no se cancelaron ni se marcaron "no realizada".
-            $billableLines = $booking->services->filter(
-                fn ($line) => $line->cancelled_at === null && $line->not_performed_at === null
-            );
-            $subtotal    = (float) ($acceptedQuote?->total_amount ?? $billableLines->sum('current_price'));
+            // A2: mismo total que la tarjeta Balance, el recibo y el saldo pendiente.
+            $subtotal    = $booking->chargesTotal();
             $balance     = $subtotal - $totalPaid;
             $paymentAction = $acceptedQuote
                 ? route('agenda.quotes.register-payment', [$booking, $acceptedQuote])
@@ -55,30 +47,22 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @if($acceptedQuote)
-                                @foreach($acceptedQuote->items as $item)
-                                    <tr>
-                                        <td>
-                                            {{ $item->name() }}
-                                            @if((float) $item->quantity !== 1.0)
-                                                <span class="text-body-secondary small">× {{ rtrim(rtrim(number_format($item->quantity, 2), '0'), '.') }}</span>
-                                            @endif
-                                        </td>
-                                        <td class="text-end">${{ number_format($item->lineTotal(), 2) }}</td>
-                                    </tr>
-                                @endforeach
-                            @else
-                                @forelse($billableLines as $line)
-                                    <tr>
-                                        <td>{{ $line->service_name_snapshot ?? $line->service?->name ?? 'Servicio' }}</td>
-                                        <td class="text-end">${{ number_format((float) $line->current_price, 2) }}</td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="2" class="text-body-secondary text-center small">Sin cargos por cobrar (todos los servicios se cancelaron o no se realizaron).</td>
-                                    </tr>
-                                @endforelse
-                            @endif
+                            {{-- A2: misma lista de cargos que el recibo y el correo (SpaBooking::chargeLines()). --}}
+                            @forelse($booking->chargeLines() as $line)
+                                <tr>
+                                    <td>
+                                        {{ $line['name'] }}
+                                        @if($line['quantity'] !== 1.0)
+                                            <span class="text-body-secondary small">× {{ rtrim(rtrim(number_format($line['quantity'], 2), '0'), '.') }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-end">${{ number_format($line['amount'], 2) }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="2" class="text-body-secondary text-center small">Sin cargos por cobrar (todos los servicios se cancelaron o no se realizaron).</td>
+                                </tr>
+                            @endforelse
                         </tbody>
                         <tfoot class="table-group-divider">
                             <tr class="fw-bold">

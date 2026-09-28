@@ -169,9 +169,10 @@
                     // desde móvil sin presupuesto de por medio, aunque sí estuviera pagada.
                     $totalPaid = $booking->totalPaid();
                     $balance = $booking->unpaidBalance();
-                    $quoteTotal = (float) ($acceptedQuote?->total_amount ?? $booking->total_estimated_price ?? 0);
+                    // A2: total y anticipo salen de SpaBooking (fuente única), no se recalculan aquí.
+                    $quoteTotal = $booking->chargesTotal();
                     // EST-008: "anticipo" es solo lo cobrado como anticipo, no todo lo pagado.
-                    $advancePaid = (float) $booking->payments->where('category', 'advance')->sum('amount');
+                    $advancePaid = $booking->advancePaid();
                 @endphp
                 <div class="catalog-overview-card__value-sm text-{{ $balance > 0 ? 'danger' : 'success' }}">${{ number_format($balance, 2) }}</div>
                 <div class="catalog-overview-card__label">

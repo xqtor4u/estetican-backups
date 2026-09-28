@@ -95,6 +95,7 @@ class SpaBookingController extends Controller
             ->with([
                 'pet.client',
                 'services.service',
+                'items',
                 'quotes' => fn ($q) => $q->where('status', 'accepted'),
                 'payments',
                 // Solo la estancia (`reserved`), no la fila de limpieza que le sigue — es lo que

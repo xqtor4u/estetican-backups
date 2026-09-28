@@ -47,34 +47,27 @@
         </tr>
     </thead>
     <tbody>
-        @if($acceptedQuote)
-            @foreach($acceptedQuote->items as $item)
-                <tr>
-                    <td>
-                        {{ $item->name() }}
-                        @if((float) $item->quantity !== 1.0)
-                            <span style="color: var(--secondary-color);">× {{ rtrim(rtrim(number_format($item->quantity, 2), '0'), '.') }}</span>
-                        @endif
-                    </td>
-                    <td class="text-right">${{ number_format($item->lineTotal(), 2) }}</td>
-                </tr>
-            @endforeach
-        @else
-            {{-- Citas cobradas directo desde la app móvil (sin presupuesto/Quote de por medio) --}}
-            @foreach($booking->services as $bookingService)
-                <tr>
-                    <td>{{ $bookingService->service_name_snapshot ?? $bookingService->service?->name ?? '—' }}</td>
-                    <td class="text-right">${{ number_format($bookingService->current_price ?? 0, 2) }}</td>
-                </tr>
-            @endforeach
-        @endif
+        {{-- A2: misma lista de cargos que el Estado de Cuenta y el correo (SpaBooking::chargeLines()) —
+             antes listaba también líneas canceladas y omitía los artículos. --}}
+        @foreach($booking->chargeLines() as $line)
+            <tr>
+                <td>
+                    {{ $line['name'] }}
+                    @if($line['quantity'] !== 1.0)
+                        <span style="color: var(--secondary-color);">× {{ rtrim(rtrim(number_format($line['quantity'], 2), '0'), '.') }}</span>
+                    @endif
+                </td>
+                <td class="text-right">${{ number_format($line['amount'], 2) }}</td>
+            </tr>
+        @endforeach
     </tbody>
 </table>
 
 <div class="totals-wrapper">
     <div class="totals-box">
         @php
-            $documentTotal = (float) ($acceptedQuote?->total_amount ?? $booking->total_estimated_price ?? 0);
+            // A2: mismo total que el Estado de Cuenta y el saldo pendiente (SpaBooking::chargesTotal()).
+            $documentTotal = $booking->chargesTotal();
         @endphp
         <div class="total-row">
             <span>Subtotal</span>

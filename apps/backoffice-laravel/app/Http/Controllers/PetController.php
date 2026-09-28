@@ -220,6 +220,7 @@ class PetController extends Controller
             ->with([
                 'services.service:id,code,name,type',
                 'services.operator:id,name',
+                'items',
                 'payments',
             ])
             ->orderByDesc('scheduled_at')
