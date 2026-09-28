@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Domain\Execution\Services\BookingExecutionRecorder;
 use App\Jobs\SyncBookingToGoogleJob;
 use App\Models\SpaBooking;
 use App\Support\Branches\BranchResolver;
@@ -40,6 +41,11 @@ class SpaBookingObserver
 
     public function saved(SpaBooking $booking): void
     {
+        // B4: al completarse la cita se congela lo ejecutado (historial inmutable).
+        if ($booking->status === 'completed' && ($booking->wasRecentlyCreated || $booking->wasChanged('status'))) {
+            app(BookingExecutionRecorder::class)->record($booking);
+        }
+
         if (! $this->syncEnabled()) {
             return;
         }
