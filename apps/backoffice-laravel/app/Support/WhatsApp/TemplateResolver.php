@@ -2,6 +2,7 @@
 
 namespace App\Support\WhatsApp;
 
+use App\Models\Branch;
 use App\Models\Client;
 use App\Models\Pet;
 use App\Models\Service;
@@ -14,6 +15,33 @@ class TemplateResolver
      * @return array<string, string> variable => descripción, para mostrar en el editor de plantillas
      */
     public static function availableVariables(string $context = 'cita'): array
+    {
+        // "calendario" lo escribe el sync automático de Google Calendar: no hay quien envíe
+        // (sin {usuario}/{sucursal}) y la hora de envío no significa nada ahí.
+        if ($context === 'calendario') {
+            return self::contextVariables($context);
+        }
+
+        $variables = self::contextVariables($context) + self::SYSTEM_VARIABLES;
+
+        return $context === 'cita' ? $variables + self::PRICE_VARIABLES : $variables;
+    }
+
+    /** Variables del sistema: salen de quien envía y del momento del envío, no del cliente. */
+    private const SYSTEM_VARIABLES = [
+        'hora_local' => 'Hora actual del negocio al momento de enviar',
+        'sucursal' => 'Sucursal de quien envía el mensaje',
+        'usuario' => 'Nombre de quien envía el mensaje',
+    ];
+
+    /** Solo hay precios cuando hay una cita de por medio. */
+    private const PRICE_VARIABLES = [
+        'precio_cita' => 'Total de la cita (el del presupuesto aceptado, si lo hay)',
+        'precio_lista' => 'Suma de los precios de catálogo de los servicios de la cita',
+    ];
+
+    /** @return array<string, string> */
+    private static function contextVariables(string $context): array
     {
         if ($context === 'recurrencia') {
             return [
@@ -79,9 +107,11 @@ class TemplateResolver
             '{servicio}' => $booking->services->pluck('service.name')->filter()->implode(', ') ?: 'servicio agendado',
             '{fecha}' => $booking->scheduled_at?->format($dateFormat) ?? '',
             '{hora}' => $booking->scheduled_at?->format($timeFormat) ?? '',
+            '{precio_cita}' => self::money(self::bookingTotal($booking)),
+            '{precio_lista}' => self::money((float) $booking->services->sum(fn ($line) => (float) ($line->service?->price ?? 0))),
         ];
 
-        return strtr($body, $replacements);
+        return strtr($body, $replacements + self::systemReplacements($timeFormat));
     }
 
     /**
@@ -132,7 +162,7 @@ class TemplateResolver
             '{dias_vencido}' => (string) max($daysOverdue, 0),
         ];
 
-        return strtr($body, $replacements);
+        return strtr($body, $replacements + self::systemReplacements());
     }
 
     /**
@@ -145,7 +175,7 @@ class TemplateResolver
             '{cliente}' => $client->full_name ?: 'Cliente',
         ];
 
-        return strtr($body, $replacements);
+        return strtr($body, $replacements + self::systemReplacements());
     }
 
     /**
@@ -176,6 +206,52 @@ class TemplateResolver
             '{dias_vencido}' => '',
         ];
 
-        return strtr($body, $replacements);
+        return strtr($body, $replacements + self::systemReplacements());
+    }
+
+    /**
+     * `{hora_local}`/`{sucursal}`/`{usuario}` — quien envía y cuándo. Todos los envíos de
+     * WhatsApp/correo que usan estas plantillas los dispara una persona (bandeja, recurrencias,
+     * selector de la ficha o de la cita); sin usuario autenticado quedan en blanco, nunca como
+     * texto literal. La hora usa la zona del negocio (`system_timezone`, aplicada al arrancar,
+     * ver `AppServiceProvider`).
+     *
+     * @return array<string, string>
+     */
+    private static function systemReplacements(?string $timeFormat = null): array
+    {
+        $timeFormat ??= config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A';
+        $user = auth()->user();
+
+        return [
+            '{hora_local}' => now()->format($timeFormat),
+            '{sucursal}' => self::senderBranchName($user),
+            '{usuario}' => $user ? (trim((string) ($user->first_name ?? '')) ?: (string) $user->name) : '',
+        ];
+    }
+
+    /** Sucursal del usuario que envía; si no tiene una, la única sucursal activa (si solo hay una). */
+    private static function senderBranchName(mixed $user): string
+    {
+        $branch = $user?->branch;
+
+        if (! $branch) {
+            $active = Branch::where('is_active', true)->limit(2)->get(['id', 'name']);
+            $branch = $active->count() === 1 ? $active->first() : null;
+        }
+
+        return (string) ($branch?->name ?? '');
+    }
+
+    private static function bookingTotal(SpaBooking $booking): float
+    {
+        $accepted = $booking->quotes()->where('status', 'accepted')->first();
+
+        return $accepted ? (float) $accepted->total_amount : (float) $booking->total_estimated_price;
+    }
+
+    private static function money(float $amount): string
+    {
+        return '$'.number_format($amount, 2);
     }
 }
