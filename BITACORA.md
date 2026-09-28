@@ -58,6 +58,12 @@ vivo. Los links pasan a `api.whatsapp.com/send` vía `WhatsAppLink::to()` (4 lug
 33 preexistentes; `tst` 73/73 en WhatsApp + sucursales. De paso, el chip de WhatsApp de
 `MobCitaDet` se movió al final de las acciones (`251933d` / `e00260e`).
 
+**Variables del sistema en plantillas (`bf981a4` en `tst`, portado el mismo día).** Pedido de
+Tomas tras aclarar por qué las variables están separadas por contexto (por los datos que existen
+donde se envía, no por permisos — `ZEUS-045` cerrado sin cambios, ver backlog de Zeus).
+`{hora_local}`/`{sucursal}`/`{usuario}` en cita/cliente/general/recurrencia; `{precio_cita}`/
+`{precio_lista}` solo en cita; calendario ninguna. Prod 877 ok / 33 preexistentes; `tst` 932/932.
+
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
 (categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,
