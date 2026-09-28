@@ -17,6 +17,9 @@ use Spatie\Activitylog\Support\LogOptions;
 #[ObservedBy(SpaBookingObserver::class)]
 class SpaBooking extends Model
 {
+    /** Estados en los que la cita ya no se va a prestar — liberan su jaula/recurso. */
+    public const NOT_PERFORMED_STATUSES = ['cancelled', 'no_show', 'unfulfillable'];
+
     use LogsActivity;
 
     public function getActivitylogOptions(): LogOptions

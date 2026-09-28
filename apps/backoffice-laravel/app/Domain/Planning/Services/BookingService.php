@@ -97,10 +97,17 @@ class BookingService implements BookingServiceInterface
             return false;
         }
 
-        return $this->spaBookingRepository->update($bookingId, [
-            'status' => 'no_show',
-            'cancellation_reason' => $reason,
-        ]);
+        return DB::transaction(function () use ($bookingId, $reason, $booking): bool {
+            $updated = $this->spaBookingRepository->update($bookingId, [
+                'status' => 'no_show',
+                'cancellation_reason' => $reason,
+            ]);
+
+            // Igual que `cancelBooking()` (SYNC-107): la cita no se va a prestar, la jaula se libera.
+            $this->resourceAllocationService->releaseSourceAllocations($booking);
+
+            return $updated;
+        });
     }
 
     /**
@@ -117,10 +124,17 @@ class BookingService implements BookingServiceInterface
             return false;
         }
 
-        return $this->spaBookingRepository->update($bookingId, [
-            'status' => 'unfulfillable',
-            'cancellation_reason' => $reason,
-        ]);
+        return DB::transaction(function () use ($bookingId, $reason, $booking): bool {
+            $updated = $this->spaBookingRepository->update($bookingId, [
+                'status' => 'unfulfillable',
+                'cancellation_reason' => $reason,
+            ]);
+
+            // Igual que `cancelBooking()` (SYNC-107): la cita no se va a prestar, la jaula se libera.
+            $this->resourceAllocationService->releaseSourceAllocations($booking);
+
+            return $updated;
+        });
     }
 
     public function getUpcomingBookings(): Collection

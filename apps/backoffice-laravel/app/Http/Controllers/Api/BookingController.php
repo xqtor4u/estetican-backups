@@ -552,6 +552,13 @@ class BookingController extends Controller
             }
         }
 
+        // Una cita que ya no se va a prestar libera su jaula — SYNC-107 solo lo cubría en la
+        // cancelación web; desde el móvil cancelar, "no se presentó" y "no realizable" pasan
+        // por aquí y la jaula quedaba ocupada el resto del día.
+        if (in_array($data['status'] ?? null, SpaBooking::NOT_PERFORMED_STATUSES, true)) {
+            $this->resourceAllocationService->releaseSourceAllocations($booking);
+        }
+
         // Generar folio de orden al iniciar el trabajo
         if (($data['status'] ?? null) === 'work_order' && ! $booking->order_folio) {
             try {
