@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
-#[Fillable(['pet_id', 'operator_id', 'created_by_user_id', 'scheduled_at', 'duration_minutes', 'status', 'total_estimated_price', 'notes', 'cancellation_reason', 'order_series_id', 'order_folio'])]
+#[Fillable(['pet_id', 'operator_id', 'branch_id', 'created_by_user_id', 'scheduled_at', 'duration_minutes', 'status', 'total_estimated_price', 'notes', 'cancellation_reason', 'order_series_id', 'order_folio'])]
 #[ObservedBy(SpaBookingObserver::class)]
 class SpaBooking extends Model
 {
@@ -84,6 +84,11 @@ class SpaBooking extends Model
     public function quotes(): HasMany
     {
         return $this->hasMany(Quote::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function payments(): MorphMany

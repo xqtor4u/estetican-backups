@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Jobs\SyncBookingToGoogleJob;
 use App\Models\SpaBooking;
+use App\Support\Branches\BranchResolver;
 use App\Support\SystemSettings\SystemSettings;
 
 /**
@@ -30,6 +31,12 @@ class SpaBookingObserver
     ];
 
     public function __construct(private readonly SystemSettings $settings) {}
+
+    /** B1: toda cita nueva nace con su sucursal, venga de donde venga (web, móvil, presupuesto). */
+    public function creating(SpaBooking $booking): void
+    {
+        $booking->branch_id ??= BranchResolver::forBooking($booking);
+    }
 
     public function saved(SpaBooking $booking): void
     {

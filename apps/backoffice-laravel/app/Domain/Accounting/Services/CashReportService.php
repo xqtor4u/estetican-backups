@@ -85,7 +85,10 @@ class CashReportService implements CashReportServiceInterface
         $includeBanco = ! $typeFilter || $typeFilter === 'cobro_banco';
 
         if ($includeEfectivo || $includeBanco) {
-            $payments = Payment::with(['client', 'createdBy:id,name'])
+            // B1: los cobros ya tienen sucursal propia — mismo scope que los movimientos de caja
+            // (antes un usuario de una sucursal veía los cobros de todas, NT-011).
+            $payments = Payment::with(['client', 'createdBy:id,name', 'branch:id,name'])
+                ->when($movementBranchId, fn ($q) => $q->where('branch_id', $movementBranchId))
                 ->when($from, fn ($q) => $q->where('created_at', '>=', $from))
                 ->when($until, fn ($q) => $q->where('created_at', '<=', $until))
                 ->when($includeEfectivo && ! $includeBanco, fn ($q) => $q->where('destination', 'caja'))
@@ -100,7 +103,7 @@ class CashReportService implements CashReportServiceInterface
                 'concept' => 'Cobro de servicio',
                 'notes' => $p->notes,
                 'account' => $p->payment_method,
-                'branch_name' => null,
+                'branch_name' => $p->branch?->name,
                 'client_name' => $p->client?->full_name,
                 'created_by' => $p->createdBy?->name,
                 'created_at' => Carbon::parse($p->created_at)->toISOString(),

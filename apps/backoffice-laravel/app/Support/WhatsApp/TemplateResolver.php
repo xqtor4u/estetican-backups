@@ -111,7 +111,8 @@ class TemplateResolver
             '{precio_lista}' => self::money((float) $booking->services->sum(fn ($line) => (float) ($line->service?->price ?? 0))),
         ];
 
-        return strtr($body, $replacements + self::systemReplacements($timeFormat));
+        // B1: desde una cita, {sucursal} es la de la cita; sin sucursal, la de quien envía.
+        return strtr($body, $replacements + self::systemReplacements($timeFormat, $booking->branch?->name));
     }
 
     /**
@@ -218,14 +219,14 @@ class TemplateResolver
      *
      * @return array<string, string>
      */
-    private static function systemReplacements(?string $timeFormat = null): array
+    private static function systemReplacements(?string $timeFormat = null, ?string $branchName = null): array
     {
         $timeFormat ??= config('backoffice.system.time_format') === '24h' ? 'H:i' : 'h:i A';
         $user = auth()->user();
 
         return [
             '{hora_local}' => now()->format($timeFormat),
-            '{sucursal}' => self::senderBranchName($user),
+            '{sucursal}' => $branchName ?: self::senderBranchName($user),
             '{usuario}' => $user ? (trim((string) ($user->first_name ?? '')) ?: (string) $user->name) : '',
         ];
     }

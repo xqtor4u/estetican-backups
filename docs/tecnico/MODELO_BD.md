@@ -563,6 +563,7 @@ Citas de servicio SPA. Ciclo de vida: `scheduled` → `work_order` → `complete
 | `id` | bigint PK | |
 | `pet_id` | FK → `pets` | |
 | `operator_id` | FK → `operators` nullable | Operador asignado (desde app móvil) |
+| `branch_id` | FK → `branches` nullable, nullOnDelete | B1 (27/09/2026) — sucursal de la cita. Se asigna al crear (`BranchResolver` vía `SpaBookingObserver::creating`): sucursal de quien la crea → la del operador si tiene una sola → la única sucursal activa; si nada lo decide queda null. Datos previos rellenados con la misma regla en la migración `2026_09_27_120000`. Alimenta `{sucursal}` en plantillas de cita |
 | `created_by_user_id` | FK → `users` nullable, nullOnDelete | Usuario (dueño de la sesión, web o móvil) que agendó la cita — `auth()->id()` capturado en `BookingService::scheduleSpaSession()` (web) y `Api\BookingController::store()` (móvil). Relación `SpaBooking::createdBy()` |
 | `scheduled_at` | datetime | Fecha y hora de la cita |
 | `duration_minutes` | smallint nullable | Duración de la cita en minutos. **`SYNC-068` (29/08/2026):** para una cita con líneas de servicio ya no es la *suma* de las duraciones sino el **fin más lejano** = `max(spa_booking_services.scheduled_offset_minutes + duración de línea)` — así los huecos entre servicios no se aplastan. Recalculado por `Api\BookingController::store/update` y por `ServiceLineActionService` al cancelar/no-realizar/reactivar una línea. Sin líneas: lo que mandó el cliente |
@@ -666,6 +667,7 @@ Líneas de servicio **o artículo** dentro de un presupuesto (Grupos).
 |---|---|---|
 | `id` | bigint PK | |
 | `client_id` | FK → `clients` | |
+| `branch_id` | FK → `branches` nullable, nullOnDelete | B1 (27/09/2026) — sucursal del cobro. Se asigna al crear (`Payment::booted` → `BranchResolver`): la de su cita → la de quien cobra → la única activa. El reporte de caja filtra los cobros por ella (antes un usuario veía los de todas las sucursales, NT-011) |
 | `payable_id` | bigint nullable | Polimórfico |
 | `payable_type` | string nullable | |
 | `document_id` | FK → `documents` nullable | BL-076 — el recibo real generado para este pago (`AccountingService::recordBookingPayment()`). Nulo solo si el pago se registró sin `payment_method_code` (payload legacy sin cuenta contable identificable) |
