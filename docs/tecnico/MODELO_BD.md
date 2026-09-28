@@ -143,6 +143,7 @@ Sucursales del negocio.
 | `lng` | decimal(11,8) nullable | |
 | `is_active` | boolean | |
 | `notes` | text nullable | |
+| `opening_time` / `closing_time` | string(5) "HH:MM" nullable | B2 (27/09/2026) — horario operativo propio de la sucursal (los dos o ninguno). Null = usa el horario general de Configuración (`booking_opening_time`/`booking_closing_time`). Lo aplica `BusinessHours::for($branchId)` al validar citas, en el "próximo hueco", las barras de horario, el horario base del operador y `/api/settings/booking` |
 | `timestamps` | | |
 
 ---

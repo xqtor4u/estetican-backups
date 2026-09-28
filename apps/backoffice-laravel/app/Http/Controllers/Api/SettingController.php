@@ -7,17 +7,21 @@ use App\Rules\ValidPhoneNumber;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
+use App\Support\Branches\BranchResolver;
+use App\Support\SystemSettings\BusinessHours;
 
 class SettingController extends Controller
 {
-    public function booking(SystemSettings $settings): JsonResponse
+    public function booking(SystemSettings $settings, BusinessHours $businessHours): JsonResponse
     {
         $all = $settings->all();
+        // B2: la cuadrícula de horarios del móvil usa el horario de la sucursal de quien agenda.
+        $hours = $businessHours->for(BranchResolver::forNewBooking(null));
 
         return response()->json([
             'grace_minutes' => (int) ($all['booking_grace_minutes'] ?? 15),
-            'opening_time' => (string) ($all['booking_opening_time'] ?? '09:00'),
-            'closing_time' => (string) ($all['booking_closing_time'] ?? '19:00'),
+            'opening_time' => $hours->openingTime(),
+            'closing_time' => $hours->closingTime(),
         ]);
     }
 

@@ -41,6 +41,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 use RuntimeException;
+use App\Support\Branches\BranchResolver;
 
 class SpaBookingController extends Controller
 {
@@ -235,8 +236,11 @@ class SpaBookingController extends Controller
         $resourceStartsAt = ! empty($validated['resource_starts_at']) ? Carbon::parse($validated['resource_starts_at']) : null;
         $resourceEndsAt = ! empty($validated['resource_ends_at']) ? Carbon::parse($validated['resource_ends_at']) : null;
 
+        // B2: horario de la sucursal de esta cita (o de la que tendrá, si es nueva).
+        $hours = $this->businessHours->for($excludeId ? SpaBooking::whereKey($excludeId)->value('branch_id') : BranchResolver::forNewBooking($operatorId));
+
         $hardBlockReason = match (true) {
-            ! $this->businessHours->isWithin($scheduledAt) => 'Fuera del horario operativo del negocio ('.$this->businessHours->openingTime().'–'.$this->businessHours->closingTime().').',
+            ! $hours->isWithin($scheduledAt) => 'Fuera del horario operativo del negocio ('.$hours->openingTime().'–'.$hours->closingTime().').',
             $this->operatorAvailabilityChecker->hasConflict($operatorId, $scheduledAt, $duration, $excludeId) => 'El operador ya tiene una cita en ese horario.',
             $this->operatorAvailabilityChecker->hasTimeOff($operatorId, $scheduledAt, $duration) => 'El operador no está disponible en ese periodo (vacaciones/permiso).',
             default => null,
@@ -351,8 +355,10 @@ class SpaBookingController extends Controller
      */
     private function firstFittingSlot(int $operatorId, Carbon $from, int $days, int $duration, ?int $excludeBookingId = null): ?array
     {
-        $bizOpen = $this->timeToMinutes($this->businessHours->openingTime());
-        $bizClose = $this->timeToMinutes($this->businessHours->closingTime());
+        // B2: horario de la sucursal donde caería esta cita.
+        $hours = $this->businessHours->for($excludeBookingId ? SpaBooking::whereKey($excludeBookingId)->value('branch_id') : BranchResolver::forNewBooking($operatorId));
+        $bizOpen = $this->timeToMinutes($hours->openingTime());
+        $bizClose = $this->timeToMinutes($hours->closingTime());
         $nowMin = now()->hour * 60 + now()->minute;
 
         for ($i = 0; $i < $days; $i++) {
@@ -681,8 +687,9 @@ class SpaBookingController extends Controller
         $resourceStartsAt = $assignedAllocation?->starts_at;
         $resourceEndsAt = $assignedAllocation?->ends_at;
         $operators = Operator::where('is_active', true)->orderBy('name')->get();
-        $openingTime = $this->businessHours->openingTime();
-        $closingTime = $this->businessHours->closingTime();
+        // B2: horario de la sucursal de la cita.
+        $openingTime = $this->businessHours->for($booking->branch_id)->openingTime();
+        $closingTime = $this->businessHours->for($booking->branch_id)->closingTime();
         // SYNC-095 (9ª vuelta): la cita ahora se puede alargar/acortar arrastrando el borde
         // derecho del bloque en el panel — `duration_minutes` ya no es fijo (a diferencia de
         // AgSpaCre, sigue sin tarjetas de servicio con duración editable por línea; lo que
@@ -757,8 +764,9 @@ class SpaBookingController extends Controller
         $durationMinutes = $validated['duration_minutes'] ?? (int) $booking->services()->with('service')->get()
             ->sum(fn ($s) => $s->service?->suggested_duration_minutes ?? $s->service?->duration_minutes ?? 0);
 
-        if (! $this->businessHours->isWithin($scheduledAt)) {
-            return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$this->businessHours->openingTime()}–{$this->businessHours->closingTime()}).");
+        $hours = $this->businessHours->for($booking->branch_id); // B2
+        if (! $hours->isWithin($scheduledAt)) {
+            return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$hours->openingTime()}–{$hours->closingTime()}).");
         }
 
         if ($this->operatorAvailabilityChecker->hasConflict((int) $validated['operator_id'], $scheduledAt, $durationMinutes, $booking->id)) {
@@ -997,8 +1005,9 @@ class SpaBookingController extends Controller
         $eligibleOperatorsByService = $services->mapWithKeys(
             fn (Service $service) => [$service->id => $this->operatorServiceResolver->operatorsFor($service)]
         );
-        $openingTime = $this->businessHours->openingTime();
-        $closingTime = $this->businessHours->closingTime();
+        // B2: horario de la sucursal de quien agenda (o la única activa).
+        $openingTime = $this->businessHours->for(BranchResolver::forNewBooking(null))->openingTime();
+        $closingTime = $this->businessHours->for(BranchResolver::forNewBooking(null))->closingTime();
 
         // isRootView = true si viene de /pets/{pet}/... sin cliente en la URL
         $isRootView = ! request()->route('client');
@@ -1089,8 +1098,9 @@ class SpaBookingController extends Controller
 
         $scheduledAt = Carbon::parse($validated['scheduled_at']);
 
-        if (! $this->businessHours->isWithin($scheduledAt)) {
-            return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$this->businessHours->openingTime()}–{$this->businessHours->closingTime()}).");
+        $hours = $this->businessHours->for(BranchResolver::forNewBooking($globalOperatorId)); // B2
+        if (! $hours->isWithin($scheduledAt)) {
+            return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$hours->openingTime()}–{$hours->closingTime()}).");
         }
 
         // Guard de calificación (SYNC-099: portado a `OperatorServiceResolver`, antes validaba

@@ -54,6 +54,12 @@
 
                     <dt class="col-sm-4">Estado</dt>
                     <dd class="col-sm-8">{{ $branch->is_active ? 'Activa' : 'Inactiva' }}</dd>
+                    @php($branchHours = app(\App\Support\SystemSettings\BusinessHours::class)->for($branch->id))
+                    <dt class="col-sm-4">Horario</dt>
+                    <dd class="col-sm-8">
+                        {{ $branchHours->openingTime() }}–{{ $branchHours->closingTime() }}
+                        <span class="text-body-secondary small">{{ $branch->opening_time && $branch->closing_time ? '(propio de la sucursal)' : '(horario general)' }}</span>
+                    </dd>
 
                     <dt class="col-sm-4">Notas</dt>
                     <dd class="col-sm-8">{{ $branch->notes ?: 'Sin notas operativas.' }}</dd>

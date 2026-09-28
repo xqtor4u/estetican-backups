@@ -130,12 +130,17 @@ class BranchController extends Controller
             'lng' => 'nullable|numeric|between:-180,180',
             'notes' => 'nullable|string',
             'is_active' => 'nullable|boolean',
+            // B2: horario propio (opcional, los dos o ninguno); vacío = horario general.
+            'opening_time' => 'nullable|date_format:H:i|required_with:closing_time',
+            'closing_time' => 'nullable|date_format:H:i|required_with:opening_time|after:opening_time',
         ];
     }
 
     private function preparePayload(array $validated): array
     {
         return [
+            'opening_time' => $validated['opening_time'] ?? null,
+            'closing_time' => $validated['closing_time'] ?? null,
             'code' => strtoupper(trim($validated['code'])),
             'name' => $validated['name'],
             'street' => $this->nullableString($validated['street'] ?? null),

@@ -14,6 +14,7 @@ use App\Models\Operator;
 use App\Models\Service;
 use App\Models\SpaBooking;
 use App\Models\SpaBookingService;
+use App\Support\Branches\BranchResolver;
 use App\Support\Geo\CoverageChecker;
 use App\Support\Images\PhotoUrl;
 use App\Support\SystemSettings\BusinessHours;
@@ -203,9 +204,11 @@ class BookingController extends Controller
         $durationMinutes = (int) ($data['duration_minutes'] ?? 30);
         $overrideSchedule = ! empty($data['override_availability']) && $this->canOverrideSchedule();
 
-        if (! $this->businessHours->isWithin($scheduledAt)) {
+        // B2: horario de la sucursal que tendrá la cita.
+        $hours = $this->businessHours->for(BranchResolver::forNewBooking(isset($data['operator_id']) ? (int) $data['operator_id'] : null));
+        if (! $hours->isWithin($scheduledAt)) {
             return response()->json([
-                'message' => "La hora elegida está fuera del horario operativo ({$this->businessHours->openingTime()}–{$this->businessHours->closingTime()}).",
+                'message' => "La hora elegida está fuera del horario operativo ({$hours->openingTime()}–{$hours->closingTime()}).",
             ], 422);
         }
 
@@ -436,9 +439,10 @@ class BookingController extends Controller
             $scheduledAt = Carbon::parse($data['scheduled_at']);
             $durationMinutes = (int) ($data['duration_minutes'] ?? $booking->duration_minutes ?? 30);
 
-            if (! $this->businessHours->isWithin($scheduledAt)) {
+            $hours = $this->businessHours->for($booking->branch_id); // B2
+            if (! $hours->isWithin($scheduledAt)) {
                 return response()->json([
-                    'message' => "La hora elegida está fuera del horario operativo ({$this->businessHours->openingTime()}–{$this->businessHours->closingTime()}).",
+                    'message' => "La hora elegida está fuera del horario operativo ({$hours->openingTime()}–{$hours->closingTime()}).",
                 ], 422);
             }
 

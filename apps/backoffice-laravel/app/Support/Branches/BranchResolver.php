@@ -17,9 +17,24 @@ class BranchResolver
 {
     public static function forBooking(SpaBooking $booking): ?int
     {
+        return self::forNewBooking($booking->operator_id);
+    }
+
+    /**
+     * Sucursal que tendrá una cita que todavía no existe — la misma regla que al crearla. B2 la
+     * usa para validar contra el horario de esa sucursal antes de guardar.
+     */
+    public static function forNewBooking(?int $operatorId): ?int
+    {
         return self::userBranch(auth()->user())
-            ?? self::operatorBranch($booking->operator_id)
+            ?? self::operatorBranch($operatorId)
             ?? self::onlyActiveBranch();
+    }
+
+    /** Sucursal de un operador si tiene exactamente una (horario base de su semana). */
+    public static function forOperator(?int $operatorId): ?int
+    {
+        return self::operatorBranch($operatorId);
     }
 
     public static function forPayment(Payment $payment): ?int

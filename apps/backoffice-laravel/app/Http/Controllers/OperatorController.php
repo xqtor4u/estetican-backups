@@ -9,6 +9,7 @@ use App\Models\OperatorRole;
 use App\Models\OperatorRoleServiceTemplate;
 use App\Models\OperatorServiceCapability;
 use App\Models\Service;
+use App\Support\Branches\BranchResolver;
 use App\Support\CatalogCache\OperatorServiceCapabilityCache;
 use App\Support\Images\UploadLimit;
 use App\Support\OperatorPhotoImageManager;
@@ -201,8 +202,9 @@ class OperatorController extends Controller
             'roleRemovalFreezeData' => $this->roleRemovalFreezeData($operator, $availableRoles),
             'suggestAreaCode' => $systemSettings->all()['commercial_clients_suggest_area_code'] ?? false,
             'defaultAreaCode' => $systemSettings->all()['commercial_clients_default_area_code'] ?? '',
-            'defaultScheduleStartTime' => $this->businessHours->openingTime(),
-            'defaultScheduleEndTime' => $this->businessHours->closingTime(),
+            // B2: el horario base de la semana parte del de su sucursal (si tiene una sola).
+            'defaultScheduleStartTime' => $this->businessHours->for(BranchResolver::forOperator($operator->id))->openingTime(),
+            'defaultScheduleEndTime' => $this->businessHours->for(BranchResolver::forOperator($operator->id))->closingTime(),
         ]);
     }
 

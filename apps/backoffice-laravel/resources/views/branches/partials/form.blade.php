@@ -20,6 +20,24 @@
         ])
     </div>
 
+    @php($generalHours = app(\App\Support\SystemSettings\BusinessHours::class))
+    <div class="col-md-3">
+        <label for="opening_time" class="form-label">Abre</label>
+        <input id="opening_time" type="time" name="opening_time" class="form-control @error('opening_time') is-invalid @enderror" value="{{ old('opening_time', $branch->opening_time ?? '') }}">
+        @error('opening_time')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+    <div class="col-md-3">
+        <label for="closing_time" class="form-label">Cierra</label>
+        <input id="closing_time" type="time" name="closing_time" class="form-control @error('closing_time') is-invalid @enderror" value="{{ old('closing_time', $branch->closing_time ?? '') }}">
+        @error('closing_time')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+        <div class="form-text">
+            Horario operativo propio de esta sucursal. Déjalo vacío para usar el horario general
+            ({{ $generalHours->openingTime() }}–{{ $generalHours->closingTime() }}, en Configuración).
+        </div>
+    </div>
+
     <div class="col-12">
         <label for="notes" class="form-label">Notas</label>
         <textarea id="notes" name="notes" class="form-control" rows="4" placeholder="Cobertura, turno base o contexto operativo de la sucursal.">{{ old('notes', $branch->notes ?? '') }}</textarea>
