@@ -87,6 +87,12 @@ Route::post('logout', [LoginController::class, 'logout'])->name('logout');
 // Autogestión pública de preferencias de comunicación — sin login, acceso vía
 // enlace firmado que llega en los correos que se le mandan al cliente.
 Route::middleware('signed')->group(function () {
+    // A1: PDF del presupuesto/recibo que se manda al cliente por WhatsApp — público a propósito,
+    // solo con link firmado que caduca (ReportController::PUBLIC_LINK_DAYS) y solo documentos
+    // compartibles (la orden de trabajo es interna, ReportController::SHAREABLE).
+    Route::get('documentos/{document}/{id}', [ReportController::class, 'publicPdf'])
+        ->whereIn('document', ReportController::SHAREABLE)->whereNumber('id')
+        ->middleware('throttle:30,1')->name('documents.public');
     Route::get('preferencias/{client}', [ClientPreferencesController::class, 'show'])->name('client-preferences.show');
     Route::post('preferencias/{client}', [ClientPreferencesController::class, 'update'])->name('client-preferences.update');
 });
@@ -329,6 +335,16 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::get('reports/quote/{quote}', [ReportController::class, 'quote'])->name('reports.quote')->middleware('permission:ver agenda');
     Route::get('reports/work-order/{booking}', [ReportController::class, 'workOrder'])->name('reports.work-order')->middleware('permission:ver agenda');
     Route::get('reports/invoice/{booking}', [ReportController::class, 'invoice'])->name('reports.invoice')->middleware('permission:ver agenda');
+    // A1: PDF de los tres documentos; envío al cliente (correo/WhatsApp) solo de presupuesto y recibo.
+    Route::get('reports/{document}/{id}/pdf', [ReportController::class, 'pdf'])
+        ->whereIn('document', ['quote', 'work-order', 'invoice'])->whereNumber('id')
+        ->name('reports.pdf')->middleware('permission:ver agenda');
+    Route::post('reports/{document}/{id}/email', [ReportController::class, 'email'])
+        ->whereIn('document', ReportController::SHAREABLE)->whereNumber('id')
+        ->name('reports.email')->middleware('permission:ver agenda');
+    Route::get('reports/{document}/{id}/whatsapp', [ReportController::class, 'whatsapp'])
+        ->whereIn('document', ReportController::SHAREABLE)->whereNumber('id')
+        ->name('reports.whatsapp')->middleware('permission:ver agenda');
 
     // Veterinaria (Expediente Clínico) — módulo independiente, apagado por defecto (SystemSettings)
     Route::middleware('clinical.module')->prefix('clinico')->name('clinical.')->group(function () {

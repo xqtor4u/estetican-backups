@@ -233,10 +233,13 @@
                     <h5 class="h6 text-uppercase text-body-secondary fw-bold mb-3">Documentos de Impresión</h5>
                     <div class="d-grid gap-2">
                         @if($acceptedQuote)
-                            <a href="{{ route('reports.quote', $acceptedQuote) }}" target="_blank" class="btn btn-light btn-sm text-start d-flex align-items-center">
-                                <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>
-                                <span>{{ $acceptedQuote->status === 'accepted' ? 'Imprimir Presupuesto' : 'Imprimir Borrador' }}</span>
-                            </a>
+                            @include('agenda.partials._document_actions', [
+                                'label' => $acceptedQuote->status === 'accepted' ? 'Imprimir Presupuesto' : 'Imprimir Borrador',
+                                'icon' => 'bi-file-earmark-pdf', 'iconClass' => 'text-danger',
+                                'printUrl' => route('reports.quote', $acceptedQuote),
+                                'document' => 'quote', 'id' => $acceptedQuote->id,
+                                'clientEmail' => $client?->email, 'clientPhone' => $clientPhone,
+                            ])
                         @else
                             <button type="button" class="btn btn-light btn-sm text-start d-flex align-items-center opacity-50" disabled>
                                 <i class="bi bi-file-earmark-pdf me-2 text-muted"></i>
@@ -244,16 +247,21 @@
                             </button>
                         @endif
 
-                        <a href="{{ route('reports.work-order', $booking) }}" target="_blank" class="btn btn-light btn-sm text-start d-flex align-items-center">
-                            <i class="bi bi-tools me-2 text-warning"></i>
-                            <span>Imprimir Orden de Trabajo</span>
-                        </a>
+                        @include('agenda.partials._document_actions', [
+                            'label' => 'Imprimir Orden de Trabajo',
+                            'icon' => 'bi-tools', 'iconClass' => 'text-warning',
+                            'printUrl' => route('reports.work-order', $booking),
+                            'document' => 'work-order', 'id' => $booking->id,
+                        ])
 
                         @if($booking->status === 'completed')
-                            <a href="{{ route('reports.invoice', $booking) }}" target="_blank" class="btn btn-light btn-sm text-start d-flex align-items-center">
-                                <i class="bi bi-receipt me-2 text-success"></i>
-                                <span>Imprimir Recibo de Pago</span>
-                            </a>
+                            @include('agenda.partials._document_actions', [
+                                'label' => 'Imprimir Recibo de Pago',
+                                'icon' => 'bi-receipt', 'iconClass' => 'text-success',
+                                'printUrl' => route('reports.invoice', $booking),
+                                'document' => 'invoice', 'id' => $booking->id,
+                                'clientEmail' => $client?->email, 'clientPhone' => $clientPhone,
+                            ])
                         @else
                             <button type="button" class="btn btn-light btn-sm text-start d-flex align-items-center opacity-50" disabled
                                 data-bs-toggle="tooltip" title="Disponible al completar la cita">

@@ -1,12 +1,13 @@
-@extends('layouts.report')
+{{-- A1: el mismo contenido sirve para imprimir (layouts.report) y para PDF (layouts.report-pdf). --}}
+@extends(($asPdf ?? false) ? 'layouts.report-pdf' : 'layouts.report')
 
 @section('title', 'Orden de Trabajo #' . $booking->id)
 
 @section('content')
 <div class="report-header">
     <div class="brand-box">
-        @if($settings['branding']['brand_logo_print'])
-            <img src="{{ Storage::disk('public')->url($settings['branding']['brand_logo_print']) }}" class="logo">
+        @if($settings['branding']['logo_src'])
+            <img src="{{ $settings['branding']['logo_src'] }}" class="logo">
         @endif
         <h1 class="business-name">{{ $settings['branding']['brand_business_name'] }}</h1>
         <div class="fiscal-data">

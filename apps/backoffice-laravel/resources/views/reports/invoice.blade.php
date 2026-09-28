@@ -1,12 +1,13 @@
-@extends('layouts.report')
+{{-- A1: el mismo contenido sirve para imprimir (layouts.report) y para PDF (layouts.report-pdf). --}}
+@extends(($asPdf ?? false) ? 'layouts.report-pdf' : 'layouts.report')
 
 @section('title', 'Recibo de Pago #' . $booking->id)
 
 @section('content')
 <div class="report-header">
     <div class="brand-box">
-        @if($settings['branding']['brand_logo_print'])
-            <img src="{{ Storage::disk('public')->url($settings['branding']['brand_logo_print']) }}" class="logo">
+        @if($settings['branding']['logo_src'])
+            <img src="{{ $settings['branding']['logo_src'] }}" class="logo">
         @endif
         <h1 class="business-name">{{ $settings['branding']['brand_business_name'] }}</h1>
         <div class="fiscal-data">
@@ -87,7 +88,8 @@
                 @foreach($allPayments as $entry)
                     <div class="total-row" style="font-size: 11px; border: none; color: #7f8c8d;">
                         <span>{{ $entry['date']->format('d/m') }} · {{ $entry['method'] }} ({{ $entry['dest'] }})</span>
-                        <span>- ${{ number_format($entry['amount'], 2) }}</span>
+                        {{-- Un reembolso es un pago negativo: suma al saldo, no "- $-X". --}}
+                        <span>{{ $entry['amount'] < 0 ? '+' : '-' }} ${{ number_format(abs($entry['amount']), 2) }}{{ $entry['amount'] < 0 ? ' (reembolso)' : '' }}</span>
                     </div>
                 @endforeach
             @else
