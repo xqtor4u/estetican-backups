@@ -68,6 +68,21 @@ donde se envía, no por permisos — `ZEUS-045` cerrado sin cambios, ver backlog
 plantillas: línea siempre visible con los 12 más usados + botón "Más" desplegable por categoría, en
 lugar del `<details>` colapsado de `SYNC-096`. Vistas compiladas borradas (NT-005). WhatsApp 71/71.
 
+**Pendientes del backoffice, 3 grupos construidos en `tst` y portados (pedido de Tomas).**
+- *Presupuesto → Orden* (`8de8082` / `4c323b8`): EST-002 (`acceptQuote()` conserva operador/hora/
+  duración por línea), método de pago del anticipo solo si anticipo > $0, asterisco en "Etiqueta
+  de versión", EST-008 (tarjeta Balance: "pagado $X (anticipo $Y)"). EST-006 no se reprodujo en el
+  HTML del servidor — queda para revisión visual de Tomas.
+- *Jaula* (`b262534` / `db6459b`): no-show, no realizable y cancelar/no-show/no realizable desde el
+  móvil ahora liberan la jaula (SYNC-107 solo cubría la cancelación web — hueco más grande de lo
+  anotado).
+- *Caja* (`3ed9be0` / `d492e0e`): EST-011 "caja cuadrada", EST-028 reversiones nombradas "Reversión
+  de …" en el resumen, EST-013 error del móvil con ancho propio y detalle técnico plegado. `MobCaja`
+  solo en `tst` (el cierre de turno móvil no está en prod).
+Prod 888 ok / 33 preexistentes; `tst` 943/943. Bundle `index-vD8nezO_.js`.
+**Propuesta de ideas grandes sin SAT:** `docs/architecture/PROPUESTA_IDEAS_BACKOFFICE_2026-09.md`
+(recomendación A2 → A1 → A3 → B1). Permisos de Hotel ya estaban hechos — marcado en `IDEAS_FUTURO.md`.
+
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
 (categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,

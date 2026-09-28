@@ -96,7 +96,7 @@ Tras ver el widget funcionando en real, el usuario planteó 3 mejoras relacionad
 
 ## 🏨 Permisos granulares para Hotel (idea surgida 16/07/2026, ver BL-059)
 
-- [ ] **`hotel-reservations.*` no tiene permisos por acción** (a diferencia de `items`/`groups`/`services`, que sí usan `middlewareFor('index', 'permission:ver ...')` etc.) — hoy cualquier usuario autenticado con el módulo Hotel activo puede ver/crear/editar reservas, sin distinción de rol. Se dejó fuera del alcance de BL-059 (el toggle de módulo) a propósito, para no mezclar dos cambios de alcance distinto en el mismo commit — agregar permisos granulares (`ver/crear/editar/eliminar hotel_reservas`, mismo patrón que `catalogo_articulos`) es trabajo aparte, sin decidir todavía si el negocio realmente lo necesita (¿algún rol de staff no debería poder cancelar una estancia?).
+- [x] **Hecho (verificado 27/09/2026): `hotel-reservations.*` ya tiene `permission:ver/crear/editar hotel` por acción.** Texto original: **`hotel-reservations.*` no tiene permisos por acción** (a diferencia de `items`/`groups`/`services`, que sí usan `middlewareFor('index', 'permission:ver ...')` etc.) — hoy cualquier usuario autenticado con el módulo Hotel activo puede ver/crear/editar reservas, sin distinción de rol. Se dejó fuera del alcance de BL-059 (el toggle de módulo) a propósito, para no mezclar dos cambios de alcance distinto en el mismo commit — agregar permisos granulares (`ver/crear/editar/eliminar hotel_reservas`, mismo patrón que `catalogo_articulos`) es trabajo aparte, sin decidir todavía si el negocio realmente lo necesita (¿algún rol de staff no debería poder cancelar una estancia?).
 
 ## 📲 Mensajería real de WhatsApp por API (idea surgida 18/07/2026, ver BL-052)
 
@@ -131,4 +131,6 @@ Después de construir la sincronización real de citas SPA a Google Calendar por
 - [ ] **Evaluar sincronización con Outlook/Microsoft 365, solo si aparece una necesidad real de un usuario que use Outlook.** Es meaningfully más complicado que Google, no por el código sino por el modelo de cuentas de Microsoft: con Google, una Service Account pudo crear un calendario y compartirlo (ACL) con cualquier Gmail sin que esa persona autorizara nada — con Outlook.com (cuentas personales, gratuitas), Microsoft no tiene un equivalente silencioso; cada destinatario tendría que autorizar por OAuth, o el negocio necesitaría pagar una suscripción de Microsoft 365/Azure AD (que sí ofrece "Microsoft 365 Groups", un calendario compartido a nivel organización, pero solo dentro de ese tenant pagado). **Sin decidir, sin diseño, sin código** — la primera pregunta a resolver con el usuario, si esto avanza, es si el negocio está dispuesto a pagar una cuenta de M365 o si se limita a cuentas Outlook.com sueltas (mucha más fricción de setup por persona).
 
 ---
+**Propuesta priorizada (27/09/2026, sin SAT):** ver `docs/architecture/PROPUESTA_IDEAS_BACKOFFICE_2026-09.md`.
+
 *Si una idea nace en la Bitácora pero no se puede ejecutar hoy, se mueve aquí.*
