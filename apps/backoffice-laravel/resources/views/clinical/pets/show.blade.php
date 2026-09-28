@@ -395,7 +395,8 @@
                                 <td>{{ $attachment->performed_by ?? '—' }}</td>
                                 <td>{{ $attachment->description ?? '—' }}</td>
                                 <td class="text-end text-nowrap">
-                                    <a href="{{ Storage::disk('public')->url($attachment->file_path) }}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver</a>
+                                    {{-- Disco privado: link firmado de 30 min que además exige sesión y permiso `ver clinico`. --}}
+                                    <a href="{{ URL::temporarySignedRoute('clinical.attachments.show', now()->addMinutes(30), [$pet, $attachment]) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">Ver</a>
                                     <form action="{{ route('clinical.attachments.destroy', [$pet, $attachment]) }}" method="POST" class="d-inline">
                                         @csrf @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="¿Eliminar este adjunto?">Eliminar</button>

@@ -9,6 +9,7 @@ use App\Support\ClinicalAttachmentManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ClinicalAttachmentController extends Controller
 {
@@ -45,6 +46,18 @@ class ClinicalAttachmentController extends Controller
             ->route('clinical.pets.show', $pet)
             ->with('success', 'Adjunto agregado.')
             ->withFragment('attachments');
+    }
+
+    /**
+     * Abre el adjunto — solo con sesión, permiso `ver clinico` (ruta) y link firmado que caduca
+     * (middleware `signed`; la ficha clínica genera el link al abrirse). El archivo vive en disco
+     * privado, así que esta es la única forma de verlo.
+     */
+    public function show(Pet $pet, ClinicalAttachment $attachment): StreamedResponse
+    {
+        abort_if($attachment->pet_id !== $pet->id, 404);
+
+        return $this->attachmentManager->response($attachment);
     }
 
     public function destroy(Pet $pet, ClinicalAttachment $attachment): RedirectResponse

@@ -389,6 +389,8 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
         });
 
         Route::post('mascotas/{pet}/adjuntos', [ClinicalAttachmentController::class, 'store'])->middleware('permission:crear clinico')->name('attachments.store');
+        // Adjuntos en disco privado: sesión + permiso + link firmado que caduca (27/09/2026).
+        Route::get('mascotas/{pet}/adjuntos/{attachment}', [ClinicalAttachmentController::class, 'show'])->middleware(['permission:ver clinico', 'signed'])->name('attachments.show');
         Route::delete('mascotas/{pet}/adjuntos/{attachment}', [ClinicalAttachmentController::class, 'destroy'])->middleware('permission:editar clinico')->name('attachments.destroy');
     });
 
