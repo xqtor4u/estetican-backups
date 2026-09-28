@@ -143,8 +143,14 @@ search=yes / Allow: /`, que al combinarse con nuestro `Disallow: /` deja autoriz
 **Fotos en /storage:** públicas por URL sin sesión (disco `public`), nombres UUID v4 aleatorios, listado de
 carpetas bloqueado (403). Adjuntos clínicos también van al disco público (0 archivos hoy) — propuesto
 moverlos a disco privado con acceso autorizado antes de que se usen.
-Pendiente de Tomas en Cloudflare: Access en tstapp (sin bypass de api/*) y tstmov (sesión 7 días),
-corregir el robots.txt administrado y Purge Everything.
+Tomas apagó Bot Preference Sync y purgó caché: verificado que los 4 robots.txt ya traen solo nuestro
+`Disallow: /`. **Access en tstapp/tstmov todavía no se aplica** (verificado dos veces: `/` responde 302 a
+nuestro login / 200, `/api/items` 401 del backend, sin redirección a Access) — pendiente de revisión de Tomas.
+**Adjuntos clínicos a disco privado** (`6741926` tst / `a43dfaf` prod): se guardan en `storage/app/private`
+y solo se abren por `clinical.attachments.show` (`permission:ver clinico` + `signed`, link de 30 min,
+`Cache-Control: private, no-store`). Comando `clinico:mover-adjuntos-privados` (0 adjuntos en prod y tst).
+Verificado en vivo: un archivo del disco privado da 404 por /storage en los 4 dominios. Ruta nueva con
+permiso (test de A3 en verde). Prod 931 ok / 33 preexistentes; tst 986/986.
 
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
