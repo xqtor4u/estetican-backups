@@ -9,6 +9,7 @@ use App\Http\Middleware\EnsureStoreModuleEnabled;
 use App\Http\Middleware\EnsureStoreOrClinicalModuleEnabled;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\HandleAssistantCors;
+use App\Http\Middleware\NoIndex;
 use App\Http\Middleware\ProfileBackofficeRequests;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Application;
@@ -29,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
         $middleware->prepend(HandleAssistantCors::class);
         $middleware->append(ContentSecurityPolicy::class);
+        $middleware->append(NoIndex::class);
         $middleware->append(ApplySystemSettings::class);
         $middleware->append(ProfileBackofficeRequests::class);
 
