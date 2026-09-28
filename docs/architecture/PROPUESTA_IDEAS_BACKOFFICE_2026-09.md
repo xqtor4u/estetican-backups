@@ -59,7 +59,7 @@ Tamaños: **S** = una sesión, **M** = 2–3 sesiones, **L** = requiere diseño 
 
 ## Estado (27/09/2026)
 
-**A2, A1, A3 y B1 construidos en `tst` y portados a producción el mismo día** — ver `BITACORA.md`. Siguen pendientes de decisión: A4, B2–B5, C1–C3, D1–D5.
+**A2, A1, A3, B1, A4 y B2 construidos en `tst` y portados a producción el mismo día** — ver `BITACORA.md`. Siguen pendientes de decisión: B3–B5, C1–C3, D1–D5.
 
 ## Recomendación original
 

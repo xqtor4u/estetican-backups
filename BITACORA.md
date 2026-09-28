@@ -108,6 +108,19 @@ Prod 909 ok / 33 preexistentes; `tst` 964/964.
 categoría (b), pública a propósito con firma que caduca + `throttle:30,1`, documentada en `ALLOWED`
 del test de A3, que pasa en ambos repos.
 
+**A4 y B2 de la propuesta, construidos en `tst` y portados.**
+- *A4* (`af45f00` / `a8bd048`): la API móvil sirve miniaturas (~4 KB) en listas y avatares en vez
+  de la foto completa (~240 KB promedio real; 35/37 mascotas ya tenían miniatura, las otras caen a
+  la principal) vía `PhotoUrl::thumb()`; la ficha de mascota conserva la foto completa. Límite de
+  subida único en Configuración → Fotografías (`photo_max_upload_mb`, default 15 MB) — antes 10 MB
+  en el navegador y 15/10/5 MB según la pantalla en el servidor. Assets recompilados.
+- *B2* (`777d39f` / `d1df0f6`): horario operativo propio por sucursal (`branches.opening_time`/
+  `closing_time`, vacío = general), aplicado vía `BusinessHours::for()` en validación web/móvil,
+  próximo hueco, barras de horario, horario base del operador y `/api/settings/booking`. Respaldo
+  previo `estetican_pre-B2-branch-hours_20260927_2100.sql.gz`. La sucursal real no tiene horario
+  propio → sin cambio de comportamiento hasta que se configure.
+Prod 919 ok / 33 preexistentes; `tst` 974/974. Sin rutas nuevas (test de A3 en verde).
+
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
 (categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,
