@@ -92,7 +92,7 @@
                         <p class="fs-5 fw-bold mb-0 {{ $cashSession->difference >= 0 ? 'text-success' : 'text-danger' }}">
                             {{ $cashSession->difference >= 0 ? '+' : '' }}${{ number_format($cashSession->difference, 2) }}
                         </p>
-                        <p class="text-body-secondary small mb-0">{{ $cashSession->difference >= 0 ? 'sobrante' : 'faltante' }}</p>
+                        <p class="text-body-secondary small mb-0">{{ abs((float) $cashSession->difference) < 0.005 ? 'caja cuadrada' : ($cashSession->difference > 0 ? 'sobrante' : 'faltante') }}</p>
                     @endif
                 </div>
             </div>

@@ -28,9 +28,16 @@ export class RootErrorBoundary extends React.Component {
         <span className="material-symbols-outlined text-5xl text-error/70" style={{ fontVariationSettings: "'FILL' 1" }}>
           error
         </span>
-        <div>
+        {/* EST-013: ancho propio (w-full) — sin él, dentro de la columna centrada el bloque se
+            encogía hasta dejar el mensaje letra por letra en vertical. El detalle técnico va
+            plegado: al usuario le sirve la instrucción, no el error crudo. */}
+        <div className="w-full max-w-sm">
           <p className="text-base font-bold text-on-surface">Algo salió mal en esta pantalla</p>
-          <p className="text-xs text-on-surface-variant mt-1 max-w-xs break-words">{String(error?.message ?? error)}</p>
+          <p className="text-sm text-on-surface-variant mt-1">Intenta recargar. Si se repite, avisa al administrador.</p>
+          <details className="mt-3 text-left">
+            <summary className="text-xs text-on-surface-variant text-center cursor-pointer">Detalles técnicos</summary>
+            <p className="text-xs text-on-surface-variant mt-1 whitespace-pre-wrap break-words">{String(error?.message ?? error)}</p>
+          </details>
         </div>
         <div className="flex gap-2">
           <button

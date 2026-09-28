@@ -104,7 +104,9 @@
         if (isNaN(val)) { preview.style.display = 'none'; return; }
         const diff = val - expected;
         preview.style.removeProperty('display');
-        diffEl.textContent = (diff >= 0 ? '+' : '') + '$' + Math.abs(diff).toFixed(2) + ' ' + (diff >= 0 ? 'sobrante' : 'faltante');
+        diffEl.textContent = Math.abs(diff) < 0.005
+            ? '$0.00 caja cuadrada'
+            : (diff > 0 ? '+' : '-') + '$' + Math.abs(diff).toFixed(2) + ' ' + (diff > 0 ? 'sobrante' : 'faltante');
         diffEl.className   = 'fs-4 fw-bold mb-0 ' + (diff >= 0 ? 'text-success' : 'text-danger');
     });
 })();

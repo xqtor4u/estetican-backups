@@ -168,6 +168,8 @@ class CashSessionController extends Controller
         ]);
 
         return redirect()->route('finances.cash-sessions.show', $cashSession)
-            ->with('success', 'Sesión cerrada. Diferencia: $' . number_format(abs($difference), 2) . ($difference >= 0 ? ' sobrante' : ' faltante'));
+            ->with('success', abs($difference) < 0.005
+                ? 'Sesión cerrada. Caja cuadrada: sin diferencia.'
+                : 'Sesión cerrada. Diferencia: $' . number_format(abs($difference), 2) . ($difference > 0 ? ' sobrante' : ' faltante'));
     }
 }

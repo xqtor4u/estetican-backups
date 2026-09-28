@@ -192,11 +192,21 @@ class CashReportService implements CashReportServiceInterface
         // `type` del movimiento original pero invierte la `direction` (ver revertMovement()):
         // agrupar solo por tipo sumaría un "entrada" original junto con su reversión (salida)
         // en la misma fila, mostrando el doble del monto real en vez de que se cancelen.
+        // Dirección natural de cada tipo: si el grupo va al revés es una reversión, y se nombra
+        // así — antes la reversión de una entrada manual salía como "Entrada manual" bajo
+        // Salidas (EST-028).
+        $inboundTypes = ['cobro_efectivo', 'cobro_banco', 'entrada'];
         $byTypeFor = fn (string $direction) => collect($typeLabels)
-            ->map(function ($label, $type) use ($items, $direction) {
+            ->map(function ($label, $type) use ($items, $direction, $inboundTypes) {
                 $group = $items->where('type', $type)->where('direction', $direction);
+                $isReversal = in_array($type, $inboundTypes, true) !== ($direction === 'entrada');
 
-                return ['type' => $type, 'label' => $label, 'count' => $group->count(), 'amount' => round($group->sum('amount'), 2)];
+                return [
+                    'type' => $type,
+                    'label' => $isReversal ? 'Reversión de '.mb_strtolower($label) : $label,
+                    'count' => $group->count(),
+                    'amount' => round($group->sum('amount'), 2),
+                ];
             })
             ->filter(fn ($g) => $g['count'] > 0)
             ->values();

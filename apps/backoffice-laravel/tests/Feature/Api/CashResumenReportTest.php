@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Domain\Accounting\Services\CashReportService;
 use App\Mail\CashResumenMail;
 use App\Models\Account;
 use App\Models\Branch;
@@ -11,7 +12,9 @@ use App\Models\CashSession;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\User;
+use Database\Seeders\BaseRolesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Tests\Concerns\CreatesAdminUser;
 use Tests\TestCase;
@@ -23,8 +26,8 @@ use Tests\TestCase;
  */
 class CashResumenReportTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -34,7 +37,7 @@ class CashResumenReportTest extends TestCase
 
     private function operatorWithBranch(?int $branchId, array $permissions = ['caja.ver']): User
     {
-        (new \Database\Seeders\BaseRolesSeeder())->run();
+        (new BaseRolesSeeder)->run();
 
         $user = User::create([
             'name' => 'Operador Test '.uniqid(),
@@ -152,5 +155,39 @@ class CashResumenReportTest extends TestCase
         // entre entradas y salidas (regresión del bug real encontrado: agrupar solo por
         // `type` sumaba el original y su reversión en la misma fila).
         $response->assertHeader('content-type', 'application/pdf');
+    }
+
+    public function test_resumen_names_a_reversed_manual_entry_as_a_reversal_under_salidas(): void
+    {
+        // EST-028: la reversión de una entrada manual salía como "Entrada manual" bajo Salidas.
+        $this->movementWithReversal();
+        $user = $this->createAdminUser();
+        $this->actingAs($user);
+
+        $data = app(CashReportService::class)->buildResumenData(
+            Request::create('/', 'GET', ['date_from' => '2020-01-01', 'date_to' => '2030-01-01'])
+        );
+
+        $this->assertSame(['Entrada manual'], $data['byTypeEntradas']->pluck('label')->all());
+        $this->assertSame(['Reversión de entrada manual'], $data['byTypeSalidas']->pluck('label')->all());
+    }
+
+    public function test_closed_session_with_zero_difference_says_caja_cuadrada_not_sobrante(): void
+    {
+        // EST-011: una diferencia de $0 no es "sobrante".
+        $branch = Branch::create(['code' => 'BR'.uniqid(), 'name' => 'Única']);
+        $register = CashRegister::create(['branch_id' => $branch->id, 'name' => 'Caja principal']);
+        $admin = $this->createAdminUser();
+        $session = CashSession::create([
+            'cash_register_id' => $register->id, 'branch_id' => $branch->id, 'opened_by_user_id' => $admin->id,
+            'opened_at' => now()->subHours(8), 'opening_amount' => 500, 'status' => 'cerrada',
+            'closed_by_user_id' => $admin->id, 'closed_at' => now(), 'closing_amount' => 500,
+            'expected_amount' => 500, 'difference' => 0,
+        ]);
+
+        $html = $this->actingAs($admin)->get(route('finances.cash-sessions.show', $session))->assertOk()->getContent();
+
+        $this->assertStringContainsString('caja cuadrada', $html);
+        $this->assertStringNotContainsString('sobrante', $html);
     }
 }
