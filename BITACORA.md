@@ -130,6 +130,22 @@ disponibilidad arrastrable de SYNC-086..095. *B5* no se construyó: el Hotel no 
 ni estado de llegada/no-show (0 reservas en prod) — prerrequisito anotado en la propuesta. Prod 924 ok /
 33 preexistentes; `tst` 979/979. Sin rutas nuevas.
 
+**Bloqueo de indexación y bots (pedido de Tomas, documento "EstetiCAN — Bloqueo de bots e indexación").**
+Servidor hecho en tst (`5146a55`) y prod (`e6b0941`): `robots.txt` `Disallow: /` en los 4 hosts (antes el de
+Laravel permitía todo y el móvil no tenía), middleware `NoIndex` (`X-Robots-Tag: noindex, nofollow,
+noarchive` en toda respuesta de Laravel), mismo encabezado en el nginx móvil (server{}, `/fonts/`,
+`/index.html`). mov: nginx.conf editado en sitio (inodo 402730 igual en host y contenedor), `nginx -t` +
+reload; tstmov: imagen reconstruida (su nginx va dentro de la imagen). Verificado por dentro y por los 4
+dominios; PDF firmado sigue en 200 (`cf-cache-status: DYNAMIC`).
+**Hallazgo:** el robots.txt administrado de Cloudflare antepone `User-agent: * / Content-Signal:
+search=yes / Allow: /`, que al combinarse con nuestro `Disallow: /` deja autorizados a los buscadores
+(RFC 9309: en empate gana Allow). El `X-Robots-Tag` sí impide indexar; falta ajustarlo en Cloudflare.
+**Fotos en /storage:** públicas por URL sin sesión (disco `public`), nombres UUID v4 aleatorios, listado de
+carpetas bloqueado (403). Adjuntos clínicos también van al disco público (0 archivos hoy) — propuesto
+moverlos a disco privado con acceso autorizado antes de que se usen.
+Pendiente de Tomas en Cloudflare: Access en tstapp (sin bypass de api/*) y tstmov (sesión 7 días),
+corregir el robots.txt administrado y Purge Everything.
+
 **Rutas (regla de seguridad #3):** 2 rutas nuevas, ambas con middleware —
 `GET /api/resources` y `GET /api/resources/{resource}/availability`, `permission:ver agenda`
 (categoría b). `{resource}` sin scope de dueño a propósito: las jaulas son catálogo del negocio,
