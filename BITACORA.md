@@ -1,5 +1,36 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 03/10/2026 — Consulta sobre importación de datos; `ZEUS-046` anotado en Zeus
+
+### 📝 Resumen
+
+Sesión corta, **sin cambios de código en este repo**.
+
+- Tomas preguntó cómo se importan bases de datos/CSV: **no existe ninguna importación** (ni CSV ni
+  Excel, sin librería instalada) en producción ni en `tst`; todo dato entró capturado a mano. Lo
+  más cercano es `ZEUS-015` (exportación, no construida).
+- Propuesta para atraer clínicas que hoy usan Google Calendar/Excel/Outlook → anotada como
+  **`ZEUS-046`** en el backlog de Zeus (commit `4cae76e` allá). No es emergencia: va en `tst`/portal.
+- **Hallazgo:** Zeus-Estetican y `tenants/tst` **no tienen remoto git** — nunca se subieron. Antes
+  del primer push se encontraron contraseñas reales en `.md` de ambos repos. Detalle y plan en
+  `/opt/www/zeus-estetican/BITACORA.md` (03/10/2026). **Diferido a mañana** a pedido de Tomas.
+
+**Rutas (regla de seguridad #3):** sin rutas nuevas.
+
+### 📁 Archivos tocados
+- Este repo: solo `BITACORA.md`.
+- Zeus: `docs/tecnico/BACKLOG.md` (`4cae76e`), `BITACORA.md` (`c03c114`).
+
+### 🛑 Pendientes activos
+1. **Mañana:** rotar las 3 contraseñas expuestas en `.md` de Zeus/`tst`, limpiarlas, crear
+   `xqtor4u/zeus-estetican` y `xqtor4u/estetican-tst` en GitHub, agregar remotos y primer push.
+2. **`git push` de este repo** — sigue adelante de `origin/main` (32 commits + este); lo corre Tomas.
+3. Siguen vigentes los pendientes 2–5 de la sesión del 27/09 (pasada en `mov`, versión móvil,
+   `SYNC-108b/c`, favicon cuadrado).
+4. BL-008 (reportes PDF) parece cubierto por A1 del 27/09 — confirmar y moverlo a Completados.
+
+---
+
 ## 📅 Sesión: 27/09/2026 — Versión visible automática (`SYNC-006`) + `SYNC-108a` descartado como emergencia
 
 ### 📝 Resumen
