@@ -60,6 +60,7 @@ class BaseRolesSeeder extends Seeder
             'alergias.administrar',
             'agenda.forzar_horario',
             'agenda.ver_todas',
+            'agenda.series_recurrentes', // ZEUS-047: dar de alta series de citas recurrentes
         ];
 
         $permissions = array_merge($permissions, $granularPermissions);

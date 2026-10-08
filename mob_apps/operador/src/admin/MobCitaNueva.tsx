@@ -12,7 +12,11 @@ interface PetMin   { id: number; name: string; species: string | null; breed: st
 
 /** Etiqueta legible para el tamaño (`pets.size`) — incluye valores legado en español. */
 const SIZE_LABEL: Record<string, string> = { small: 'Pequeño', medium: 'Mediano', large: 'Grande', giant: 'Gigante' };
-interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null }
+interface Service  { id: number; name: string; type: string | null; price: number; duration_minutes: number | null; recurrence_days?: number | null }
+/** ZEUS-047 — resumen que devuelve POST /api/bookings cuando se repite la cita. */
+interface SeriesSummary { rule_label: string; ends_on: string; created: number; moved: number; skipped: number; bookings: { id: number; scheduled_at: string; moved_from: string | null; move_reason: string | null }[] }
+type RepeatMode = '7' | '15' | '30' | 'custom' | 'monthly';
+type RepeatUntil = '6m' | '1y' | 'date';
 interface Operator { id: number; name: string; role: string | null; photo_url: string | null; role_ids: number[] }
 /** Forma ligera que devuelve GET /api/services/{id}/operators — solo lo que necesita el picker. */
 interface EligibleOperator { id: number; name: string }
@@ -154,6 +158,14 @@ export function MobCitaNueva() {
   // calificado para el servicio de la línea.
   const [preferredOperatorId] = useState<number | null>(() => consumeCitaPresetOperator());
   const [notes,        setNotes]        = useState('');
+  // ZEUS-047 — "Repetir esta cita": crea la serie completa; todas quedan por fijar en la agenda.
+  const canCreateSeries = !!(user as { can_create_series?: boolean } | null)?.can_create_series;
+  const [repeatOn,       setRepeatOn]       = useState(false);
+  const [repeatMode,     setRepeatMode]     = useState<RepeatMode>('30');
+  const [repeatDays,     setRepeatDays]     = useState(30);
+  const [repeatUntil,    setRepeatUntil]    = useState<RepeatUntil>('1y');
+  const [repeatUntilDate, setRepeatUntilDate] = useState('');
+  const [seriesSummary,  setSeriesSummary]  = useState<SeriesSummary | null>(null);
 
   /* Estado de envío */
   const [saving,      setSaving]      = useState(false);
@@ -501,6 +513,13 @@ export function MobCitaNueva() {
           // al default del backend (= la del servicio), como decide la spec §0.9 para v1.
           ...(cageId ? { resource_id: cageId } : {}),
           ...(overrideAvailability ? { override_availability: true } : {}),
+          ...(repeatOn ? {
+            repeat_enabled: true,
+            repeat_mode: repeatMode,
+            ...(repeatMode === 'custom' ? { repeat_interval_days: repeatDays } : {}),
+            repeat_until: repeatUntil,
+            ...(repeatUntil === 'date' ? { repeat_until_date: repeatUntilDate } : {}),
+          } : {}),
         }),
       });
 
@@ -513,6 +532,13 @@ export function MobCitaNueva() {
         setSaveErr(msg);
         setOfferOverride(msg === SCHEDULE_OVERRIDE_MESSAGE && !!user?.can_override_schedule);
         setSaving(false);
+        return;
+      }
+
+      if (data.series) {
+        // Serie: se queda en la pantalla de éxito con el resumen; el operador vuelve cuando lo leyó.
+        setSeriesSummary(data.series as SeriesSummary);
+        setSaved(true);
         return;
       }
 
@@ -530,6 +556,50 @@ export function MobCitaNueva() {
       setSaving(false);
     }
   };
+
+  /* ── Pantalla de éxito de una serie (ZEUS-047) ─────────── */
+  if (saved && seriesSummary) {
+    const fmtItem = (iso: string) => {
+      const [d, t] = iso.split(' ');
+      const [y, m, day] = d.split('-').map(Number);
+      return `${fmtLong(new Date(y, m - 1, day))} · ${t.slice(0, 5)}`;
+    };
+    return (
+      <div className="min-h-screen bg-background flex flex-col gap-4 px-5 pt-10 pb-28">
+        <div className="flex flex-col items-center text-center gap-2">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'rgba(124,58,237,0.12)' }}>
+            <span className="material-symbols-outlined text-4xl" style={{ color: '#7c3aed', fontVariationSettings: "'FILL' 1" }}>event_repeat</span>
+          </div>
+          <p className="text-xl font-bold text-on-surface">¡Serie creada!</p>
+          <p className="text-sm text-on-surface-variant">
+            {pet?.name} · {seriesSummary.rule_label} · {seriesSummary.created} citas
+            {seriesSummary.moved > 0 && ` · ${seriesSummary.moved} recorridas`}
+            {seriesSummary.skipped > 0 && ` · ${seriesSummary.skipped} sin lugar`}
+          </p>
+          <p className="text-xs font-semibold" style={{ color: '#5b21b6' }}>Todas quedan por fijar en la agenda.</p>
+        </div>
+        <ul className="bg-surface-container rounded-2xl divide-y divide-outline-variant/40">
+          {seriesSummary.bookings.map(b => (
+            <li key={b.id} className="px-4 py-2.5 text-sm flex items-start gap-2">
+              <span className="material-symbols-outlined text-base mt-0.5" style={{ color: '#7c3aed' }}>{b.moved_from ? 'shuffle' : 'radio_button_unchecked'}</span>
+              <div>
+                <p className="font-semibold text-on-surface">{fmtItem(b.scheduled_at)}</p>
+                {b.moved_from && <p className="text-xs text-on-surface-variant">Recorrida desde {fmtItem(b.moved_from)} — {b.move_reason}</p>}
+              </div>
+            </li>
+          ))}
+        </ul>
+        <div className="fixed bottom-16 left-4 right-4 z-30">
+          <button
+            onClick={() => navigate(`/agenda?date=${localDateStr(selDate)}`, { replace: true })}
+            className="w-full bg-primary text-on-primary py-4 rounded-2xl text-base font-bold shadow-lg"
+          >
+            Ir a la agenda
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   /* ── Pantalla de éxito ─────────────────────────────────── */
   if (saved) {
@@ -1003,6 +1073,84 @@ export function MobCitaNueva() {
           )}
         </section>
 
+        {/* ── Repetir esta cita (ZEUS-047) ─────────────── */}
+        {canCreateSeries && (
+          <section className="rounded-2xl px-4 py-3" style={{ background: 'rgba(124,58,237,0.06)' }}>
+            <label className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold flex items-center gap-2" style={{ color: '#5b21b6' }}>
+                <span className="material-symbols-outlined text-lg">event_repeat</span>
+                Repetir esta cita
+              </span>
+              <input
+                type="checkbox"
+                checked={repeatOn}
+                onChange={e => {
+                  const on = e.target.checked;
+                  setRepeatOn(on);
+                  if (on) {
+                    // Frecuencia sugerida por el servicio (la menor de las líneas): baño 30, vacuna 365…
+                    const days = lines
+                      .map(l => services.find(s => s.id === l.serviceId)?.recurrence_days ?? 0)
+                      .filter(d => d > 0);
+                    if (days.length) {
+                      const d = Math.min(...days);
+                      if (d === 7 || d === 15 || d === 30) setRepeatMode(String(d) as RepeatMode);
+                      else { setRepeatMode('custom'); setRepeatDays(d); }
+                    }
+                  }
+                }}
+                className="w-5 h-5 accent-[#7c3aed]"
+              />
+            </label>
+            {repeatOn && (
+              <div className="mt-3 flex flex-col gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-on-surface-variant mb-1">Cada</p>
+                  <div className="flex flex-wrap gap-2">
+                    {([['7', '7 días'], ['15', '15 días'], ['30', '30 días'], ['custom', 'Otro'], ['monthly', 'Mismo día cada mes']] as [RepeatMode, string][]).map(([v, label]) => (
+                      <button key={v} type="button" onClick={() => setRepeatMode(v)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${repeatMode === v ? 'text-white border-transparent' : 'text-on-surface border-outline-variant'}`}
+                        style={repeatMode === v ? { background: '#7c3aed' } : undefined}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {repeatMode === 'custom' && (
+                    <div className="flex items-center gap-2 mt-2 text-sm">
+                      <input type="number" min={1} max={365} value={repeatDays}
+                        onChange={e => setRepeatDays(Math.max(1, Math.min(365, Number(e.target.value) || 1)))}
+                        className="w-20 bg-surface-container border border-outline-variant rounded-xl px-3 py-1.5" />
+                      días
+                    </div>
+                  )}
+                  {repeatMode === 'monthly' && (
+                    <p className="text-xs text-on-surface-variant mt-1">Ej.: si eliges el 1er lunes, se repite el 1er lunes de cada mes.</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-on-surface-variant mb-1">Vigencia</p>
+                  <div className="flex flex-wrap gap-2">
+                    {([['6m', '6 meses'], ['1y', '1 año'], ['date', 'Hasta…']] as [RepeatUntil, string][]).map(([v, label]) => (
+                      <button key={v} type="button" onClick={() => setRepeatUntil(v)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${repeatUntil === v ? 'text-white border-transparent' : 'text-on-surface border-outline-variant'}`}
+                        style={repeatUntil === v ? { background: '#7c3aed' } : undefined}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {repeatUntil === 'date' && (
+                    <input type="date" value={repeatUntilDate} onChange={e => setRepeatUntilDate(e.target.value)}
+                      className="mt-2 bg-surface-container border border-outline-variant rounded-xl px-3 py-1.5 text-sm" />
+                  )}
+                </div>
+                <p className="text-xs text-on-surface-variant">
+                  Las que caigan en festivo, día cerrado u horario ocupado se recorren solas. Todas quedan por fijar en la agenda.
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* ── 4. Notas ─────────────────────────────────── */}
         <section>
           <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-2">Notas</p>
@@ -1125,7 +1273,7 @@ export function MobCitaNueva() {
           ) : canSave ? (
             <>
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>event_available</span>
-              Agendar {minutesToClock(citaStartMin)}{endTime ? ` → ${endTime}` : ''}
+              {repeatOn ? 'Crear serie desde' : 'Agendar'} {minutesToClock(citaStartMin)}{endTime ? ` → ${endTime}` : ''}
             </>
           ) : (
             <>

@@ -19,11 +19,13 @@
         default => 'agenda-calendar-event-chip--spa',
     };
     $folio = $isHotel ? null : $item->order_folio;
+    $tentative = ! $isHotel && $item->isSeriesTentative();
 @endphp
 <a href="{{ $chipHref }}"
-    class="agenda-calendar-event-chip {{ $statusClass }} {{ $alertReason ? 'agenda-calendar-event-chip--alert' : '' }} {{ $folio ? 'agenda-calendar-event-chip--with-folio' : '' }}"
+    class="agenda-calendar-event-chip {{ $statusClass }} {{ $alertReason ? 'agenda-calendar-event-chip--alert' : '' }} {{ $folio ? 'agenda-calendar-event-chip--with-folio' : '' }} {{ $tentative ? 'agenda-calendar-event-chip--tentative' : '' }}"
     @if($alertLabel) title="{{ $alertLabel }}" @endif
 >
+    @unless($isHotel)<x-series-dot :booking="$item" />@endunless
     <span class="agenda-calendar-event-chip__time">{{ $timeLabel }}</span>
     <span class="agenda-calendar-event-chip__label">{{ $item->pet?->name ?: 'Mascota' }}</span>
     @if($folio)

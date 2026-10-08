@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Accounting\Contracts\AccountingServiceInterface;
 use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
+use App\Domain\Planning\Series\BookingSeriesService;
+use App\Domain\Planning\Series\RepeatInput;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Domain\Planning\Services\OperatorServiceResolver;
 use App\Domain\Planning\Services\ServiceLineActionService;
@@ -76,6 +78,20 @@ class BookingController extends Controller
         abort_unless(SpaBooking::visibleTo(auth()->user())->whereKey($booking->id)->exists(), 404);
     }
 
+    /** ZEUS-047 — "Fijar" desde el móvil: confirma esta sola cita de una serie recurrente. */
+    public function pin(SpaBooking $booking)
+    {
+        $this->ensureVisible($booking);
+
+        if (! $booking->isSeriesTentative() || $booking->status !== 'scheduled') {
+            return response()->json(['message' => 'Esta cita no está pendiente de fijar.'], 422);
+        }
+
+        $booking->update(['series_confirmed_at' => now()]);
+
+        return response()->json($this->serialize($booking->fresh()));
+    }
+
     /** Serializa una cita al formato que usa la app móvil */
     private function serialize(SpaBooking $b): array
     {
@@ -90,6 +106,7 @@ class BookingController extends Controller
             // Solo la asignación "reserved" — la de limpieza (hija, allocation_type=cleaning)
             // es un detalle interno de ResourceAllocationService, no algo que el cliente edite.
             'resourceAllocations' => fn ($q) => $q->where('allocation_type', 'reserved'),
+            'series',
         ]);
 
         $resourceAllocation = $b->resourceAllocations->first();
@@ -108,6 +125,16 @@ class BookingController extends Controller
             'status' => $b->status,
             'notes' => $b->notes,
             'cancellation_reason' => $b->cancellation_reason,
+            // ZEUS-047: cita de una serie recurrente — `tentative` = falta "Fijar".
+            'series' => $b->series ? [
+                'id' => $b->series->id,
+                'rule_label' => $b->series->recurrenceRule()->label(),
+                'ends_on' => $b->series->ends_on->toDateString(),
+                'tentative' => $b->isSeriesTentative(),
+                'confirmed_at' => $b->series_confirmed_at?->format('Y-m-d H:i:s'),
+                'moved_from' => $b->series_original_at?->format('Y-m-d H:i:s'),
+                'move_reason' => $b->series_move_reason,
+            ] : null,
             // A2: mismo total que el backoffice web (SpaBooking::chargesTotal()).
             'total' => $b->chargesTotal(),
             'pet' => [
@@ -198,7 +225,13 @@ class BookingController extends Controller
             'resource_id' => 'nullable|exists:resources,id',
             'resource_starts_at' => 'nullable|date_format:Y-m-d H:i:s',
             'resource_ends_at' => 'nullable|date_format:Y-m-d H:i:s',
+            ...RepeatInput::rules(), // ZEUS-047: "Repetir esta cita" desde el móvil
         ]);
+
+        $repeat = RepeatInput::enabled($data);
+        if ($repeat && ! ($request->user()?->can('agenda.series_recurrentes') || $request->user()?->is_super_admin)) {
+            return response()->json(['message' => 'No tienes permiso para crear citas recurrentes.'], 403);
+        }
 
         $scheduledAt = Carbon::parse($data['scheduled_at']);
         $durationMinutes = (int) ($data['duration_minutes'] ?? 30);
@@ -208,7 +241,7 @@ class BookingController extends Controller
         $hours = $this->businessHours->for(BranchResolver::forNewBooking(isset($data['operator_id']) ? (int) $data['operator_id'] : null));
         if (! $hours->isWithin($scheduledAt)) {
             return response()->json([
-                'message' => "La hora elegida está fuera del horario operativo ({$hours->openingTime()}–{$hours->closingTime()}).",
+                'message' => $hours->rejectionFor($scheduledAt),
             ], 422);
         }
 
@@ -323,6 +356,49 @@ class BookingController extends Controller
             $row['id'] => (int) ($row['operator_id'] ?? $data['operator_id']),
         ]);
         $estimatedTotal = $resolvedPrices->sum();
+
+        // ZEUS-047: con "Repetir", la primera fecha ya pasó las validaciones de arriba y se crea
+        // la serie completa (esa primera incluida); todas quedan por fijar.
+        if ($repeat) {
+            if ($serviceIds === []) {
+                return response()->json(['message' => 'Una cita recurrente necesita al menos un servicio.'], 422);
+            }
+
+            $series = app(BookingSeriesService::class)->create([
+                'pet_id' => (int) $data['pet_id'],
+                'operator_id' => (int) $data['operator_id'],
+                'branch_id' => BranchResolver::forNewBooking((int) $data['operator_id']),
+                'notes' => $data['notes'] ?? null,
+                'resource_id' => $data['resource_id'] ?? null,
+                'lines' => collect($serviceIds)->map(fn ($id) => [
+                    'service_id' => $id,
+                    'service_name' => $catalog->get($id)?->name ?? 'Servicio',
+                    'operator_id' => $resolvedOperators[$id] ?? (int) $data['operator_id'],
+                    'duration_minutes' => (int) ($resolvedDurations[$id] ?? 30),
+                    'offset_minutes' => $resolvedOffsets[$id] ?? null,
+                    'price' => (float) ($resolvedPrices[$id] ?? 0),
+                ])->values()->all(),
+            ], RepeatInput::rule($data, $scheduledAt), $scheduledAt, RepeatInput::endsOn($data, $scheduledAt));
+
+            $series->load('bookings');
+
+            return response()->json([
+                'series' => [
+                    'id' => $series->id,
+                    'rule_label' => $series->recurrenceRule()->label(),
+                    'ends_on' => $series->ends_on->toDateString(),
+                    'created' => $series->bookings->count(),
+                    'moved' => $series->bookings->whereNotNull('series_original_at')->count(),
+                    'skipped' => count($series->skipped_occurrences ?? []),
+                    'bookings' => $series->bookings->map(fn ($b) => [
+                        'id' => $b->id,
+                        'scheduled_at' => $b->scheduled_at->format('Y-m-d H:i:s'),
+                        'moved_from' => $b->series_original_at?->format('Y-m-d H:i:s'),
+                        'move_reason' => $b->series_move_reason,
+                    ])->values(),
+                ],
+            ], 201);
+        }
 
         // La cita y sus líneas de servicio se crean juntas o no se crean: sin la
         // transacción, un fallo a mitad del loop dejaba una cita sin (o con parte de)
@@ -442,7 +518,7 @@ class BookingController extends Controller
             $hours = $this->businessHours->for($booking->branch_id); // B2
             if (! $hours->isWithin($scheduledAt)) {
                 return response()->json([
-                    'message' => "La hora elegida está fuera del horario operativo ({$hours->openingTime()}–{$hours->closingTime()}).",
+                    'message' => $hours->rejectionFor($scheduledAt),
                 ], 422);
             }
 

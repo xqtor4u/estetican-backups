@@ -43,6 +43,21 @@
         </div>
     </section>
 
+    {{-- ZEUS-047: acceso directo a las citas recurrentes pre-programadas, para fijarlas sin navegar. --}}
+    @if($calView === 'day' && ($pendingPinCount > 0 || $pinFilter))
+        <div class="alert border-0 shadow-sm mb-3 d-flex align-items-center gap-2 flex-wrap" style="background: rgba(124, 58, 237, 0.08); color: #5b21b6;">
+            <span class="agenda-series-dot agenda-series-dot--pending"></span>
+            @if($pinFilter)
+                <strong>Mostrando solo citas recurrentes por fijar ({{ $pendingPinCount }})</strong>
+                <span class="small">Revisa fecha y hora y dale <em>Fijar</em> para confirmarla.</span>
+                <a href="{{ route('agenda.index') }}" class="btn btn-sm btn-outline-secondary ms-auto">Ver agenda normal</a>
+            @else
+                <strong>{{ $pendingPinCount }} {{ $pendingPinCount === 1 ? 'cita recurrente' : 'citas recurrentes' }} por fijar</strong>
+                <a href="{{ route('agenda.index', ['por_fijar' => 1]) }}" class="btn btn-sm text-white ms-auto" style="background: #7c3aed;">Ver y fijar</a>
+            @endif
+        </div>
+    @endif
+
     @if($calView === 'day')
     {{-- Estos botones envían el mismo <form> de filtros de abajo (form="agenda-filters-form"),
     en vez de navegar por su cuenta con un <a href> — antes eran dos paneles desconectados:
@@ -185,6 +200,7 @@
                     </td>
                     <td>
                         <div class="catalog-title-stack__title">
+                            <x-series-dot :booking="$booking" />
                             {{ $booking->pet?->name }}
                             @if($booking->order_folio)
                                 <span class="badge bg-light text-dark border ms-1" style="font-size: 0.65rem; font-weight: 700;" title="Folio de orden de trabajo — el mismo número que se imprime en recibo, orden de trabajo y presupuesto.">{{ $booking->order_folio }}</span>
@@ -330,6 +346,13 @@
                         @php $alert = $booking->alert_reason; @endphp
                         <div class="agenda-chips justify-content-end">
                             @can('editar agenda')
+                                {{-- ZEUS-047: cita pre-programada de una serie recurrente → un clic la confirma. --}}
+                                @if($booking->status === 'scheduled' && $booking->isSeriesTentative())
+                                    <form method="POST" action="{{ route('agenda.series.pin', $booking) }}" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="agenda-chip agenda-chip--pin" title="Confirmar esta cita en este día y hora"><i class="bi bi-pin-angle-fill"></i> Fijar</button>
+                                    </form>
+                                @endif
                                 @if($alert === 'future')
                                     <a href="{{ route('agenda.edit', $booking) }}" class="agenda-chip agenda-chip--neutral"><i class="bi bi-pencil"></i> Corregir fecha</a>
                                 @elseif($alert === 'not_started' || (! $alert && $booking->status === 'scheduled'))
@@ -446,7 +469,16 @@
                                         @else
                                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold" style="font-size: 0.75rem;">SPA</span>
                                         @endif
+                                        @unless($isHotel)<x-series-dot :booking="$booking" />@endunless
                                         <div class="catalog-title-stack__title mb-0">{{ $booking->pet?->name ?: 'Mascota sin nombre' }}</div>
+                                        @if(! $isHotel && $booking->status === 'scheduled' && $booking->isSeriesTentative())
+                                            @can('editar agenda')
+                                                <form method="POST" action="{{ route('agenda.series.pin', $booking) }}" class="d-inline">
+                                                    @csrf
+                                                    <button type="submit" class="agenda-chip agenda-chip--pin" title="Confirmar esta cita en este día y hora"><i class="bi bi-pin-angle-fill"></i> Fijar</button>
+                                                </form>
+                                            @endcan
+                                        @endif
                                         @if($booking->order_folio)
                                             <span class="badge bg-light text-dark border" style="font-size: 0.65rem; font-weight: 700;">{{ $booking->order_folio }}</span>
                                         @endif
@@ -638,6 +670,7 @@
 .agenda-chip:hover { filter: brightness(0.96); text-decoration: none; }
 .agenda-chip i { font-size: 0.9em; }
 .agenda-chip--start   { background: rgba(59, 130, 246, 0.14); color: #1d4ed8; border-color: rgba(59, 130, 246, 0.28); }
+.agenda-chip--pin     { background: #7c3aed; color: #fff; border-color: #7c3aed; } /* ZEUS-047: Fijar */
 .agenda-chip--done    { background: rgba(40, 167, 69, 0.16); color: #17643a; border-color: rgba(40, 167, 69, 0.30); }
 .agenda-chip--pay     { background: rgba(245, 158, 11, 0.16); color: #92510a; border-color: rgba(245, 158, 11, 0.32); }
 .agenda-chip--noshow  { background: rgba(239, 68, 68, 0.14); color: #b91c1c; border-color: rgba(239, 68, 68, 0.28); }

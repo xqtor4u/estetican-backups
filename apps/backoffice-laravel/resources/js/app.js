@@ -5,6 +5,7 @@ import imageUploadFactory from './modules/image-upload';
 import whatsappBandejaFactory from './modules/whatsapp-bandeja';
 import whatsappPhoneLinkFactory from './modules/whatsapp-phone-link';
 import mapaZonasFactory from './modules/mapa-zonas';
+import seriesRepeatFactory from './modules/series-repeat';
 import './modules/address-editor';
 import './modules/client-form';
 import './modules/confirm-actions';
@@ -23,6 +24,7 @@ Alpine.data('imageUpload', imageUploadFactory);
 Alpine.data('whatsappBandeja', whatsappBandejaFactory);
 Alpine.data('whatsappPhoneLink', whatsappPhoneLinkFactory);
 Alpine.data('mapaZonas', mapaZonasFactory);
+Alpine.data('seriesRepeat', seriesRepeatFactory);
 
 window.Alpine = Alpine;
 Alpine.start();

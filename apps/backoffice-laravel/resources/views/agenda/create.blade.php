@@ -103,7 +103,7 @@
                             <label class="card h-100 shadow-sm service-card-label" style="cursor: pointer; transition: all 0.2s; border: 2px solid transparent;">
                                 <div class="card-body position-relative p-3 d-flex flex-column">
                                     <div class="form-check position-absolute top-0 end-0 mt-3 me-3">
-                                        <input class="form-check-input service-card-input" type="checkbox" name="services[]" value="{{ $service->id }}" @checked($checked) style="width: 1.25em; height: 1.25em;">
+                                        <input class="form-check-input service-card-input" type="checkbox" name="services[]" value="{{ $service->id }}" data-recurrence-days="{{ $service->recurrence_days }}" @checked($checked) style="width: 1.25em; height: 1.25em;">
                                     </div>
                                     <div class="d-flex justify-content-between align-items-start mb-2 pe-4">
                                         <div>
@@ -249,6 +249,86 @@
                         <div id="availability_panel" class="alert d-none mb-0 py-2 px-3 small"></div>
                     </div>
                 </div>
+
+                {{-- ZEUS-047: "Repetir esta cita" — crea la serie completa; todas las citas quedan por fijar. --}}
+                @if(auth()->user()?->can('agenda.series_recurrentes') || auth()->user()?->is_super_admin)
+                    <div class="card border-0 mb-4" style="background: rgba(124, 58, 237, 0.06);"
+                        x-data="seriesRepeat({ previewUrl: @js(route('pets.bookings.series-preview', $pet)), formId: 'agenda-create-form' })">
+                        <div class="card-body">
+                            <input type="hidden" name="repeat_enabled" :value="enabled ? 1 : 0">
+                            <div class="form-check form-switch">
+                                <input id="repeat_toggle" class="form-check-input" type="checkbox" x-model="enabled">
+                                <label class="form-check-label fw-semibold" for="repeat_toggle" style="color: #5b21b6;">
+                                    <span class="agenda-series-dot agenda-series-dot--pending me-1"></span> Repetir esta cita
+                                </label>
+                            </div>
+
+                            <div x-show="enabled" x-cloak class="mt-3">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="form-label" for="repeat_mode">Cada</label>
+                                        <select id="repeat_mode" name="repeat_mode" class="form-select" x-model="mode">
+                                            <option value="7">7 días</option>
+                                            <option value="15">15 días</option>
+                                            <option value="30">30 días</option>
+                                            <option value="custom">Otro número de días…</option>
+                                            <option value="monthly">Mismo día de la semana cada mes (ej. 1er lunes)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2" x-show="mode === 'custom'">
+                                        <label class="form-label" for="repeat_interval_days">Días</label>
+                                        <input id="repeat_interval_days" type="number" min="1" max="365" name="repeat_interval_days" class="form-control" x-model.number="intervalDays">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label" for="repeat_until">Vigencia</label>
+                                        <select id="repeat_until" name="repeat_until" class="form-select" x-model="until">
+                                            <option value="6m">6 meses</option>
+                                            <option value="1y">1 año</option>
+                                            <option value="date">Hasta una fecha…</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3" x-show="until === 'date'">
+                                        <label class="form-label" for="repeat_until_date">Hasta</label>
+                                        <input id="repeat_until_date" type="date" name="repeat_until_date" class="form-control" x-model="untilDate">
+                                    </div>
+                                </div>
+                                <div class="form-text">
+                                    La primera cita es la fecha y hora de arriba. Las que caigan en festivo, día cerrado u horario ocupado se recorren solas al siguiente día y hora libre.
+                                    Todas quedan <strong>por fijar</strong>: aparecen en la Agenda para confirmarlas una por una.
+                                </div>
+
+                                <button type="button" class="btn btn-sm btn-outline-dark mt-3" @click="review()" :disabled="loading">
+                                    <span x-show="!loading"><i class="bi bi-calendar-week me-1"></i> Revisar fechas</span>
+                                    <span x-show="loading">Revisando…</span>
+                                </button>
+                                <div class="alert alert-danger py-2 px-3 small mt-2 mb-0" x-show="error" x-text="error"></div>
+
+                                <template x-if="preview">
+                                    <div class="mt-3">
+                                        <div class="small mb-2">
+                                            <strong x-text="preview.rule_label"></strong> · hasta <span x-text="preview.ends_on"></span> ·
+                                            <span x-text="stats.total"></span> citas
+                                            (<span x-text="stats.ok"></span> libres<span x-show="stats.moved">, <span x-text="stats.moved"></span> recorridas</span><span x-show="stats.skipped">, <span x-text="stats.skipped"></span> sin lugar</span>)
+                                        </div>
+                                        <ul class="list-group list-group-flush small" style="max-height: 280px; overflow-y: auto;">
+                                            <template x-for="item in preview.items" :key="item.original_at">
+                                                <li class="list-group-item d-flex gap-2 align-items-start bg-transparent px-0">
+                                                    <span x-text="item.state === 'ok' ? '✅' : (item.state === 'moved' ? '🔀' : '⚠️')"></span>
+                                                    <div>
+                                                        <div class="fw-semibold" x-text="item.label"></div>
+                                                        <div class="text-body-secondary" x-show="item.state !== 'ok'">
+                                                            <span x-show="item.state === 'moved'" x-text="'Recorrida desde ' + item.original_at + ' — '"></span><span x-show="item.state === 'skipped'">Sin lugar en 14 días — </span><span x-text="item.reason"></span>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                @endif
 
                 <div class="d-flex gap-2 flex-wrap justify-content-end">
                     <a href="{{ $isRootView ? route('pets.show', ['pet' => $pet, 'view' => $returnViewMode]) : route('clients.pets.show', [$client, $pet]) }}" class="btn btn-outline-secondary">Cancelar</a>

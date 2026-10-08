@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
-#[Fillable(['pet_id', 'operator_id', 'branch_id', 'created_by_user_id', 'scheduled_at', 'duration_minutes', 'status', 'total_estimated_price', 'notes', 'cancellation_reason', 'order_series_id', 'order_folio'])]
+#[Fillable(['pet_id', 'operator_id', 'branch_id', 'created_by_user_id', 'scheduled_at', 'duration_minutes', 'status', 'total_estimated_price', 'notes', 'cancellation_reason', 'order_series_id', 'order_folio', 'series_id', 'series_original_at', 'series_move_reason', 'series_confirmed_at'])]
 #[ObservedBy(SpaBookingObserver::class)]
 class SpaBooking extends Model
 {
@@ -38,6 +38,8 @@ class SpaBooking extends Model
             'scheduled_at' => 'datetime',
             'total_estimated_price' => 'decimal:2',
             'google_synced_at' => 'datetime',
+            'series_original_at' => 'datetime',
+            'series_confirmed_at' => 'datetime',
         ];
     }
 
@@ -89,6 +91,35 @@ class SpaBooking extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /** ZEUS-047: serie recurrente a la que pertenece (null = cita suelta). */
+    public function series(): BelongsTo
+    {
+        return $this->belongsTo(SpaBookingSeries::class, 'series_id');
+    }
+
+    /**
+     * ZEUS-047: citas futuras de series recurrentes que nadie ha fijado — la lista "por fijar".
+     * Regla de Tomas (07/10/2026): toda cita recurrente se confirma una por una con "Fijar",
+     * sin importar el estado de la serie — no se sabe si el cliente va a ir hasta confirmarlo.
+     */
+    public function scopeSeriesTentative(Builder $query): Builder
+    {
+        return $query->whereNotNull('series_id')
+            ->whereNull('series_confirmed_at')
+            ->where('status', 'scheduled')
+            ->where('scheduled_at', '>=', now());
+    }
+
+    /**
+     * ZEUS-047: cita pre-programada — es de una serie recurrente y todavía no se fijó con "Fijar"
+     * (se confirma una por una, sin importar el estado de la serie). Aparta horario, se pinta
+     * tenue y no manda recordatorio.
+     */
+    public function isSeriesTentative(): bool
+    {
+        return $this->series_id && ! $this->series_confirmed_at;
     }
 
     public function payments(): MorphMany

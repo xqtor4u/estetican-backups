@@ -1,4 +1,6 @@
-@php($branch = $branch ?? null)
+@php
+    $branch = $branch ?? null;
+@endphp
 
 <div class="row g-3">
     <div class="col-md-3">
@@ -20,7 +22,9 @@
         ])
     </div>
 
-    @php($generalHours = app(\App\Support\SystemSettings\BusinessHours::class))
+    @php
+        $generalHours = app(\App\Support\SystemSettings\BusinessHours::class);
+    @endphp
     <div class="col-md-3">
         <label for="opening_time" class="form-label">Abre</label>
         <input id="opening_time" type="time" name="opening_time" class="form-control @error('opening_time') is-invalid @enderror" value="{{ old('opening_time', $branch->opening_time ?? '') }}">
@@ -36,6 +40,32 @@
             Horario operativo propio de esta sucursal. Déjalo vacío para usar el horario general
             ({{ $generalHours->openingTime() }}–{{ $generalHours->closingTime() }}, en Configuración).
         </div>
+    </div>
+
+    {{-- ZEUS-047: días que abre la sucursal; apagado = los generales de Configuración. --}}
+    {{-- Solo bloques PHP de varias líneas en este parcial: mezclarlos con la forma en línea rompe el compilado (NT-005). --}}
+    @php
+        $ownDays = old('own_operating_days', ($branch->operating_days ?? null) !== null ? '1' : '0') === '1';
+        $checkedDays = old('operating_days', ($branch->operating_days ?? null) !== null
+            ? array_map('intval', explode(',', $branch->operating_days))
+            : $generalHours->operatingDays());
+    @endphp
+    <div class="col-12" x-data="{ own: {{ $ownDays ? 'true' : 'false' }} }">
+        <div class="form-check form-switch mb-2">
+            <input type="hidden" name="own_operating_days" value="0">
+            <input id="own_operating_days" class="form-check-input" type="checkbox" name="own_operating_days" value="1" x-model="own" @checked($ownDays)>
+            <label class="form-check-label" for="own_operating_days">Días de operación propios</label>
+        </div>
+        <div class="d-flex flex-wrap gap-3" x-show="own" x-cloak>
+            @foreach(\App\Support\SystemSettings\BusinessHours::DAY_NAMES as $dow => $dayName)
+                <div class="form-check">
+                    <input id="operating_day_{{ $dow }}" class="form-check-input" type="checkbox" name="operating_days[]" value="{{ $dow }}" @checked(in_array($dow, array_map('intval', (array) $checkedDays), true))>
+                    <label class="form-check-label" for="operating_day_{{ $dow }}">{{ ucfirst($dayName) }}</label>
+                </div>
+            @endforeach
+        </div>
+        @error('operating_days')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+        <div class="form-text" x-show="!own">Usa los días generales ({{ $generalHours->operatingDaysLabel() }}, en Configuración).</div>
     </div>
 
     <div class="col-12">

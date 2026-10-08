@@ -23,6 +23,8 @@ interface BookingDetail {
   notes: string | null;
   cancellation_reason: string | null;
   total: number;
+  /** ZEUS-047 — cita de una serie recurrente; `tentative` = falta "Fijar". */
+  series?: { id: number; rule_label: string; ends_on: string; tentative: boolean; confirmed_at: string | null; moved_from: string | null; move_reason: string | null } | null;
   pet: { id: number; name: string; species: string | null; breed: string | null; photo: string | null };
   client: { id: number; name: string; phone: string | null } | null;
   services: {
@@ -314,6 +316,7 @@ export function MobCitaDet() {
   /* Guardado / error de carga */
   const [saving,    setSaving]    = useState(false);
   const [saveErr,   setSaveErr]   = useState<string | null>(null);
+  const [pinning,   setPinning]   = useState(false);
   const [offerOverride, setOfferOverride] = useState(false);
   const [loadErr,   setLoadErr]   = useState<string | null>(null);
 
@@ -914,6 +917,53 @@ export function MobCitaDet() {
             </div>
           );
         })()}
+
+        {/* ── Serie recurrente (ZEUS-047): cada cita se confirma con "Fijar" ── */}
+        {booking.series && (
+          <section className="rounded-2xl px-4 py-3 flex flex-col gap-2" style={{ background: 'rgba(124,58,237,0.08)', color: '#5b21b6' }}>
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <span className="material-symbols-outlined text-lg">event_repeat</span>
+              Serie recurrente · {booking.series.rule_label}
+            </div>
+            {booking.series.moved_from && (
+              <p className="text-xs flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">shuffle</span>
+                Recorrida desde {booking.series.moved_from.slice(0, 16)} — {booking.series.move_reason}
+              </p>
+            )}
+            {booking.series.tentative ? (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs">Pre-programada: falta confirmar, sin recordatorio.</p>
+                {booking.status === 'scheduled' && (
+                  <button
+                    disabled={pinning}
+                    onClick={async () => {
+                      setPinning(true);
+                      setSaveErr(null);
+                      try {
+                        const res = await fetch(`/api/bookings/${booking.id}/fijar`, { method: 'POST', headers: { Accept: 'application/json' } });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) { setSaveErr(data.message ?? (res.status === 403 ? 'No tienes permiso para fijar citas.' : `Error ${res.status}`)); return; }
+                        setBooking(data);
+                      } catch { setSaveErr('No se pudo conectar con el servidor.'); }
+                      finally { setPinning(false); }
+                    }}
+                    className="shrink-0 flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold text-white disabled:opacity-60"
+                    style={{ background: '#7c3aed' }}
+                  >
+                    <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>push_pin</span>
+                    {pinning ? 'Fijando…' : 'Fijar'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>push_pin</span>
+                Fijada{booking.series.confirmed_at ? ` el ${booking.series.confirmed_at.slice(0, 16)}` : ''}
+              </p>
+            )}
+          </section>
+        )}
 
         {/* ── Acciones de TODA la cita (las de cada servicio viven en "Servicios", abajo) ──
             WhatsApp al dueño va aquí también, y en cualquier estado (una cita completada es

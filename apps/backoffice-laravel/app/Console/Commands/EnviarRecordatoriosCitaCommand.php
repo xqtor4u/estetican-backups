@@ -49,6 +49,9 @@ class EnviarRecordatoriosCitaCommand extends Command
             ->where('scheduled_at', '>=', now())
             ->where('scheduled_at', '<=', now()->addHours($hoursBefore))
             ->whereDoesntHave('messages', fn ($q) => $q->where('trigger', 'automatic_reminder'))
+            // ZEUS-047: una cita recurrente aparta horario pero no avisa al cliente hasta que
+            // alguien le da "Fijar" (cada una se confirma por separado).
+            ->where(fn ($q) => $q->whereNull('series_id')->orWhereNotNull('series_confirmed_at'))
             ->with(['pet.client.phones', 'services.service'])
             ->orderBy('scheduled_at')
             ->get();

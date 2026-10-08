@@ -7,6 +7,8 @@ use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Commercial\Contracts\QuoteServiceInterface;
 use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
+use App\Domain\Planning\Series\BookingSeriesService;
+use App\Domain\Planning\Series\RepeatInput;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Domain\Planning\Services\OperatorServiceResolver;
 use App\Domain\Planning\Services\ServiceLineActionService;
@@ -24,6 +26,7 @@ use App\Models\Quote;
 use App\Models\Resource;
 use App\Models\Service;
 use App\Models\SpaBooking;
+use App\Models\SpaBookingSeries;
 use App\Models\SpaBookingService;
 use App\Support\Geo\CoverageChecker;
 use App\Support\Pages\AgendaPage;
@@ -96,6 +99,7 @@ class SpaBookingController extends Controller
             ->with([
                 'pet.client',
                 'services.service',
+                'series', // ZEUS-047: punto de serie recurrente
                 'items',
                 'quotes' => fn ($q) => $q->where('status', 'accepted'),
                 'payments',
@@ -107,7 +111,14 @@ class SpaBookingController extends Controller
 
         $this->applyBookingFilters($bookingsQuery, $statuses, $search);
 
-        if ($dateScope === 'all') {
+        // ZEUS-047: "Por fijar" — solo las citas pre-programadas de series recurrentes, todas las
+        // fechas futuras, para fijarlas de un clic sin navegar día por día.
+        $pinFilter = $request->boolean('por_fijar');
+        $pendingPinCount = SpaBooking::visibleTo($request->user())->seriesTentative()->count();
+
+        if ($pinFilter) {
+            $bookingsQuery->seriesTentative();
+        } elseif ($dateScope === 'all') {
             if ($statuses !== [] && array_intersect($statuses, ['scheduled', 'work_order']) !== []) {
                 $bookingsQuery->where('scheduled_at', '>=', now()->startOfDay());
             }
@@ -143,7 +154,7 @@ class SpaBookingController extends Controller
         $spaForTimeline = SpaBooking::visibleTo($request->user())
             ->whereDate('scheduled_at', $selectedDate)
             ->whereIn('status', ['scheduled', 'work_order'])
-            ->with(['pet.client', 'services.service'])
+            ->with(['pet.client', 'services.service', 'series'])
             ->get()
             ->map(function ($b) {
                 $b = $this->decorateBooking($b);
@@ -200,7 +211,7 @@ class SpaBookingController extends Controller
             'selectedDate', 'selectedDateInput', 'operationalDateLabel', 'search',
             'totalEstimatedMinutes', 'scheduledCount', 'estimatedRevenue', 'petsWithAgenda',
             'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction', 'agendaOverviewCount', 'hotelModuleEnabled',
-            'blockedToday', 'operators'
+            'blockedToday', 'operators', 'pinFilter', 'pendingPinCount'
         ));
     }
 
@@ -240,6 +251,7 @@ class SpaBookingController extends Controller
         $hours = $this->businessHours->for($excludeId ? SpaBooking::whereKey($excludeId)->value('branch_id') : BranchResolver::forNewBooking($operatorId));
 
         $hardBlockReason = match (true) {
+            ! $hours->isOpenOn($scheduledAt) => $hours->rejectionFor($scheduledAt), // ZEUS-047: día cerrado
             ! $hours->isWithin($scheduledAt) => 'Fuera del horario operativo del negocio ('.$hours->openingTime().'–'.$hours->closingTime().').',
             $this->operatorAvailabilityChecker->hasConflict($operatorId, $scheduledAt, $duration, $excludeId) => 'El operador ya tiene una cita en ese horario.',
             $this->operatorAvailabilityChecker->hasTimeOff($operatorId, $scheduledAt, $duration) => 'El operador no está disponible en ese periodo (vacaciones/permiso).',
@@ -363,6 +375,9 @@ class SpaBookingController extends Controller
 
         for ($i = 0; $i < $days; $i++) {
             $day = $from->copy()->addDays($i);
+            if (! $hours->isOpenOn($day)) {
+                continue; // ZEUS-047: el negocio no abre ese día
+            }
             $summary = $this->operatorAvailabilityChecker->daySummaryFor($operatorId, $day, $excludeBookingId);
 
             if ($summary['window'] === null) {
@@ -490,7 +505,7 @@ class SpaBookingController extends Controller
     {
         $spaQuery = SpaBooking::query()
             ->whereBetween('scheduled_at', [$rangeStart, $rangeEnd])
-            ->with(['pet.client', 'services.service']);
+            ->with(['pet.client', 'services.service', 'series']);
         $this->applyBookingFilters($spaQuery, $statuses, $search);
 
         $spaBookings = $spaQuery->get()->map(function ($b) {
@@ -766,7 +781,7 @@ class SpaBookingController extends Controller
 
         $hours = $this->businessHours->for($booking->branch_id); // B2
         if (! $hours->isWithin($scheduledAt)) {
-            return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$hours->openingTime()}–{$hours->closingTime()}).");
+            return redirect()->back()->withInput()->with('error', $hours->rejectionFor($scheduledAt));
         }
 
         if ($this->operatorAvailabilityChecker->hasConflict((int) $validated['operator_id'], $scheduledAt, $durationMinutes, $booking->id)) {
@@ -880,6 +895,32 @@ class SpaBookingController extends Controller
      * por un presupuesto (paridad con la app móvil `MobCitaDet`). Abre el work_order:
      * genera el folio de orden si falta y arranca todas las líneas de servicio pendientes.
      */
+    /**
+     * ZEUS-047 — "Fijar": confirma esta sola cita de una serie pre-programada (pasa a punto
+     * sólido y vuelve a recibir recordatorio) sin esperar a que se confirme la serie completa.
+     */
+    public function pinSeriesBooking(SpaBooking $booking): RedirectResponse
+    {
+        $this->ensureVisible($booking);
+
+        // Se fija desde la Agenda unificada (lista / día) o desde el detalle: vuelve a donde estaba.
+        $back = redirect()->back(fallback: route('agenda.show', $booking));
+
+        if (! $booking->isSeriesTentative()) {
+            return $back->with('error', 'Esta cita no está pre-programada en una serie recurrente.');
+        }
+
+        if ($booking->status !== 'scheduled') {
+            return $back->with('error', 'Solo se puede fijar una cita que está Programada.');
+        }
+
+        $booking->update(['series_confirmed_at' => now()]);
+
+        $label = $booking->pet?->name ? "{$booking->pet->name} · " : '';
+
+        return $back->with('success', "Cita fijada: {$label}{$booking->scheduled_at->format('d/m/Y H:i')} queda confirmada.");
+    }
+
     public function start(Request $request, SpaBooking $booking): RedirectResponse
     {
         $this->ensureVisible($booking);
@@ -1042,7 +1083,13 @@ class SpaBookingController extends Controller
             'service_durations' => 'nullable|array',
             'service_durations.*' => 'nullable|integer|min:5|max:480',
             'override_availability' => 'nullable|boolean',
+            ...RepeatInput::rules(), // ZEUS-047: "Repetir esta cita"
         ]);
+
+        $repeat = RepeatInput::enabled($validated);
+        if ($repeat && ! $this->canCreateSeries()) {
+            return redirect()->back()->withInput()->with('error', 'No tienes permiso para crear citas recurrentes.');
+        }
 
         // El precio sugerido del catálogo es editable en el formulario (service_prices[]);
         // si no viene uno explícito para un servicio, cae al precio del catálogo.
@@ -1100,7 +1147,7 @@ class SpaBookingController extends Controller
 
         $hours = $this->businessHours->for(BranchResolver::forNewBooking($globalOperatorId)); // B2
         if (! $hours->isWithin($scheduledAt)) {
-            return redirect()->back()->withInput()->with('error', "La hora elegida está fuera del horario operativo ({$hours->openingTime()}–{$hours->closingTime()}).");
+            return redirect()->back()->withInput()->with('error', $hours->rejectionFor($scheduledAt));
         }
 
         // Guard de calificación (SYNC-099: portado a `OperatorServiceResolver`, antes validaba
@@ -1147,6 +1194,20 @@ class SpaBookingController extends Controller
             return redirect()->route('agenda.index')
                 ->with('success', 'Sesión programada correctamente.')
                 ->with('warning', 'Se ignoró un envío repetido del formulario (la cita ya se había registrado).');
+        }
+
+        // ZEUS-047: la primera fecha ya pasó las mismas validaciones que una cita suelta; con
+        // "Repetir" se crea la serie completa (esa primera incluida) y todas quedan por fijar.
+        if ($repeat) {
+            $series = app(BookingSeriesService::class)->create(
+                $this->seriesTemplate($pet, $validated),
+                RepeatInput::rule($validated, $scheduledAt),
+                $scheduledAt,
+                RepeatInput::endsOn($validated, $scheduledAt),
+            );
+
+            return redirect()->route('agenda.index', ['por_fijar' => 1])
+                ->with('success', $this->seriesSummary($series));
         }
 
         $booking = $this->bookingService->scheduleSpaSession(
@@ -1222,6 +1283,107 @@ class SpaBookingController extends Controller
         }
 
         return redirect()->route('agenda.index')->with('success', 'Sesión programada correctamente.');
+    }
+
+    /**
+     * ZEUS-047 — "Revisar fechas": arma la serie con los datos del formulario (sin guardar nada)
+     * y devuelve cada fecha con su estado: libre, recorrida (y por qué) o sin lugar.
+     */
+    public function previewSeries(Request $request, Pet $pet): JsonResponse
+    {
+        $validated = $request->validate([
+            'scheduled_at' => 'required|date',
+            'operator_id' => 'nullable|exists:operators,id',
+            'resource_id' => 'nullable|exists:resources,id',
+            'services' => 'required|array',
+            'services.*' => 'exists:services,id',
+            'service_prices' => 'nullable|array',
+            'service_operators' => 'nullable|array',
+            'service_durations' => 'nullable|array',
+            ...RepeatInput::rules(),
+        ]);
+
+        $start = Carbon::parse($validated['scheduled_at']);
+        $template = $this->seriesTemplate($pet, $validated);
+        if ($template['operator_id'] === null) {
+            return response()->json(['message' => 'Asigna un operador a al menos un servicio.'], 422);
+        }
+
+        $rule = RepeatInput::rule($validated, $start);
+        $plan = app(BookingSeriesService::class)->plan($template, $rule, $start, RepeatInput::endsOn($validated, $start));
+
+        return response()->json([
+            'rule_label' => $rule->label(),
+            'ends_on' => RepeatInput::endsOn($validated, $start)->format('d/m/Y'),
+            'items' => collect($plan)->map(fn ($item) => [
+                'original_at' => $item['original_at']->format('Y-m-d H:i'),
+                'scheduled_at' => $item['scheduled_at']?->format('Y-m-d H:i'),
+                'label' => ($item['scheduled_at'] ?? $item['original_at'])->translatedFormat('D d/m/Y H:i'),
+                'state' => $item['scheduled_at'] === null ? 'skipped' : ($item['scheduled_at']->eq($item['original_at']) ? 'ok' : 'moved'),
+                'reason' => $item['reason'],
+            ])->values(),
+        ]);
+    }
+
+    private function canCreateSeries(): bool
+    {
+        $user = auth()->user();
+
+        return (bool) ($user?->can('agenda.series_recurrentes') || $user?->is_super_admin);
+    }
+
+    /**
+     * Plantilla de la serie desde los campos del formulario de alta (misma normalización que
+     * `storeForPet`: operador por línea, "por asignar", duración y precio editables).
+     */
+    private function seriesTemplate(Pet $pet, array $validated): array
+    {
+        $services = Service::whereIn('id', $validated['services'])->get();
+        $prices = $validated['service_prices'] ?? [];
+        $durations = $validated['service_durations'] ?? [];
+        $rawOperators = $validated['service_operators'] ?? [];
+
+        $responsible = isset($validated['operator_id']) ? (int) $validated['operator_id'] : null;
+        $lines = [];
+        foreach ($services as $service) {
+            $raw = $rawOperators[$service->id] ?? null;
+            $operatorId = match (true) {
+                $raw === 'pending' || $raw === '__pending__' => null,
+                ctype_digit((string) $raw) => (int) $raw,
+                default => $responsible,
+            };
+            $responsible ??= $operatorId;
+            $price = $prices[$service->id] ?? null;
+
+            $lines[] = [
+                'service_id' => $service->id,
+                'service_name' => $service->name,
+                'operator_id' => $operatorId,
+                'duration_minutes' => (int) ($durations[$service->id] ?? $service->suggested_duration_minutes ?? $service->duration_minutes ?? 30),
+                'price' => $price !== null && $price !== '' ? (float) $price : (float) ($service->suggested_price ?? $service->price ?? 0),
+            ];
+        }
+
+        return [
+            'pet_id' => $pet->id,
+            'operator_id' => $responsible,
+            'branch_id' => $responsible ? BranchResolver::forNewBooking($responsible) : null,
+            'notes' => $validated['notes'] ?? null,
+            'resource_id' => $validated['resource_id'] ?? null,
+            'lines' => $lines,
+        ];
+    }
+
+    private function seriesSummary(SpaBookingSeries $series): string
+    {
+        $created = $series->bookings()->count();
+        $moved = $series->bookings()->whereNotNull('series_original_at')->count();
+        $skipped = count($series->skipped_occurrences ?? []);
+
+        return "Serie creada ({$series->recurrenceRule()->label()}): {$created} citas"
+            .($moved ? ", {$moved} recorridas por festivo/día cerrado/choque" : '')
+            .($skipped ? ", {$skipped} sin lugar (revísalas)" : '')
+            .'. Todas quedan por fijar.';
     }
 
     private function resolveOperationalDate(string $dateParam, string $dateScope): Carbon

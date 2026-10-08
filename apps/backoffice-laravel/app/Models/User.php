@@ -213,6 +213,7 @@ class User extends Authenticatable
             'can_edit_caja_movement' => $this->can('caja.movimientos.editar') || $this->is_super_admin,
             'can_revert_caja_movement' => $this->can('caja.movimientos.revertir') || $this->is_super_admin,
             'can_view_all_agenda' => $this->can('agenda.ver_todas') || $this->is_super_admin,
+            'can_create_series' => $this->can('agenda.series_recurrentes') || $this->is_super_admin, // ZEUS-047
             'can_view_clients' => $this->can('ver clientes') || $this->is_super_admin,
             'can_view_pets' => $this->can('ver mascotas') || $this->is_super_admin,
             'can_view_operators' => $this->can('ver operadores') || $this->is_super_admin,

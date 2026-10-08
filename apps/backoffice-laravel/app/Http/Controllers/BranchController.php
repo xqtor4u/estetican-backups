@@ -133,6 +133,10 @@ class BranchController extends Controller
             // B2: horario propio (opcional, los dos o ninguno); vacío = horario general.
             'opening_time' => 'nullable|date_format:H:i|required_with:closing_time',
             'closing_time' => 'nullable|date_format:H:i|required_with:opening_time|after:opening_time',
+            // ZEUS-047: días de operación propios (apagado = los generales).
+            'own_operating_days' => 'nullable|boolean',
+            'operating_days' => 'nullable|array|required_if:own_operating_days,1',
+            'operating_days.*' => 'integer|between:0,6',
         ];
     }
 
@@ -141,6 +145,9 @@ class BranchController extends Controller
         return [
             'opening_time' => $validated['opening_time'] ?? null,
             'closing_time' => $validated['closing_time'] ?? null,
+            'operating_days' => ! empty($validated['own_operating_days'])
+                ? collect($validated['operating_days'] ?? [])->map(fn ($d) => (int) $d)->unique()->sort()->implode(',')
+                : null,
             'code' => strtoupper(trim($validated['code'])),
             'name' => $validated['name'],
             'street' => $this->nullableString($validated['street'] ?? null),

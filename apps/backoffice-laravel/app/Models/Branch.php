@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['code', 'name', 'street', 'exterior_number', 'interior_number', 'colonia', 'city', 'state', 'zip', 'country', 'lat', 'lng', 'is_active', 'notes', 'opening_time', 'closing_time'])]
+#[Fillable(['code', 'name', 'street', 'exterior_number', 'interior_number', 'colonia', 'city', 'state', 'zip', 'country', 'lat', 'lng', 'is_active', 'notes', 'opening_time', 'closing_time', 'operating_days'])]
 class Branch extends Model
 {
     protected function casts(): array

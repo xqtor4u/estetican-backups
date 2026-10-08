@@ -30,6 +30,38 @@
 </x-page-header>
 
 <div class="catalog-content-wide">
+    @if($booking->series_id && $booking->series)
+        {{-- ZEUS-047: cita de una serie recurrente — contador regresivo ("restan N"). --}}
+        @php
+            $series = $booking->series;
+        @endphp
+        <div class="alert border-0 shadow-sm mb-4 d-flex align-items-center gap-2 flex-wrap" style="background: rgba(124, 58, 237, 0.08); color: #5b21b6;">
+            <x-series-dot :booking="$booking" />
+            <strong>Serie recurrente</strong>
+            <span>· {{ $series->recurrenceRule()->label() }}</span>
+            <span>· restan {{ $series->remainingCount() }}</span>
+            <span>· vence {{ $series->ends_on->format('d/m/Y') }}</span>
+            @if($booking->isSeriesTentative())
+                <span class="badge rounded-pill border" style="border-color: #7c3aed !important; color: #5b21b6;">Pre-programada — falta confirmar, sin recordatorios</span>
+                @if($booking->status === 'scheduled')
+                    @can('editar agenda')
+                        <form action="{{ route('agenda.series.pin', $booking) }}" method="POST" class="ms-auto">
+                            @csrf
+                            <button type="submit" class="btn btn-sm text-white" style="background: #7c3aed;" title="Confirma esta cita en este día y hora, sin esperar a que se confirme la serie completa.">
+                                <i class="bi bi-pin-angle-fill me-1"></i> Fijar
+                            </button>
+                        </form>
+                    @endcan
+                @endif
+            @elseif($booking->series_confirmed_at)
+                <span class="badge rounded-pill text-white" style="background: #7c3aed;"><i class="bi bi-pin-angle-fill"></i> Fijada {{ $booking->series_confirmed_at->format($datetimeFormat) }}</span>
+            @endif
+            @if($booking->series_original_at)
+                <span class="w-100 small"><i class="bi bi-shuffle"></i> Recorrida desde el {{ $booking->series_original_at->format($datetimeFormat) }}@if($booking->series_move_reason) — {{ $booking->series_move_reason }}@endif</span>
+            @endif
+        </div>
+    @endif
+
     @php
         $isOverdue = $booking->scheduled_at?->isPast() && in_array($booking->status, ['scheduled', 'work_order']);
     @endphp

@@ -35,6 +35,7 @@ use App\Http\Controllers\ItemMovementController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\MapaZonasController;
 use App\Http\Controllers\MetaCatalogSyncController;
+use App\Http\Controllers\NonWorkingDayController;
 use App\Http\Controllers\OperatorController;
 use App\Http\Controllers\OperatorGoogleCalendarController;
 use App\Http\Controllers\OperatorRoleController;
@@ -187,6 +188,10 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::post('operators/{operator}/unavailabilities', [OperatorUnavailabilityController::class, 'store'])->name('operators.unavailabilities.store')->middleware('permission:editar operadores');
     Route::delete('operators/{operator}/unavailabilities/{unavailability}', [OperatorUnavailabilityController::class, 'destroy'])->name('operators.unavailabilities.destroy')->middleware('permission:editar operadores');
     Route::put('operators/{operator}/google-calendar', [OperatorGoogleCalendarController::class, 'update'])->name('operators.google-calendar.update')->middleware('permission:editar operadores');
+    // ZEUS-047: días inhábiles (festivos/cierres) — mismos permisos que Sucursales.
+    Route::get('dias-inhabiles', [NonWorkingDayController::class, 'index'])->name('non-working-days.index')->middleware('permission:ver sucursales');
+    Route::post('dias-inhabiles', [NonWorkingDayController::class, 'store'])->name('non-working-days.store')->middleware('permission:crear sucursales');
+    Route::delete('dias-inhabiles/{nonWorkingDay}', [NonWorkingDayController::class, 'destroy'])->name('non-working-days.destroy')->middleware('permission:eliminar sucursales');
     Route::resource('branches', BranchController::class)
         ->middlewareFor('index', 'permission:ver sucursales')
         ->middlewareFor('show', 'permission:ver sucursales')
@@ -230,6 +235,7 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::get('agenda/{booking}/edit', [SpaBookingController::class, 'edit'])->name('agenda.edit')->middleware('permission:editar agenda');
     Route::put('agenda/{booking}', [SpaBookingController::class, 'update'])->name('agenda.update')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/iniciar', [SpaBookingController::class, 'start'])->name('agenda.start')->middleware('permission:editar agenda');
+    Route::post('agenda/{booking}/fijar', [SpaBookingController::class, 'pinSeriesBooking'])->name('agenda.series.pin')->middleware('permission:editar agenda'); // ZEUS-047
     Route::post('agenda/{booking}/quotes', [SpaBookingController::class, 'storeQuote'])->name('agenda.quotes.store')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/quotes/{quote}/accept', [SpaBookingController::class, 'acceptQuote'])->name('agenda.quotes.accept')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/quotes/{quote}/payments', [SpaBookingController::class, 'registerPayment'])->name('agenda.quotes.register-payment')->middleware('permission:cobros.registrar');
@@ -244,6 +250,7 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
 
     Route::get('pets/{pet}/bookings/create', [SpaBookingController::class, 'createForPet'])->name('pets.bookings.create')->middleware('permission:crear agenda');
     Route::post('pets/{pet}/bookings', [SpaBookingController::class, 'storeForPet'])->name('pets.bookings.store')->middleware('permission:crear agenda');
+    Route::post('pets/{pet}/bookings/series-preview', [SpaBookingController::class, 'previewSeries'])->name('pets.bookings.series-preview')->middleware('permission:agenda.series_recurrentes'); // ZEUS-047
 
     // Recordatorios WhatsApp (BL-024 Fase 1)
     Route::get('whatsapp/bandeja', [BookingMessageController::class, 'index'])->name('whatsapp.bandeja')->middleware('permission:ver whatsapp');

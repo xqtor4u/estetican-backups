@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\Pet;
 use App\Models\Service;
 use App\Models\SpaBooking;
+use App\Models\SpaBookingSeries;
 use App\Support\SystemSettings\SystemSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -153,5 +154,63 @@ class AppointmentReminderCommandTest extends TestCase
         $this->artisan('whatsapp:enviar-recordatorios-cita')->assertSuccessful();
 
         $this->assertDatabaseCount('booking_messages', 0);
+    }
+
+    /** ZEUS-047: una cita recurrente no avisa hasta que se fija — aunque su serie esté activa. */
+    public function test_skips_unpinned_recurring_bookings_even_in_an_active_series(): void
+    {
+        $this->enableMessaging(hoursBefore: 24);
+        $pending = $this->bookingWithin(20);
+        $confirmed = $this->bookingWithin(21);
+
+        foreach ([[$pending, SpaBookingSeries::STATUS_ACTIVE], [$confirmed, SpaBookingSeries::STATUS_ACTIVE]] as [$booking, $status]) {
+            $series = SpaBookingSeries::create([
+                'pet_id' => $booking->pet_id,
+                'status' => $status,
+                'rule' => ['type' => 'every_n_days', 'interval_days' => 30],
+                'template' => [],
+                'starts_at' => $booking->scheduled_at,
+                'ends_on' => now()->addYear()->toDateString(),
+            ]);
+            $booking->update(['series_id' => $series->id]);
+        }
+        $confirmed->update(['series_confirmed_at' => now()]);
+
+        $this->mock(WhatsAppSenderInterface::class, function ($mock) {
+            $mock->shouldReceive('sendTemplate')
+                ->once()
+                ->andReturn(['status' => 'sent', 'provider_message_id' => 'wamid.SERIE', 'error' => null]);
+        });
+
+        $this->artisan('whatsapp:enviar-recordatorios-cita')->assertSuccessful();
+
+        $this->assertDatabaseHas('booking_messages', ['spa_booking_id' => $confirmed->id, 'trigger' => 'automatic_reminder']);
+        $this->assertDatabaseMissing('booking_messages', ['spa_booking_id' => $pending->id]);
+    }
+
+    /** ZEUS-047: "Fijar" confirma esa cita sola — recibe recordatorio aunque la serie siga pre-programada. */
+    public function test_a_pinned_booking_of_a_pre_scheduled_series_gets_its_reminder(): void
+    {
+        $this->enableMessaging(hoursBefore: 24);
+        $booking = $this->bookingWithin(20);
+        $series = SpaBookingSeries::create([
+            'pet_id' => $booking->pet_id,
+            'status' => SpaBookingSeries::STATUS_PENDING_REVIEW,
+            'rule' => ['type' => 'every_n_days', 'interval_days' => 30],
+            'template' => [],
+            'starts_at' => $booking->scheduled_at,
+            'ends_on' => now()->addYear()->toDateString(),
+        ]);
+        $booking->update(['series_id' => $series->id, 'series_confirmed_at' => now()]);
+
+        $this->mock(WhatsAppSenderInterface::class, function ($mock) {
+            $mock->shouldReceive('sendTemplate')
+                ->once()
+                ->andReturn(['status' => 'sent', 'provider_message_id' => 'wamid.FIJADA', 'error' => null]);
+        });
+
+        $this->artisan('whatsapp:enviar-recordatorios-cita')->assertSuccessful();
+
+        $this->assertDatabaseHas('booking_messages', ['spa_booking_id' => $booking->id, 'trigger' => 'automatic_reminder']);
     }
 }

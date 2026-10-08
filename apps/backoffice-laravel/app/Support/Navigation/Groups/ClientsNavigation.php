@@ -37,11 +37,17 @@ class ClientsNavigation
                 'route' => route('branches.index'),
                 'active' => request()->routeIs('branches.index', 'branches.show'),
             ];
+            $items[] = [
+                'label' => 'Días inhábiles',
+                'description' => 'Festivos y cierres; las citas recurrentes que caen en ellos se recorren solas.',
+                'route' => route('non-working-days.index'),
+                'active' => request()->routeIs('non-working-days.*'),
+            ];
         }
 
         return [
             'label' => 'Clientes',
-            'active' => request()->routeIs('clients.*', 'pets.*', 'branches.*'),
+            'active' => request()->routeIs('clients.*', 'pets.*', 'branches.*', 'non-working-days.*'),
             'items' => $items,
         ];
     }

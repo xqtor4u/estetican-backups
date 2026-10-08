@@ -41,4 +41,13 @@ class BranchesPage extends BasePage
             'BraEdi',
         );
     }
+
+    public static function nonWorkingDays(): array
+    {
+        return static::page(
+            [static::home(), ['label' => 'Sucursales', 'url' => route('branches.index')], ['label' => 'Días inhábiles', 'current' => true]],
+            static::header('Catálogo operativo', 'Días inhábiles', 'Festivos y cierres. Las citas recurrentes que caigan en uno de estos días se recorren solas al siguiente día y hora disponible.'),
+            'DiaInh',
+        );
+    }
 }

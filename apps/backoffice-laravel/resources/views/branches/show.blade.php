@@ -60,6 +60,11 @@
                         {{ $branchHours->openingTime() }}–{{ $branchHours->closingTime() }}
                         <span class="text-body-secondary small">{{ $branch->opening_time && $branch->closing_time ? '(propio de la sucursal)' : '(horario general)' }}</span>
                     </dd>
+                    <dt class="col-sm-4">Días que abre</dt>
+                    <dd class="col-sm-8">
+                        {{ ucfirst($branchHours->operatingDaysLabel()) }}
+                        <span class="text-body-secondary small">{{ $branch->operating_days !== null ? '(propios de la sucursal)' : '(días generales)' }}</span>
+                    </dd>
 
                     <dt class="col-sm-4">Notas</dt>
                     <dd class="col-sm-8">{{ $branch->notes ?: 'Sin notas operativas.' }}</dd>

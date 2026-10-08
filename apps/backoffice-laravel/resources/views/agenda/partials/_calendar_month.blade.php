@@ -51,11 +51,13 @@
                         // El grid de mes es demasiado angosto para mostrar el folio como texto —
                         // se ofrece como tooltip; visible siempre en Semana/Día.
                         $titleParts = array_filter([$alertLabel, $folio]);
+                        $tentative = ! $isHotel && $item->isSeriesTentative();
                     @endphp
                     <span
-                        class="agenda-calendar-event-chip agenda-calendar-event-chip--static {{ $statusClass }} {{ $alertReason ? 'agenda-calendar-event-chip--alert' : '' }}"
+                        class="agenda-calendar-event-chip agenda-calendar-event-chip--static {{ $statusClass }} {{ $alertReason ? 'agenda-calendar-event-chip--alert' : '' }} {{ $tentative ? 'agenda-calendar-event-chip--tentative' : '' }}"
                         @if($titleParts) title="{{ implode(' · ', $titleParts) }}" @endif
                     >
+                        @unless($isHotel)<x-series-dot :booking="$item" />@endunless
                         <span class="agenda-calendar-event-chip__time">{{ $item->scheduled_at?->format($timeFormat) }}</span>
                         <span class="agenda-calendar-event-chip__label">{{ $item->pet?->name ?: 'Mascota' }}</span>
                     </span>

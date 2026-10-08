@@ -22,6 +22,7 @@ class SettingController extends Controller
             'grace_minutes' => (int) ($all['booking_grace_minutes'] ?? 15),
             'opening_time' => $hours->openingTime(),
             'closing_time' => $hours->closingTime(),
+            'operating_days' => $hours->operatingDays(), // ZEUS-047 (Carbon::dayOfWeek, 0 = domingo)
         ]);
     }
 

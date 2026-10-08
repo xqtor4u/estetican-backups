@@ -15,7 +15,7 @@ class ServiceController extends Controller
     {
         $services = Service::where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'type', 'price', 'duration_minutes', 'open_to_all_operators']);
+            ->get(['id', 'name', 'type', 'price', 'duration_minutes', 'open_to_all_operators', 'recurrence_days']);
 
         return response()->json($services->map(fn ($s) => [
             'id' => $s->id,
@@ -26,6 +26,8 @@ class ServiceController extends Controller
             // SYNC-103: `operator_role_id` eliminado (Fase 3 de SYNC-073) — la fuente de verdad
             // de quién puede hacer el servicio es GET /api/services/{service}/operators.
             'open_to_all_operators' => (bool) $s->open_to_all_operators,
+            // ZEUS-047: frecuencia sugerida al repetir la cita (baño cada 30, vacuna anual…).
+            'recurrence_days' => $s->recurrence_days,
         ]));
     }
 
