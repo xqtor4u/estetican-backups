@@ -1,11 +1,12 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
-## 📅 Sesión: 07/10/2026 — `ZEUS-047` series de citas recurrentes (en `tst`) + hallazgo `SYNC-109`
+## 📅 Sesión: 07/10/2026 — Citas recurrentes (`ZEUS-047`): diseño, construcción en `tst` y porteo a producción + emergencia `SYNC-109`
 
 ### 📝 Resumen
 
-Trabajo construido en `tst`, **sin cambios de código en este repo** (no es emergencia). Detalle
-completo en `/opt/www/zeus-estetican/BITACORA.md` (07/10/2026) y `ZEUS-047` en el backlog de Zeus.
+Construido primero en `tst` y **portado a producción el mismo día a pedido de Tomas** (`2722655`),
+más la emergencia `SYNC-109` (`8c1c07b`). Detalle de construcción en
+`/opt/www/zeus-estetican/BITACORA.md` (07/10/2026) y `ZEUS-047` en el backlog de Zeus.
 
 - Diseño de citas recurrentes acordado con Tomas: cada N días o "1er lunes del mes"; vigencia;
   festivos y días cerrados se recorren solos; alta rápida en el móvil + cola de revisión en el
@@ -51,16 +52,34 @@ todas con `permission:`; `RoutePermissionCoverageTest` en verde.
 - `MODELO_BD.md`: `spa_booking_series`, `non_working_days`, 4 columnas en `spa_bookings`,
   `branches.operating_days`.
 
+**Cierre de la sesión:** borradas de `tst` las series de prueba de Toby/Luna (18 citas, sin pagos
+ni presupuestos) y el festivo de prueba 02/11. Quedan en `tst` dos series que creó Tomas desde
+`tstapp` (Bella #4 y Ajax #5, cada 15 días, 25 citas cada una, ninguna fijada) y el domingo cerrado
+en los días generales de `tst`.
+
+**Rutas (regla de seguridad #3) — reporte final:** rutas nuevas en este repo (porteo), todas con
+`permission:`, `RoutePermissionCoverageTest` en verde:
+- `GET/POST /dias-inhabiles`, `DELETE /dias-inhabiles/{nonWorkingDay}` → `ver/crear/eliminar sucursales`.
+- `POST /agenda/{booking}/fijar` y `POST /api/bookings/{booking}/fijar` → `editar agenda` (+ `ensureVisible`).
+- `POST /pets/{pet}/bookings/series-preview` → `agenda.series_recurrentes`.
+Ninguna en categoría (c) sin protección.
+
 ### 📁 Archivos tocados
 - Este repo: `BITACORA.md`, `docs/tecnico/NOTAS_TECNICAS.md`; `SystemSettings.php`,
   `system-settings/index.blade.php`, `tests/Feature/SystemSettingsOperationsSectionTest.php` (`8c1c07b`).
 
-### 🛑 Pendientes activos
-1. `git push` de este repo (`c0d4885` … `2722655` y los docs) — lo corre Tomas.
-2. Revisión visual de Tomas en `tstapp` (series de prueba #1/#3); borrar la demo después.
-3. ZEUS-047: punto violeta en agendas del móvil (bloqueado por cambios ajenos en `GlobalAgenda.tsx`);
-   Fase 3 (cola de series: pausar/cancelar/extender + reporte mensual); decidir qué roles reciben
-   `agenda.series_recurrentes`. (Portado a producción el mismo día, `2722655`.)
+### 🛑 Pendientes activos (para mañana)
+1. **`git push` de este repo** — commits de hoy `c0d4885` … `2722655` + docs. Lo corre Tomas.
+2. **Configurar en producción** (Tomas): días de operación (¿cierran domingo?) en Configuración →
+   Operación Clínica, y festivos en Clientes → Días inhábiles. Hoy todo abierto, sin festivos.
+3. **Decidir qué roles reciben `agenda.series_recurrentes`** (hoy solo admin; existe `veterinario`).
+4. **ZEUS-047 pendiente:** punto violeta en agendas del móvil (bloqueado: `GlobalAgenda.tsx` y
+   `AuthContext.tsx` de `tst` tienen cambios ajenos sin commitear, EST-001) y **Fase 3** (pantalla
+   de series: pausar / cancelar en adelante / extender + reporte del día 1 con las que terminan
+   ese mes). Construir en `tst`, portar después.
+5. Decidir si se borran las series de prueba de Tomas en `tst` (Bella #4, Ajax #5).
+6. Siguen vigentes: rotar contraseñas y primer push de Zeus/`tst` (03/10); pendientes 2–5 del 27/09;
+   confirmar BL-008 contra A1 del 27/09.
 
 ---
 
