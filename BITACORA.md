@@ -10,8 +10,10 @@ completo en `/opt/www/zeus-estetican/BITACORA.md` (07/10/2026) y `ZEUS-047` en e
 - Diseño de citas recurrentes acordado con Tomas: cada N días o "1er lunes del mes"; vigencia;
   festivos y días cerrados se recorren solos; alta rápida en el móvil + cola de revisión en el
   backoffice; pre-programada → agendada; "Fijar" por cita; "restan N"; reporte mensual.
-- En `tst`: Fase 1 (`ac38f5f`), días de operación + "Fijar" (`c5ad3f5`, `63f303e`). Suite
-  `tst` 1015/1015. Demo cargada en `tst` (series de Toby y Luna, festivo de prueba 02/11).
+- En `tst`: Fase 1 (`ac38f5f`), días de operación + "Fijar" (`c5ad3f5`, `63f303e`), Fijar en
+  la Agenda unificada + filtro "por fijar" (`498333f`), toda cita recurrente se fija una por una
+  (`28bab74`), **Fase 2: alta desde backoffice y móvil** (`0bbfe84`). Suite `tst` 1026/1026.
+  Demo cargada en `tst` (series de Toby y Luna, festivo de prueba 02/11).
 - **Hallazgo que afecta producción (`SYNC-109` en Zeus):** la sección "Operación Clínica" de
   `SystemSettings` comparte la clave `'clinical'` con "Veterinaria" (desde `255d271`, 14/07/2026)
   y desaparece: horario, tolerancia, limpieza y resumen por correo no se pueden editar y el código
@@ -25,7 +27,8 @@ completo en `/opt/www/zeus-estetican/BITACORA.md` (07/10/2026) y `ZEUS-047` en e
   dentro de comentarios Blade).
 
 **Rutas (regla de seguridad #3):** ninguna ruta nueva en este repo (el fix de `SYNC-109` no toca rutas). En `tst`: 4 rutas nuevas
-(`dias-inhabiles` ×3 con permisos de sucursales, `agenda/{booking}/fijar` con `editar agenda`),
+(`dias-inhabiles` ×3 con permisos de sucursales, `agenda/{booking}/fijar` y `api/bookings/{booking}/fijar`
+con `editar agenda`, `pets/{pet}/bookings/series-preview` con `agenda.series_recurrentes`),
 todas con `permission:`; `RoutePermissionCoverageTest` en verde.
 
 ### 📁 Archivos tocados
@@ -35,7 +38,9 @@ todas con `permission:`; `RoutePermissionCoverageTest` en verde.
 ### 🛑 Pendientes activos
 1. `git push` de este repo (`c0d4885`, `8c1c07b` y lo siguiente) — lo corre Tomas.
 2. Revisión visual de Tomas en `tstapp` (series de prueba #1/#3); borrar la demo después.
-3. ZEUS-047 Fase 2 (alta en el móvil) en `tst`.
+3. ZEUS-047: punto violeta en agendas del móvil (bloqueado por cambios ajenos en `GlobalAgenda.tsx`);
+   Fase 3 (cola de series: pausar/cancelar/extender + reporte mensual); decidir qué roles reciben
+   `agenda.series_recurrentes`; portar a producción tras la revisión de Tomas.
 
 ---
 
