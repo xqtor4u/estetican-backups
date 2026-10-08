@@ -16,19 +16,24 @@ completo en `/opt/www/zeus-estetican/BITACORA.md` (07/10/2026) y `ZEUS-047` en e
   `SystemSettings` comparte la clave `'clinical'` con "Veterinaria" (desde `255d271`, 14/07/2026)
   y desaparece: horario, tolerancia, limpieza y resumen por correo no se pueden editar y el código
   usa siempre sus valores por defecto. Verificado aquí: hoy coinciden con lo guardado, nada se
-  comporta distinto. **Pendiente que Tomas decida si se porta como emergencia.**
+  comporta distinto. **Portado como emergencia a pedido de Tomas (commit `8c1c07b`):** clave
+  renombrada a `'operations'` + vista de Configuración + `SystemSettingsOperationsSectionTest`.
+  Suite 933 ok / 33 fallas preexistentes (mismas clases del baseline). `view:clear` +
+  `config:clear` en `estetican_app`; verificado con tinker que los 5 ajustes ya existen con los
+  mismos valores (09:00–19:00, 15 min, correo apagado) y que `clinical_module_enabled` sigue `true`.
 - `NOTAS_TECNICAS.md`: ampliación de NT-005 (mezclar `@php` en línea y en bloque; directivas
   dentro de comentarios Blade).
 
-**Rutas (regla de seguridad #3):** ninguna ruta nueva en este repo. En `tst`: 4 rutas nuevas
+**Rutas (regla de seguridad #3):** ninguna ruta nueva en este repo (el fix de `SYNC-109` no toca rutas). En `tst`: 4 rutas nuevas
 (`dias-inhabiles` ×3 con permisos de sucursales, `agenda/{booking}/fijar` con `editar agenda`),
 todas con `permission:`; `RoutePermissionCoverageTest` en verde.
 
 ### 📁 Archivos tocados
-- Este repo: `BITACORA.md`, `docs/tecnico/NOTAS_TECNICAS.md`.
+- Este repo: `BITACORA.md`, `docs/tecnico/NOTAS_TECNICAS.md`; `SystemSettings.php`,
+  `system-settings/index.blade.php`, `tests/Feature/SystemSettingsOperationsSectionTest.php` (`8c1c07b`).
 
 ### 🛑 Pendientes activos
-1. Decidir si `SYNC-109` se porta a producción como emergencia.
+1. `git push` de este repo (`c0d4885`, `8c1c07b` y lo siguiente) — lo corre Tomas.
 2. Revisión visual de Tomas en `tstapp` (series de prueba #1/#3); borrar la demo después.
 3. ZEUS-047 Fase 2 (alta en el móvil) en `tst`.
 
