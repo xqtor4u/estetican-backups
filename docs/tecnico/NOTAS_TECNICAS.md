@@ -603,6 +603,10 @@ Extraer la expresión a una variable PHP antes del template. No siempre práctic
 - **Ojo:** `@php ... @endphp` multilínea también tiene sus propios bugs dentro de loops y secciones — ver NT-008 y NT-010.
 - Las vistas compiladas en caché pueden ocultar el error hasta que la caché se limpie. Siempre limpiar vistas después de cambios en Blade.
 
+**Ampliación 07/10/2026 (ZEUS-047 en `tst`), dos variantes más que mordieron:**
+- **Mezclar en el mismo archivo `@php(expr)` en línea con un bloque `@php … @endphp`** → `syntax error, unexpected end of file` o `Undefined variable` (pasó en `agenda/show.blade.php` y en `branches/partials/form.blade.php`, este con 500 al crear sucursal). Si una vista ya usa la forma en línea, convertir **todas** a bloque antes de agregar uno.
+- **Un comentario Blade `{{-- … --}}` que contiene la palabra `@php` o `@endphp`** también se compila como directiva: Blade extrae los bloques PHP *antes* de quitar los comentarios. No escribir esas directivas literales dentro de comentarios.
+
 ---
 
 ## NT-006 — CSP + Alpine.js requiere `unsafe-eval`

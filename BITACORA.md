@@ -1,5 +1,39 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 07/10/2026 — `ZEUS-047` series de citas recurrentes (en `tst`) + hallazgo `SYNC-109`
+
+### 📝 Resumen
+
+Trabajo construido en `tst`, **sin cambios de código en este repo** (no es emergencia). Detalle
+completo en `/opt/www/zeus-estetican/BITACORA.md` (07/10/2026) y `ZEUS-047` en el backlog de Zeus.
+
+- Diseño de citas recurrentes acordado con Tomas: cada N días o "1er lunes del mes"; vigencia;
+  festivos y días cerrados se recorren solos; alta rápida en el móvil + cola de revisión en el
+  backoffice; pre-programada → agendada; "Fijar" por cita; "restan N"; reporte mensual.
+- En `tst`: Fase 1 (`ac38f5f`), días de operación + "Fijar" (`c5ad3f5`, `63f303e`). Suite
+  `tst` 1015/1015. Demo cargada en `tst` (series de Toby y Luna, festivo de prueba 02/11).
+- **Hallazgo que afecta producción (`SYNC-109` en Zeus):** la sección "Operación Clínica" de
+  `SystemSettings` comparte la clave `'clinical'` con "Veterinaria" (desde `255d271`, 14/07/2026)
+  y desaparece: horario, tolerancia, limpieza y resumen por correo no se pueden editar y el código
+  usa siempre sus valores por defecto. Verificado aquí: hoy coinciden con lo guardado, nada se
+  comporta distinto. **Pendiente que Tomas decida si se porta como emergencia.**
+- `NOTAS_TECNICAS.md`: ampliación de NT-005 (mezclar `@php` en línea y en bloque; directivas
+  dentro de comentarios Blade).
+
+**Rutas (regla de seguridad #3):** ninguna ruta nueva en este repo. En `tst`: 4 rutas nuevas
+(`dias-inhabiles` ×3 con permisos de sucursales, `agenda/{booking}/fijar` con `editar agenda`),
+todas con `permission:`; `RoutePermissionCoverageTest` en verde.
+
+### 📁 Archivos tocados
+- Este repo: `BITACORA.md`, `docs/tecnico/NOTAS_TECNICAS.md`.
+
+### 🛑 Pendientes activos
+1. Decidir si `SYNC-109` se porta a producción como emergencia.
+2. Revisión visual de Tomas en `tstapp` (series de prueba #1/#3); borrar la demo después.
+3. ZEUS-047 Fase 2 (alta en el móvil) en `tst`.
+
+---
+
 ## 📅 Sesión: 03/10/2026 — Consulta sobre importación de datos; `ZEUS-046` anotado en Zeus
 
 ### 📝 Resumen
