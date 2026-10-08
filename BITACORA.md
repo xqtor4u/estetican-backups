@@ -31,16 +31,36 @@ completo en `/opt/www/zeus-estetican/BITACORA.md` (07/10/2026) y `ZEUS-047` en e
 con `editar agenda`, `pets/{pet}/bookings/series-preview` con `agenda.series_recurrentes`),
 todas con `permission:`; `RoutePermissionCoverageTest` en verde.
 
+**Porteo a producción de ZEUS-047 (commit `2722655`), a pedido explícito de Tomas.**
+- Respaldo previo: `backups/estetican_pre_zeus047_20261007_2305.sql` (90/90 tablas).
+- Archivos idénticos a la base de `tst` copiados tal cual; los divergentes (`SpaBookingController`,
+  `BranchController`, `SettingController`, `User`, `BranchesPage`, `ClientsNavigation`, CSS, vistas
+  de agenda, `routes/api.php`) con `git apply --directory` + rechazos resueltos a mano (los de
+  `SYNC-109` ya estaban aplicados). Ruta `mobile/` de `tst` ↔ `mob_apps/operador/` aquí.
+- **Incidente menor:** el código está montado directo en `estetican_app`, así que los cambios
+  quedaron vivos ~5 min antes de correr las migraciones (la Agenda consulta `series_id`). Se
+  migró de inmediato; el log de producción no registró ningún error en esa ventana. **Lección:**
+  en este repo, correr las migraciones *antes* de copiar el código que las usa.
+- Migraciones aplicadas, permiso `agenda.series_recurrentes` creado y dado solo al rol admin,
+  vistas/config/rutas limpiadas, assets web `app-BGKhoaNP.js`/`app-D73y-D3h.css` (build en
+  `estetican_app`), bundle móvil `index-BCSBplPD.js` (`node:20-alpine`, NT-064; md5 host =
+  contenedor; servido por `mov.estetican.org`). 9 pantallas renderizadas con un admin: todas 200.
+- Suite: **971 ok / 33 fallas preexistentes, idénticas al baseline** (diff vacío).
+- Producción queda con **todos los días abiertos** y sin días inhábiles: nada cambia hasta que
+  Tomas los configure.
+- `MODELO_BD.md`: `spa_booking_series`, `non_working_days`, 4 columnas en `spa_bookings`,
+  `branches.operating_days`.
+
 ### 📁 Archivos tocados
 - Este repo: `BITACORA.md`, `docs/tecnico/NOTAS_TECNICAS.md`; `SystemSettings.php`,
   `system-settings/index.blade.php`, `tests/Feature/SystemSettingsOperationsSectionTest.php` (`8c1c07b`).
 
 ### 🛑 Pendientes activos
-1. `git push` de este repo (`c0d4885`, `8c1c07b` y lo siguiente) — lo corre Tomas.
+1. `git push` de este repo (`c0d4885` … `2722655` y los docs) — lo corre Tomas.
 2. Revisión visual de Tomas en `tstapp` (series de prueba #1/#3); borrar la demo después.
 3. ZEUS-047: punto violeta en agendas del móvil (bloqueado por cambios ajenos en `GlobalAgenda.tsx`);
    Fase 3 (cola de series: pausar/cancelar/extender + reporte mensual); decidir qué roles reciben
-   `agenda.series_recurrentes`; portar a producción tras la revisión de Tomas.
+   `agenda.series_recurrentes`. (Portado a producción el mismo día, `2722655`.)
 
 ---
 

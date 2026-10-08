@@ -12,7 +12,7 @@
 | **Identidad** | `users`, `operators`, `operator_roles`, `branches` |
 | **Clientes y mascotas** | `clients`, `addresses`, `phones`, `pets`, `pet_medical_alerts`, `pet_photos`, `pet_vaccinations` |
 | **Catálogo** | `services` |
-| **Agenda SPA** | `spa_bookings`, `spa_booking_services` |
+| **Agenda SPA** | `spa_bookings`, `spa_booking_services`, `spa_booking_series`, `non_working_days` |
 | **Presupuestos y cobro** | `quotes`, `quote_items`, `payments`, `cash_ledgers`, `bank_ledgers` |
 | **Módulo contable** | `accounts`, `payment_methods`, `document_series`, `documents`, `journal_entries`, `journal_entry_lines`, `cash_registers`, `cash_sessions`, `cash_movements` |
 | **Módulo Clínico Veterinario** (independiente, apagado por defecto — BL-046) | `clinical_visits`, `pet_weights`, `pet_allergies`, `pet_conditions`, `clinical_diagnoses`, `clinical_prescriptions`, `clinical_prescription_items`, `clinical_attachments`, `items` (BL-050, fundación del futuro inventario) |
@@ -144,6 +144,7 @@ Sucursales del negocio.
 | `is_active` | boolean | |
 | `notes` | text nullable | |
 | `opening_time` / `closing_time` | string(5) "HH:MM" nullable | B2 (27/09/2026) — horario operativo propio de la sucursal (los dos o ninguno). Null = usa el horario general de Configuración (`booking_opening_time`/`booking_closing_time`). Lo aplica `BusinessHours::for($branchId)` al validar citas, en el "próximo hueco", las barras de horario, el horario base del operador y `/api/settings/booking` |
+| `operating_days` | string(20) nullable | ZEUS-047 (07/10/2026) — días que abre la sucursal, "1,2,3,4,5,6" (`Carbon::dayOfWeek`, 0 = domingo). Null = los días generales de Configuración (`booking_open_monday`…`booking_open_sunday`, todos `true` por omisión). `BusinessHours::isWithin()`/`rejectionFor()` rechazan un día cerrado: aplica a la cita web y móvil, al "próximo hueco" y a las series recurrentes |
 | `timestamps` | | |
 
 ---
@@ -574,9 +575,47 @@ Citas de servicio SPA. Ciclo de vida: `scheduled` → `work_order` → `complete
 | `cancellation_reason` | text nullable | |
 | `google_event_id` | string nullable | Sincronización con Google Calendar (10/08/2026) — id del evento en el calendario del operador asignado. No es `#[Fillable]` a propósito (bookkeeping interno, no dato de negocio), se escribe con `forceFill()->saveQuietly()` en `GoogleCalendarSyncService`, así que no genera entradas en el activity log de la cita |
 | `google_synced_at` | timestamp nullable | Última vez que se sincronizó con Google — el comando `calendario:sincronizar-google` solo reprocesa si `updated_at > google_synced_at` |
+| `series_id` | FK → `spa_booking_series` nullable, nullOnDelete | ZEUS-047 (07/10/2026) — serie recurrente a la que pertenece; null = cita suelta |
+| `series_original_at` | datetime nullable | Fecha/hora que dictaba la regla de la serie; solo se llena si la cita se **recorrió** (festivo, día cerrado, choque) |
+| `series_move_reason` | string(190) nullable | Por qué se recorrió ("Día inhábil: …", "El negocio no abre los domingos.", "…ya tiene una cita…") |
+| `series_confirmed_at` | timestamp nullable | "Fijar": cuándo se confirmó esta cita de la serie. **Toda cita con `series_id` y sin este campo es pre-programada** (`SpaBooking::isSeriesTentative()`/`scopeSeriesTentative()`): aparta horario, se pinta tenue con punto violeta de contorno y **no manda recordatorio automático** (`whatsapp:enviar-recordatorios-cita`). Se fija una por una (regla de Tomas), sin importar el estado de la serie |
 | `timestamps` | | |
 
 > `work_order` es el estado activo con orden de trabajo abierta. No existe `in_process`.
+
+---
+
+### `spa_booking_series`
+ZEUS-047 (07/10/2026) — serie de citas recurrentes. Las citas se materializan desde el alta
+(`BookingSeriesService::create()`, todas en una transacción) y se ligan por `spa_bookings.series_id`.
+Se crean desde "Repetir esta cita" en `agenda/create` (backoffice) o `MobCitaNueva` (móvil, `POST /api/bookings` con `repeat_*`), permiso `agenda.series_recurrentes`.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `pet_id` | FK → `pets`, cascadeOnDelete | |
+| `branch_id` | FK → `branches` nullable, nullOnDelete | Sucursal de las citas (la del operador responsable) |
+| `created_by_user_id` / `reviewed_by_user_id` | FK → `users` nullable, nullOnDelete | Quién la creó / quién la revisó (revisión: Fase 3, aún sin UI) |
+| `reviewed_at` | timestamp nullable | |
+| `status` | string(20) | `pending_review` (por omisión) / `active` / `ended` / `cancelled`. **No confirma citas** — eso es `spa_bookings.series_confirmed_at` |
+| `rule` | json | `RecurrenceRule::toArray()`: `{type: every_n_days, interval_days}` o `{type: monthly_weekday, week_of_month (1–4, -1 = último), weekday (0 = domingo)}` |
+| `template` | json | Plantilla de cada cita: `pet_id`, `operator_id` (responsable), `branch_id`, `notes`, `resource_id`, `lines[]` (`service_id`, `service_name`, `operator_id`, `duration_minutes`, `price`, `offset_minutes`) |
+| `starts_at` | datetime | Primera cita |
+| `ends_on` | date | Vigencia (6 meses / 1 año / fecha). Tope de 60 citas por serie |
+| `skipped_occurrences` | json nullable | Fechas que no encontraron lugar en 14 días: `[{original_at, reason}]` |
+| `notes` | text nullable | |
+| `timestamps` | | Índice `(status, ends_on)` para el futuro reporte mensual |
+
+### `non_working_days`
+ZEUS-047 (07/10/2026) — días inhábiles (festivos, cierres). Pantalla `/dias-inhabiles` (menú Clientes, permisos de sucursales). Una cita de una serie que cae aquí se recorre al siguiente día y hora libre.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `date` | date | Índice |
+| `branch_id` | FK → `branches` nullable, cascadeOnDelete | Null = todas las sucursales |
+| `reason` | string(120) | |
+| `timestamps` | | |
 
 ---
 
