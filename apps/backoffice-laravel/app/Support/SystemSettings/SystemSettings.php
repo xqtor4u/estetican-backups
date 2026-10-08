@@ -381,7 +381,10 @@ class SystemSettings
                     ],
                 ],
             ],
-            'clinical' => [
+            // Clave 'operations' (antes 'clinical', 07/10/2026): repetía la clave de la sección
+            // "Veterinaria" de más abajo y PHP se quedaba solo con la última — horario, tolerancia,
+            // limpieza y resumen por correo no existían para el sistema desde el 14/07/2026.
+            'operations' => [
                 'label' => 'Operación Clínica',
                 'description' => 'Configuración de Bitácoras y Jaulas.',
                 'fields' => [

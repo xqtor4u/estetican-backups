@@ -11,10 +11,11 @@
 >
     <x-slot:actions>
         @foreach($sections as $section)
-            @if(in_array($section['key'], ['ui', 'branding', 'guarantees', 'clinical', 'fiscal', 'email_service']))
+            @if(in_array($section['key'], ['ui', 'branding', 'guarantees', 'operations', 'clinical', 'fiscal', 'email_service']))
                 <a href="#{{ $section['key'] }}" class="btn btn-sm btn-outline-dark">
                     @if($section['key'] === 'email_service') Correo 
-                    @elseif($section['key'] === 'clinical') Clínica
+                    @elseif($section['key'] === 'operations') Operación
+                    @elseif($section['key'] === 'clinical') Veterinaria
                     @elseif($section['key'] === 'guarantees') Garantías
                     @else {{ $section['label'] }} @endif
                 </a>
@@ -48,7 +49,7 @@
                 <div class="card-body">
                     <div class="text-uppercase small text-body-secondary fw-semibold mb-2">Servicio de Correo</div>
                     <div class="h5 mb-1">{{ $sections['email_service']['fields']['mail_host']['value'] ?? 'No configurado' }}</div>
-                    <div class="text-body-secondary small">Envío automático: {{ ($sections['clinical']['fields']['operational_auto_email_report']['value'] ?? false) ? 'Activo' : 'Inactivo' }}</div>
+                    <div class="text-body-secondary small">Envío automático: {{ ($sections['operations']['fields']['operational_auto_email_report']['value'] ?? false) ? 'Activo' : 'Inactivo' }}</div>
                 </div>
             </div>
         </div>
