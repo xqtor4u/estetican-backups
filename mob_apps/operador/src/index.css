@@ -306,9 +306,16 @@ html.icon-fonts-ready .material-symbols-outlined {
 
 :root {
   color-scheme: light;
+  /* Citas recurrentes (ZEUS-047): texto/iconos morados legibles en ambos temas. */
+  --series-fg: #5b21b6;
+  --series-accent: #7c3aed;
+  --series-bg: rgba(124,58,237,0.08);
 }
 :root.dark {
   color-scheme: dark;
+  --series-fg: #c4b5fd;
+  --series-accent: #a78bfa;
+  --series-bg: rgba(167,139,250,0.14);
 }
 
 body {

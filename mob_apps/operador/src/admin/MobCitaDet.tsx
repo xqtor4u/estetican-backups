@@ -920,7 +920,7 @@ export function MobCitaDet() {
 
         {/* ── Serie recurrente (ZEUS-047): cada cita se confirma con "Fijar" ── */}
         {booking.series && (
-          <section className="rounded-2xl px-4 py-3 flex flex-col gap-2" style={{ background: 'rgba(124,58,237,0.08)', color: '#5b21b6' }}>
+          <section className="rounded-2xl px-4 py-3 flex flex-col gap-2" style={{ background: 'var(--series-bg)', color: 'var(--series-fg)' }}>
             <div className="flex items-center gap-2 text-sm font-semibold">
               <span className="material-symbols-outlined text-lg">event_repeat</span>
               Serie recurrente · {booking.series.rule_label}

@@ -567,8 +567,8 @@ export function MobCitaNueva() {
     return (
       <div className="min-h-screen bg-background flex flex-col gap-4 px-5 pt-10 pb-28">
         <div className="flex flex-col items-center text-center gap-2">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'rgba(124,58,237,0.12)' }}>
-            <span className="material-symbols-outlined text-4xl" style={{ color: '#7c3aed', fontVariationSettings: "'FILL' 1" }}>event_repeat</span>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'var(--series-bg)' }}>
+            <span className="material-symbols-outlined text-4xl" style={{ color: 'var(--series-accent)', fontVariationSettings: "'FILL' 1" }}>event_repeat</span>
           </div>
           <p className="text-xl font-bold text-on-surface">¡Serie creada!</p>
           <p className="text-sm text-on-surface-variant">
@@ -576,12 +576,12 @@ export function MobCitaNueva() {
             {seriesSummary.moved > 0 && ` · ${seriesSummary.moved} recorridas`}
             {seriesSummary.skipped > 0 && ` · ${seriesSummary.skipped} sin lugar`}
           </p>
-          <p className="text-xs font-semibold" style={{ color: '#5b21b6' }}>Todas quedan por fijar en la agenda.</p>
+          <p className="text-xs font-semibold" style={{ color: 'var(--series-fg)' }}>Todas quedan por fijar en la agenda.</p>
         </div>
         <ul className="bg-surface-container rounded-2xl divide-y divide-outline-variant/40">
           {seriesSummary.bookings.map(b => (
             <li key={b.id} className="px-4 py-2.5 text-sm flex items-start gap-2">
-              <span className="material-symbols-outlined text-base mt-0.5" style={{ color: '#7c3aed' }}>{b.moved_from ? 'shuffle' : 'radio_button_unchecked'}</span>
+              <span className="material-symbols-outlined text-base mt-0.5" style={{ color: 'var(--series-accent)' }}>{b.moved_from ? 'shuffle' : 'radio_button_unchecked'}</span>
               <div>
                 <p className="font-semibold text-on-surface">{fmtItem(b.scheduled_at)}</p>
                 {b.moved_from && <p className="text-xs text-on-surface-variant">Recorrida desde {fmtItem(b.moved_from)} — {b.move_reason}</p>}
@@ -1075,9 +1075,9 @@ export function MobCitaNueva() {
 
         {/* ── Repetir esta cita (ZEUS-047) ─────────────── */}
         {canCreateSeries && (
-          <section className="rounded-2xl px-4 py-3" style={{ background: 'rgba(124,58,237,0.06)' }}>
+          <section className="rounded-2xl px-4 py-3" style={{ background: 'var(--series-bg)' }}>
             <label className="flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold flex items-center gap-2" style={{ color: '#5b21b6' }}>
+              <span className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--series-fg)' }}>
                 <span className="material-symbols-outlined text-lg">event_repeat</span>
                 Repetir esta cita
               </span>
