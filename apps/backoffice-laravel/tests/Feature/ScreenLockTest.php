@@ -132,7 +132,7 @@ class ScreenLockTest extends TestCase
         $user = $this->user();
 
         $response = $this->actingAs($user)
-            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 5]);
+            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 5, 'mobile_screen_lock_idle_minutes' => 5]);
 
         $response->assertRedirect();
         $this->assertSame(5, $user->fresh()->screen_lock_idle_minutes);
@@ -143,7 +143,7 @@ class ScreenLockTest extends TestCase
         $user = $this->user();
         $other = $this->user();
 
-        $this->actingAs($user)->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 2]);
+        $this->actingAs($user)->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 2, 'mobile_screen_lock_idle_minutes' => 2]);
 
         $this->assertNull($other->fresh()->screen_lock_idle_minutes);
     }
@@ -153,7 +153,7 @@ class ScreenLockTest extends TestCase
         $user = $this->user();
 
         $response = $this->actingAs($user)
-            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 0]);
+            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 0, 'mobile_screen_lock_idle_minutes' => 0]);
 
         $response->assertRedirect();
         $this->assertSame(0, $user->fresh()->screen_lock_idle_minutes);
@@ -164,8 +164,56 @@ class ScreenLockTest extends TestCase
         $user = $this->user();
 
         $response = $this->actingAs($user)
-            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 7]);
+            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 7, 'mobile_screen_lock_idle_minutes' => 5]);
 
         $response->assertSessionHasErrors('screen_lock_idle_minutes');
+    }
+
+    /**
+     * ZEUS-040: `mobile_screen_lock_idle_minutes` es un campo real y separado — antes el
+     * timeout de bloqueo de tstmov vivía solo en `localStorage` del celular, invisible e
+     * imposible de editar desde el backoffice web. Decisión de Tomas: el backoffice edita los
+     * dos; la app móvil solo el suyo (ver `test_mobile_app_can_update_its_own_idle_timeout`).
+     */
+    public function test_backoffice_can_update_the_mobile_idle_timeout(): void
+    {
+        $user = $this->user();
+
+        $response = $this->actingAs($user)
+            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 15, 'mobile_screen_lock_idle_minutes' => 0]);
+
+        $response->assertRedirect();
+        $this->assertSame(0, $user->fresh()->mobile_screen_lock_idle_minutes);
+    }
+
+    public function test_updating_the_mobile_idle_timeout_rejects_values_outside_the_fixed_set(): void
+    {
+        $user = $this->user();
+
+        $response = $this->actingAs($user)
+            ->put(route('user.settings.preferences'), ['screen_lock_idle_minutes' => 15, 'mobile_screen_lock_idle_minutes' => 7]);
+
+        $response->assertSessionHasErrors('mobile_screen_lock_idle_minutes');
+    }
+
+    public function test_mobile_app_can_update_its_own_idle_timeout(): void
+    {
+        $user = $this->user();
+
+        $response = $this->patchJson('/api/me/preferences', ['mobile_screen_lock_idle_minutes' => 10], $this->createAdminAuthHeader($user));
+
+        $response->assertOk();
+        $this->assertSame(10, $user->fresh()->mobile_screen_lock_idle_minutes);
+        $this->assertSame(10, $response->json('mobile_screen_lock_idle_minutes'));
+    }
+
+    public function test_api_me_reports_five_minutes_as_the_default_mobile_idle_timeout(): void
+    {
+        $user = $this->user();
+
+        $response = $this->getJson('/api/me', $this->createAdminAuthHeader($user));
+
+        $response->assertOk();
+        $this->assertSame(5, $response->json('mobile_screen_lock_idle_minutes'));
     }
 }

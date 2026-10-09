@@ -17,6 +17,7 @@ export interface AuthUser {
   branch_name: string | null;
   can_view_caja: boolean;
   can_open_caja: boolean;
+  can_close_caja: boolean;
   can_create_caja_movement: boolean;
   can_edit_caja_movement: boolean;
   can_revert_caja_movement: boolean;
@@ -28,6 +29,7 @@ export interface AuthUser {
   operator_id: number | null;
   operator_role: string | null;
   photo_url: string | null;
+  mobile_screen_lock_idle_minutes: number;
 }
 
 interface AuthContextType {

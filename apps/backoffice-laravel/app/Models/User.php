@@ -41,6 +41,7 @@ use Spatie\Permission\Traits\HasRoles;
     'branch_id',
     'notes',
     'screen_lock_idle_minutes',
+    'mobile_screen_lock_idle_minutes',
     'google_personal_email',
     'google_calendar_visibility',
     'google_calendar_notify_email',
@@ -78,6 +79,7 @@ class User extends Authenticatable
             'is_operator' => 'boolean',
             'hire_date' => 'date',
             'screen_lock_idle_minutes' => 'integer',
+            'mobile_screen_lock_idle_minutes' => 'integer',
             'google_calendar_notify_email' => 'boolean',
             'email_notifications' => 'array',
         ];
@@ -211,6 +213,7 @@ class User extends Authenticatable
             'branch_name' => $this->branch?->name,
             'can_view_caja' => $this->can('caja.ver') || $this->is_super_admin,
             'can_open_caja' => $this->can('caja.abrir') || $this->is_super_admin,
+            'can_close_caja' => $this->can('caja.cerrar') || $this->is_super_admin,
             'can_create_caja_movement' => $this->can('caja.movimientos.crear') || $this->is_super_admin,
             'can_edit_caja_movement' => $this->can('caja.movimientos.editar') || $this->is_super_admin,
             'can_revert_caja_movement' => $this->can('caja.movimientos.revertir') || $this->is_super_admin,
@@ -223,6 +226,10 @@ class User extends Authenticatable
             'operator_id' => $this->activeOperatorId(),
             'operator_role' => $this->is_operator ? $this->operatorRole?->name : null,
             'photo_url' => $this->profile_photo_url,
+            // ZEUS-040: preferencia de bloqueo propia de la app móvil, independiente de
+            // `screen_lock_idle_minutes` (esa es la del backoffice web) — 5 min si nunca se ha
+            // configurado, mismo default que tenía antes en localStorage.
+            'mobile_screen_lock_idle_minutes' => $this->mobile_screen_lock_idle_minutes ?? 5,
         ];
     }
 }

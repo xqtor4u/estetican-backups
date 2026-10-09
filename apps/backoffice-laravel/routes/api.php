@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PetController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ResourceController;
+use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\UnavailabilityController;
@@ -47,6 +48,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
 
     Route::patch('/me', [ProfileController::class, 'update']);
+    Route::patch('/me/preferences', [ProfileController::class, 'updatePreferences']);
     Route::put('/me/password', [ProfileController::class, 'updatePassword']);
     Route::post('/me/verify-password', [ProfileController::class, 'verifyPassword']);
     Route::post('/me/photo', [ProfileController::class, 'updatePhoto']);
@@ -57,6 +59,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::delete('/me/unavailabilities/{unavailability}', [UnavailabilityController::class, 'destroy'])->middleware('permission:eliminar disponibilidad_propia');
 
     Route::get('/pets', [PetController::class, 'index'])->middleware('permission:ver mascotas');
+    Route::get('/search', [SearchController::class, 'search'])->middleware('permission:ver mascotas|ver clientes|ver agenda');
     Route::post('/pets', [PetController::class, 'store'])->middleware('permission:crear mascotas');
     Route::get('/pets/{pet}', [PetController::class, 'show'])->middleware('permission:ver mascotas');
     Route::patch('/pets/{pet}', [PetController::class, 'update'])->middleware('permission:editar mascotas');
@@ -108,6 +111,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
 
     Route::get('/cash/session', [CashController::class, 'session'])->middleware('permission:caja.ver');
     Route::post('/cash/session', [CashController::class, 'openSession'])->middleware('permission:caja.abrir');
+    Route::post('/cash/sessions/{cashSession}/close', [CashController::class, 'closeSession'])->middleware('permission:caja.cerrar');
     Route::get('/cash/movement-types', [CashController::class, 'movementTypes'])->middleware('permission:caja.ver');
     Route::get('/cash/movements', [CashController::class, 'movements'])->middleware('permission:caja.ver');
     Route::post('/cash/sessions/{cashSession}/movements', [CashController::class, 'storeMovement'])->middleware('permission:caja.movimientos.crear');

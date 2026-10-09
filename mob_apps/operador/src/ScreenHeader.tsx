@@ -16,6 +16,9 @@ export interface ScreenHeaderProps {
   rightAction?: React.ReactNode;
   /** Oculta el avatar de usuario (ej. modo edición a pantalla completa) */
   hideAvatar?: boolean;
+  /** Oculta el ícono de búsqueda universal (ZEUS-032) — ninguna pantalla lo necesita hoy, existe
+   *  por consistencia con `hideAvatar`. */
+  hideSearch?: boolean;
   /** Si se pasan (aunque sea uno), el título queda flanqueado por ‹ › para saltar a un
    *  hermano (ej. la cita anterior/siguiente del mismo día). `undefined` = flecha inactiva.
    *  Patrón estándar de pantallas de DETALLE: usar el hook `useSiblingNav(id, kind)` y pasar
@@ -107,6 +110,7 @@ export function ScreenHeader({
   backIcon = 'arrow_back',
   rightAction,
   hideAvatar = false,
+  hideSearch = false,
   onTitlePrev,
   onTitleNext,
   crumbs = [],
@@ -114,6 +118,7 @@ export function ScreenHeader({
   noCrumbs = false,
   onCrumbClick,
 }: ScreenHeaderProps) {
+  const navigate = useNavigate();
   const showCrumbs = !noCrumbs && showBreadcrumbs && crumbs.length > 0;
   const hasTitleNav = onTitlePrev !== undefined || onTitleNext !== undefined;
 
@@ -190,6 +195,17 @@ export function ScreenHeader({
         )}
       </div>
 
+      {/* ZEUS-032: búsqueda universal — reachable desde cualquier pantalla sin tocar el
+          bottom-nav/menú (decisión ya tomada en ZEUS-033 de dejarlos como están). */}
+      {!hideSearch && (
+        <button
+          onClick={() => navigate('/buscar')}
+          aria-label="Buscar"
+          className="shrink-0 p-2 rounded-full active:bg-surface-container-high transition-colors"
+        >
+          <span className="material-symbols-outlined text-on-surface-variant text-xl">search</span>
+        </button>
+      )}
       {rightAction != null && <div className="shrink-0">{rightAction}</div>}
       {!hideAvatar && <UserAvatarMenu />}
     </header>

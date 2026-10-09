@@ -75,6 +75,8 @@ export function MobUserConfig() {
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricError, setBiometricError] = useState<string | null>(null);
 
+  const [lockSaving, setLockSaving] = useState(false);
+
   useEffect(() => {
     fetch('/api/settings/photos')
       .then(r => r.ok ? r.json() : null)
@@ -115,6 +117,27 @@ export function MobUserConfig() {
       setProfileMsg({ type: 'ok', text: 'Datos actualizados.' });
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  /**
+   * ZEUS-040: este valor ahora vive en el servidor (`user.mobile_screen_lock_idle_minutes`) —
+   * antes era una preferencia local en `localStorage`, invisible e imposible de editar desde el
+   * backoffice web. `setUser()` refresca `AppLockContext` de inmediato vía el mismo `user` que
+   * ya consume ese contexto, sin recargar la app.
+   */
+  const saveLockTimeout = async (minutes: number) => {
+    setLockSaving(true);
+    try {
+      const res = await fetch('/api/me/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ mobile_screen_lock_idle_minutes: minutes }),
+      });
+      const data = await res.json();
+      if (res.ok) setUser(data);
+    } finally {
+      setLockSaving(false);
     }
   };
 
@@ -276,12 +299,13 @@ export function MobUserConfig() {
           <div className="px-4 py-3.5 flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-on-surface">Bloqueo automático</p>
-              <p className="text-xs text-on-surface-variant mt-0.5">La app se bloquea sola tras este tiempo sin uso, o al cambiar de aplicación</p>
+              <p className="text-xs text-on-surface-variant mt-0.5">La app se bloquea sola tras este tiempo sin uso, o al cambiar de aplicación. Es propio de este celular — el backoffice web se bloquea por separado, pero también puedes cambiar este valor desde ahí.</p>
             </div>
             <select
-              value={prefs.lockTimeoutMinutes}
-              onChange={e => update({ lockTimeoutMinutes: Number(e.target.value) })}
-              className="bg-surface-container-high border border-outline-variant rounded-lg px-2 py-1.5 text-sm text-on-surface shrink-0"
+              value={user?.mobile_screen_lock_idle_minutes ?? 5}
+              onChange={e => saveLockTimeout(Number(e.target.value))}
+              disabled={lockSaving}
+              className="bg-surface-container-high border border-outline-variant rounded-lg px-2 py-1.5 text-sm text-on-surface shrink-0 disabled:opacity-50"
             >
               {LOCK_TIMEOUT_OPTIONS.map(m => (
                 <option key={m} value={m}>{m === 0 ? 'Nunca' : `${m} min`}</option>

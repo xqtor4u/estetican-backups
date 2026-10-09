@@ -129,6 +129,21 @@ class CashController extends Controller
             'reversal_of_movement_id' => null,
         ])->values();
 
+        // ZEUS-035: desglose por método de pago (Efectivo/Tarjeta/Transferencia) de TODOS los
+        // cobros del turno, no solo los de destino "caja" — si se limitara a `$cobrosEfectivo`,
+        // Tarjeta/Transferencia (siempre destino "banco") nunca aparecerían y el desglose no
+        // agregaría nada sobre lo que ya muestra "Entradas". Mismo criterio de normalización que
+        // `CashReportService::buildMetodosPagoData()` (agrupar en minúsculas, mostrar en Título
+        // Case) — reusa `$periodPayments`, ya calculado arriba, sin disparar otra consulta.
+        $byPaymentMethod = $periodPayments
+            ->groupBy(fn ($p) => mb_strtolower(trim($p->payment_method ?: 'sin especificar')))
+            ->map(fn ($group, $normalizedKey) => [
+                'method' => mb_convert_case($normalizedKey, MB_CASE_TITLE, 'UTF-8'),
+                'amount' => round($group->sum('amount'), 2),
+            ])
+            ->sortByDesc('amount')
+            ->values();
+
         return response()->json([
             'status'  => 'active',
             'session' => [
@@ -145,6 +160,7 @@ class CashController extends Controller
                 'total_entradas' => round($totalEntradas, 2),
                 'total_salidas'  => round($totalSalidas, 2),
                 'saldo_esperado' => round($cashSession->opening_amount + $totalEntradas - $totalSalidas, 2),
+                'by_payment_method' => $byPaymentMethod,
             ],
             'movements' => $movements->map(fn ($m) => $this->serializeMovement($m))
                 ->concat($cobroMovements)
@@ -214,6 +230,51 @@ class CashController extends Controller
 
         // Reusa la misma forma de respuesta que ya consume el frontend (status: 'active', ...).
         return $this->session($request);
+    }
+
+    /**
+     * ZEUS-034: cerrar el turno de caja directo desde la app móvil — antes esto solo era posible
+     * desde el backoffice web (`Finanzas → Cajas → Cerrar`, `CashSessionController::doClose()`).
+     * Espejo exacto de ese método: mismo cálculo de `expected`/`difference` vía
+     * `CashSessionExpectedAmountService::expectedAmount()` (única fuente de verdad, compartida
+     * con el web), mismos campos actualizados en la sesión.
+     */
+    public function closeSession(Request $request, CashSession $cashSession): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user->is_super_admin && $user->branch_id !== $cashSession->branch_id) {
+            return response()->json(['message' => 'Esta caja no corresponde a tu sucursal asignada.'], 403);
+        }
+
+        if (! $cashSession->isOpen()) {
+            return response()->json(['message' => 'Esta sesión ya está cerrada.'], 422);
+        }
+
+        $validated = $request->validate([
+            'closing_amount' => ['required', 'numeric', 'min:0'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $expected = $this->expectedAmountService->expectedAmount($cashSession);
+        $closing = round((float) $validated['closing_amount'], 2);
+        $difference = round($closing - $expected, 2);
+
+        $cashSession->update([
+            'closed_by_user_id' => $user->id,
+            'closed_at' => now(),
+            'closing_amount' => $closing,
+            'expected_amount' => $expected,
+            'difference' => $difference,
+            'notes' => $validated['notes'] ?? $cashSession->notes,
+            'status' => 'cerrada',
+        ]);
+
+        return response()->json([
+            'expected_amount' => $expected,
+            'closing_amount' => $closing,
+            'difference' => $difference,
+        ]);
     }
 
     public function movementTypes(): JsonResponse

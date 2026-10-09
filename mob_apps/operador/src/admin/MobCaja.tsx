@@ -15,11 +15,16 @@ interface SessionInfo {
   opening_amount: number;
   notes: string | null;
 }
+interface PaymentMethodTotal {
+  method: string;
+  amount: number;
+}
 interface Totals {
   opening_amount: number;
   total_entradas: number;
   total_salidas: number;
   saldo_esperado: number;
+  by_payment_method: PaymentMethodTotal[];
 }
 interface Movement {
   id: number | string;
@@ -465,6 +470,104 @@ function RevertMovementSheet({ movement, onClose, onReverted }: {
   );
 }
 
+/* ── Cerrar turno (ZEUS-034) ─────────────────────────────────
+   Espejo del flujo web (Finanzas → Cajas → Cerrar): el operador cuenta el efectivo físico y lo
+   captura como `closing_amount`; el backend calcula la diferencia contra `saldo_esperado`
+   (única fuente de verdad, `CashSessionExpectedAmountService`) — este sheet nunca calcula la
+   diferencia por su cuenta, solo la muestra tal cual la regresa el servidor. */
+function CloseSessionSheet({ sessionId, expectedAmount, onClose, onClosed }: {
+  sessionId: number;
+  expectedAmount: number;
+  onClose: () => void;
+  onClosed: (result: { expected: number; closing: number; difference: number }) => void;
+}) {
+  const [closingAmount, setClosingAmount] = useState('');
+  const [notes, setNotes]                 = useState('');
+  const [saving, setSaving]               = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
+
+  const canSubmit = closingAmount.trim() !== '' && !isNaN(parseFloat(closingAmount)) && parseFloat(closingAmount) >= 0 && !saving;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/cash/sessions/${sessionId}/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          closing_amount: parseFloat(closingAmount),
+          notes: notes.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? 'No se pudo cerrar el turno.');
+      onClosed({ expected: data.expected_amount, closing: data.closing_amount, difference: data.difference });
+    } catch (e: any) {
+      setError(e.message ?? 'No se pudo cerrar el turno.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed left-0 right-0 bottom-0 z-50 bg-surface rounded-t-3xl shadow-2xl"
+           style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-outline-variant" />
+        </div>
+        <div className="px-4 pb-8 pt-2 flex flex-col gap-4">
+          <h2 className="text-base font-semibold text-on-surface">Cerrar turno</h2>
+          <div className="bg-surface-container rounded-2xl px-4 py-3">
+            <p className="text-xs text-on-surface-variant mb-1">Saldo esperado (según el sistema)</p>
+            <p className="text-lg font-bold text-primary">{fmtMoney(expectedAmount)}</p>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-on-surface-variant">Efectivo contado</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant font-medium">$</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                autoFocus
+                value={closingAmount}
+                onChange={e => setClosingAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full bg-surface-container border border-outline-variant rounded-xl pl-7 pr-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-on-surface-variant">Notas (opcional)</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              maxLength={500}
+              className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary resize-none"
+            />
+          </div>
+          {error && <p className="text-sm text-error bg-error/10 rounded-xl px-3 py-2">{error}</p>}
+          <button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-error text-on-error active:scale-[0.98] transition-transform disabled:opacity-40"
+          >
+            {saving ? 'Cerrando…' : 'Cerrar turno'}
+          </button>
+          <button onClick={onClose} disabled={saving} className="text-xs text-on-surface-variant">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════ */
 export function MobCaja() {
   const navigate = useNavigate();
@@ -478,6 +581,12 @@ export function MobCaja() {
   const [refreshing, setRefreshing]   = useState(false);
   const [editingMovement, setEditingMovement]     = useState<Movement | PeriodMovement | null>(null);
   const [revertingMovement, setRevertingMovement] = useState<Movement | PeriodMovement | null>(null);
+
+  // Cerrar turno directo desde el móvil (ZEUS-034) — antes solo era posible desde el backoffice
+  // web. `closeResult` no se descarta al cerrar el sheet: se muestra inline en la pantalla
+  // principal hasta que el operador decide volver (y ahí sí se recarga a "Sin caja abierta").
+  const [showCloseSheet, setShowCloseSheet] = useState(false);
+  const [closeResult, setCloseResult] = useState<{ expected: number; closing: number; difference: number } | null>(null);
 
   // Sucursal para Caja — nunca viene del check-in (eso es solo asistencia/RH, sin relación con
   // autorización). Un operador normal siempre usa su `branch_id` asignado del lado del servidor;
@@ -631,6 +740,7 @@ export function MobCaja() {
           total_entradas: Math.round(totalEntradas * 100) / 100,
           total_salidas:  Math.round(totalSalidas  * 100) / 100,
           saldo_esperado: Math.round((prev.totals.opening_amount + totalEntradas - totalSalidas) * 100) / 100,
+          by_payment_method: prev.totals.by_payment_method,
         },
       };
     });
@@ -668,6 +778,7 @@ export function MobCaja() {
           total_entradas: Math.round(totalEntradas * 100) / 100,
           total_salidas:  Math.round(totalSalidas  * 100) / 100,
           saldo_esperado: Math.round((prev.totals.opening_amount + totalEntradas - totalSalidas) * 100) / 100,
+          by_payment_method: prev.totals.by_payment_method,
         },
       };
     });
@@ -681,6 +792,46 @@ export function MobCaja() {
     showBreadcrumbs,
     onCrumbClick: (to: string, prev: typeof crumbs) => { setNavCrumbs(prev); navigate(to, { state: { _crumbs: prev } }); },
   };
+
+  // ZEUS-034: resultado del cierre de turno — tiene prioridad sobre cualquier otro estado de la
+  // pantalla, porque `page` sigue reflejando la sesión ya cerrada hasta que el operador confirma
+  // "Volver a Caja" (recién ahí se recarga y cae a "Sin caja abierta").
+  if (closeResult) {
+    const isSobrante = closeResult.difference >= 0;
+    return (
+      <div className="min-h-screen bg-background pb-16">
+        <ScreenHeader {...headerProps} />
+        <div className="mx-4 mt-6 bg-surface-container rounded-2xl px-4 py-5 flex flex-col items-center text-center gap-3">
+          <span className="material-symbols-outlined text-5xl text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
+            task_alt
+          </span>
+          <h2 className="text-base font-semibold text-on-surface">Turno cerrado</h2>
+          <div className="w-full flex flex-col gap-2 mt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-on-surface-variant">Esperado</span>
+              <span className="text-sm font-semibold text-on-surface">{fmtMoney(closeResult.expected)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-on-surface-variant">Contado</span>
+              <span className="text-sm font-semibold text-on-surface">{fmtMoney(closeResult.closing)}</span>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-outline-variant">
+              <span className="text-sm font-medium text-on-surface">{isSobrante ? 'Sobrante' : 'Faltante'}</span>
+              <span className={`text-base font-bold ${isSobrante ? 'text-primary' : 'text-error'}`}>
+                {fmtMoney(Math.abs(closeResult.difference))}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => { setCloseResult(null); loadSession(); }}
+            className="mt-2 w-full py-3 rounded-2xl bg-primary text-on-primary text-sm font-semibold active:scale-95 transition-transform"
+          >
+            Volver a Caja
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (page.status === 'loading') {
     return (
@@ -935,40 +1086,62 @@ export function MobCaja() {
             <p className="text-base font-semibold text-error">-{fmtMoney(totals.total_salidas)}</p>
           </div>
         </div>
-      ) : periodLoading ? (
-        <div className="flex justify-center py-8">
-          <span className="material-symbols-outlined text-3xl text-on-surface-variant animate-spin">progress_activity</span>
-        </div>
-      ) : periodError ? (
-        <div className="mx-4 mb-4 bg-error-container rounded-2xl px-4 py-4 text-center">
-          <p className="text-sm text-on-error-container">{periodError}</p>
-          <button onClick={fetchPeriod}
-            className="mt-2 px-5 py-1.5 rounded-xl bg-primary text-on-primary text-sm font-semibold active:scale-95 transition-transform">
-            Reintentar
-          </button>
-        </div>
-      ) : periodTotals && (
-        <div className="mx-4 mb-4 grid grid-cols-3 gap-2">
-          <div className="bg-primary/10 rounded-2xl px-3 py-3">
-            <p className="text-[10px] font-semibold text-primary uppercase tracking-wide mb-0.5">Entradas</p>
-            <p className="text-sm font-bold text-primary">+{fmtMoney(periodTotals.total_entradas)}</p>
-          </div>
-          <div className="bg-error/10 rounded-2xl px-3 py-3">
-            <p className="text-[10px] font-semibold text-error uppercase tracking-wide mb-0.5">Salidas</p>
-            <p className="text-sm font-bold text-error">-{fmtMoney(periodTotals.total_salidas)}</p>
-          </div>
-          {(() => {
-            const neto = periodTotals.total_entradas - periodTotals.total_salidas;
-            return (
-              <div className={`${neto >= 0 ? 'bg-primary/5' : 'bg-error/5'} rounded-2xl px-3 py-3`}>
-                <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide mb-0.5">Neto</p>
-                <p className={`text-sm font-bold ${neto >= 0 ? 'text-primary' : 'text-error'}`}>
-                  {neto >= 0 ? '+' : ''}{fmtMoney(neto)}
-                </p>
+      ) : null}
+
+      {/* ZEUS-035: desglose por método de pago de los cobros del turno — incluye efectivo,
+          tarjeta y transferencia (no solo lo que afecta el saldo físico de la caja). */}
+      {viewMode === 'turno' && totals.by_payment_method.length > 0 && (
+        <div className="mx-4 mb-4 bg-surface-container rounded-2xl px-4 py-3">
+          <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-2">
+            Cobros por método de pago
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {totals.by_payment_method.map(pm => (
+              <div key={pm.method} className="flex items-center justify-between">
+                <span className="text-sm text-on-surface">{pm.method}</span>
+                <span className="text-sm font-semibold text-on-surface">{fmtMoney(pm.amount)}</span>
               </div>
-            );
-          })()}
+            ))}
+          </div>
         </div>
+      )}
+
+      {viewMode !== 'turno' && (
+        periodLoading ? (
+          <div className="flex justify-center py-8">
+            <span className="material-symbols-outlined text-3xl text-on-surface-variant animate-spin">progress_activity</span>
+          </div>
+        ) : periodError ? (
+          <div className="mx-4 mb-4 bg-error-container rounded-2xl px-4 py-4 text-center">
+            <p className="text-sm text-on-error-container">{periodError}</p>
+            <button onClick={fetchPeriod}
+              className="mt-2 px-5 py-1.5 rounded-xl bg-primary text-on-primary text-sm font-semibold active:scale-95 transition-transform">
+              Reintentar
+            </button>
+          </div>
+        ) : periodTotals && (
+          <div className="mx-4 mb-4 grid grid-cols-3 gap-2">
+            <div className="bg-primary/10 rounded-2xl px-3 py-3">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-wide mb-0.5">Entradas</p>
+              <p className="text-sm font-bold text-primary">+{fmtMoney(periodTotals.total_entradas)}</p>
+            </div>
+            <div className="bg-error/10 rounded-2xl px-3 py-3">
+              <p className="text-[10px] font-semibold text-error uppercase tracking-wide mb-0.5">Salidas</p>
+              <p className="text-sm font-bold text-error">-{fmtMoney(periodTotals.total_salidas)}</p>
+            </div>
+            {(() => {
+              const neto = periodTotals.total_entradas - periodTotals.total_salidas;
+              return (
+                <div className={`${neto >= 0 ? 'bg-primary/5' : 'bg-error/5'} rounded-2xl px-3 py-3`}>
+                  <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide mb-0.5">Neto</p>
+                  <p className={`text-sm font-bold ${neto >= 0 ? 'text-primary' : 'text-error'}`}>
+                    {neto >= 0 ? '+' : ''}{fmtMoney(neto)}
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+        )
       )}
 
       {/* Lista de movimientos */}
@@ -1070,6 +1243,21 @@ export function MobCaja() {
         </button>
       </div>
 
+      {/* ZEUS-034: cerrar turno directo desde el móvil — antes solo era posible desde el
+          backoffice web. Estilo distinto (borde/texto de error) a propósito: es una acción que
+          termina el turno, no una consulta más. */}
+      {user?.can_close_caja && (
+        <div className="mx-4 mb-4">
+          <button
+            onClick={() => setShowCloseSheet(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-error text-sm text-error font-medium active:bg-error/5 transition-colors"
+          >
+            <span className="material-symbols-outlined text-lg">lock</span>
+            Cerrar turno
+          </button>
+        </div>
+      )}
+
       {/* FAB */}
       {user?.can_create_caja_movement && (
         <button
@@ -1103,6 +1291,15 @@ export function MobCaja() {
           movement={revertingMovement}
           onClose={() => setRevertingMovement(null)}
           onReverted={handleMovementReverted}
+        />
+      )}
+
+      {showCloseSheet && (
+        <CloseSessionSheet
+          sessionId={session.id}
+          expectedAmount={totals.saldo_esperado}
+          onClose={() => setShowCloseSheet(false)}
+          onClosed={(result) => { setShowCloseSheet(false); setCloseResult(result); }}
         />
       )}
     </div>

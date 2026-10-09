@@ -31,6 +31,25 @@ class ProfileController extends Controller
         return response()->json($user->fresh()->toApiArray());
     }
 
+    /**
+     * ZEUS-040: preferencias propias de la app móvil — hoy solo el timeout de bloqueo, separado
+     * de `screen_lock_idle_minutes` (esa la edita `UserSettingsController::updatePreferences()`
+     * en el backoffice web). El backoffice también puede editar este valor (ver esa misma
+     * pantalla), pero la app móvil es quien de verdad la usa para bloquearse sola.
+     */
+    public function updatePreferences(Request $request)
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'mobile_screen_lock_idle_minutes' => 'required|integer|in:0,1,2,5,10,15,30',
+        ]);
+
+        $user->update($validated);
+
+        return response()->json($user->fresh()->toApiArray());
+    }
+
     public function updatePassword(Request $request)
     {
         $user = Auth::user();

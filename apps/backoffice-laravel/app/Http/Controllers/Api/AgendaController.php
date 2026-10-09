@@ -247,6 +247,7 @@ class AgendaController extends Controller
             ->with([
                 'pet:id,name,species,breed,profile_photo_path,client_id',
                 'pet.client:id,first_name,apellido_paterno,apellido_materno',
+                'pet.client.phones',
                 'services.service:id,name,type',
             ])
             ->orderBy('scheduled_at')
@@ -292,6 +293,7 @@ class AgendaController extends Controller
                 'client' => $b->pet->client ? [
                     'id' => $b->pet->client->id,
                     'name' => trim($b->pet->client->first_name.' '.$b->pet->client->last_name),
+                    'phone' => PhoneNormalizer::bestPhoneFor($b->pet->client),
                 ] : null,
                 'services' => $b->services->map(fn ($s) => [
                     'name' => $s->service_name_snapshot ?? $s->service?->name ?? '—',

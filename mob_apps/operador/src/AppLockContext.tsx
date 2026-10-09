@@ -1,19 +1,21 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
-import { getUserPrefs } from './hooks/useUserPrefs';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // fallback si la preferencia no es válida
 const ACTIVITY_EVENTS = ['touchstart', 'mousedown', 'keydown', 'scroll'] as const;
 const STORAGE_KEY = 'estetican_lock_state';
 const ACTIVITY_WRITE_THROTTLE_MS = 5000;
 
-/** `lockTimeoutMinutes === 0` es la opción "Nunca" — candado completamente desactivado. */
-function getIdleTimeoutMs(): number {
-  const minutes = getUserPrefs().lockTimeoutMinutes;
-
+/**
+ * ZEUS-040: el timeout de bloqueo de la app móvil vive en el servidor
+ * (`user.mobile_screen_lock_idle_minutes`) — antes era una preferencia local en `localStorage`,
+ * sin relación con el ajuste del backoffice web ni visible/editable desde ahí. `minutes === 0`
+ * sigue siendo la opción "Nunca" — candado completamente desactivado.
+ */
+function getIdleTimeoutMs(minutes: number | null | undefined): number {
   if (minutes === 0) return Infinity;
 
-  return Number.isFinite(minutes) && minutes > 0 ? minutes * 60 * 1000 : DEFAULT_IDLE_TIMEOUT_MS;
+  return Number.isFinite(minutes) && (minutes as number) > 0 ? (minutes as number) * 60 * 1000 : DEFAULT_IDLE_TIMEOUT_MS;
 }
 
 interface StoredLockState {
@@ -53,11 +55,11 @@ function clearStoredState() {
 // desde el back/forward cache del navegador (bfcache), donde el JS queda congelado
 // con el valor de `locked` que tenía en el momento de salir de la página, que puede
 // haber quedado desactualizado.
-function computeLockedFromStorage(): boolean {
+function computeLockedFromStorage(minutes: number | null | undefined): boolean {
   const stored = readStoredState();
   if (!stored) return false;
   if (stored.locked) return true;
-  return Date.now() - stored.lastActivity > getIdleTimeoutMs();
+  return Date.now() - stored.lastActivity > getIdleTimeoutMs(minutes);
 }
 
 interface AppLockContextType {
@@ -79,7 +81,8 @@ export function useAppLock() {
 export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const enabled = !!user;
-  const [locked, setLockedState] = useState<boolean>(() => computeLockedFromStorage());
+  const lockMinutes = user?.mobile_screen_lock_idle_minutes;
+  const [locked, setLockedState] = useState<boolean>(() => computeLockedFromStorage(lockMinutes));
   const timerRef = useRef<number | null>(null);
   const lastWriteRef = useRef(0);
   // Refleja `locked` de forma síncrona para leer dentro de `resetTimer` sin
@@ -98,7 +101,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const resetTimer = useCallback(() => {
     if (timerRef.current) window.clearTimeout(timerRef.current);
     if (!enabled) return;
-    const timeoutMs = getIdleTimeoutMs();
+    const timeoutMs = getIdleTimeoutMs(lockMinutes);
     // "Nunca" (Infinity) — no programar ningún timeout, setTimeout con Infinity no es válido.
     if (Number.isFinite(timeoutMs)) {
       timerRef.current = window.setTimeout(() => setLocked(true), timeoutMs);
@@ -116,7 +119,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
       lastWriteRef.current = now;
       writeStoredState({ locked: false, lastActivity: now });
     }
-  }, [enabled, setLocked]);
+  }, [enabled, lockMinutes, setLocked]);
 
   useEffect(() => {
     // Mientras `useAuth()` todavía está resolviendo la sesión (fetch a /api/me
@@ -134,7 +137,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
     // Re-sincroniza contra lo persistido ahora que se confirmó la sesión — el
     // valor inicial de `locked` (calculado en el primer render, antes de saber
     // si había sesión) puede haber quedado desactualizado.
-    setLockedState(computeLockedFromStorage());
+    setLockedState(computeLockedFromStorage(lockMinutes));
 
     resetTimer();
     ACTIVITY_EVENTS.forEach(ev => document.addEventListener(ev, resetTimer, { passive: true }));
@@ -149,7 +152,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
         // Puede haber pasado más tiempo del que el timer en memoria alcanzó a contar si el
         // proceso se congeló en segundo plano (típico en Android) — revalidar contra lo
         // persistido en vez de confiar ciegamente en que el setTimeout ya disparó.
-        setLockedState(computeLockedFromStorage());
+        setLockedState(computeLockedFromStorage(lockMinutes));
         resetTimer();
       }
     };
@@ -159,7 +162,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
     // estaba congelado, así que hay que revalidar contra lo persistido en vez de
     // confiar en el `locked` que tenía en memoria al momento de salir de la página.
     const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) setLockedState(computeLockedFromStorage());
+      if (e.persisted) setLockedState(computeLockedFromStorage(lockMinutes));
     };
     window.addEventListener('pageshow', onPageShow);
 
@@ -169,7 +172,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('pageshow', onPageShow);
       if (timerRef.current) window.clearTimeout(timerRef.current);
     };
-  }, [authLoading, enabled, resetTimer, setLocked]);
+  }, [authLoading, enabled, lockMinutes, resetTimer, setLocked]);
 
   const lock = useCallback(() => setLocked(true), [setLocked]);
   const unlock = useCallback(() => { setLocked(false); resetTimer(); }, [setLocked, resetTimer]);

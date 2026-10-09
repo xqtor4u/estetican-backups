@@ -31,13 +31,14 @@ interface Booking  {
 }
 interface Vencida {
   id: number;
+  scheduled_at: string;
   time: string;
   date_label: string;
   status: string;
   reason: 'stale_day' | 'not_started' | 'overdue' | 'future' | 'pending_balance';
   balance: number;
   pet: { id: number; name: string; photo: string | null };
-  client: { id: number; name: string } | null;
+  client: { id: number; name: string; phone: string | null } | null;
   services: { name: string }[];
 }
 const VENCIDA_REASON_LABEL: Record<Vencida['reason'], string> = {
@@ -73,6 +74,78 @@ const STATUS_COLOR: Record<string, string> = {
   // "en proceso" normal (verde/secondary), así que no debe compartir su color.
   unfulfillable: 'bg-amber-500 text-white border-amber-500',
 };
+
+/* ── Reagendar (ZEUS-031) — bottom sheet chico, solo fecha/hora, para resolver una cita
+   pendiente sin salir al detalle completo. Reusa el mismo PATCH que ya edita `scheduled_at`
+   en `MobCitaDet.tsx` para una cita `scheduled` — el status no se toca (sigue `scheduled`). */
+function ReagendarSheet({ bookingId, petName, scheduledAt, onClose, onSaved }: {
+  bookingId: number;
+  petName: string;
+  scheduledAt: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [date, setDate]     = useState(scheduledAt.slice(0, 10));
+  const [time, setTime]     = useState(scheduledAt.slice(11, 16));
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  const canSubmit = date !== '' && time !== '' && !saving;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduled_at: `${date} ${time}:00` }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message ?? 'No se pudo reagendar.');
+      onSaved();
+    } catch (e: any) {
+      setError(e.message ?? 'No se pudo reagendar.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed left-0 right-0 bottom-0 z-50 bg-surface rounded-t-3xl shadow-2xl"
+           style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-outline-variant" />
+        </div>
+        <div className="px-4 pb-8 pt-2 flex flex-col gap-4">
+          <h2 className="text-base font-semibold text-on-surface">Reagendar — {petName}</h2>
+          <div className="flex gap-2">
+            <div className="flex-1 flex flex-col gap-1">
+              <label className="text-xs font-semibold text-on-surface-variant">Fecha</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary" />
+            </div>
+            <div className="flex-1 flex flex-col gap-1">
+              <label className="text-xs font-semibold text-on-surface-variant">Hora</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary" />
+            </div>
+          </div>
+          {error && <p className="text-sm text-error bg-error/10 rounded-xl px-3 py-2">{error}</p>}
+          <button onClick={handleSubmit} disabled={!canSubmit}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-primary text-on-primary active:scale-[0.98] transition-transform disabled:opacity-40">
+            {saving ? 'Guardando…' : 'Guardar nueva fecha'}
+          </button>
+          <button onClick={onClose} disabled={saving} className="text-xs text-on-surface-variant">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
 
 export function GlobalAgenda() {
   const navigate = useNavigate();
@@ -114,6 +187,15 @@ export function GlobalAgenda() {
   // al mismo tiempo (nombre de mascota + hora, no todo el diálogo pesado del detalle).
   const [pendingStart,      setPendingStart]        = useState<{ id: number; petName: string; time: string } | null>(null);
   const [waSheet,           setWaSheet]              = useState<{ clientId: number; phone: string; petId: number } | null>(null);
+  // ZEUS-031: acciones directas dentro del modal de pendientes — mismo patrón que las tarjetas
+  // normales de la agenda del día, sin cerrar el modal para resolver cada una.
+  const [resolvingVencidaId, setResolvingVencidaId] = useState<number | null>(null);
+  const [pendingNoShow,      setPendingNoShow]      = useState<{ id: number; petName: string } | null>(null);
+  const [reagendarSheet,     setReagendarSheet]     = useState<{ id: number; petName: string; scheduledAt: string } | null>(null);
+
+  const loadVencidas = useCallback(() => {
+    fetch('/api/agenda/vencidas').then(r => r.ok ? r.json() : []).then(setVencidas).catch(() => {});
+  }, []);
 
   // Carga inicial: operadores, sucursales, citas vencidas y minutos de gracia (para saber
   // si el botón rápido "Iniciar" de la tarjeta aplica, o si hay que ir al detalle porque
@@ -126,12 +208,12 @@ export function GlobalAgenda() {
       fetch('/api/operators').then(r => r.json()).then(setOperators).catch(() => {});
     }
     fetch('/api/branches').then(r => r.json()).then(setBranches).catch(() => {});
-    fetch('/api/agenda/vencidas').then(r => r.ok ? r.json() : []).then(setVencidas).catch(() => {});
+    loadVencidas();
     fetch('/api/settings/booking')
       .then(r => r.json())
       .then((d: { grace_minutes?: number }) => { if (d.grace_minutes != null) setGraceMinutes(d.grace_minutes); })
       .catch(() => {});
-  }, [user?.can_view_all_agenda]);
+  }, [user?.can_view_all_agenda, loadVencidas]);
 
   // Carga de agenda al cambiar fecha o vista (día/semana/mes)
   const loadAgenda = useCallback((date: Date, view: CalView) => {
@@ -309,6 +391,10 @@ export function GlobalAgenda() {
   // breve propia (`pendingStart`, mascota + hora) — con varias citas dentro de la misma
   // ventana de gracia en una lista larga, un mal toque podía iniciar la cita equivocada
   // sin darse cuenta.
+  // ZEUS-031: "Iniciar" es la misma acción tanto desde la tarjeta normal de la agenda del día
+  // como desde el modal de pendientes (comparten `pendingStart`/`confirmStart`) — refresca las
+  // dos listas al terminar, porque cualquiera de las dos puede haber cambiado (una cita que
+  // estaba en "vencidas" deja de estarlo al iniciarse).
   const startCita = async (bookingId: number) => {
     setStartingCitaId(bookingId);
     try {
@@ -317,7 +403,7 @@ export function GlobalAgenda() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'work_order' }),
       });
-      if (res.ok) loadAgenda(selectedDate, calView);
+      if (res.ok) { loadAgenda(selectedDate, calView); loadVencidas(); }
     } finally {
       setStartingCitaId(null);
     }
@@ -328,6 +414,23 @@ export function GlobalAgenda() {
     const { id } = pendingStart;
     setPendingStart(null);
     startCita(id);
+  };
+
+  const confirmNoShow = async () => {
+    if (!pendingNoShow) return;
+    const { id } = pendingNoShow;
+    setPendingNoShow(null);
+    setResolvingVencidaId(id);
+    try {
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'no_show' }),
+      });
+      if (res.ok) loadVencidas();
+    } finally {
+      setResolvingVencidaId(null);
+    }
   };
 
   const startNewCita = () => {
@@ -691,36 +794,112 @@ export function GlobalAgenda() {
           </button>
         </div>
         <div className="flex flex-col divide-y divide-error/10 pb-4">
-          {vencidas.map(v => (
-            <button
-              key={v.id}
-              onClick={() => {
-                setShowVencidasModal(false);
-                clearSiblingNav(); // la lista de vencidas no es un "día" navegable con ‹ ›
-                setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
-                navigate(`/citas/${v.id}`);
-              }}
-              className="flex items-center gap-3 px-4 py-3 text-left active:bg-error/10 transition-colors w-full"
-            >
-              <div className="w-8 h-8 rounded-lg bg-error/10 overflow-hidden flex items-center justify-center shrink-0">
-                {v.pet.photo
-                  ? <img src={v.pet.photo} className="w-full h-full object-cover" alt={v.pet.name} />
-                  : <span className="material-symbols-outlined text-error text-base" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-on-surface truncate">{v.pet.name}</p>
-                <p className="text-xs text-error/80">
-                  {v.date_label} {v.time}
-                  {v.services.length > 0 && ` · ${v.services.map(s => s.name).join(', ')}`}
-                </p>
-                <p className="text-[11px] font-semibold text-amber-600 mt-0.5">
-                  {VENCIDA_REASON_LABEL[v.reason]}
-                  {v.reason === 'pending_balance' && ` · $${v.balance.toFixed(2)}`}
-                </p>
-              </div>
-              <span className="material-symbols-outlined text-error/50 text-base shrink-0">chevron_right</span>
-            </button>
-          ))}
+          {vencidas.map(v => {
+            // ZEUS-031: mismo criterio que las tarjetas normales de la agenda del día
+            // (`showIniciar`/`showCobrar` más arriba) — Reagendar/No asistió solo tienen
+            // sentido para una cita que sigue `scheduled` (mismo estado que ya restringe
+            // `no_show`/`scheduled_at` editable en el detalle completo, `MobCitaDet.tsx`).
+            const showIniciar   = v.status === 'scheduled';
+            const showReagendar = v.status === 'scheduled';
+            const showNoAsistio = v.status === 'scheduled';
+            const showCobrar    = v.status === 'work_order' || v.reason === 'pending_balance';
+            const showContactar = !!v.client?.phone;
+            // "Iniciar" comparte startingCitaId con la tarjeta normal (misma acción, mismo
+            // estado); "No asistió" tiene su propio flag porque no existe en la lista principal.
+            const starting  = startingCitaId === v.id;
+            const resolving = resolvingVencidaId === v.id;
+            return (
+            <div key={v.id} className="px-4 py-3">
+              <button
+                onClick={() => {
+                  setShowVencidasModal(false);
+                  clearSiblingNav(); // la lista de vencidas no es un "día" navegable con ‹ ›
+                  setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
+                  navigate(`/citas/${v.id}`);
+                }}
+                className="flex items-center gap-3 text-left active:opacity-70 transition-opacity w-full"
+              >
+                <div className="w-8 h-8 rounded-lg bg-error/10 overflow-hidden flex items-center justify-center shrink-0">
+                  {v.pet.photo
+                    ? <img src={v.pet.photo} className="w-full h-full object-cover" alt={v.pet.name} />
+                    : <span className="material-symbols-outlined text-error text-base" style={{ fontVariationSettings: "'FILL' 1" }}>pets</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-on-surface truncate">{v.pet.name}</p>
+                  <p className="text-xs text-error/80">
+                    {v.date_label} {v.time}
+                    {v.services.length > 0 && ` · ${v.services.map(s => s.name).join(', ')}`}
+                  </p>
+                  <p className="text-[11px] font-semibold text-amber-600 mt-0.5">
+                    {VENCIDA_REASON_LABEL[v.reason]}
+                    {v.reason === 'pending_balance' && ` · $${v.balance.toFixed(2)}`}
+                  </p>
+                </div>
+                <span className="material-symbols-outlined text-error/50 text-base shrink-0">chevron_right</span>
+              </button>
+
+              {/* Acciones directas — mismo patrón que las tarjetas normales de la agenda del
+                  día, para resolver la mayoría de los casos sin salir del modal. */}
+              {(showIniciar || showReagendar || showNoAsistio || showCobrar || showContactar) && (
+                <div className="flex items-center gap-2 mt-2 pl-11 flex-wrap">
+                  {showIniciar && (
+                    <button
+                      disabled={starting}
+                      onClick={() => setPendingStart({ id: v.id, petName: v.pet.name, time: v.time })}
+                      className="min-h-9 flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/30 px-3 rounded-full text-xs font-semibold active:scale-95 transition-transform disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-base">
+                        {starting ? 'progress_activity' : 'play_arrow'}
+                      </span>
+                      Iniciar
+                    </button>
+                  )}
+                  {showCobrar && (
+                    <button
+                      onClick={() => {
+                        setShowVencidasModal(false);
+                        setNavCrumbs([{ label: 'Agenda', to: '/agenda' }]);
+                        navigate(`/citas/${v.id}/cobro`);
+                      }}
+                      className="min-h-9 flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/30 px-3 rounded-full text-xs font-semibold active:scale-95 transition-transform"
+                    >
+                      <span className="material-symbols-outlined text-base">point_of_sale</span>
+                      Cobrar
+                    </button>
+                  )}
+                  {showReagendar && (
+                    <button
+                      onClick={() => setReagendarSheet({ id: v.id, petName: v.pet.name, scheduledAt: v.scheduled_at })}
+                      className="min-h-9 flex items-center gap-1.5 bg-surface-container text-on-surface-variant border border-outline-variant px-3 rounded-full text-xs font-semibold active:scale-95 transition-transform"
+                    >
+                      <span className="material-symbols-outlined text-base">event_repeat</span>
+                      Reagendar
+                    </button>
+                  )}
+                  {showNoAsistio && (
+                    <button
+                      disabled={resolving}
+                      onClick={() => setPendingNoShow({ id: v.id, petName: v.pet.name })}
+                      className="min-h-9 flex items-center gap-1.5 bg-error/10 text-error border border-error/30 px-3 rounded-full text-xs font-semibold active:scale-95 transition-transform disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-base">person_off</span>
+                      No asistió
+                    </button>
+                  )}
+                  {showContactar && (
+                    <button
+                      onClick={() => setWaSheet({ clientId: v.client!.id, phone: v.client!.phone!, petId: v.pet.id })}
+                      className="min-h-9 min-w-9 flex items-center justify-center bg-green-100 text-green-700 rounded-full active:scale-95 transition-transform"
+                      aria-label="WhatsApp"
+                    >
+                      <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            );
+          })}
         </div>
       </div>
 
@@ -757,6 +936,47 @@ export function GlobalAgenda() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ZEUS-031: confirmación breve antes de marcar "No asistió" desde el modal de
+          pendientes — mismo patrón que la confirmación de "Iniciar". */}
+      {pendingNoShow && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setPendingNoShow(null)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+            <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm p-5 flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>person_off</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-on-surface">¿Marcar como "No asistió"?</p>
+                  <p className="text-xs text-on-surface-variant truncate">{pendingNoShow.petName}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setPendingNoShow(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm border border-outline-variant text-on-surface-variant">
+                  Cancelar
+                </button>
+                <button onClick={confirmNoShow}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-error text-on-error">
+                  No asistió
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {reagendarSheet && (
+        <ReagendarSheet
+          bookingId={reagendarSheet.id}
+          petName={reagendarSheet.petName}
+          scheduledAt={reagendarSheet.scheduledAt}
+          onClose={() => setReagendarSheet(null)}
+          onSaved={() => { setReagendarSheet(null); loadVencidas(); }}
+        />
       )}
     </div>
   );

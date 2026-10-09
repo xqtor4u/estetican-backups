@@ -2,12 +2,12 @@
 
 namespace Tests\Feature\Api;
 
-use App\Models\ApiToken;
 use App\Models\Client;
 use App\Models\Payment;
 use App\Models\Pet;
+use App\Models\Phone;
 use App\Models\SpaBooking;
-use App\Models\User;
+use App\Support\WhatsApp\PhoneNormalizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\Concerns\CreatesAdminUser;
@@ -15,8 +15,8 @@ use Tests\TestCase;
 
 class AgendaVencidasTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesAdminUser;
+    use RefreshDatabase;
 
     private function authHeader(): array
     {
@@ -185,5 +185,31 @@ class AgendaVencidasTest extends TestCase
         $response->assertOk();
         $ids = collect($response->json())->pluck('id');
         $this->assertFalse($ids->contains($booking->id));
+    }
+
+    /**
+     * ZEUS-031: la acción "Contactar" del modal de pendientes móvil necesita el teléfono del
+     * cliente — antes de esta sesión `vencidas()` no lo mandaba (a diferencia de `index()`, que
+     * ya usa `PhoneNormalizer::bestPhoneFor()`).
+     */
+    public function test_exposes_the_client_phone_for_the_contact_action(): void
+    {
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz'.uniqid()]);
+        Phone::create(['client_id' => $client->id, 'number' => '5512345678', 'type' => 'movil', 'sort_order' => 1]);
+        $pet = Pet::create(['client_id' => $client->id, 'name' => 'Mascota-'.uniqid()]);
+        $late = SpaBooking::create([
+            'pet_id' => $pet->id,
+            'scheduled_at' => now()->subHours(2),
+            'status' => 'scheduled',
+            'duration_minutes' => 30,
+            'total_estimated_price' => 100,
+        ]);
+
+        $response = $this->withHeaders($this->authHeader())->getJson('/api/agenda/vencidas');
+
+        $response->assertOk();
+        $row = collect($response->json())->firstWhere('id', $late->id);
+        $this->assertNotNull($row);
+        $this->assertSame(PhoneNormalizer::bestPhoneFor($client->fresh()), $row['client']['phone']);
     }
 }

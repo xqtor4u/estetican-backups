@@ -101,8 +101,13 @@ class UserSettingsController extends Controller
 
     public function updatePreferences(Request $request)
     {
+        // ZEUS-040: dos bloqueos reales y separados — el del backoffice web y el de la app
+        // móvil (antes solo vivía en localStorage del celular, sin que el backoffice lo viera
+        // ni lo pudiera editar). El backoffice puede ajustar los dos; la app móvil solo el suyo
+        // (ver Api\ProfileController::updatePreferences()).
         $validated = $request->validate([
             'screen_lock_idle_minutes' => 'required|integer|in:0,1,2,5,10,15,30',
+            'mobile_screen_lock_idle_minutes' => 'required|integer|in:0,1,2,5,10,15,30',
         ]);
 
         Auth::user()->update($validated);

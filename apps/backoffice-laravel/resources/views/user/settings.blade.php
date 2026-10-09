@@ -173,15 +173,16 @@
                     <h5 class="card-title mb-0 h6 text-uppercase letter-spacing-1 fw-bold text-secondary">Bloqueo de Pantalla</h5>
                 </div>
                 <div class="card-body p-4 pt-0">
-                    <p class="text-muted small mb-3">Minutos de inactividad antes de bloquear tu sesión automáticamente. Solo tu contraseña la desbloquea. "Nunca" desactiva el bloqueo por completo.</p>
+                    <p class="text-muted small mb-3">Minutos de inactividad antes de bloquear tu sesión automáticamente. Solo tu contraseña la desbloquea. "Nunca" desactiva el bloqueo por completo. El backoffice web y la app móvil se bloquean por separado — ajusta cada uno abajo.</p>
                     <form action="{{ route('user.settings.preferences') }}" method="POST">
                         @csrf
                         @method('PUT')
 
                         @php($currentIdleMinutes = (int) old('screen_lock_idle_minutes', $user->screen_lock_idle_minutes ?? config('backoffice.security.screen_lock_idle_minutes', 15)))
+                        @php($currentMobileIdleMinutes = (int) old('mobile_screen_lock_idle_minutes', $user->mobile_screen_lock_idle_minutes ?? 5))
 
                         <div class="mb-3">
-                            <label class="form-label small fw-bold">Minutos de inactividad</label>
+                            <label class="form-label small fw-bold">Minutos de inactividad — este backoffice (web)</label>
                             <select name="screen_lock_idle_minutes" class="form-select rounded-3" required>
                                 @if (! in_array($currentIdleMinutes, [1, 2, 5, 10, 15, 30, 0], true))
                                     <option value="{{ $currentIdleMinutes }}" selected>{{ $currentIdleMinutes }} min (valor anterior)</option>
@@ -193,6 +194,22 @@
                                 @endforeach
                             </select>
                             @error('screen_lock_idle_minutes') <small class="text-danger">{{ $message }}</small> @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Minutos de inactividad — app móvil</label>
+                            <select name="mobile_screen_lock_idle_minutes" class="form-select rounded-3" required>
+                                @if (! in_array($currentMobileIdleMinutes, [1, 2, 5, 10, 15, 30, 0], true))
+                                    <option value="{{ $currentMobileIdleMinutes }}" selected>{{ $currentMobileIdleMinutes }} min (valor anterior)</option>
+                                @endif
+                                @foreach ([1, 2, 5, 10, 15, 30, 0] as $minutes)
+                                    <option value="{{ $minutes }}" @selected($currentMobileIdleMinutes === $minutes)>
+                                        {{ $minutes === 0 ? 'Nunca' : "{$minutes} min" }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Este mismo ajuste también se puede cambiar desde la app móvil — es el mismo valor en los dos lados.</div>
+                            @error('mobile_screen_lock_idle_minutes') <small class="text-danger">{{ $message }}</small> @enderror
                         </div>
 
                         <div class="d-grid">

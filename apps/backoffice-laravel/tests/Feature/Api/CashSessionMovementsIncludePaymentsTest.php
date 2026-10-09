@@ -94,4 +94,63 @@ class CashSessionMovementsIncludePaymentsTest extends TestCase
         ]);
         $this->assertEquals(500, $response->json('totals.saldo_esperado'));
     }
+
+    /**
+     * ZEUS-035: el desglose por método de pago incluye TODOS los cobros del turno, no solo los
+     * de destino "caja" — si no, Tarjeta/Transferencia (siempre destino "banco") nunca
+     * aparecerían. Mismo criterio de normalización que `CashReportService::buildMetodosPagoData()`:
+     * agrupar sin importar mayúsculas/minúsculas, mostrar en Título Case.
+     */
+    public function test_session_totals_break_down_payments_by_payment_method(): void
+    {
+        $branch = Branch::create(['code' => 'BR'.uniqid(), 'name' => 'Sucursal '.uniqid()]);
+        $register = CashRegister::create(['branch_id' => $branch->id, 'name' => 'Caja principal']);
+        $user = $this->operatorWithBranch($branch->id);
+
+        CashSession::create([
+            'cash_register_id' => $register->id,
+            'branch_id' => $branch->id,
+            'opened_by_user_id' => $user->id,
+            'opened_at' => now()->subHour(),
+            'opening_amount' => 0,
+            'status' => 'abierta',
+        ]);
+
+        $client = Client::create(['first_name' => 'Ana', 'apellido_paterno' => 'Ruiz']);
+        $booking = SpaBooking::create([
+            'pet_id' => Pet::create(['client_id' => $client->id, 'name' => 'Firu'])->id,
+            'operator_id' => null,
+            'created_by_user_id' => $user->id,
+            'scheduled_at' => now()->subMinutes(30),
+            'duration_minutes' => 30,
+            'status' => 'completed',
+            'total_estimated_price' => 500,
+        ]);
+
+        Payment::create([
+            'client_id' => $client->id, 'payable_type' => SpaBooking::class, 'payable_id' => $booking->id,
+            'amount' => 150, 'payment_method' => 'efectivo', 'destination' => 'caja',
+            'category' => 'liquidacion', 'created_by_user_id' => $user->id,
+        ]);
+        // Mayúsculas distintas del renglón anterior — debe agruparse junto, no duplicar la fila.
+        Payment::create([
+            'client_id' => $client->id, 'payable_type' => SpaBooking::class, 'payable_id' => $booking->id,
+            'amount' => 50, 'payment_method' => 'Efectivo', 'destination' => 'caja',
+            'category' => 'liquidacion', 'created_by_user_id' => $user->id,
+        ]);
+        Payment::create([
+            'client_id' => $client->id, 'payable_type' => SpaBooking::class, 'payable_id' => $booking->id,
+            'amount' => 300, 'payment_method' => 'Tarjeta', 'destination' => 'banco',
+            'category' => 'liquidacion', 'created_by_user_id' => $user->id,
+        ]);
+
+        $response = $this->withHeaders($this->createAdminAuthHeader($user))->getJson('/api/cash/session');
+
+        $response->assertOk();
+        $byMethod = collect($response->json('totals.by_payment_method'))->keyBy('method');
+        $this->assertEquals(200, $byMethod['Efectivo']['amount']);
+        $this->assertEquals(300, $byMethod['Tarjeta']['amount']);
+        // Tarjeta es destino "banco" — no debe sumar al saldo esperado (solo efectivo lo hace).
+        $this->assertEquals(200, $response->json('totals.saldo_esperado'));
+    }
 }

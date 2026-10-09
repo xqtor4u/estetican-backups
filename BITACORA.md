@@ -1,5 +1,66 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 09/10/2026 (cont.) — Push, limpieza de `docs/tecnico/tests/` y porte en bloque al móvil (`ZEUS-031/032/034/035/040`)
+
+### 📝 Resumen
+
+- **Push:** los 11 commits del 07–09/10 (`c0d4885` … `2730a62`) seguían solo en la OPi. El
+  clasificador de permisos bloqueó el `git push` de Claude; lo corrió Tomas
+  (`6701be2..2730a62`).
+- **`docs/tecnico/tests/`** (Playwright contra `tstmov`, 04/10) movida fuera del repo a
+  `~/pruebas-tstmov/`, sin `node_modules`/logs/vacíos (19 MB → 60 KB). `test-tstmov.js` tenía dos
+  contraseñas de `tst` escritas a mano (usuario `chatgpt` y un operador restringido): ahora lee
+  `TSTMOV_USER`/`TSTMOV_PASS`/`TSTMOV_OP_USER`/`TSTMOV_OP_PASS`. **Esas dos contraseñas se
+  imprimieron en la terminal de esta sesión al revisar el script (falla de la regla #5)** — siguen
+  vigentes en `tst`, rotarlas.
+- **Comparación `mov` vs `tstmov`:** el móvil de producción estaba atrasado en todo lo de `tst` del
+  11 al 27/09. EST-028 (que se creía pendiente) ya estaba portado desde el 27/09 (`d492e0e`); la
+  diferencia de `MobCaja.tsx` era ZEUS-034/035.
+- **Porte en bloque** (a pedido de Tomas, tras revisarlas en `tstmov`): `b5088a1` (ZEUS-034/035
+  cerrar turno + desglose por método de pago), `0248a26` (ZEUS-031 pendientes accionables),
+  `024c76a` (ZEUS-032 búsqueda universal), `8d9a9b9` (ZEUS-040 bloqueo móvil en servidor).
+  - Orden respaldo → migración → código: `backups/estetican_pre_porte_movil_20261009_1151.sql`
+    (93 tablas), luego `2026_09_12_090000_add_mobile_screen_lock_idle_minutes_to_users_table`.
+  - Probado antes en un `git worktree` aislado. Móvil: `git apply` limpio. Backend: 6 hunks
+    rechazados resueltos a mano (desglose en `CashController::session()`, teléfono en
+    `AgendaController::vencidas()`, `use SearchController` en `routes/api.php`, 2 líneas en
+    `User.php`). Lo que queda distinto de `tst` es estilo (FQCN vs `use`) y comentarios.
+  - Fuera a propósito: ZEUS-043 Fase 2 (`TimelineBar`, descartada por la Fase 3 ya portada),
+    `useBusinessName`/`rpName` de multi-tenant, y los cambios sin commitear de `tst` (EST-001).
+  - `view:clear`/`config:clear`/`route:clear`. Bundle móvil `index-D7aDkpbP.js` /
+    `index-8kej7vB8.css` (`node:20-alpine`), md5 host = contenedor, servido por `mov.estetican.org`.
+    `tsc`: solo los 2 errores preexistentes de `MobCajaMovimientos`.
+  - Pruebas tocadas: 53/53. Suite completa: **1002 ok / 33 fallas preexistentes** (mismas 11 clases del baseline: `ClientAddressHarmonization`, `ClientLivePetsCatalog`, `Example`, `HotelReservationResourceBlocking`, `OperatorBranchSelection`, `OperatorPhotoUpload`, `PetCatalogRootViews`, `PetDependenciesCrud`, `Resource*` ×3); +18 pruebas nuevas, todas en verde. Corrida a las 12:00, sin fallas por hora.
+  - Smoke como admin (tinker contra producción): búsqueda 5/5/5, `vencidas()` con `phone`,
+    `toApiArray()` con `mobile_screen_lock_idle_minutes=5` y `can_close_caja`, `/user/settings` 200
+    con el campo nuevo.
+  - Pint: los 2 tests de caja formateados; los avisos en `CashController`, `ProfileController`,
+    `UserSettingsController` y `ScreenLockTest` ya existían antes del porte.
+
+**Rutas (regla de seguridad #3):** 3 nuevas —
+`POST api/cash/sessions/{cashSession}/close` (`permission:caja.cerrar`, en producción solo admin),
+`GET api/search` (`permission:ver mascotas|ver clientes|ver agenda`, cada grupo filtrado por su
+permiso), `PATCH api/me/preferences` (categoría (c): preferencias del propio usuario, ya listada en
+`RoutePermissionCoverageTest`). Test en verde. Ninguna sin protección.
+
+### 📁 Archivos tocados
+- Backend: `Api/CashController`, `Api/AgendaController`, `Api/ProfileController`, `Api/SearchController` (nuevo),
+  `UserSettingsController`, `Models/User`, `user/settings.blade.php`, `routes/api.php`, migración nueva;
+  tests `CashCloseSessionTest` y `UniversalSearchTest` (nuevos), `CashSessionMovementsIncludePaymentsTest`,
+  `AgendaVencidasTest`, `ScreenLockTest`.
+- Móvil: `App.tsx`, `AppLockContext.tsx`, `AuthContext.tsx`, `ScreenHeader.tsx`, `hooks/useUserPrefs.ts`,
+  `admin/GlobalAgenda.tsx`, `admin/MobCaja.tsx`, `admin/MobUserConfig.tsx`, `admin/UniversalSearch.tsx` (nuevo).
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md`, `BITACORA.md`.
+
+### 🛑 Pendientes activos
+- Rotar en `tst` las contraseñas de `chatgpt` y del operador restringido (expuestas en esta sesión).
+- Cada usuario del móvil vuelve a 5 min de bloqueo (el valor que tuviera en `localStorage` ya no se usa).
+- `caja.cerrar` solo lo tiene admin: decidir si otros roles cierran turno desde el móvil.
+- Marcar en el backlog de Zeus ZEUS-031/032/034/035/040 como portados (Zeus tiene cambios ajenos sin commitear en `MANUAL_PRUEBAS_*`; no se tocó).
+- Siguen: configurar días de operación/festivos, roles de `agenda.series_recurrentes`, "Avisos por correo", punto violeta móvil (EST-001).
+
+---
+
 ## 📅 Sesión: 09/10/2026 — Citas recurrentes Fase 3 portada a producción (`ZEUS-047`)
 
 ### 📝 Resumen

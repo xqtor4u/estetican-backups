@@ -9,6 +9,7 @@ import { PetSearch } from './admin/PetSearch';
 import { PetDetail } from './admin/PetDetail';
 import { ClientDetail } from './admin/ClientDetail';
 import { ClientSearch } from './admin/ClientSearch';
+import { UniversalSearch } from './admin/UniversalSearch';
 import { GroomerPicker } from './admin/GroomerPicker';
 import { GroomerAgenda } from './admin/GroomerAgenda';
 import { Directory } from './admin/Directory';
@@ -376,6 +377,7 @@ export default function App() {
             <Route path="/citas/:id/cobro"            element={<AdminLayout><MobCobro /></AdminLayout>} />
             <Route path="/mascotas/:id"               element={<AdminLayout><PetDetail /></AdminLayout>} />
             <Route path="/clientes/seleccionar" element={<AdminLayout><ClientSearch /></AdminLayout>} />
+            <Route path="/buscar" element={<AdminLayout><UniversalSearch /></AdminLayout>} />
             <Route path="/clientes/nuevo"       element={<AdminLayout><ClientDetail /></AdminLayout>} />
             <Route path="/clientes/:id"         element={<AdminLayout><ClientDetail /></AdminLayout>} />
             <Route path="/finanzas"             element={<AdminLayout><MobFinanzas /></AdminLayout>} />
