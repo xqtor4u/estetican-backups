@@ -41,16 +41,14 @@
             <span>· {{ $series->recurrenceRule()->label() }}</span>
             <span>· restan {{ $series->remainingCount() }}</span>
             <span>· vence {{ $series->ends_on->format('d/m/Y') }}</span>
+            @can('agenda.series_recurrentes')
+                <a href="{{ route('agenda.series.show', $series) }}" class="small">Ver serie</a>
+            @endcan
             @if($booking->isSeriesTentative())
                 <span class="badge rounded-pill border" style="border-color: #7c3aed !important; color: #5b21b6;">Pre-programada — falta confirmar, sin recordatorios</span>
                 @if($booking->status === 'scheduled')
                     @can('editar agenda')
-                        <form action="{{ route('agenda.series.pin', $booking) }}" method="POST" class="ms-auto">
-                            @csrf
-                            <button type="submit" class="btn btn-sm text-white" style="background: #7c3aed;" title="Confirma esta cita en este día y hora, sin esperar a que se confirme la serie completa.">
-                                <i class="bi bi-pin-angle-fill me-1"></i> Fijar
-                            </button>
-                        </form>
+                        <span class="ms-auto d-inline-flex gap-1"><x-series-actions :booking="$booking" /></span>
                     @endcan
                 @endif
             @elseif($booking->series_confirmed_at)

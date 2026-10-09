@@ -12,7 +12,7 @@
 | **Identidad** | `users`, `operators`, `operator_roles`, `branches` |
 | **Clientes y mascotas** | `clients`, `addresses`, `phones`, `pets`, `pet_medical_alerts`, `pet_photos`, `pet_vaccinations` |
 | **Catálogo** | `services` |
-| **Agenda SPA** | `spa_bookings`, `spa_booking_services`, `spa_booking_series`, `non_working_days` |
+| **Agenda SPA** | `spa_bookings`, `spa_booking_services`, `spa_booking_series`, `spa_booking_series_events`, `non_working_days` |
 | **Presupuestos y cobro** | `quotes`, `quote_items`, `payments`, `cash_ledgers`, `bank_ledgers` |
 | **Módulo contable** | `accounts`, `payment_methods`, `document_series`, `documents`, `journal_entries`, `journal_entry_lines`, `cash_registers`, `cash_sessions`, `cash_movements` |
 | **Módulo Clínico Veterinario** (independiente, apagado por defecto — BL-046) | `clinical_visits`, `pet_weights`, `pet_allergies`, `pet_conditions`, `clinical_diagnoses`, `clinical_prescriptions`, `clinical_prescription_items`, `clinical_attachments`, `items` (BL-050, fundación del futuro inventario) |
@@ -61,6 +61,7 @@ Usuarios del backoffice. También representan operadores cuando `is_operator = t
 | `google_personal_email` | string nullable | Sincronización con Google Calendar (10/08/2026) — email personal donde este usuario ve calendarios de operador, distinto de `email` (login). Editable en `user/edit.blade.php`, gateado por `role:admin\|super-admin` |
 | `google_calendar_visibility` | string default `'personal'` | `personal` = solo el calendario del operador vinculado (`operator_id`), si tiene uno con calendario ya creado; `all` = todos los calendarios de operador que existan hoy. Ver `App\Console\Commands\SincronizarGoogleCalendarCommand::syncViewers()` |
 | `google_calendar_notify_email` | boolean default `false`, después de `google_calendar_visibility` | `SYNC-047` (28/08/2026, portado desde `tst`) — si el usuario quiere recibir el correo de aviso de Google Calendar al compartírsele un calendario. Editable en `user/edit.blade.php`, validado en `UserController::update()` (`nullable|boolean`), en `$fillable` + cast `boolean` |
+| `email_notifications` | json nullable, después de `google_calendar_notify_email` | ZEUS-047 Fase 3 (09/10/2026, portado desde `tst`) — avisos por correo que este usuario quiere recibir: `{tipo: bool}`. Catálogo en `App\Support\Notifications\EmailNotificationTypes` (hoy solo `series_daily`, el reporte diario de citas recurrentes); destinatarios con `EmailNotificationTypes::recipients($tipo)`. Tarjeta "Avisos por correo" en `user/edit.blade.php`; `UserController::update()` normaliza todas las llaves a bool. Base para ZEUS-048 (centro de avisos) |
 | `remember_token` | string nullable | |
 | `email_verified_at` | timestamp nullable | |
 | `timestamps` | | `created_at`, `updated_at` |
@@ -578,7 +579,8 @@ Citas de servicio SPA. Ciclo de vida: `scheduled` → `work_order` → `complete
 | `series_id` | FK → `spa_booking_series` nullable, nullOnDelete | ZEUS-047 (07/10/2026) — serie recurrente a la que pertenece; null = cita suelta |
 | `series_original_at` | datetime nullable | Fecha/hora que dictaba la regla de la serie; solo se llena si la cita se **recorrió** (festivo, día cerrado, choque) |
 | `series_move_reason` | string(190) nullable | Por qué se recorrió ("Día inhábil: …", "El negocio no abre los domingos.", "…ya tiene una cita…") |
-| `series_confirmed_at` | timestamp nullable | "Fijar": cuándo se confirmó esta cita de la serie. **Toda cita con `series_id` y sin este campo es pre-programada** (`SpaBooking::isSeriesTentative()`/`scopeSeriesTentative()`): aparta horario, se pinta tenue con punto violeta de contorno y **no manda recordatorio automático** (`whatsapp:enviar-recordatorios-cita`). Se fija una por una (regla de Tomas), sin importar el estado de la serie |
+| `series_confirmed_at` | timestamp nullable | "Fijar": cuándo se confirmó esta cita de la serie. **Toda cita con `series_id` y sin este campo es pre-programada** (`SpaBooking::isSeriesTentative()`/`scopeSeriesTentative()`): aparta horario, se pinta tenue con punto violeta de contorno y **no manda recordatorio automático** (`whatsapp:enviar-recordatorios-cita`). Se fija una por una (regla de Tomas), sin importar el estado de la serie. Desde la Fase 3 las no fijadas son **virtuales**: "Descartar" las quita y `series:cierre-diario` (23:50) borra las que pasaron su día sin fijar |
+| `series_confirmed_by_user_id` | FK → `users` nullable, nullOnDelete | ZEUS-047 Fase 3 (09/10/2026) — quién la fijó |
 | `timestamps` | | |
 
 > `work_order` es el estado activo con orden de trabajo abierta. No existe `in_process`.
@@ -595,7 +597,7 @@ Se crean desde "Repetir esta cita" en `agenda/create` (backoffice) o `MobCitaNue
 | `id` | bigint PK | |
 | `pet_id` | FK → `pets`, cascadeOnDelete | |
 | `branch_id` | FK → `branches` nullable, nullOnDelete | Sucursal de las citas (la del operador responsable) |
-| `created_by_user_id` / `reviewed_by_user_id` | FK → `users` nullable, nullOnDelete | Quién la creó / quién la revisó (revisión: Fase 3, aún sin UI) |
+| `created_by_user_id` / `reviewed_by_user_id` | FK → `users` nullable, nullOnDelete | Quién la creó / quién la revisó (columnas de revisión sin uso: la Fase 3 se resolvió con Fijar/Descartar por cita, no con revisión de la serie) |
 | `reviewed_at` | timestamp nullable | |
 | `status` | string(20) | `pending_review` (por omisión) / `active` / `ended` / `cancelled`. **No confirma citas** — eso es `spa_bookings.series_confirmed_at` |
 | `rule` | json | `RecurrenceRule::toArray()`: `{type: every_n_days, interval_days}` o `{type: monthly_weekday, week_of_month (1–4, -1 = último), weekday (0 = domingo)}` |
@@ -604,7 +606,24 @@ Se crean desde "Repetir esta cita" en `agenda/create` (backoffice) o `MobCitaNue
 | `ends_on` | date | Vigencia (6 meses / 1 año / fecha). Tope de 60 citas por serie |
 | `skipped_occurrences` | json nullable | Fechas que no encontraron lugar en 14 días: `[{original_at, reason}]` |
 | `notes` | text nullable | |
-| `timestamps` | | Índice `(status, ends_on)` para el futuro reporte mensual |
+| `paused_from` / `paused_until` | date nullable | ZEUS-047 Fase 3 (09/10/2026) — pausa por rango: las citas del rango se quitan (o cancelan si estaban fijadas) y la serie vuelve sola a "Activas" al pasar `paused_until` (`scopeTab`, `isPausedOn()`) |
+| `cancelled_at` | timestamp nullable | Fase 3 — "Cancelar de aquí en adelante" |
+| `cancelled_by_user_id` | FK → `users` nullable, nullOnDelete | Fase 3 |
+| `timestamps` | | Índice `(status, ends_on)` — lo usa la pestaña "Terminan este mes" de `/agenda/series` |
+
+### `spa_booking_series_events`
+ZEUS-047 Fase 3 (09/10/2026, portado desde `tst`) — historial de una serie y fuente del reporte diario por correo (`series:cierre-diario`). Como las citas virtuales se **borran** al descartarse o expirar, aquí queda su rastro.
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | bigint PK | |
+| `series_id` | FK → `spa_booking_series`, cascadeOnDelete | |
+| `spa_booking_id` | bigint nullable, **sin FK** a propósito | La cita puede ya no existir (descartada/expirada) |
+| `type` | string(20) | `pinned` / `discarded` / `expired` / `paused` / `cancelled` / `extended` (`SpaBookingSeriesEvent::LABELS`) |
+| `scheduled_at` | datetime nullable | Fecha/hora de la cita afectada |
+| `user_id` | FK → `users` nullable, nullOnDelete | Quién lo hizo; null = el cierre automático |
+| `details` | string(255) nullable | |
+| `timestamps` | | Índice `(type, created_at)` para el reporte del día |
 
 ### `non_working_days`
 ZEUS-047 (07/10/2026) — días inhábiles (festivos, cierres). Pantalla `/dias-inhabiles` (menú Clientes, permisos de sucursales). Una cita de una serie que cae aquí se recorre al siguiente día y hora libre.

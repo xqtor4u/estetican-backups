@@ -44,12 +44,18 @@ class BookingSeriesService
      *
      * @return array<int, array{original_at: Carbon, scheduled_at: ?Carbon, reason: ?string}>
      */
-    public function plan(array $template, RecurrenceRule $rule, Carbon $start, Carbon $endsOn): array
+    public function plan(array $template, RecurrenceRule $rule, Carbon $start, Carbon $endsOn, ?Carbon $after = null): array
     {
         $claimed = [];
         $plan = [];
 
         foreach ($rule->occurrences($start, $endsOn) as $original) {
+            // Al extender: la regla se sigue contando desde el inicio original de la serie
+            // (misma cadencia), pero solo se ubican las fechas nuevas.
+            if ($after && $original->lte($after)) {
+                continue;
+            }
+
             [$slot, $reason] = $this->locate($template, $original, $claimed);
 
             if ($slot) {
@@ -95,6 +101,54 @@ class BookingSeriesService
             $series->update(['skipped_occurrences' => $skipped ?: null]);
 
             return $series;
+        });
+    }
+
+    /**
+     * ZEUS-047 Fase 3: extiende la vigencia. Las fechas nuevas pasan por la misma validación de
+     * choques que el alta; las que no tienen lugar se suman a `skipped_occurrences`.
+     *
+     * @return int citas nuevas creadas
+     */
+    public function extend(SpaBookingSeries $series, Carbon $newEndsOn): int
+    {
+        // La regla tiene tope de citas contado desde el inicio de la serie: más allá no hay fechas,
+        // así que la vigencia se recorta a la última posible en vez de prometer citas que no existirán.
+        $occurrences = $series->recurrenceRule()->occurrences($series->starts_at, $newEndsOn);
+        if (count($occurrences) >= RecurrenceRule::MAX_OCCURRENCES) {
+            $newEndsOn = end($occurrences)->copy()->startOfDay();
+        }
+
+        if ($newEndsOn->lte($series->ends_on)) {
+            throw new \InvalidArgumentException(count($occurrences) >= RecurrenceRule::MAX_OCCURRENCES
+                ? 'La serie ya llegó al tope de '.RecurrenceRule::MAX_OCCURRENCES.' citas; crea una serie nueva para seguir.'
+                : 'La nueva vigencia debe ser posterior a la actual.');
+        }
+
+        return DB::transaction(function () use ($series, $newEndsOn) {
+            $template = $series->template;
+            $created = 0;
+            $skipped = $series->skipped_occurrences ?? [];
+
+            $plan = $this->plan($template, $series->recurrenceRule(), $series->starts_at, $newEndsOn, $series->ends_on->copy()->endOfDay());
+            foreach ($plan as $item) {
+                if (! $item['scheduled_at']) {
+                    $skipped[] = ['original_at' => $item['original_at']->toDateTimeString(), 'reason' => $item['reason']];
+
+                    continue;
+                }
+
+                $this->materialize($series, $template, $item);
+                $created++;
+            }
+
+            $series->update([
+                'ends_on' => $newEndsOn->toDateString(),
+                'skipped_occurrences' => $skipped ?: null,
+                'status' => $series->status === SpaBookingSeries::STATUS_ENDED ? SpaBookingSeries::STATUS_ACTIVE : $series->status,
+            ]);
+
+            return $created;
         });
     }
 

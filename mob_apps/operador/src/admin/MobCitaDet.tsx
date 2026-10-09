@@ -935,6 +935,27 @@ export function MobCitaDet() {
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs">Pre-programada: falta confirmar, sin recordatorio.</p>
                 {booking.status === 'scheduled' && (
+                  <div className="shrink-0 flex items-center gap-2">
+                  <button
+                    disabled={pinning}
+                    onClick={async () => {
+                      if (!window.confirm('¿Descartar esta cita de la serie? Se quita de la agenda; la serie sigue con las demás.')) return;
+                      setPinning(true);
+                      setSaveErr(null);
+                      try {
+                        const res = await fetch(`/api/bookings/${booking.id}/descartar`, { method: 'POST', headers: { Accept: 'application/json' } });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) { setSaveErr(data.message ?? (res.status === 403 ? 'No tienes permiso para descartar citas.' : `Error ${res.status}`)); return; }
+                        navigate(-1);
+                      } catch { setSaveErr('No se pudo conectar con el servidor.'); }
+                      finally { setPinning(false); }
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 rounded-full text-sm font-semibold border disabled:opacity-60"
+                    style={{ borderColor: 'var(--series-accent)', color: 'var(--series-fg)' }}
+                  >
+                    <span className="material-symbols-outlined text-base">event_busy</span>
+                    Descartar
+                  </button>
                   <button
                     disabled={pinning}
                     onClick={async () => {
@@ -948,12 +969,13 @@ export function MobCitaDet() {
                       } catch { setSaveErr('No se pudo conectar con el servidor.'); }
                       finally { setPinning(false); }
                     }}
-                    className="shrink-0 flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold text-white disabled:opacity-60"
+                    className="flex items-center gap-1 px-4 py-2 rounded-full text-sm font-bold text-white disabled:opacity-60"
                     style={{ background: '#7c3aed' }}
                   >
                     <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>push_pin</span>
                     {pinning ? 'Fijando…' : 'Fijar'}
                   </button>
+                  </div>
                 )}
               </div>
             ) : (

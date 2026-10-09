@@ -7,6 +7,7 @@ use App\Models\Operator;
 use App\Models\OperatorRole;
 use App\Models\User;
 use App\Support\Images\UploadLimit;
+use App\Support\Notifications\EmailNotificationTypes;
 use App\Support\UserPhotoImageManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -243,6 +244,8 @@ class UserController extends Controller
             'google_personal_email' => 'nullable|email|max:255',
             'google_calendar_visibility' => ['nullable', Rule::in(['personal', 'all'])],
             'google_calendar_notify_email' => 'nullable|boolean',
+            'email_notifications' => 'nullable|array',
+            'email_notifications.*' => 'boolean',
         ], [
             'required' => 'El campo :attribute es obligatorio.',
             'email' => 'El :attribute debe ser un correo válido.',
@@ -257,6 +260,11 @@ class UserController extends Controller
         } else {
             $validated['password'] = Hash::make($validated['password']);
         }
+
+        // Avisos por correo: se guardan todas las claves conocidas, encendidas o no.
+        $validated['email_notifications'] = collect(EmailNotificationTypes::all())
+            ->map(fn ($meta, $key) => (bool) ($validated['email_notifications'][$key] ?? false))
+            ->all();
 
         $user->fill($validated);
 

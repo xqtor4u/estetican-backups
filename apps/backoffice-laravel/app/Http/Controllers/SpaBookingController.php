@@ -9,6 +9,7 @@ use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Contracts\BookingServiceInterface;
 use App\Domain\Planning\Series\BookingSeriesService;
 use App\Domain\Planning\Series\RepeatInput;
+use App\Domain\Planning\Series\SeriesLifecycleService;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Domain\Planning\Services\OperatorServiceResolver;
 use App\Domain\Planning\Services\ServiceLineActionService;
@@ -115,6 +116,10 @@ class SpaBookingController extends Controller
         // fechas futuras, para fijarlas de un clic sin navegar día por día.
         $pinFilter = $request->boolean('por_fijar');
         $pendingPinCount = SpaBooking::visibleTo($request->user())->seriesTentative()->count();
+        // ZEUS-047 Fase 3: revisión mensual — series que se acaban este mes, para extenderlas a tiempo.
+        $endingSeriesCount = $request->user()?->can('agenda.series_recurrentes')
+            ? SpaBookingSeries::query()->tab('terminan')->count()
+            : 0;
 
         if ($pinFilter) {
             $bookingsQuery->seriesTentative();
@@ -211,7 +216,7 @@ class SpaBookingController extends Controller
             'selectedDate', 'selectedDateInput', 'operationalDateLabel', 'search',
             'totalEstimatedMinutes', 'scheduledCount', 'estimatedRevenue', 'petsWithAgenda',
             'firstScheduledAt', 'lastScheduledEndAt', 'sort', 'direction', 'agendaOverviewCount', 'hotelModuleEnabled',
-            'blockedToday', 'operators', 'pinFilter', 'pendingPinCount'
+            'blockedToday', 'operators', 'pinFilter', 'pendingPinCount', 'endingSeriesCount'
         ));
     }
 
@@ -899,7 +904,7 @@ class SpaBookingController extends Controller
      * ZEUS-047 — "Fijar": confirma esta sola cita de una serie pre-programada (pasa a punto
      * sólido y vuelve a recibir recordatorio) sin esperar a que se confirme la serie completa.
      */
-    public function pinSeriesBooking(SpaBooking $booking): RedirectResponse
+    public function pinSeriesBooking(SpaBooking $booking, SeriesLifecycleService $lifecycle): RedirectResponse
     {
         $this->ensureVisible($booking);
 
@@ -914,11 +919,31 @@ class SpaBookingController extends Controller
             return $back->with('error', 'Solo se puede fijar una cita que está Programada.');
         }
 
-        $booking->update(['series_confirmed_at' => now()]);
+        $lifecycle->pin($booking, auth()->user());
 
         $label = $booking->pet?->name ? "{$booking->pet->name} · " : '';
 
         return $back->with('success', "Cita fijada: {$label}{$booking->scheduled_at->format('d/m/Y H:i')} queda confirmada.");
+    }
+
+    /** ZEUS-047 Fase 3: "no se atenderá" — la cita virtual sale de la agenda (queda en el historial de la serie). */
+    public function discardSeriesBooking(SpaBooking $booking, SeriesLifecycleService $lifecycle): RedirectResponse
+    {
+        $this->ensureVisible($booking);
+
+        $label = ($booking->pet?->name ? "{$booking->pet->name} · " : '').$booking->scheduled_at->format('d/m/Y H:i');
+        $seriesId = $booking->series_id;
+
+        if (! $lifecycle->discard($booking, auth()->user())) {
+            return redirect()->back(fallback: route('agenda.show', $booking))
+                ->with('error', 'Solo se puede descartar una cita de serie sin fijar, Programada y sin presupuesto ni pago.');
+        }
+
+        // La cita ya no existe: no se puede volver a su detalle.
+        $back = url()->previous();
+        $target = str_contains($back, '/agenda/'.$booking->id) ? route('agenda.index') : $back;
+
+        return redirect($target)->with('success', "Cita descartada: {$label}. La serie sigue con las demás.");
     }
 
     public function start(Request $request, SpaBooking $booking): RedirectResponse

@@ -1,5 +1,50 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 09/10/2026 — Citas recurrentes Fase 3 portada a producción (`ZEUS-047`)
+
+### 📝 Resumen
+
+Tomas revisó la Fase 3 en `tst`/`tstmov` y pidió portarla. Construcción y diseño en
+`/opt/www/zeus-estetican/BITACORA.md` (08/10/2026) y `ZEUS-047` en el backlog de Zeus.
+
+- Orden respaldo → migraciones → código: `backups/estetican_pre_zeus047f3_20261009_0017.sql`
+  (594 KB, 92 tablas; un primer intento salió vacío por usar `$MYSQL_DATABASE`, que no existe en
+  `estetican_mysql` — se rehízo con el nombre explícito `estetican`), luego
+  `2026_10_08_100000_series_phase3_lifecycle` (`spa_booking_series_events`, pausa/cancelación en
+  `spa_booking_series`, `spa_bookings.series_confirmed_by_user_id`, `users.email_notifications`).
+- Código desde `b381be1`: 19 archivos copiados (nuevos o idénticos a la base de `tst`); 5 con
+  `git apply` limpio (`SpaBookingController`, `OperationsNavigation`, `agenda/index`,
+  `agenda/show`, `routes/api.php`); 2 a mano por contexto distinto (`User.php` sin
+  `mobile_screen_lock_idle_minutes`, `AgendaPage.php`).
+- `view:clear`/`config:clear`/`route:clear`; `schedule:list` muestra `series:cierre-diario` a
+  las 23:50. Bundle móvil `index-DNGXIBI_.js` (node:20-alpine), servido por `estetican_mob`.
+- Smoke como admin: `/agenda/series` (4 pestañas), `/agenda/series/1`, `/agenda`,
+  `/agenda/92`, `/users/2/edit` → 200.
+- Suite: 981 ok / 36 fallas = 33 preexistentes + 3 que dependen de la hora
+  (`AgendaAlertBadgeTest`, `AgendaOperatorPorAsignarTest`, `AgendaVencidasTest`: crean citas
+  "hace 2 horas"/"hoy" y la suite corrió pasada la medianoche; fallan igual en `tst` a esa hora).
+- Datos reales: 1 serie (Habibi) con 6 citas sin fijar, todas del 07/11/2026 en adelante — el
+  cierre diario no borra nada hasta que pase la primera sin fijar.
+
+**Rutas (regla de seguridad #3):** 7 nuevas, todas con `permission:` —
+`agenda/series`, `agenda/series/{series}`, `.../pausar`, `.../cancelar`, `.../extender`
+(`agenda.series_recurrentes`); `POST agenda/{booking}/descartar` y
+`POST api/bookings/{booking}/descartar` (`editar agenda`). `RoutePermissionCoverageTest` pasa.
+Ninguna en categoría (c).
+
+### 📁 Archivos tocados
+- Backoffice: los 27 archivos de `b381be1` en Zeus fuera de `mobile/` (incluye `tests/Feature/Series/SeriesLifecycleTest.php`).
+- `mob_apps/operador/src/admin/MobCitaDet.tsx`.
+- `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md`, `BITACORA.md`.
+
+### 🛑 Pendientes activos
+- Nadie recibe todavía el reporte diario: cada admin debe activar "Avisos por correo" en su ficha.
+- Siguen vigentes los pendientes del 07/10 (push incluido: ahora también este commit).
+- Punto violeta en agendas del móvil (bloqueado por EST-001 en `tst`).
+- `docs/tecnico/tests/` sigue sin versionar.
+
+---
+
 ## 📅 Sesión: 08/10/2026 — Morado de citas recurrentes ilegible en modo oscuro del móvil (`ZEUS-047`)
 
 ### 📝 Resumen

@@ -14,6 +14,10 @@ Artisan::command('inspire', function () {
 // archivo (no existía ningún cron de Laravel antes de esto).
 Schedule::command('whatsapp:enviar-recordatorios-cita')->everyFifteenMinutes()->withoutOverlapping();
 
+// ZEUS-047 Fase 3 — cierre del día de las series recurrentes: borra las citas virtuales que nadie
+// fijó y manda el reporte diario a quien lo activó en su usuario. Hora del negocio (system_timezone).
+Schedule::command('series:cierre-diario')->dailyAt('23:50')->withoutOverlapping();
+
 // Sincronización de citas SPA a Google Calendar por operador, un solo sentido.
 // Apagada por default (google_calendar_sync_enabled en SystemSettings) — no hace nada
 // hasta que se configure la credencial de la cuenta de servicio y se active a propósito.

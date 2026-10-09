@@ -17,7 +17,16 @@ class OperationsNavigation
                 'label' => 'Agenda',
                 'description' => 'Servicios de SPA, estancias de Hotel y disponibilidad operativa general.',
                 'route' => route('agenda.index'),
-                'active' => request()->routeIs('agenda.*'),
+                'active' => request()->routeIs('agenda.*') && ! request()->routeIs('agenda.series.index', 'agenda.series.show'),
+            ];
+        }
+
+        if ($user?->can('agenda.series_recurrentes') || $user?->is_super_admin) {
+            $items[] = [
+                'label' => 'Series recurrentes',
+                'description' => 'Citas que se repiten: pausar, cancelar de aquí en adelante y extender.',
+                'route' => route('agenda.series.index'),
+                'active' => request()->routeIs('agenda.series.index', 'agenda.series.show'),
             ];
         }
 

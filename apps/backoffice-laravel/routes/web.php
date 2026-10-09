@@ -53,6 +53,7 @@ use App\Http\Controllers\ResourcePhotoController;
 use App\Http\Controllers\ScreenLockController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SpaBookingController;
+use App\Http\Controllers\SpaBookingSeriesController;
 use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserSettingsController;
@@ -231,11 +232,18 @@ Route::middleware(['auth', 'screen.lock'])->group(function () {
     Route::get('agenda', [SpaBookingController::class, 'index'])->name('agenda.index')->middleware('permission:ver agenda');
     Route::get('agenda/check-availability', [SpaBookingController::class, 'checkAvailability'])->name('agenda.check-availability')->middleware('permission:ver agenda');
     Route::get('agenda/next-slot', [SpaBookingController::class, 'nextSlot'])->name('agenda.next-slot')->middleware('permission:ver agenda');
+    // ZEUS-047 Fase 3: Agenda → Series recurrentes (antes de agenda/{booking} para que "series" no se lea como id).
+    Route::get('agenda/series', [SpaBookingSeriesController::class, 'index'])->name('agenda.series.index')->middleware('permission:agenda.series_recurrentes');
+    Route::get('agenda/series/{series}', [SpaBookingSeriesController::class, 'show'])->name('agenda.series.show')->middleware('permission:agenda.series_recurrentes');
+    Route::post('agenda/series/{series}/pausar', [SpaBookingSeriesController::class, 'pause'])->name('agenda.series.pause')->middleware('permission:agenda.series_recurrentes');
+    Route::post('agenda/series/{series}/cancelar', [SpaBookingSeriesController::class, 'cancel'])->name('agenda.series.cancel')->middleware('permission:agenda.series_recurrentes');
+    Route::post('agenda/series/{series}/extender', [SpaBookingSeriesController::class, 'extend'])->name('agenda.series.extend')->middleware('permission:agenda.series_recurrentes');
     Route::get('agenda/{booking}', [SpaBookingController::class, 'show'])->name('agenda.show')->middleware('permission:ver agenda');
     Route::get('agenda/{booking}/edit', [SpaBookingController::class, 'edit'])->name('agenda.edit')->middleware('permission:editar agenda');
     Route::put('agenda/{booking}', [SpaBookingController::class, 'update'])->name('agenda.update')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/iniciar', [SpaBookingController::class, 'start'])->name('agenda.start')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/fijar', [SpaBookingController::class, 'pinSeriesBooking'])->name('agenda.series.pin')->middleware('permission:editar agenda'); // ZEUS-047
+    Route::post('agenda/{booking}/descartar', [SpaBookingController::class, 'discardSeriesBooking'])->name('agenda.series.discard')->middleware('permission:editar agenda'); // ZEUS-047 Fase 3
     Route::post('agenda/{booking}/quotes', [SpaBookingController::class, 'storeQuote'])->name('agenda.quotes.store')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/quotes/{quote}/accept', [SpaBookingController::class, 'acceptQuote'])->name('agenda.quotes.accept')->middleware('permission:editar agenda');
     Route::post('agenda/{booking}/quotes/{quote}/payments', [SpaBookingController::class, 'registerPayment'])->name('agenda.quotes.register-payment')->middleware('permission:cobros.registrar');

@@ -173,6 +173,21 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card shadow-sm border-0 rounded-4 mt-4">
+                <div class="card-body p-4">
+                    <h4 class="h6 mb-3 text-uppercase letter-space border-bottom pb-2">Avisos por correo</h4>
+                    <p class="text-muted small">Se mandan al email de acceso de este usuario.</p>
+                    @foreach(\App\Support\Notifications\EmailNotificationTypes::all() as $key => $meta)
+                        <div class="form-check form-switch mb-2">
+                            <input type="hidden" name="email_notifications[{{ $key }}]" value="0">
+                            <input class="form-check-input" type="checkbox" id="email_notifications_{{ $key }}" name="email_notifications[{{ $key }}]" value="1" @checked(old('email_notifications.'.$key, $user->email_notifications[$key] ?? false))>
+                            <label class="form-check-label" for="email_notifications_{{ $key }}">{{ $meta['label'] }}</label>
+                            <div class="text-muted small">{{ $meta['help'] }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
         </div>
 
         {{-- Columna: Control de Acceso y Operador --}}

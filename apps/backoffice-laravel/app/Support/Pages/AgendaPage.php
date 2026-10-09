@@ -5,6 +5,7 @@ namespace App\Support\Pages;
 use App\Models\Client;
 use App\Models\Pet;
 use App\Models\SpaBooking;
+use App\Models\SpaBookingSeries;
 
 class AgendaPage extends BasePage
 {
@@ -70,6 +71,34 @@ class AgendaPage extends BasePage
             ],
             static::header('Agenda SPA', 'Reprogramar booking', 'Ajusta fecha, hora y notas operativas sin perder el snapshot de servicios ya congelado.'),
             'AgSpaEdi',
+        );
+    }
+
+    /** ZEUS-047 Fase 3: Agenda → Series recurrentes. */
+    public static function seriesIndex(): array
+    {
+        return static::page(
+            [
+                static::home(),
+                ['label' => 'Agenda', 'url' => route('agenda.index')],
+                ['label' => 'Series recurrentes', 'current' => true],
+            ],
+            static::header('Agenda', 'Series recurrentes', 'Citas que se repiten: pausar por vacaciones, cancelar de aquí en adelante y extender las que están por terminar.'),
+            'AgSerInd',
+        );
+    }
+
+    public static function seriesShow(SpaBookingSeries $series): array
+    {
+        return static::page(
+            [
+                static::home(),
+                ['label' => 'Agenda', 'url' => route('agenda.index')],
+                ['label' => 'Series recurrentes', 'url' => route('agenda.series.index')],
+                ['label' => $series->pet?->name ?: 'Serie #'.$series->id, 'current' => true],
+            ],
+            static::header('Serie recurrente', ($series->pet?->name ?: 'Mascota').' · '.$series->recurrenceRule()->label(), 'Las citas sin fijar son propuestas: se fijan o descartan una por una, y las que nadie fija se borran al final de su día.'),
+            'AgSerSho',
         );
     }
 }

@@ -58,6 +58,15 @@
         </div>
     @endif
 
+    @if($calView === 'day' && $endingSeriesCount > 0 && ! $pinFilter)
+        <div class="alert alert-light border shadow-sm mb-3 d-flex align-items-center gap-2 flex-wrap">
+            <span class="agenda-series-dot"></span>
+            <strong>{{ $endingSeriesCount }} {{ $endingSeriesCount === 1 ? 'serie recurrente termina' : 'series recurrentes terminan' }} este mes</strong>
+            <span class="small text-body-secondary">Confirma con el cliente y extiende la vigencia si sigue.</span>
+            <a href="{{ route('agenda.series.index', ['tab' => 'terminan']) }}" class="btn btn-sm btn-outline-secondary ms-auto">Revisar</a>
+        </div>
+    @endif
+
     @if($calView === 'day')
     {{-- Estos botones envían el mismo <form> de filtros de abajo (form="agenda-filters-form"),
     en vez de navegar por su cuenta con un <a href> — antes eran dos paneles desconectados:
@@ -348,10 +357,7 @@
                             @can('editar agenda')
                                 {{-- ZEUS-047: cita pre-programada de una serie recurrente → un clic la confirma. --}}
                                 @if($booking->status === 'scheduled' && $booking->isSeriesTentative())
-                                    <form method="POST" action="{{ route('agenda.series.pin', $booking) }}" class="d-inline">
-                                        @csrf
-                                        <button type="submit" class="agenda-chip agenda-chip--pin" title="Confirmar esta cita en este día y hora"><i class="bi bi-pin-angle-fill"></i> Fijar</button>
-                                    </form>
+                                    <x-series-actions :booking="$booking" variant="chip" />
                                 @endif
                                 @if($alert === 'future')
                                     <a href="{{ route('agenda.edit', $booking) }}" class="agenda-chip agenda-chip--neutral"><i class="bi bi-pencil"></i> Corregir fecha</a>
@@ -473,10 +479,7 @@
                                         <div class="catalog-title-stack__title mb-0">{{ $booking->pet?->name ?: 'Mascota sin nombre' }}</div>
                                         @if(! $isHotel && $booking->status === 'scheduled' && $booking->isSeriesTentative())
                                             @can('editar agenda')
-                                                <form method="POST" action="{{ route('agenda.series.pin', $booking) }}" class="d-inline">
-                                                    @csrf
-                                                    <button type="submit" class="agenda-chip agenda-chip--pin" title="Confirmar esta cita en este día y hora"><i class="bi bi-pin-angle-fill"></i> Fijar</button>
-                                                </form>
+                                                <x-series-actions :booking="$booking" variant="chip" />
                                             @endcan
                                         @endif
                                         @if($booking->order_folio)

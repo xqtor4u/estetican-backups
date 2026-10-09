@@ -7,6 +7,7 @@ use App\Domain\Clinical\Services\VaccinationEligibilityChecker;
 use App\Domain\Inventory\Contracts\BookingStockConsumptionServiceInterface;
 use App\Domain\Planning\Series\BookingSeriesService;
 use App\Domain\Planning\Series\RepeatInput;
+use App\Domain\Planning\Series\SeriesLifecycleService;
 use App\Domain\Planning\Services\OperatorAvailabilityChecker;
 use App\Domain\Planning\Services\OperatorServiceResolver;
 use App\Domain\Planning\Services\ServiceLineActionService;
@@ -79,7 +80,7 @@ class BookingController extends Controller
     }
 
     /** ZEUS-047 — "Fijar" desde el móvil: confirma esta sola cita de una serie recurrente. */
-    public function pin(SpaBooking $booking)
+    public function pin(SpaBooking $booking, SeriesLifecycleService $lifecycle)
     {
         $this->ensureVisible($booking);
 
@@ -87,9 +88,21 @@ class BookingController extends Controller
             return response()->json(['message' => 'Esta cita no está pendiente de fijar.'], 422);
         }
 
-        $booking->update(['series_confirmed_at' => now()]);
+        $lifecycle->pin($booking, request()->user());
 
         return response()->json($this->serialize($booking->fresh()));
+    }
+
+    /** ZEUS-047 Fase 3: "no se atenderá" — borra la cita virtual (queda en el historial de la serie). */
+    public function discard(SpaBooking $booking, SeriesLifecycleService $lifecycle)
+    {
+        $this->ensureVisible($booking);
+
+        if (! $lifecycle->discard($booking, request()->user())) {
+            return response()->json(['message' => 'Solo se puede descartar una cita de serie sin fijar, Programada y sin presupuesto ni pago.'], 422);
+        }
+
+        return response()->json(['message' => 'Cita descartada.']);
     }
 
     /** Serializa una cita al formato que usa la app móvil */

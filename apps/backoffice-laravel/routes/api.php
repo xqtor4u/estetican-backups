@@ -90,6 +90,7 @@ Route::middleware(ApiAuthenticate::class)->group(function () {
     Route::get('/bookings/{booking}', [BookingController::class,  'show'])->middleware('permission:ver agenda');
     Route::patch('/bookings/{booking}', [BookingController::class,  'update'])->middleware('permission:editar agenda');
     Route::post('/bookings/{booking}/fijar', [BookingController::class, 'pin'])->middleware('permission:editar agenda'); // ZEUS-047
+    Route::post('/bookings/{booking}/descartar', [BookingController::class, 'discard'])->middleware('permission:editar agenda'); // ZEUS-047 Fase 3
     Route::patch('/bookings/{booking}/services/{line}', [BookingController::class, 'assignServiceProfessional'])->middleware('permission:editar agenda');
     Route::get('/bookings/{booking}/payments', [PaymentController::class, 'index'])->middleware('permission:ver agenda');
     Route::post('/bookings/{booking}/payments', [PaymentController::class, 'store'])->middleware('permission:cobros.registrar');
