@@ -16,7 +16,7 @@
 - **Comparación `mov` vs `tstmov`:** el móvil de producción estaba atrasado en todo lo de `tst` del
   11 al 27/09. EST-028 (que se creía pendiente) ya estaba portado desde el 27/09 (`d492e0e`); la
   diferencia de `MobCaja.tsx` era ZEUS-034/035.
-- **Porte en bloque** (a pedido de Tomas, tras revisarlas en `tstmov`): `b5088a1` (ZEUS-034/035
+- **Porte en bloque** (commit `4a5c165`, a pedido de Tomas, tras revisarlas en `tstmov`): `b5088a1` (ZEUS-034/035
   cerrar turno + desglose por método de pago), `0248a26` (ZEUS-031 pendientes accionables),
   `024c76a` (ZEUS-032 búsqueda universal), `8d9a9b9` (ZEUS-040 bloqueo móvil en servidor).
   - Orden respaldo → migración → código: `backups/estetican_pre_porte_movil_20261009_1151.sql`
