@@ -52,6 +52,8 @@ permiso), `PATCH api/me/preferences` (categoría (c): preferencias del propio us
   `admin/GlobalAgenda.tsx`, `admin/MobCaja.tsx`, `admin/MobUserConfig.tsx`, `admin/UniversalSearch.tsx` (nuevo).
 - `docs/tecnico/MODELO_BD.md`, `docs/tecnico/BACKLOG.md`, `BITACORA.md`.
 
+**Push:** `4a5c165` y `c518b05` subidos por Tomas al cierre (`2730a62..c518b05`); OPi = GitHub.
+
 ### 🛑 Pendientes activos
 - Rotar en `tst` las contraseñas de `chatgpt` y del operador restringido (expuestas en esta sesión).
 - Cada usuario del móvil vuelve a 5 min de bloqueo (el valor que tuviera en `localStorage` ya no se usa).
