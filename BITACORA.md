@@ -55,7 +55,7 @@ permiso), `PATCH api/me/preferences` (categoría (c): preferencias del propio us
 **Push:** `4a5c165` y `c518b05` subidos por Tomas al cierre (`2730a62..c518b05`); OPi = GitHub.
 
 ### 🛑 Pendientes activos
-- Rotar en `tst` las contraseñas de `chatgpt` y del operador restringido (expuestas en esta sesión).
+- ~~Rotar en `tst` las contraseñas de `chatgpt` y del operador restringido~~ **Hecho al cierre:** rotadas, 15 tokens de API + 1 sesión web revocados, nuevas en `~/.tst-credenciales` (chmod 600, fuera de repos); los 7 docs de Zeus que las traían apuntan a ese archivo (Zeus `b9a272a` + los 2 `MANUAL_PRUEBAS_*.md` sin commitear con cambios de Tomas). Al tester externo (ChatGPT) hay que pasarle la nueva. Para el push de Zeus faltan NPM admin y MySQL de `tst`.
 - Cada usuario del móvil vuelve a 5 min de bloqueo (el valor que tuviera en `localStorage` ya no se usa).
 - `caja.cerrar` solo lo tiene admin: decidir si otros roles cierran turno desde el móvil.
 - Marcar en el backlog de Zeus ZEUS-031/032/034/035/040 como portados (Zeus tiene cambios ajenos sin commitear en `MANUAL_PRUEBAS_*`; no se tocó).
