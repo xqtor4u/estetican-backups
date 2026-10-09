@@ -1,5 +1,35 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 08/10/2026 — Morado de citas recurrentes ilegible en modo oscuro del móvil (`ZEUS-047`)
+
+### 📝 Resumen
+
+Tomas reportó que los textos de citas recurrentes en el móvil (morado `#5b21b6`) no se distinguían
+sobre el fondo negro del modo oscuro. Arreglado primero en `tst` y portado tras su revisión en `tstmov`.
+
+- Variables `--series-fg`/`--series-accent`/`--series-bg` en `index.css`: mismo morado en tema
+  claro; en `:root.dark` violeta brillante `#c4b5fd` (texto) / `#a78bfa` (íconos) y fondo
+  `rgba(167,139,250,0.14)`. Aplicadas en "Repetir esta cita" y la confirmación de serie
+  (`MobCitaNueva`) y en el recuadro "Serie recurrente · Fijar" (`MobCitaDet`). Los botones
+  sólidos `#7c3aed` con texto blanco se quedan igual.
+- `tst`: commit `59f2686`, bundle compilado desde `git archive HEAD` (sin los cambios ajenos de
+  `GlobalAgenda.tsx`/`AuthContext.tsx`), `tst_mob` reconstruido; verificado vía `npm-tenants`
+  (`index-BDBSDFdp.js`). `tsc`: solo los 2 errores preexistentes de `MobCajaMovimientos`.
+- Producción: commit `a92647e` (archivos idénticos a `tst` antes del cambio), build en
+  `node:20-alpine`; `mov.estetican.org` sirve `index-BDbNBy2o.js` / `index-pHNWDSuA.css`, md5
+  host = contenedor, CSS con las variables nuevas.
+
+**Rutas (regla de seguridad #3):** sin rutas nuevas.
+
+### 📁 Archivos tocados
+- `mob_apps/operador/src/index.css`, `src/admin/MobCitaNueva.tsx`, `src/admin/MobCitaDet.tsx`, `BITACORA.md`.
+
+### 🛑 Pendientes activos
+- Siguen vigentes los pendientes 1–6 del 07/10 (push incluido: ahora también `a92647e`).
+- `docs/tecnico/tests/` (scripts de prueba de `tstmov` del 04/10) sigue sin versionar — decidir destino.
+
+---
+
 ## 📅 Sesión: 07/10/2026 — Citas recurrentes (`ZEUS-047`): diseño, construcción en `tst` y porteo a producción + emergencia `SYNC-109`
 
 ### 📝 Resumen
