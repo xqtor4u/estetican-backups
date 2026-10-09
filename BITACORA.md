@@ -39,7 +39,7 @@ Ninguna en categoría (c).
 
 ### 🛑 Pendientes activos
 - Nadie recibe todavía el reporte diario: cada admin debe activar "Avisos por correo" en su ficha.
-- Siguen vigentes los pendientes del 07/10 (push incluido: ahora también este commit).
+- Siguen vigentes los pendientes del 07/10 (push incluido: ahora también `a9e7a87`).
 - Punto violeta en agendas del móvil (bloqueado por EST-001 en `tst`).
 - `docs/tecnico/tests/` sigue sin versionar.
 
