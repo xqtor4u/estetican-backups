@@ -1,5 +1,30 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 09/10/2026 (cont. 2) — Consulta: cómo administrar citas recurrentes (`ZEUS-047`)
+
+### 📝 Resumen
+
+- Sin cambios de código. Push de `f229d04` hecho por Tomas (`234318f..f229d04`); OPi = GitHub.
+- Tomas preguntó cómo se administran las citas recurrentes; se le explicó el flujo real verificado
+  contra el código (`SpaBookingSeriesController`, `RecurrenceRule`, rutas `agenda/series*`):
+  - Alta con "Repetir esta cita" en `agenda/create` y en el móvil (`MobCitaNueva.tsx`): cada N días
+    o mensual por día de la semana (1er/2º/3er/4º/último), tope 60 citas, vista previa con recorrido
+    de festivos/días cerrados.
+  - Toda cita nace sin fijar (virtual): Fijar/Descartar desde la Agenda o el detalle
+    (`editar agenda`); `series:cierre-diario` a las 23:50 borra las no fijadas vencidas.
+  - Operaciones → Series recurrentes (`agenda.series_recurrentes`, solo admin): pestañas
+    Activas/En pausa/Terminan este mes/Terminadas; por serie: extender vigencia (≤ 2 años),
+    pausar por rango, cancelar de aquí en adelante; respeta citas con presupuesto/pago/en proceso.
+
+### 📁 Archivos tocados
+- `BITACORA.md`.
+
+### 🛑 Pendientes activos
+- Sin cambios respecto de la sesión anterior (ver abajo). Recordatorio: nadie tiene activado
+  todavía "Avisos por correo", así que el reporte diario de series no le llega a ningún admin.
+
+---
+
 ## 📅 Sesión: 09/10/2026 (cont.) — Push, limpieza de `docs/tecnico/tests/` y porte en bloque al móvil (`ZEUS-031/032/034/035/040`)
 
 ### 📝 Resumen
