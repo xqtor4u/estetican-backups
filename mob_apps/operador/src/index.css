@@ -1,12 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
-/* Breakpoints con la sintaxis clásica `@media (min-width)`: los de Tailwind v4 (`md:`,
-   `min-[600px]:`) compilan a `@media (width >= …)`, que Chromium < 104 ignora — p. ej. la
-   tableta Huawei AGS-W09 (Android 7, WebView Chrome 101). Ver ZEUS-049. */
-@custom-variant tab (@media (min-width: 600px));
-@custom-variant tabmd (@media (min-width: 768px));
-
 /* Material Symbols Outlined autoalojada (public/fonts/) — antes se cargaba desde Google
    Fonts en runtime (<link> en index.html); si la red del dispositivo bloqueaba
    fonts.googleapis.com/fonts.gstatic.com (firewall, DNS, Brave Shields, etc.), la fuente
@@ -330,90 +324,6 @@ body {
 
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-/* ═══════════════════════════════════════════════════════════
-   Agenda → Mes en tableta (≥ 600px, landscape y portrait).
-   La pantalla mide exactamente el alto visible menos la barra inferior
-   (mismo `4rem + safe-area` con que AdminLayout le deja hueco) — `100dvh`,
-   no `min-h-screen`/100vh: en Android 100vh es el viewport "grande" (sin la
-   barra del navegador) y las últimas semanas quedaban debajo de la barra.
-   La cuadrícula reparte el alto que sobra en `--weeks` filas iguales; si el
-   alto no alcanza (landscape muy bajo) se desplaza la cuadrícula, no la página.
-   Fuera de las capas de Tailwind a propósito: le gana a `aspect-square`,
-   `min-h-screen` y `pb-20`. En celular (< 600px) nada de esto aplica.
-   ═══════════════════════════════════════════════════════════ */
-@media (min-width: 600px) {
-  .agenda-month-fill {
-    height: calc(100vh - 4rem - env(safe-area-inset-bottom, 0px));
-    min-height: 0;
-    padding-bottom: 0;
-    overflow: hidden;
-  }
-  .agenda-month {
-    flex: 1 1 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .agenda-month-grid {
-    flex: 1 1 0;
-    min-height: 0;
-    grid-template-rows: repeat(var(--weeks, 6), minmax(1.75rem, 1fr));
-    overflow-y: auto;
-  }
-  /* Tamaño explícito: algunos Chromium dimensionan los <button> a su contenido en vez de
-     estirarlos al área del grid. */
-  .agenda-month-grid > * {
-    aspect-ratio: auto;
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    justify-self: stretch;
-    align-self: stretch;
-    overflow: hidden;
-    position: relative;
-  }
-}
-/* `dvh` aparte y solo donde existe: en Chromium < 108 una declaración con `env()` se acepta
-   al parsear aunque traiga `dvh`, pisa la de `100vh` y queda inválida al calcular → alto
-   automático y la cuadrícula colapsaba a 0 (el mes salía vacío en la tableta AGS-W09). */
-@supports (height: 100dvh) {
-  @media (min-width: 600px) {
-    .agenda-month-fill { height: calc(100dvh - 4rem - env(safe-area-inset-bottom, 0px)); }
-  }
-}
-/* Landscape (celdas bajas): la 1ª cita va en el renglón del número y la lista sigue desde
-   la 2ª — así siempre se ve al menos una. Portrait (celdas altas): se apilan debajo. */
-@media (min-width: 768px) and (orientation: landscape) {
-  .agenda-month-items > :first-child { display: none; }
-}
-@media (min-width: 768px) and (orientation: portrait) {
-  .agenda-month-first { display: none; }
-}
-/* La lista va anclada (top/bottom) debajo del renglón del número: así su alto es definido en
-   cualquier navegador — en Chromium viejo un flex-item no cuenta como alto definido y el
-   flex-wrap no mandaba a la columna oculta los renglones que no caben (salían cortados).
-   top = pt-1 + número (h-5) + gap-0.5; left/right = px-1.5 de la celda. */
-.agenda-month-items {
-  position: absolute;
-  top: 1.625rem;
-  bottom: 0.125rem;
-  left: 0.375rem;
-  right: 0.375rem;
-  flex-direction: column;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  overflow: hidden;
-  column-gap: 100%;
-}
-/* Toda columna de un flex-wrap se queda con al menos un elemento aunque no quepa: este
-   ancla invisible de alto 0 ocupa ese lugar, así un renglón que no cabe completo siempre se
-   va a la columna oculta en vez de verse cortado. */
-.agenda-month-items::before {
-  content: '';
-  width: 100%;
-  height: 0;
-}
 
 /* ═══════════════════════════════════════════════════════════
    Respaldo de utilidades bg-*/N — Tailwind v4 compila estas

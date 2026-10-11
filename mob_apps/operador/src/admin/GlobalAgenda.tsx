@@ -444,8 +444,7 @@ export function GlobalAgenda() {
   };
 
   return (
-    // `agenda-month-fill` (index.css): en tableta la vista Mes mide exactamente el alto visible.
-    <div className={`bg-background text-on-background min-h-screen flex flex-col pb-20 md:pb-0 ${calView === 'month' ? 'agenda-month-fill' : ''}`}>
+    <div className="bg-background text-on-background min-h-screen flex flex-col pb-20 md:pb-0">
       <ScreenHeader
         title="EstetiCAN"
         screenTag="MobAgGbl"
@@ -529,14 +528,11 @@ export function GlobalAgenda() {
         </>
       )}
 
-      <main className="flex-1 min-h-0 flex flex-col">
+      <main className="flex-1 flex flex-col">
 
-        {/* Toggle Día/Semana/Mes + alerta de citas vencidas. En Mes/tableta (≥ 600px) también
-            lleva la navegación del mes — un renglón menos de alto para la cuadrícula. */}
-        <div className={`bg-surface px-4 pt-2 flex items-center justify-between gap-1.5 ${
-          calView === 'month' ? 'tab:pb-2 tab:border-b tab:border-outline-variant' : ''
-        }`}>
-          <div className="flex items-center gap-1.5 shrink-0">
+        {/* Toggle Día/Semana/Mes + alerta de citas vencidas */}
+        <div className="bg-surface px-4 pt-2 flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5">
             {(['day', 'week', 'month'] as CalView[]).map(v => (
               <button
                 key={v}
@@ -559,34 +555,6 @@ export function GlobalAgenda() {
               Hoy
             </button>
           </div>
-
-          {calView === 'month' && (
-            <div className="hidden tab:flex items-center justify-center gap-1 flex-1 min-w-0">
-              <button
-                onClick={() => setSelectedDate(shiftAnchor(calView, selectedDate, -1))}
-                className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0"
-              >
-                <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_left</span>
-              </button>
-              <button
-                onClick={() => setSelectedDate(new Date())}
-                className="min-h-11 min-w-0 flex items-center justify-center gap-2 text-xs font-semibold text-on-surface px-1"
-              >
-                <span className="truncate">{rangeLabel(calView, selectedDate)}</span>
-                {!loadingAg && (
-                  <span className="hidden tabmd:inline shrink-0 font-normal text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full border border-outline-variant">
-                    {visibleBookings.length} {visibleBookings.length === 1 ? 'cita' : 'citas'}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setSelectedDate(shiftAnchor(calView, selectedDate, 1))}
-                className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0"
-              >
-                <span className="material-symbols-outlined text-on-surface-variant text-lg">chevron_right</span>
-              </button>
-            </div>
-          )}
 
           {vencidas.length > 0 && (
             <button
@@ -665,9 +633,7 @@ export function GlobalAgenda() {
 
         {/* Navegación de rango (vistas Semana/Mes) */}
         {calView !== 'day' && (
-          <div className={`bg-surface border-b border-outline-variant px-4 py-2 flex items-center justify-between gap-2 ${
-            calView === 'month' ? 'tab:hidden' : ''
-          }`}>
+          <div className="bg-surface border-b border-outline-variant px-4 py-2 flex items-center justify-between gap-2">
             <button
               onClick={() => setSelectedDate(shiftAnchor(calView, selectedDate, -1))}
               className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors shrink-0"
@@ -725,7 +691,7 @@ export function GlobalAgenda() {
         )}
 
         {/* Encabezado de fecha + contador */}
-        <div className={`px-4 pt-3 pb-1 flex items-center justify-between ${calView === 'month' ? 'tab:hidden' : ''}`}>
+        <div className="px-4 pt-3 pb-1 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-on-surface truncate">
             {calView === 'day' ? (
               <>
@@ -761,7 +727,7 @@ export function GlobalAgenda() {
         )}
 
         {/* Lista de citas (Día) / Grid tipo calendario (Semana/Mes) */}
-        <div className={`flex-1 min-h-0 px-4 pb-4 flex flex-col gap-3 ${calView === 'month' ? 'tab:pt-1' : ''}`}>
+        <div className="flex-1 px-4 pb-4 flex flex-col gap-3">
 
           {loadingAg ? (
             <div className="flex items-center justify-center py-16">

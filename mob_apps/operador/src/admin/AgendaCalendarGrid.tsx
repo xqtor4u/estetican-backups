@@ -111,17 +111,6 @@ export function WeekGrid({ days, bookingsByDate, today, onSelectBooking, onSelec
   );
 }
 
-/** Renglón de cita en la celda del mes (≥ md): punto de estado + hora + mascota. */
-function MonthItem({ b, now, className }: { b: GridBooking; now: Date; className: string }) {
-  return (
-    <span className={`items-center gap-1 min-w-0 text-[11px] leading-4 ${className}`}>
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClasses(b, now)}`} />
-      <span className="font-mono text-on-surface-variant shrink-0">{b.time.slice(0, 5)}</span>
-      <span className="font-semibold text-on-surface truncate">{b.pet.name}</span>
-    </span>
-  );
-}
-
 const DOW_SHORT = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 interface MonthGridProps {
@@ -132,20 +121,12 @@ interface MonthGridProps {
   blockedDates?: Set<string>;
 }
 
-/** Grid mensual estilo Google Calendar: 7x5/6 celdas; tocar un día abre su vista Día.
- *
- *  Celular (< 600px): celdas cuadradas (`aspect-square`) con puntos de color por cita.
- *  Tableta (≥ 600px): `.agenda-month-grid` (index.css) reparte el alto disponible en
- *  `--weeks` filas iguales — con `aspect-square` el alto de cada fila salía del ancho de
- *  columna (≈175px en landscape de 1280) y crecía con el contenido, así que las filas no
- *  cabían y quedaban desiguales. Desde `md` (768px) la celda muestra el conteo y las
- *  primeras citas con hora y mascota en vez de solo puntos; en landscape la 1ª va en el
- *  renglón del número (index.css). `tab:`/`tabmd:` = breakpoints compatibles con Chromium viejo. */
+/** Grid mensual estilo Google Calendar: 7x5/6 celdas con puntos de color por cita; tocar un día abre su vista Día. */
 export function MonthGrid({ days, bookingsByDate, today, onSelectDay, blockedDates }: MonthGridProps) {
   const todayStr = toDateStr(today);
   const now = new Date();
   return (
-    <div className="agenda-month">
+    <div>
       <div className="grid grid-cols-7 gap-1 mb-1">
         {DOW_SHORT.map(dow => (
           <span key={dow} className="text-[10px] font-bold text-on-surface-variant text-center uppercase">
@@ -153,10 +134,7 @@ export function MonthGrid({ days, bookingsByDate, today, onSelectDay, blockedDat
           </span>
         ))}
       </div>
-      <div
-        className="agenda-month-grid grid grid-cols-7 gap-1"
-        style={{ '--weeks': Math.ceil(days.length / 7) } as React.CSSProperties}
-      >
+      <div className="grid grid-cols-7 gap-1">
         {days.map(({ date, outside }) => {
           const ds = toDateStr(date);
           const items = bookingsByDate.get(ds) ?? [];
@@ -166,52 +144,28 @@ export function MonthGrid({ days, bookingsByDate, today, onSelectDay, blockedDat
             <button
               key={ds}
               onClick={() => onSelectDay(date)}
-              title={items.length > 0 ? `${items.length} ${items.length === 1 ? 'cita' : 'citas'}` : undefined}
-              className={`aspect-square rounded-xl border flex flex-col items-center pt-1 gap-0.5 min-w-0 tabmd:items-stretch tabmd:px-1.5 ${
-                outside ? 'border-transparent opacity-35 tab:border-outline-variant' : 'border-outline-variant'
+              className={`aspect-square rounded-xl border flex flex-col items-center pt-1 gap-0.5 ${
+                outside ? 'border-transparent opacity-35' : 'border-outline-variant'
               } ${isToday ? 'bg-primary/10 border-primary' : 'bg-surface'}`}
             >
-              <span className="flex items-center gap-0.5 tabmd:justify-between min-w-0">
-                <span className="flex items-center gap-0.5 shrink-0">
-                  <span
-                    className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shrink-0 ${
-                      isToday ? 'bg-primary text-on-primary' : 'text-on-surface'
-                    }`}
-                  >
-                    {date.getDate()}
-                  </span>
-                  {isBlocked && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant" title="Operador no disponible" />
-                  )}
+              <span className="flex items-center gap-0.5">
+                <span
+                  className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${
+                    isToday ? 'bg-primary text-on-primary' : 'text-on-surface'
+                  }`}
+                >
+                  {date.getDate()}
                 </span>
-                {items.length > 0 && (
-                  // Celda baja (landscape con las barras del navegador): la 1ª cita va en el
-                  // renglón del número para que siempre se vea al menos una (index.css).
-                  <MonthItem b={items[0]} now={now} className="agenda-month-first hidden tabmd:flex flex-1 ml-1" />
-                )}
-                {items.length > 0 && (
-                  <span className="hidden tabmd:inline shrink-0 text-[10px] font-semibold text-on-surface-variant bg-surface-container rounded-full px-1.5 leading-4">
-                    {items.length}
-                  </span>
+                {isBlocked && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant" title="Operador no disponible" />
                 )}
               </span>
               {items.length > 0 && (
-                <span className="flex items-center gap-0.5 tabmd:hidden">
+                <span className="flex items-center gap-0.5">
                   {items.slice(0, 3).map(b => (
                     <span key={b.id} className={`w-1.5 h-1.5 rounded-full ${dotClasses(b, now)}`} />
                   ))}
                   {items.length > 3 && <span className="text-[8px] text-on-surface-variant">+{items.length - 3}</span>}
-                </span>
-              )}
-              {items.length > 0 && (
-                // Las citas que no caben en el alto de la celda se van a una 2ª columna oculta
-                // (flex-wrap en columna + overflow-hidden): nunca se ve una línea cortada a la mitad.
-                <span className="agenda-month-items hidden tabmd:flex">
-                  {items.slice(0, 3).map(b => (
-                    <React.Fragment key={b.id}>
-                      <MonthItem b={b} now={now} className="flex w-full" />
-                    </React.Fragment>
-                  ))}
                 </span>
               )}
             </button>
