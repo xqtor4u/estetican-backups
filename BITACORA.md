@@ -28,15 +28,38 @@
 
 **Rutas (regla de seguridad #3):** ninguna nueva ni modificada (solo CSS/markup del móvil).
 
+- **Portado a producción** a pedido de Tomas tras verlo bien en la tableta (`3356ec9`): parche
+  combinado de las 4 rondas aplicado con `-C1` (único contexto distinto: `title="EstetiCAN"` vs
+  `useBusinessName` de multi-tenant, que se conserva); fuente idéntica a `tst` salvo esas 3 líneas.
+  Bundle `index-DPqfScMZ.js` / `index-DZkFiC7U.css` compilado en copia aparte y probado contra el
+  backend de `tstmov` con Chromium 101 y moderno antes de publicarlo. Respaldo
+  `backups/mob_dist_pre_zeus049_20261011.tgz`. md5 host = contenedor = probado; inode de `dist`
+  sin cambio (montaje en vivo); headers de seguridad en el borde intactos; login de `mov` carga sin
+  errores en ambos Chromium (solo el beacon de Cloudflare bloqueado por CSP, preexistente).
+  Los assets viejos (`index-D7aDkpbP.js`, `index-8kej7vB8.css`) quedan en `dist/assets` para
+  rollback inmediato (restaurar `index.html` del respaldo).
+- **⚠️ Incidente (~1 min, 15:11):** el primer intento con `rsync -a --delete` sobrescribió
+  `dist/index.html` (de `tomas`) pero no pudo escribir en `dist/assets/` ni `dist/fonts/` (de
+  `root`, de un build anterior en contenedor) → `index.html` apuntaba a un bundle inexistente y
+  `mov` quedó en blanco. Se restauró `index.html` del respaldo de inmediato (assets viejos 200 OK)
+  y luego se publicó en orden seguro: assets nuevos primero (copiados como root vía
+  `node:20-alpine`), `index.html` al final.
+
 ### 📁 Archivos tocados
-- Este repo: `BITACORA.md`.
+- Este repo: `BITACORA.md`, `mob_apps/operador/src/admin/AgendaCalendarGrid.tsx`,
+  `mob_apps/operador/src/admin/GlobalAgenda.tsx`, `mob_apps/operador/src/index.css`,
+  `mob_apps/operador/dist/*`.
 - `tst`: `mobile/src/admin/AgendaCalendarGrid.tsx`, `mobile/src/admin/GlobalAgenda.tsx`,
   `mobile/src/index.css`, `mobile/dist/*`, contenedor `tst_mob` recreado.
 - Zeus: `BITACORA.md`, `docs/tecnico/BACKLOG.md` (`cfe3728`).
 
 ### 🛑 Pendientes activos
-- Tomas: probar `tstmov` → Agenda → Mes en la tableta real; con su visto bueno, portar
-  `ZEUS-049` a producción (3 archivos + bundle).
+- ~~Portar `ZEUS-049` a producción~~ **Hecho** (`3356ec9`). Tomas: confirmar en la tableta contra
+  `mov.estetican.org`.
+- `mob_apps/operador/dist/assets` y `dist/fonts` son de `root`: o `chown -R tomas:tomas` (lo corre
+  Tomas) o seguir publicando vía contenedor. Borrar los assets viejos cuando ya no haga falta rollback.
+- En la tableta (Chrome 101) ningún `md:`/`sm:` de Tailwind funciona en todo el móvil
+  (preexistente) — trabajo para `tst` si esa tableta es de operación.
 - Siguen los de la sesión del 09/10 (abajo). Este repo tiene 2 commits sin subir.
 
 ---
