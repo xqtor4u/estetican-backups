@@ -70,8 +70,12 @@
   `index.html` al final — **sin interrupción**; inode de `dist` sin cambio, md5 host = contenedor =
   probado, headers intactos, login de `mov` carga en ambos Chromium. Los assets viejos
   (`index-D7aDkpbP.js`, `index-8kej7vB8.css`) quedan para rollback (restaurar `index.html`).
-- **`ZEUS-051`** en `tst`/`tstmov` (`705c978`): botón de pantalla completa (entrar/salir). Pendiente
-  de que Tomas lo pruebe en la tableta antes de portarlo a `mov`.
+- **`ZEUS-051`** (`705c978` en `tst`): botón de pantalla completa (entrar/salir). Tomas lo probó en la
+  tableta y pidió portarlo. **Portado a producción** (commit de abajo, 3 archivos idénticos a `tst`),
+  bundle `index-By-sKmnC.js` / `index-CIY-4-uj.css`: probado antes contra la API (botón en
+  tableta y celular con Chromium moderno; agenda Mes 19/19 con Chromium 101); respaldo
+  `backups/mob_dist_pre_zeus051_20261011.tgz`; assets primero, `index.html` al final — **sin
+  interrupción**; inode sin cambio, md5 host = contenedor = probado, headers intactos.
 - `mob_apps/operador/dist/assets` y `dist/fonts` son de `root`: o `chown -R tomas:tomas` (lo corre
   Tomas) o seguir publicando vía contenedor. Borrar los assets viejos cuando ya no haga falta rollback.
 - En la tableta (Chrome 101) ningún `md:`/`sm:` de Tailwind funciona en todo el móvil
