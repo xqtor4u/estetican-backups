@@ -60,6 +60,9 @@
 
 ### 🛑 Pendientes activos
 - ZEUS-049 revertido en ambos lados; nada pendiente de eso.
+- **`ZEUS-050`** en `tst`/`tstmov` (`45a3c9f`, `index-BFFgG8Ng.js`): en la vista Mes de tableta cada día
+  muestra la hora de sus citas en vez de puntos. Tomas: probarlo en la tableta; con su visto bueno,
+  portar a `mov` (publicar assets primero, `index.html` al final). Producción sin cambios.
 - `mob_apps/operador/dist/assets` y `dist/fonts` son de `root`: o `chown -R tomas:tomas` (lo corre
   Tomas) o seguir publicando vía contenedor. Borrar los assets viejos cuando ya no haga falta rollback.
 - En la tableta (Chrome 101) ningún `md:`/`sm:` de Tailwind funciona en todo el móvil
