@@ -19,6 +19,12 @@
 - **Ronda 3** (`bdfc58f`, `index-DQwMA3gI.js`): con la foto de Tomas se vio que en Brave Android la
   cuadrícula salía vacía — las celdas (`<button>` con `container-type: size`) colapsaban a ~14×6px.
   Reproducido y corregido con tamaño explícito de celda; batería completa sin regresiones.
+- **Ronda 4** (`1533ecf`, `index-CLEQztyY.js`): seguía vacío. El User-Agent en los logs de `tst_mob`
+  mostró que la tableta es Huawei AGS-W09 con **Opera / WebView Chrome 101**. Reproducido con
+  Chromium 101 real: `dvh`+`env()` pisaba el respaldo `100vh` y la cuadrícula medía 0px; además ahí
+  no aplican los breakpoints de Tailwind v4 ni los container queries. Detalle en NT-010 de Zeus.
+  **Ojo para el porteo a producción:** si esa tableta opera en `mov`, cualquier `md:` de Tailwind
+  del móvil es invisible en ella (preexistente).
 
 **Rutas (regla de seguridad #3):** ninguna nueva ni modificada (solo CSS/markup del móvil).
 
