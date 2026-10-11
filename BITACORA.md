@@ -60,9 +60,16 @@
 
 ### 🛑 Pendientes activos
 - ZEUS-049 revertido en ambos lados; nada pendiente de eso.
-- **`ZEUS-050`** en `tst`/`tstmov` (`45a3c9f`, `index-BFFgG8Ng.js`): en la vista Mes de tableta cada día
-  muestra la hora de sus citas en vez de puntos. Tomas: probarlo en la tableta; con su visto bueno,
-  portar a `mov` (publicar assets primero, `index.html` al final). Producción sin cambios.
+- **`ZEUS-050`** (`45a3c9f` en `tst`): en la vista Mes de tableta cada día muestra la hora de sus
+  citas en vez de puntos. Tomas lo vio funcionar en tstmov (la 1ª "recarga" no llegó al servidor:
+  Opera reanudó la pestaña; se confirmó por los logs del proxy) y pidió portarlo.
+  **Portado a producción** (`2 archivos`, commit de abajo), bundle `index-DW6YCzxm.js` /
+  `index-BNvjXB1q.css`: probado antes contra la API con Chromium 101 y moderno (19/19 días con
+  hora, 0 cortadas; celular igual salvo el título "EstetiCAN"); respaldo
+  `backups/mob_dist_pre_zeus050_20261011.tgz`; assets nuevos primero (como root vía contenedor),
+  `index.html` al final — **sin interrupción**; inode de `dist` sin cambio, md5 host = contenedor =
+  probado, headers intactos, login de `mov` carga en ambos Chromium. Los assets viejos
+  (`index-D7aDkpbP.js`, `index-8kej7vB8.css`) quedan para rollback (restaurar `index.html`).
 - `mob_apps/operador/dist/assets` y `dist/fonts` son de `root`: o `chown -R tomas:tomas` (lo corre
   Tomas) o seguir publicando vía contenedor. Borrar los assets viejos cuando ya no haga falta rollback.
 - En la tableta (Chrome 101) ningún `md:`/`sm:` de Tailwind funciona en todo el móvil
