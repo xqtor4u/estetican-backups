@@ -326,6 +326,45 @@ body {
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ═══════════════════════════════════════════════════════════
+   Agenda → Mes: en tableta (≥ 600px) cada celda muestra la hora de sus citas
+   en vez de puntos, más el total en la esquina. `@media (min-width)` a propósito,
+   no `md:` de Tailwind: la tableta de pruebas (WebView Chrome 101) no entiende
+   el `@media (width >= …)` que genera Tailwind v4 (NT-010 de Zeus).
+   La lista va anclada con top/bottom (alto definido en cualquier navegador) y
+   las horas que no caben completas se van a una 2ª columna oculta; el `::before`
+   de alto 0 evita que la primera quede cortada a la mitad.
+   ═══════════════════════════════════════════════════════════ */
+.agenda-month-times,
+.agenda-month-count { display: none; }
+@media (min-width: 600px) {
+  .agenda-month-dots { display: none; }
+  .agenda-month-count {
+    display: inline;
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+  }
+  .agenda-month-times {
+    display: flex;
+    position: absolute;
+    top: 1.625rem; /* pt-1 + número (h-5) + gap-0.5 */
+    bottom: 0.25rem;
+    left: 0.375rem;
+    right: 0.375rem;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    column-gap: 100%;
+    overflow: hidden;
+  }
+  .agenda-month-times::before {
+    content: '';
+    width: 100%;
+    height: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
    Respaldo de utilidades bg-*/N — Tailwind v4 compila estas
    clases con color-mix() (sin respaldo real: el fallback que
    Tailwind sí genera es el color SÓLIDO sin diluir, que en

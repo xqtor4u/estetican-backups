@@ -121,7 +121,9 @@ interface MonthGridProps {
   blockedDates?: Set<string>;
 }
 
-/** Grid mensual estilo Google Calendar: 7x5/6 celdas con puntos de color por cita; tocar un día abre su vista Día. */
+/** Grid mensual estilo Google Calendar: 7x5/6 celdas; tocar un día abre su vista Día.
+ *  Celular: puntos de color por cita. Tableta (≥ 600px, `.agenda-month-*` en index.css):
+ *  la hora de cada cita que quepa completa en la celda + contador del total en la esquina. */
 export function MonthGrid({ days, bookingsByDate, today, onSelectDay, blockedDates }: MonthGridProps) {
   const todayStr = toDateStr(today);
   const now = new Date();
@@ -144,7 +146,8 @@ export function MonthGrid({ days, bookingsByDate, today, onSelectDay, blockedDat
             <button
               key={ds}
               onClick={() => onSelectDay(date)}
-              className={`aspect-square rounded-xl border flex flex-col items-center pt-1 gap-0.5 ${
+              title={items.length > 0 ? `${items.length} ${items.length === 1 ? 'cita' : 'citas'}` : undefined}
+              className={`relative aspect-square rounded-xl border flex flex-col items-center pt-1 gap-0.5 ${
                 outside ? 'border-transparent opacity-35' : 'border-outline-variant'
               } ${isToday ? 'bg-primary/10 border-primary' : 'bg-surface'}`}
             >
@@ -161,7 +164,22 @@ export function MonthGrid({ days, bookingsByDate, today, onSelectDay, blockedDat
                 )}
               </span>
               {items.length > 0 && (
-                <span className="flex items-center gap-0.5">
+                <span className="agenda-month-count text-[10px] font-semibold text-on-surface-variant bg-surface-container rounded-full px-1.5 leading-4">
+                  {items.length}
+                </span>
+              )}
+              {items.length > 0 && (
+                <span className="agenda-month-times">
+                  {items.map(b => (
+                    <span key={b.id} className="flex items-center gap-1 text-[10px] leading-[14px]">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClasses(b, now)}`} />
+                      <span className="font-mono text-on-surface">{b.time.slice(0, 5)}</span>
+                    </span>
+                  ))}
+                </span>
+              )}
+              {items.length > 0 && (
+                <span className="agenda-month-dots flex items-center gap-0.5">
                   {items.slice(0, 3).map(b => (
                     <span key={b.id} className={`w-1.5 h-1.5 rounded-full ${dotClasses(b, now)}`} />
                   ))}
