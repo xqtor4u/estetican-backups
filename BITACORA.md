@@ -1,5 +1,33 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 11/10/2026 — Agenda Mes del móvil en tableta, solo en `tst` (`ZEUS-049`)
+
+### 📝 Resumen
+
+- Sin cambios de código en este repo: no es emergencia, así que se construyó en `tst` (regla de
+  alcance). Detalle completo en `/opt/www/zeus-estetican/BITACORA.md` (11/10/2026) y `ZEUS-049`.
+- Fix `543b291` en `tenants/tst` publicado en `tstmov` (`index-CtIbbS4j.js`): en tableta
+  (≥ 600px) la vista Mes ocupa exactamente el alto visible, con filas iguales y todas las
+  semanas sobre la barra inferior; desde 768px cada celda muestra el conteo y hasta 3 citas con
+  hora y mascota. Celular sin cambios. Verificado con Playwright en 1280x800, 800x1280, 960x600,
+  600x960 y 390x844; headers de seguridad sin cambio.
+- `mov.estetican.org` (producción) intacto: sigue con `index-D7aDkpbP.js`.
+
+**Rutas (regla de seguridad #3):** ninguna nueva ni modificada (solo CSS/markup del móvil).
+
+### 📁 Archivos tocados
+- Este repo: `BITACORA.md`.
+- `tst`: `mobile/src/admin/AgendaCalendarGrid.tsx`, `mobile/src/admin/GlobalAgenda.tsx`,
+  `mobile/src/index.css`, `mobile/dist/*`, contenedor `tst_mob` recreado.
+- Zeus: `BITACORA.md`, `docs/tecnico/BACKLOG.md` (`cfe3728`).
+
+### 🛑 Pendientes activos
+- Tomas: probar `tstmov` → Agenda → Mes en la tableta real; con su visto bueno, portar
+  `ZEUS-049` a producción (3 archivos + bundle).
+- Siguen los de la sesión del 09/10 (abajo). Este repo tiene 2 commits sin subir.
+
+---
+
 ## 📅 Sesión: 09/10/2026 (cont. 2) — Consulta: cómo administrar citas recurrentes (`ZEUS-047`)
 
 ### 📝 Resumen
