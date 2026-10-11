@@ -12,6 +12,10 @@
   hora y mascota. Celular sin cambios. Verificado con Playwright en 1280x800, 800x1280, 960x600,
   600x960 y 390x844; headers de seguridad sin cambio.
 - `mov.estetican.org` (producción) intacto: sigue con `index-D7aDkpbP.js`.
+- **Ronda 2** (`d798a76`, `index-BUe8YnjE.js`): Tomas vio en la tableta real que no aparecían los
+  renglones de cita — las barras del navegador quitan alto y el renglón no cabía. Navegación del
+  mes sube al renglón Día/Semana/Mes y, en celdas bajas, la 1ª cita va junto al número. Verificado
+  con alturas reales de navegador (1280x672, 960x472) y en modo oscuro; celular idéntico.
 
 **Rutas (regla de seguridad #3):** ninguna nueva ni modificada (solo CSS/markup del móvil).
 
