@@ -334,6 +334,13 @@ body {
    las horas que no caben completas se van a una 2ª columna oculta; el `::before`
    de alto 0 evita que la primera quede cortada a la mitad.
    ═══════════════════════════════════════════════════════════ */
+/* Botón de pantalla completa del encabezado: solo en tableta (`@media (min-width)` clásico,
+   ver nota de arriba sobre Chrome 101). En celular está en el menú del avatar. */
+.header-fullscreen { display: none; }
+@media (min-width: 600px) {
+  .header-fullscreen { display: inline-flex; }
+}
+
 .agenda-month-times,
 .agenda-month-count { display: none; }
 @media (min-width: 600px) {

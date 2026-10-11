@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useAppLock } from './AppLockContext';
+import { useFullscreen } from './hooks/useFullscreen';
 
 export interface Crumb { label: string; to: string }
 
@@ -39,6 +40,7 @@ export interface ScreenHeaderProps {
 function UserAvatarMenu() {
   const { user, logout } = useAuth();
   const { lock } = useAppLock();
+  const fullscreen = useFullscreen();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   if (!user) return null;
@@ -81,6 +83,18 @@ function UserAvatarMenu() {
               <span className="material-symbols-outlined text-lg text-on-surface-variant">manage_accounts</span>
               Configuración personal
             </button>
+            {/* En tableta el mismo control está en el encabezado; en celular solo aquí. */}
+            {fullscreen.supported && (
+              <button
+                onClick={() => { setOpen(false); fullscreen.toggle(); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-on-surface border-t border-outline-variant active:bg-surface-container-high transition-colors"
+              >
+                <span className="material-symbols-outlined text-lg text-on-surface-variant">
+                  {fullscreen.active ? 'fullscreen_exit' : 'fullscreen'}
+                </span>
+                {fullscreen.active ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              </button>
+            )}
             <button
               onClick={() => { setOpen(false); lock(); }}
               className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-on-surface border-t border-outline-variant active:bg-surface-container-high transition-colors"
@@ -119,6 +133,7 @@ export function ScreenHeader({
   onCrumbClick,
 }: ScreenHeaderProps) {
   const navigate = useNavigate();
+  const fullscreen = useFullscreen();
   const showCrumbs = !noCrumbs && showBreadcrumbs && crumbs.length > 0;
   const hasTitleNav = onTitlePrev !== undefined || onTitleNext !== undefined;
 
@@ -197,6 +212,20 @@ export function ScreenHeader({
 
       {/* ZEUS-032: búsqueda universal — reachable desde cualquier pantalla sin tocar el
           bottom-nav/menú (decisión ya tomada en ZEUS-033 de dejarlos como están). */}
+      {/* Pantalla completa — solo en tableta (`.header-fullscreen`, index.css); en celular
+          el encabezado ya va lleno y la opción vive en el menú del avatar. */}
+      {fullscreen.supported && (
+        <button
+          onClick={fullscreen.toggle}
+          aria-label={fullscreen.active ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          title={fullscreen.active ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          className="header-fullscreen shrink-0 p-2 rounded-full active:bg-surface-container-high transition-colors"
+        >
+          <span className="material-symbols-outlined text-on-surface-variant text-xl">
+            {fullscreen.active ? 'fullscreen_exit' : 'fullscreen'}
+          </span>
+        </button>
+      )}
       {!hideSearch && (
         <button
           onClick={() => navigate('/buscar')}
