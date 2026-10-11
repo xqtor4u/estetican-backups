@@ -16,6 +16,9 @@
   renglones de cita — las barras del navegador quitan alto y el renglón no cabía. Navegación del
   mes sube al renglón Día/Semana/Mes y, en celdas bajas, la 1ª cita va junto al número. Verificado
   con alturas reales de navegador (1280x672, 960x472) y en modo oscuro; celular idéntico.
+- **Ronda 3** (`bdfc58f`, `index-DQwMA3gI.js`): con la foto de Tomas se vio que en Brave Android la
+  cuadrícula salía vacía — las celdas (`<button>` con `container-type: size`) colapsaban a ~14×6px.
+  Reproducido y corregido con tamaño explícito de celda; batería completa sin regresiones.
 
 **Rutas (regla de seguridad #3):** ninguna nueva ni modificada (solo CSS/markup del móvil).
 
