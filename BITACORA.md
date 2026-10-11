@@ -45,6 +45,11 @@
   y luego se publicó en orden seguro: assets nuevos primero (copiados como root vía
   `node:20-alpine`), `index.html` al final.
 
+- **⏪ Revertido todo** a pedido de Tomas: producción `9f99a66` (revierte `3356ec9`) y `dist`
+  restaurado desde el respaldo (idéntico, inode sin cambio, `mov` sirve `index-D7aDkpbP.js`);
+  `tst` `24a467c` (revierte las 4 rondas) y `tstmov` otra vez con `index-DDgTakEO.js`. Headers
+  intactos en ambos.
+
 ### 📁 Archivos tocados
 - Este repo: `BITACORA.md`, `mob_apps/operador/src/admin/AgendaCalendarGrid.tsx`,
   `mob_apps/operador/src/admin/GlobalAgenda.tsx`, `mob_apps/operador/src/index.css`,
@@ -54,8 +59,7 @@
 - Zeus: `BITACORA.md`, `docs/tecnico/BACKLOG.md` (`cfe3728`).
 
 ### 🛑 Pendientes activos
-- ~~Portar `ZEUS-049` a producción~~ **Hecho** (`3356ec9`). Tomas: confirmar en la tableta contra
-  `mov.estetican.org`.
+- ZEUS-049 revertido en ambos lados; nada pendiente de eso.
 - `mob_apps/operador/dist/assets` y `dist/fonts` son de `root`: o `chown -R tomas:tomas` (lo corre
   Tomas) o seguir publicando vía contenedor. Borrar los assets viejos cuando ya no haga falta rollback.
 - En la tableta (Chrome 101) ningún `md:`/`sm:` de Tailwind funciona en todo el móvil
