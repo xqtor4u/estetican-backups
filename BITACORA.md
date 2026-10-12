@@ -1,5 +1,39 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/10/2026 (cont. 2) — Manual del operador mob en lenguaje de piso
+
+### 📝 Resumen
+
+- Sin cambios de código. El manual del móvil se reescribió para el operador, sin código: 12 notas
+  en `docs/manual-operador/mob/` (`01 Inicio del día` … `12 Horarios no disponibles`) con el
+  ciclo completo (check-in → buscar → alta → servicio/precio → agendar → recurrente →
+  operador/jaula → durante → WhatsApp → cobro → mover/cancelar → horarios no disponibles).
+  Verificadas contra el código, texto literal de botones y mensajes.
+- Todo lo técnico (componentes, rutas, validaciones, permisos reales, diferencias) pasó a
+  `docs/manual-operador/_recursos/referencia-tecnica-mob.md`. Se borró la nota anterior
+  «Flujo de recepción y agendado (mov)»; `00-Inicio.md` enlaza las notas nuevas.
+- Hallazgos nuevos (además de los del manual anterior), detalle en la referencia técnica:
+  - No existen en el móvil: paso de "entregar", cambiar jaula después de agendar, ver festivos.
+  - Cuadrícula del modo edición de cita: ignora operador/ausencias/horario de sucursal y solo
+    marca inicios de cita de cualquier operador.
+  - Pago parcial cierra la cita como completada (saldo queda pendiente).
+  - Checklist «¿Qué servicio(s) inician ahora?» inalcanzable (se filtra «Iniciar cita» cuando hay
+    líneas).
+  - Riesgo latente: `GET /api/operators` sin `r.ok` en alta/detalle de cita — hoy ningún rol
+    tiene `crear agenda` sin `ver operadores` (consulta de solo lectura a producción).
+
+**Rutas (regla de seguridad #3):** ninguna nueva ni modificada.
+
+### 📁 Archivos tocados
+- `docs/manual-operador/mob/01…12 *.md` (nuevos), `docs/manual-operador/_recursos/referencia-tecnica-mob.md`
+  (nuevo), `docs/manual-operador/00-Inicio.md`, nota anterior borrada, `BITACORA.md`.
+
+### 🛑 Pendientes activos
+- Decidir qué hallazgos se arreglan (en `tst`, salvo emergencia).
+- Notas de `app/` (backoffice) todavía vacías.
+
+---
+
 ## 📅 Sesión: 12/10/2026 (cont.) — Estructura del vault `docs/manual-operador/`
 
 ### 📝 Resumen
