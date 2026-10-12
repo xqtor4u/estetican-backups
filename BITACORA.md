@@ -1,5 +1,27 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/10/2026 (cont.) — Estructura del vault `docs/manual-operador/`
+
+### 📝 Resumen
+
+- Sin cambios de código. El vault (sincronizado con Syncthing a la PC Windows) queda con
+  `00-Inicio.md` (índice en wikilinks, por mob/app), `mob/`, `app/` y `_recursos/` (estas dos
+  vacías, con `.gitkeep`). La nota del flujo de recepción se movió a `mob/` con `git mv`.
+- Inventario de otros manuales de operador/usuario en el repo: ninguno. El único candidato,
+  `docs/architecture/Manual_Tecnico_Desarrollo_Modular_Antigravity_Estetican.pdf`, es manual
+  técnico de desarrollo — se queda donde está.
+- `.gitignore`: estado local de Obsidian/Syncthing (`workspace*.json`, `cache`, `.stfolder`,
+  `.stignore`, `.trash`). `.obsidian/` (config) no se tocó ni se commiteó.
+- Referencias a la ruta vieja: solo las dos de la entrada anterior de esta bitácora, actualizadas.
+
+**Rutas (regla de seguridad #3):** ninguna nueva ni modificada.
+
+### 📁 Archivos tocados
+- `docs/manual-operador/00-Inicio.md` (nuevo), `docs/manual-operador/mob/…` (movido),
+  `docs/manual-operador/{app,_recursos}/.gitkeep`, `.gitignore`, `BITACORA.md`.
+
+---
+
 ## 📅 Sesión: 12/10/2026 — Manual del operador: flujo real de recepción y agendado del móvil
 
 ### 📝 Resumen
@@ -7,7 +29,7 @@
 - Sin cambios de código. Se documentó el flujo de `mov.estetican.org` (check-in → buscar
   mascota → servicio/precio → alta de dueño → calendario → cita recurrente) verificado contra el
   código de `6913582`, con archivo/función, componente React y texto literal de la interfaz.
-- Nuevo vault de Obsidian: `docs/manual-operador/Flujo de recepción y agendado (mov).md`
+- Nuevo vault de Obsidian: `docs/manual-operador/mob/Flujo de recepción y agendado (mov).md`
   (no existía ningún vault en el servidor; ruta indicada por Tomas).
 - **Diferencias encontradas contra lo esperado** (detalle en el manual):
   - El check-in NO decide la sucursal de la cita (`BranchResolver::forNewBooking`: `users.branch_id`
@@ -26,7 +48,7 @@
 **Rutas (regla de seguridad #3):** ninguna nueva ni modificada.
 
 ### 📁 Archivos tocados
-- `docs/manual-operador/Flujo de recepción y agendado (mov).md` (nuevo), `BITACORA.md`.
+- `docs/manual-operador/mob/Flujo de recepción y agendado (mov).md` (nuevo), `BITACORA.md`.
 
 ### 🛑 Pendientes activos
 - Decidir si alguna diferencia es emergencia (candidatas: festivos en cita suelta, celular no

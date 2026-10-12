@@ -1,2 +1,9 @@
 backups/
 logs/
+
+# Vault de Obsidian del manual de operador (estado local de Obsidian / Syncthing)
+docs/manual-operador/.obsidian/workspace*.json
+docs/manual-operador/.obsidian/cache
+docs/manual-operador/.stfolder
+docs/manual-operador/.stignore
+docs/manual-operador/.trash
