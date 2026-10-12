@@ -1,5 +1,40 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/10/2026 — Manual del operador: flujo real de recepción y agendado del móvil
+
+### 📝 Resumen
+
+- Sin cambios de código. Se documentó el flujo de `mov.estetican.org` (check-in → buscar
+  mascota → servicio/precio → alta de dueño → calendario → cita recurrente) verificado contra el
+  código de `6913582`, con archivo/función, componente React y texto literal de la interfaz.
+- Nuevo vault de Obsidian: `docs/manual-operador/Flujo de recepción y agendado (mov).md`
+  (no existía ningún vault en el servidor; ruta indicada por Tomas).
+- **Diferencias encontradas contra lo esperado** (detalle en el manual):
+  - El check-in NO decide la sucursal de la cita (`BranchResolver::forNewBooking`: `users.branch_id`
+    → única sucursal del operador → única activa). Comentario de `CheckinWidget.tsx` sobre Caja
+    desactualizado.
+  - Orden real dueño → mascota → servicio; alta de cliente exige 1 teléfono de cualquier tipo
+    (no necesariamente celular) y no detecta duplicados.
+  - Precio plano del catálogo, editable a mano; nada por tamaño/peso.
+  - Cita suelta (`BookingController::store`) no revisa festivos (`NonWorkingDay`), fechas
+    pasadas ni mascota encimada — solo las series lo hacen. El servidor valida solo la hora de
+    inicio contra el horario de la sucursal.
+  - La cuadrícula móvil ignora `operating_days` y el horario semanal del operador (se rechaza al
+    guardar); usuario sin `agenda.ver_todas` ve su propia ocupación aunque agende para otro.
+  - Series en el móvil sin vista previa (solo la web la tiene).
+
+**Rutas (regla de seguridad #3):** ninguna nueva ni modificada.
+
+### 📁 Archivos tocados
+- `docs/manual-operador/Flujo de recepción y agendado (mov).md` (nuevo), `BITACORA.md`.
+
+### 🛑 Pendientes activos
+- Decidir si alguna diferencia es emergencia (candidatas: festivos en cita suelta, celular no
+  obligatorio). Si no, van a `tst` (Zeus) como mejora.
+- Sin cambios en los pendientes de la sesión del 11/10 (abajo).
+
+---
+
 ## 📅 Sesión: 11/10/2026 — Agenda Mes del móvil en tableta, solo en `tst` (`ZEUS-049`)
 
 ### 📝 Resumen
