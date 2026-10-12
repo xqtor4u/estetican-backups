@@ -250,4 +250,8 @@ Reemplaza a la nota anterior «Flujo de recepción y agendado (mov)», cuyo cont
 10. **«Iniciar cita» con checklist** (`confirmStartChecklist`, «¿Qué servicio(s) inician ahora?») es **inalcanzable**: `acciones` quita `work_order` cuando hay líneas, que es justo cuando se usaría el checklist. En la práctica se inicia por línea, o desde la tarjeta de la Agenda (toda la cita).
 11. **Iniciar desde la Agenda** marca toda la cita como `work_order` y pone `started_at` a todas las líneas pendientes (`BookingController::update`, l. ~669). Para **terminarlas** una por una hay que entrar al detalle; si no, se cierran en bloque con «Completar y cobrar».
 12. **`GET /api/payment-methods` y las rutas de check-in** no llevan `permission:`; solo autenticación.
-13. **Riesgo latente, sin verificar en ejecución:** `MobCitaNueva` y `MobCitaDet` piden `GET /api/operators` (`ver operadores`) sin revisar `r.ok`. Si un usuario pudiera agendar sin ese permiso, la respuesta 403 llegaría como objeto y `operators.find(...)` en el resumen fallaría. Al 12/10/2026 **ningún rol** de producción tiene `crear agenda` sin `ver operadores` (consultado en `roles`), así que hoy no se dispara; podría pasar si se arma un rol así.
+13. **Falla real para no-admins, confirmada leyendo el código y no reproducida** (corregido el 12/10/2026, ver `referencia-tecnica-app.md` §20): `MobCitaNueva` pide `GET /api/operators` (`ver operadores`) y `GET /api/services` sin revisar `r.ok`.
+    - El `fetch` global manda `Accept: application/json`, así que un 403 llega como objeto y `operators.find(...)` en el resumen truena al elegir la hora.
+    - `ver operadores` **no se puede asignar desde la interfaz de Usuarios**: afecta a **todo** usuario no-admin con `crear agenda`.
+    - Hoy no se dispara solo porque el personal real es admin.
+    - `MobCitaDet` ya está protegido.

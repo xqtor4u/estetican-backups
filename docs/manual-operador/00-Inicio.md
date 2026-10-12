@@ -24,16 +24,46 @@ El ciclo de atención de una mascota, en orden:
 11. [[11 Mover, cancelar o reagendar]] — cambiar, cancelar o marcar que no llegó.
 12. [[12 Horarios no disponibles]] — vacaciones, permisos, horarios y festivos.
 
-## app — backoffice (`app.estetican.org`)
+## Backoffice — `app.estetican.org` (administradores y encargados)
 
-- _Todavía sin notas._
+### 1. Puesta en marcha (en orden)
+- [[00 Checklist de arranque]] — la lista de todo lo que configuras antes del primer día.
+- [[01 Datos del negocio]] — nombre, logo, horario general y días que abres.
+- [[02 Sucursales]]
+- [[03 Días inhábiles]] — festivos y cierres.
+- [[04 Recursos y jaulas]]
+- [[05 Módulos activables]] — Hotel, Veterinaria y Tienda.
+- [[06 Servicios y precios]] — y quién puede hacer cada servicio.
+- [[07 Tipos de operador]] — los puestos y sus servicios.
+- [[08 Usuarios, roles y permisos]] — quién entra y qué puede hacer.
+- [[09 Operadores]] — puesto, sucursal base, horario y servicios.
+- [[10 Métodos de pago y cajas]]
+- [[11 Artículos y stock]]
+- [[12 WhatsApp]] — plantillas, bandeja, y qué falta para los recordatorios automáticos.
+
+### 2. Supervisión diaria y semanal
+- [[01 Tablero]]
+- [[02 Agenda]] — ver, mover y cancelar citas.
+- [[03 Series recurrentes]] — pausar, cancelar y extender.
+- [[04 Clientes y mascotas]] — buscar, corregir y arreglar duplicados.
+- [[05 Hotel]] — reservar estancias.
+- [[06 Caja]] — abrir, revisar y cortar caja.
+- [[07 Reportes]]
+
+### 3. Cambios frecuentes
+- [[01 Ausencia o permiso de un operador]]
+- [[02 Cambiar el horario de un operador]]
+- [[03 Dar de baja a un operador]]
+- [[04 Cambiar un precio]]
+- [[05 Abrir una sucursal nueva]]
 
 ## Recursos
 
-- [[referencia-tecnica-mob]] — para soporte y desarrollo: de dónde sale cada paso en el código, los permisos reales y lo que no existe o funciona distinto.
+- [[referencia-tecnica-mob]] — app de celular: para soporte y desarrollo, de dónde sale cada paso en el código, los permisos reales y lo que no existe o funciona distinto.
+- [[referencia-tecnica-app]] — lo mismo para el backoffice.
 
 ## Convenciones
 
 - `mob/` — notas de la app de celular.
-- `app/` — notas del backoffice web.
+- `app/` — notas del backoffice web: `1-Puesta en marcha/`, `2-Operacion/` y `3-Cambios/`.
 - `_recursos/` — referencia técnica, imágenes y adjuntos.

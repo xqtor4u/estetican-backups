@@ -1,5 +1,53 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/10/2026 (cont. 3) — Manual del backoffice para administradores
+
+### 📝 Resumen
+
+- Sin cambios de código. Manual del backoffice en lenguaje de negocio, verificado contra el
+  código (menú real + rutas web): 25 notas en `docs/manual-operador/app/`
+  (`1-Puesta en marcha/` 00–12, `2-Operacion/` 01–07, `3-Cambios/` 01–05), enlazadas desde
+  `00-Inicio.md` (sección «Backoffice») y con efecto en el mob enlazado a `mob/`.
+- Referencia técnica nueva: `docs/manual-operador/_recursos/referencia-tecnica-app.md` (menú →
+  rutas → gates, por nota, y «Diferencias y huecos»). Corregido el hallazgo 13 de
+  `referencia-tecnica-mob.md`.
+- Consultas de solo lectura a producción (tinker): permisos/roles existentes, permisos de
+  usuarios, FK de `operators`/`clients`/`services`/`branches`/`pets`, ajustes de módulos y
+  WhatsApp, métodos de pago.
+- **Hallazgos principales** (detalle en la referencia):
+  - No hay constructor de roles: permisos por usuario (matriz CRUD de 7 ventanas + Caja +
+    ver_todas + disponibilidad propia). Sin casilla: `cobros.registrar`, series, forzar horario,
+    operadores, whatsapp, hotel, clínico, artículos, dashboard → en la práctica solo admin.
+  - Días inhábiles solo los respetan las series (web y móvil agendan en festivo).
+  - Corte de caja: el esperado suma efectivo de TODAS las sucursales desde el corte anterior de esa
+    caja (`CashSessionExpectedAmountService::paymentsForPeriod`).
+  - Hotel a medias (sin entrada/salida, sin cobro, nunca `completed`, sin menú).
+  - WhatsApp automático programado pero apagado y sin datos de Meta (BL-024b).
+  - «Requerir apertura de caja para cobrar» y `operator_roles.can_login` sin efecto.
+  - Operador eliminado = borrado físico (citas quedan sin operador); usuario con historial se desactiva.
+- **⚠️ Posibles emergencias — NO tocadas, decide Tomas:**
+  1. **Seguridad:** el login web (`LoginController::login`) no revisa `is_active` ni `can_login` →
+     un usuario dado de baja sigue entrando al backoffice. Mitigación documentada: cambiar contraseña.
+  2. **Datos:** «Eliminar» cliente (confirmación simple) borra en cascada mascotas, citas, hotel,
+     clínico, pagos y ledgers de caja/banco.
+  3. **Móvil:** `MobCitaNueva` truena para cualquier no-admin con `crear agenda` (403 de
+     `/api/operators` sin `r.ok`; `ver operadores` no es asignable). Confirmado por lectura, no
+     reproducido. Hoy latente porque el personal real es admin.
+
+**Rutas (regla de seguridad #3):** ninguna nueva ni modificada.
+
+### 📁 Archivos tocados
+- `docs/manual-operador/app/**` (25 notas nuevas), `docs/manual-operador/_recursos/referencia-tecnica-app.md`
+  (nuevo), `docs/manual-operador/_recursos/referencia-tecnica-mob.md`, `docs/manual-operador/00-Inicio.md`,
+  `BITACORA.md`.
+
+### 🛑 Pendientes activos
+- Decidir si 1–3 de arriba son emergencia (aquí) o van a `tst`; si se arreglan, actualizar las
+  notas del manual que hoy documentan la mitigación.
+- Resto de hallazgos → candidatos a backlog de Zeus/`tst`.
+
+---
+
 ## 📅 Sesión: 12/10/2026 (cont. 2) — Manual del operador mob en lenguaje de piso
 
 ### 📝 Resumen
