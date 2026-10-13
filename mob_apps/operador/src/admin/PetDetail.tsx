@@ -63,10 +63,43 @@ function TextInput({ value, onChange, placeholder }: { value: string; onChange: 
       className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary" />
   );
 }
+/* Día / mes / año en listas: el selector nativo de fecha abre en el mes actual
+   y en la tableta casi nadie encuentra cómo cambiar el año. Entrega 'YYYY-MM-DD'
+   solo cuando las tres partes están elegidas; si falta alguna, entrega ''. */
+const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 function DateInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [y0, m0, d0] = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.split('-') : ['', '', ''];
+  const [parts, setParts] = useState({ y: y0, m: m0, d: d0 });
+  useEffect(() => {
+    if (value && value !== `${parts.y}-${parts.m}-${parts.d}`) setParts({ y: y0, m: m0, d: d0 });
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const thisYear = new Date().getFullYear();
+  const years = Array.from({ length: 31 }, (_, i) => String(thisYear - i));
+  const daysInMonth = parts.y && parts.m ? new Date(Number(parts.y), Number(parts.m), 0).getDate() : 31;
+
+  const update = (k: 'y' | 'm' | 'd') => (v: string) => {
+    const next = { ...parts, [k]: v };
+    if (next.d && next.y && next.m && Number(next.d) > new Date(Number(next.y), Number(next.m), 0).getDate()) next.d = '';
+    setParts(next);
+    onChange(next.y && next.m && next.d ? `${next.y}-${next.m}-${next.d}` : '');
+  };
+  const cls = 'min-w-0 bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary';
   return (
-    <input type="date" value={value} onChange={e => onChange(e.target.value)}
-      className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary" />
+    <div className="flex gap-1">
+      <select value={parts.d} onChange={e => update('d')(e.target.value)} className={`${cls} flex-1`} aria-label="Día">
+        <option value="">Día</option>
+        {Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d}>{Number(d)}</option>)}
+      </select>
+      <select value={parts.m} onChange={e => update('m')(e.target.value)} className={`${cls} flex-1`} aria-label="Mes">
+        <option value="">Mes</option>
+        {MESES.map((l, i) => <option key={l} value={String(i + 1).padStart(2, '0')}>{l}</option>)}
+      </select>
+      <select value={parts.y} onChange={e => update('y')(e.target.value)} className={`${cls} flex-1`} aria-label="Año">
+        <option value="">Año</option>
+        {years.map(y => <option key={y} value={y}>{y}</option>)}
+      </select>
+    </div>
   );
 }
 function SelectInput({ value, onChange, opts }: { value: string; onChange: (v: string) => void; opts: { v: string; l: string }[] }) {
@@ -285,10 +318,11 @@ function NewPetForm({ client, navigate }: { client: { id: number; name: string }
               <TextInput value={form.coat_color} onChange={set('coat_color')} />
             </Field>
           </div>
-          <Field label="Fecha de nacimiento">
-            <DateInput value={form.birth_date} onChange={set('birth_date')} />
-          </Field>
-          <div /> {/* espacio */}
+          <div className="col-span-2">
+            <Field label="Fecha de nacimiento">
+              <DateInput value={form.birth_date} onChange={set('birth_date')} />
+            </Field>
+          </div>
           <Field label="Microchip">
             <TextInput value={form.microchip} onChange={set('microchip')} />
           </Field>
@@ -330,7 +364,8 @@ function petToEdits(pet: Pet): EditState {
     sex: pet.sex ?? '', size: pet.size ?? '',
     weight_kg: pet.weight_kg != null ? String(pet.weight_kg) : '',
     coat_color: pet.coat_color ?? '',
-    birth_date: '', death_date: '', microchip: pet.microchip ?? '',
+    birth_date: pet.birth_date ? pet.birth_date.split('/').reverse().join('-') : '', // la API la manda d/m/Y
+    death_date: '', microchip: pet.microchip ?? '',
     tattoo: pet.tattoo ?? '', is_sterilized: pet.is_sterilized,
     flagged_for_deletion: pet.flagged_for_deletion, notes: pet.notes ?? '',
   };
@@ -726,8 +761,8 @@ export function PetDetail() {
                   className="bg-surface-container border border-outline-variant rounded-xl px-3 py-2.5 text-sm text-on-surface outline-none focus:border-primary" />
               </Field>
               <div className="col-span-2"><Field label="Color de pelaje"><TextInput value={edits.coat_color} onChange={set('coat_color')} /></Field></div>
-              <Field label="Fecha de nacimiento"><DateInput value={edits.birth_date} onChange={set('birth_date')} /></Field>
-              <Field label="Fecha de defunción"><DateInput value={edits.death_date} onChange={set('death_date')} /></Field>
+              <div className="col-span-2"><Field label="Fecha de nacimiento"><DateInput value={edits.birth_date} onChange={set('birth_date')} /></Field></div>
+              <div className="col-span-2"><Field label="Fecha de defunción"><DateInput value={edits.death_date} onChange={set('death_date')} /></Field></div>
               <Field label="Microchip"><TextInput value={edits.microchip} onChange={set('microchip')} /></Field>
               <Field label="Tatuaje"><TextInput value={edits.tattoo} onChange={set('tattoo')} /></Field>
             </div>

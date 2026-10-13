@@ -1,5 +1,24 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 12/10/2026 (cont. 4) — Fecha de nacimiento de mascota en el móvil (porteo desde `tst`)
+
+### 📝 Resumen
+
+- Reporte de Tomas: en MobPetNew no se podía poner una fecha de nacimiento anterior al año en curso.
+  Causa: el `<input type="date">` nativo abre en el mes actual y en celular/tableta no se encuentra
+  cómo cambiar de año. Servidor y BD sin límite.
+- `PetDetail.tsx`: `DateInput` pasa a tres listas Día/Mes/Año a todo el ancho (año actual hacia
+  30 atrás, calculado con la fecha del equipo); entrega `YYYY-MM-DD` solo con las tres partes.
+  Aplica a nacimiento y defunción en alta y edición; la edición ya precarga la fecha guardada.
+- Hecho y aprobado en `tst` (`f172536` + `9c78053`, Zeus). Portado tal cual (el archivo de
+  producción era idéntico al de `tst` antes del cambio).
+- Prueba Playwright (Pixel 7, API simulada) sobre el bundle de producción: se ve «15 / Mar / 2021»
+  y el POST manda `birth_date=2021-03-15`.
+- Bundle `index-CCOaH7SG.js` / `index-CIY-4-uj.css` publicado en `mov` (assets primero,
+  `index.html` al final); inode de `dist` sin cambio, md5 host = contenedor, assets 200 en origen.
+  Respaldo: `backups/mob_dist_pre_fecha_nac_20261012.tgz` (bundle anterior `index-By-sKmnC.js`).
+- Sin rutas nuevas. No es emergencia: nace en `tst`, nada que agregar a PENDIENTES_SINCRONIZAR.
+
 ## 📅 Sesión: 12/10/2026 (cont. 3) — Manual del backoffice para administradores
 
 ### 📝 Resumen
