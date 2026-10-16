@@ -1,5 +1,28 @@
 # 📓 Bitácora de Desarrollo - EstetiCAN 2
 
+## 📅 Sesión: 15/10/2026 — Reorganización del vault y verificaciones de la OPi
+
+### 📝 Resumen
+
+- Sin cambios de código. Commit de Tomas `ccc3d7c`: carpetas del manual renombradas
+  (`app (Estetican Back office)/`, `mob/`), capturas, plugins de Obsidian (`editing-toolbar`),
+  `Plantillas/`. Las notas diarias de Obsidian (`Diario/`) entraron por error: Tomas las borró,
+  el commit se rehízo sin ellas antes del push y `Diario/` queda en `.gitignore`.
+- Verificación de solo lectura de la OPi contra una lista de requisitos (Docker + cloudflared):
+  Docker 26.1.5 arm64, Compose v5.1.4, 8 núcleos, 15 GiB RAM (~10 disponibles), disco 175 GB
+  libres de 228 (23%), `cloudflared` activo, salida a internet OK. `/var/log` (zram 47 MB) al 54%.
+  La lista mencionaba Postgres; el proyecto usa MySQL 8.4.
+
+**Rutas (regla de seguridad #3):** ninguna nueva ni modificada.
+
+### 📁 Archivos tocados
+- `BITACORA.md`, `.gitignore`.
+
+### 🛑 Pendientes activos
+- Siguen sin decidir las 3 posibles emergencias del 12/10 (cont. 3) y la limpieza de huérfanos en `tst`.
+
+---
+
 ## 📅 Sesión: 12/10/2026 (cont. 4) — Fecha de nacimiento de mascota en el móvil (porteo desde `tst`)
 
 ### 📝 Resumen
